@@ -1,0 +1,21 @@
+<div class="archive-page">
+  <header class="archive-header">
+    <div>
+      <h1>Fahrplanarchiv</h1>
+      <p>Alle erzeugten Fahrpläne und Referenzkalender aus Aufträgen und Imports.</p>
+    </div>
+  </header>
+
+  <mat-tab-group
+    class="archive-tabs"
+    [selectedIndex]="selectedIndex()"
+    (selectedIndexChange)="onTabChange($event)"
+  >
+    <mat-tab label="Fahrpläne">
+      <app-train-plan-list />
+    </mat-tab>
+    <mat-tab label="Referenzkalender">
+      <app-traffic-period-list [highlightId]="periodHighlight()" />
+    </mat-tab>
+  </mat-tab-group>
+</div>

@@ -1,0 +1,31 @@
+<div class="gantt-header" role="row">
+  <div class="gantt-header__groups" [style.width.px]="contentWidth">
+    @for (group of groupedTicks(); track $index) {
+      <div
+        class="gantt-header__group"
+        [style.left.px]="group.leftPx"
+        [style.width.px]="group.widthPx"
+      >
+        <span class="gantt-header__group-label">{{ group.label }}</span>
+      </div>
+    }
+  </div>
+
+  <div class="gantt-header__canvas" [style.width.px]="contentWidth">
+    @for (tick of ticks; track tick.time.getTime()) {
+      <div
+        class="gantt-header__tick"
+        role="columnheader"
+        [class.gantt-header__tick--major]="tick.isMajor"
+        [class.gantt-header__tick--weekend]="tick.isWeekend"
+        [class.gantt-header__tick--now]="tick.isNow"
+        [style.left.px]="tick.offsetPx"
+        [style.width.px]="tick.widthPx"
+      >
+        <span class="gantt-header__label">
+          {{ tick.minorLabel ?? tick.label }}
+        </span>
+      </div>
+    }
+  </div>
+</div>

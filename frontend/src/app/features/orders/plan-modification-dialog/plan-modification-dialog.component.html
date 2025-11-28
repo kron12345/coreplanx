@@ -1,0 +1,415 @@
+<h2 mat-dialog-title>Fahrplan bearbeiten</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="form">
+    <section class="section">
+      <h3>Allgemein</h3>
+      <div class="grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Titel</mat-label>
+          <input matInput formControlName="title" />
+          @if (form.controls.title.touched && form.controls.title.invalid) {
+            <mat-error>Titel ist erforderlich.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Zugnummer</mat-label>
+          <input matInput formControlName="trainNumber" />
+          @if (form.controls.trainNumber.touched && form.controls.trainNumber.invalid) {
+            <mat-error>Zugnummer ist erforderlich.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Verantwortliche EVU</mat-label>
+          <input matInput formControlName="responsibleRu" />
+          @if (form.controls.responsibleRu.touched && form.controls.responsibleRu.invalid) {
+            <mat-error>Bitte eine RU angeben.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline">
+        <mat-label>Notiz</mat-label>
+        <textarea matInput formControlName="notes" rows="2"></textarea>
+      </mat-form-field>
+    </section>
+
+    <section class="section">
+      <h3>Verkehrstage & Varianten</h3>
+      @if (calendarLocked) {
+        <div class="calendar-summary-card">
+          <mat-icon>calendar_month</mat-icon>
+          <div>
+            <p class="calendar-summary-card__title">{{ calendarPeriodLabel() }}</p>
+            <p class="calendar-summary-card__range">{{ calendarRangeLabel() }}</p>
+            <small>Hauptkalender bleibt unverändert – Unterkalender bildet deine Anpassungen ab.</small>
+          </div>
+        </div>
+        <div class="calendar-lock-hint">
+          <mat-icon inline>lock</mat-icon>
+          Wähle die Verkehrstage für den Unterkalender. Überlappende Tage werden im Hauptkalender automatisch ausgeschlossen.
+        </div>
+        <div class="custom-validity">
+          <mat-form-field appearance="outline" class="custom-validity__year">
+            <mat-label>Jahr</mat-label>
+            <input matInput type="number" formControlName="customYear" />
+          </mat-form-field>
+          <app-annual-calendar-selector
+            [title]="'Unterkalender'"
+            [year]="customYearValue()"
+            [selectedDates]="customSelectedDates()"
+            (selectedDatesChange)="onCustomDatesChange($event)"
+          ></app-annual-calendar-selector>
+        </div>
+      } @else {
+        <mat-button-toggle-group
+          formControlName="validityMode"
+          class="mode-toggle"
+          [value]="validityMode()"
+        >
+          <mat-button-toggle value="trafficPeriod">Referenzkalender</mat-button-toggle>
+          <mat-button-toggle value="custom">Individuell</mat-button-toggle>
+        </mat-button-toggle-group>
+
+        @if (validityMode() === 'trafficPeriod') {
+          <mat-form-field appearance="outline">
+            <mat-label>Referenzkalender</mat-label>
+            <mat-select formControlName="trafficPeriodId">
+              <mat-option value="">Bitte wählen</mat-option>
+              @for (period of periods(); track trackByPeriodId($index, period)) {
+                <mat-option [value]="period.id">{{ period.name }}</mat-option>
+              }
+            </mat-select>
+            @if (form.controls.trafficPeriodId.touched && form.controls.trafficPeriodId.invalid) {
+              <mat-error>Referenzkalender erforderlich.</mat-error>
+            }
+          </mat-form-field>
+        } @else {
+          <div class="custom-validity">
+            <mat-form-field appearance="outline" class="custom-validity__year">
+              <mat-label>Jahr</mat-label>
+              <input matInput type="number" formControlName="customYear" />
+            </mat-form-field>
+            <app-annual-calendar-selector
+              [title]="'Kalender'"
+              [year]="customYearValue()"
+              [selectedDates]="customSelectedDates()"
+              (selectedDatesChange)="onCustomDatesChange($event)"
+            ></app-annual-calendar-selector>
+          </div>
+        }
+      }
+    </section>
+
+    <section class="section">
+      <h3>Halte & Aktivitäten</h3>
+      @if (templates().length) {
+        <div class="template-actions">
+          <mat-form-field appearance="outline">
+            <mat-label>Fahrplanvorlage</mat-label>
+            <mat-select formControlName="templateId">
+              <mat-option value="">Bitte wählen</mat-option>
+              @for (template of templates(); track template.id) {
+                <mat-option [value]="template.id">
+                  {{ template.title }} · {{ template.trainNumber }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Startzeit</mat-label>
+            <input matInput type="time" formControlName="templateStartTime" />
+            <mat-hint>HH:MM</mat-hint>
+          </mat-form-field>
+
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="applyTemplate()"
+            [disabled]="!form.controls.templateId.value"
+          >
+            Vorlage anwenden
+          </button>
+        </div>
+      }
+      <div class="stop-summary">
+        <div class="stop-summary__info">
+          <span>Anzahl Halte: {{ stopCount() }}</span>
+          <span>Start: {{ startStopLabel() }}</span>
+          <span>Ziel: {{ endStopLabel() }}</span>
+          @if (hasCustomStops()) {
+            <mat-chip color="primary" selected>Neue Halte definiert</mat-chip>
+          }
+        </div>
+        <div class="stop-summary__actions">
+          <button mat-flat-button color="primary" type="button" (click)="openAssemblyDialog()">
+            <mat-icon>build</mat-icon>
+            Fahrplan zusammenstellen
+          </button>
+        </div>
+      </div>
+      <div class="stop-preview-list" *ngIf="stopPreviewEntries().length; else noStopsDefined">
+        @for (stop of stopPreviewEntries(); track stop.sequence) {
+          <div class="stop-preview-row">
+            <span class="stop-preview-row__index">#{{ stop.sequence }}</span>
+            <div class="stop-preview-row__body">
+              <strong>{{ stop.locationName }}</strong>
+              <span class="stop-preview-row__times">{{ stopPreviewTimeLabel(stop) }}</span>
+            </div>
+            <mat-chip appearance="outlined">{{ stop.type | titlecase }}</mat-chip>
+          </div>
+        }
+      </div>
+      <ng-template #noStopsDefined>
+        <p class="hint">Noch keine Halte definiert.</p>
+      </ng-template>
+    </section>
+
+    <section class="section">
+      <div class="composition-header">
+        <div>
+          <h3>Fahrzeuge & Komposition</h3>
+          <p class="composition-hint">
+            Nutze denselben Aufbau wie in den Vorlagen: Basisfahrzeuge plus Kopplungen/Entkopplungen
+            an Halten. Änderungen werden nach dem Speichern im Fahrplanmanager sichtbar.
+          </p>
+        </div>
+        <mat-form-field appearance="outline" class="composition-preset">
+          <mat-label>Komposition übernehmen</mat-label>
+          <mat-select (selectionChange)="applyCompositionPreset($event.value)">
+            <mat-option value="">Keine</mat-option>
+            @for (preset of compositionPresets; track preset.id) {
+              <mat-option [value]="preset.id">{{ preset.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-stroked-button type="button" (click)="addBaseVehicle()">
+          <mat-icon>add</mat-icon>
+          Fahrzeug hinzufügen
+        </button>
+      </div>
+
+      <div class="composition-base">
+        @if (baseVehicleForms.length) {
+          <div class="composition-grid">
+            @for (group of baseVehicleForms; track group; let i = $index) {
+              <div class="composition-row" [formGroup]="group">
+                <mat-form-field appearance="outline">
+                  <mat-label>Fahrzeugtyp</mat-label>
+                  <input matInput formControlName="vehicleType" placeholder="z. B. BR 411" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Anzahl</mat-label>
+                  <input matInput type="number" min="1" formControlName="count" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Hinweis</mat-label>
+                  <input matInput formControlName="note" placeholder="optional" />
+                </mat-form-field>
+                <button
+                  mat-icon-button
+                  type="button"
+                  aria-label="Fahrzeug entfernen"
+                  (click)="removeBaseVehicle(i)"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="hint">Noch keine Fahrzeuge hinterlegt.</p>
+        }
+      </div>
+
+      <div class="composition-changes">
+        <div class="composition-changes__header">
+          <h4>Änderungen an Halten</h4>
+          <button mat-stroked-button type="button" (click)="addChangeEntry()">
+            <mat-icon>published_with_changes</mat-icon>
+            Änderung hinzufügen
+          </button>
+        </div>
+
+        @if (!changeEntryForms.length) {
+          <p class="hint">Keine Kopplungen/Entkopplungen hinterlegt.</p>
+        } @else {
+          <div class="composition-grid">
+            @for (group of changeEntryForms; track group; let i = $index) {
+              <div class="composition-change-row" [formGroup]="group">
+                <mat-form-field appearance="outline">
+                  <mat-label>Halt</mat-label>
+                  <mat-select formControlName="stopIndex">
+                    @for (option of stopOptions; track option.value) {
+                      <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Aktion</mat-label>
+                  <mat-select formControlName="action">
+                    <mat-option value="attach">Ankuppeln</mat-option>
+                    <mat-option value="detach">Abkuppeln</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Fahrzeugtyp</mat-label>
+                  <input matInput formControlName="vehicleType" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Anzahl</mat-label>
+                  <input matInput type="number" min="1" formControlName="count" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Hinweis</mat-label>
+                  <input matInput formControlName="note" placeholder="optional" />
+                </mat-form-field>
+                <button
+                  mat-icon-button
+                  type="button"
+                  aria-label="Änderung entfernen"
+                  (click)="removeChangeEntry(i)"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>Technische Parameter</h3>
+      <div class="grid grid--compact">
+        <mat-form-field appearance="outline">
+          <mat-label>Höchstgeschwindigkeit (km/h)</mat-label>
+          <input matInput type="number" min="0" formControlName="technicalMaxSpeed" />
+          <mat-hint>Optional – 0 bis 400 km/h</mat-hint>
+          @if (
+            form.controls.technicalMaxSpeed.touched &&
+            form.controls.technicalMaxSpeed.hasError('min')
+          ) {
+            <mat-error>Wert muss positiv sein.</mat-error>
+          } @else if (
+            form.controls.technicalMaxSpeed.touched &&
+            form.controls.technicalMaxSpeed.hasError('max')
+          ) {
+            <mat-error>Maximal 400 km/h.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Länge (m)</mat-label>
+          <input matInput type="number" min="0" formControlName="technicalLength" />
+          <mat-hint>Optional – max. 500 m</mat-hint>
+          @if (
+            form.controls.technicalLength.touched &&
+            form.controls.technicalLength.hasError('min')
+          ) {
+            <mat-error>Wert muss positiv sein.</mat-error>
+          } @else if (
+            form.controls.technicalLength.touched &&
+            form.controls.technicalLength.hasError('max')
+          ) {
+            <mat-error>Maximal 500 Meter.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Gewicht (t)</mat-label>
+          <input matInput type="number" min="0" formControlName="technicalWeight" />
+          <mat-hint>Optional – max. 4.000 t</mat-hint>
+          @if (
+            form.controls.technicalWeight.touched &&
+            form.controls.technicalWeight.hasError('min')
+          ) {
+            <mat-error>Wert muss positiv sein.</mat-error>
+          } @else if (
+            form.controls.technicalWeight.touched &&
+            form.controls.technicalWeight.hasError('max')
+          ) {
+            <mat-error>Maximal 4.000 Tonnen.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Traktion / Antrieb</mat-label>
+          <input
+            matInput
+            formControlName="technicalTraction"
+            placeholder="z. B. Elektrisch"
+            maxlength="60"
+          />
+          <mat-hint align="end">{{ form.controls.technicalTraction.value.length }}/60</mat-hint>
+          @if (
+            form.controls.technicalTraction.touched &&
+            form.controls.technicalTraction.hasError('maxlength')
+          ) {
+            <mat-error>Maximal 60 Zeichen.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>ETCS-Level</mat-label>
+          <input
+            matInput
+            formControlName="technicalEtcsLevel"
+            placeholder="z. B. Level 2"
+            maxlength="40"
+          />
+          <mat-hint align="end">{{ form.controls.technicalEtcsLevel.value.length }}/40</mat-hint>
+          @if (
+            form.controls.technicalEtcsLevel.touched &&
+            form.controls.technicalEtcsLevel.hasError('maxlength')
+          ) {
+            <mat-error>Maximal 40 Zeichen.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>Grenzpunkte & Strecke</h3>
+      <div class="grid grid--route">
+        <mat-form-field appearance="outline">
+          <mat-label>Start-Grenzpunkt</mat-label>
+          <input matInput formControlName="originBorderPoint" maxlength="80" />
+          <mat-hint align="end">{{ form.controls.originBorderPoint.value.length }}/80</mat-hint>
+          @if (
+            form.controls.originBorderPoint.touched &&
+            form.controls.originBorderPoint.hasError('maxlength')
+          ) {
+            <mat-error>Maximal 80 Zeichen.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Ziel-Grenzpunkt</mat-label>
+          <input matInput formControlName="destinationBorderPoint" maxlength="80" />
+          <mat-hint align="end">{{ form.controls.destinationBorderPoint.value.length }}/80</mat-hint>
+          @if (
+            form.controls.destinationBorderPoint.touched &&
+            form.controls.destinationBorderPoint.hasError('maxlength')
+          ) {
+            <mat-error>Maximal 80 Zeichen.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="grid--route__notes">
+          <mat-label>Grenz-Hinweis</mat-label>
+          <textarea matInput rows="2" formControlName="borderNotes" maxlength="200"></textarea>
+          <mat-hint align="end">{{ form.controls.borderNotes.value.length }}/200</mat-hint>
+          @if (
+            form.controls.borderNotes.touched && form.controls.borderNotes.hasError('maxlength')
+          ) {
+            <mat-error>Maximal 200 Zeichen.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    </section>
+  </form>
+
+  @if (errorMessage()) {
+    <div class="error">{{ errorMessage() }}</div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="submit()">Speichern</button>
+</mat-dialog-actions>

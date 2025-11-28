@@ -1,0 +1,497 @@
+<div class="customers-page manager-shell">
+  <section class="customers-hero">
+    <div class="customers-hero__body">
+      <div class="customers-hero__lead">
+        <p class="customers-hero__eyebrow">CRM · {{ heroMetrics().totalCustomers }} aktiv</p>
+        <h1>Kunden</h1>
+        <p class="customers-hero__subtitle">
+          {{ heroMetrics().totalCustomers }} Kunden mit {{ heroMetrics().totalContacts }} Kontaktpersonen.
+          {{ heroMetrics().linkedOrders }} Aufträge sind aktuell zugeordnet.
+        </p>
+      </div>
+      <div class="customers-hero__actions">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="clearSearch()"
+          [disabled]="!searchControl.value.trim().length"
+        >
+          <mat-icon>refresh</mat-icon>
+          Suche löschen
+        </button>
+        <span class="shortcut-hint">Kontakte aktualisieren Änderungen sofort.</span>
+      </div>
+    </div>
+
+    @if (hasCustomers()) {
+      <div class="customers-hero__metrics">
+        @for (metric of heroMetricList(); track metric.key) {
+          <div class="hero-metric">
+            <span class="hero-metric__label">{{ metric.label }}</span>
+            <strong>{{ metric.value }}</strong>
+            <span class="hero-metric__hint">{{ metric.hint }}</span>
+            <button type="button" class="hero-metric__cta" (click)="metric.action()">
+              <mat-icon>{{ metric.icon }}</mat-icon>
+              Aktion
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="customers-insights" aria-label="Kunden-Insights">
+    <div class="insights-header">
+      <div>
+        <p>Team-Insights</p>
+        <span>Kontaktrollen, Projekte und Accounts mit vielen Aufträgen.</span>
+      </div>
+      <button mat-stroked-button type="button" (click)="toggleInsightsCollapsed()">
+        <mat-icon>{{ insightsCollapsed() ? 'unfold_more' : 'unfold_less' }}</mat-icon>
+        {{ insightsCollapsed() ? 'Einblenden' : 'Ausblenden' }}
+      </button>
+    </div>
+
+    @if (!insightsCollapsed()) {
+      <div class="customers-insights__grid">
+        @let context = insightContext();
+        <article class="insight-card insight-card--context">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>{{ context.icon }}</mat-icon>
+              <div>
+                <strong>{{ context.title }}</strong>
+                <span>{{ context.message }}</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            <p class="insight-card__hint">{{ context.hint }}</p>
+          </div>
+        </article>
+
+        <article class="insight-card">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>badge</mat-icon>
+              <div>
+                <strong>Kontaktrollen</strong>
+                <span>Meist gepflegte Rollen der Ansprechpartner.</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!topContactRoles().length) {
+              <p class="insight-card__empty">Noch keine Rollen hinterlegt.</p>
+            } @else {
+              <div class="insight-pills">
+                @for (role of topContactRoles(); track role[0]) {
+                  <span class="insight-pill">
+                    <mat-icon>person</mat-icon>
+                    <span>{{ role[0] }}</span>
+                    <small>{{ role[1] }}</small>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>workspaces</mat-icon>
+              <div>
+                <strong>Top Projekte</strong>
+                <span>Projektnummern, die mehrfach auftreten.</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!topProjects().length) {
+              <p class="insight-card__empty">Noch keine Projektnummern vergeben.</p>
+            } @else {
+              <div class="insight-pills">
+                @for (project of topProjects(); track project[0]) {
+                  <span class="insight-pill insight-pill--project">
+                    <mat-icon>folder</mat-icon>
+                    <span>{{ project[0] }}</span>
+                    <small>{{ project[1] }}</small>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>assignment</mat-icon>
+              <div>
+                <strong>Accounts mit Aufträgen</strong>
+                <span>Kunden mit den meisten zugeordneten Aufträgen.</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body account-list">
+            @if (!topAccountsByOrders().length) {
+              <p class="insight-card__empty">Noch keine Aufträge verknüpft.</p>
+            } @else {
+              @for (entry of topAccountsByOrders(); track entry.customer.id) {
+                <div class="account-row">
+                  <div>
+                    <strong>{{ entry.customer.name }}</strong>
+                    <span>#{{ entry.customer.customerNumber }}</span>
+                  </div>
+                  <span class="account-row__count">{{ entry.count }} Aufträge</span>
+                </div>
+              }
+            }
+          </div>
+        </article>
+      </div>
+    }
+  </section>
+
+  <section class="customers-controller manager-filter">
+    <div class="filter-shelf">
+      <div class="filter-shelf__row filter-shelf__row--primary">
+        <mat-form-field appearance="outline" class="filter-shelf__search">
+          <mat-label>Suchen</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input
+            matInput
+            [formControl]="searchControl"
+            placeholder="Kunden, Kundennummern, Projekte oder Kontakte"
+          />
+          @if (searchControl.value.trim()) {
+            <button mat-icon-button matSuffix type="button" (click)="clearSearch()" aria-label="Suche löschen">
+              <mat-icon>close</mat-icon>
+            </button>
+          } @else {
+            <button
+              mat-icon-button
+              matSuffix
+              [matMenuTriggerFor]="searchHelp"
+              type="button"
+              aria-label="Suchhilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+        <mat-menu #searchHelp="matMenu">
+          <button mat-menu-item disabled>
+            <mat-icon>search</mat-icon>
+            <span>Durchsucht Name, Nr., Projekt, Adresse & Kontakte.</span>
+          </button>
+        </mat-menu>
+      </div>
+
+      <div class="filter-shelf__row filter-shelf__row--secondary">
+        <div class="filter-shelf__active">
+          <div class="filter-shelf__active-header">
+            <div class="filter-shelf__active-title">
+              <span>Aktive Filter</span>
+              <span class="filter-count">
+                <mat-icon>list_alt</mat-icon>
+                {{ filteredCustomers().length }} Ergebnisse
+              </span>
+            </div>
+            <button type="button" class="filter-save" (click)="saveCurrentFilterPreset()">
+              <mat-icon>bookmark_add</mat-icon>
+              Speichern
+            </button>
+          </div>
+
+          <div class="filter-pills">
+            @if (searchControl.value.trim()) {
+              <button type="button" class="filter-pill" (click)="clearSearch()">
+                <mat-icon>search</mat-icon>
+                <span>Suche</span>
+                <strong>"{{ searchControl.value.trim() }}"</strong>
+                <mat-icon>close</mat-icon>
+              </button>
+            } @else {
+              <span class="filter-pill filter-pill--empty">
+                <mat-icon>radio_button_unchecked</mat-icon>
+                Keine Filter aktiv
+              </span>
+            }
+          </div>
+
+          @if (savedFilterPresets().length) {
+            <div class="saved-presets">
+              <span>Gespeicherte Ansichten</span>
+              <div class="saved-presets__list">
+                @for (preset of savedFilterPresets(); track preset.id) {
+                  <div
+                    class="preset-chip"
+                    [class.preset-chip--active]="activePreset() === preset.id"
+                  >
+                    <button type="button" class="preset-pill" (click)="applyFilterPreset(preset)">
+                      <mat-icon>layers</mat-icon>
+                      <span>{{ preset.name }}</span>
+                      @if (activePreset() === preset.id) {
+                        <span class="preset-active">
+                          <mat-icon>star</mat-icon>
+                          Aktiv
+                        </span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-action"
+                      matTooltip="Duplizieren"
+                      (click)="duplicateFilterPreset(preset)"
+                      aria-label="Filteransicht duplizieren"
+                    >
+                      <mat-icon>content_copy</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-action"
+                      matTooltip="Umbenennen"
+                      (click)="renameFilterPreset(preset)"
+                      aria-label="Filteransicht umbenennen"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-remove"
+                      (click)="removeFilterPreset(preset.id)"
+                      aria-label="Filteransicht entfernen"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="customers-body manager-body">
+    <section class="customer-create">
+      <mat-card appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Neuen Kunden anlegen</mat-card-title>
+          <mat-card-subtitle>Pflichtfelder sind Name und Kundennummer.</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="form" (ngSubmit)="submit()" class="customer-form">
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Name</mat-label>
+                <input matInput formControlName="name" />
+                @if (form.controls.name.invalid && form.controls.name.touched) {
+                  <mat-error>Bitte einen Kundennamen angeben.</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Kundennummer</mat-label>
+                <input matInput formControlName="customerNumber" />
+                @if (
+                  form.controls.customerNumber.invalid &&
+                  form.controls.customerNumber.touched
+                ) {
+                  <mat-error>Bitte eine Kundennummer hinterlegen.</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Projektnummer</mat-label>
+                <input matInput formControlName="projectNumber" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Adresse</mat-label>
+                <textarea matInput rows="2" formControlName="address"></textarea>
+              </mat-form-field>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Notizen</mat-label>
+              <textarea matInput rows="3" formControlName="notes"></textarea>
+            </mat-form-field>
+
+            <section class="contacts-section" formArrayName="contacts">
+              <div class="contacts-header">
+                <div>
+                  <h3>Kontaktpersonen</h3>
+                  <p>Optional – füge Ansprechpartner mit Rolle, E-Mail oder Telefon hinzu.</p>
+                </div>
+                <button mat-stroked-button type="button" (click)="addContact()">
+                  <mat-icon>add</mat-icon>
+                  Kontakt hinzufügen
+                </button>
+              </div>
+              @if (contacts.length === 0) {
+                <p class="contacts-placeholder">Noch keine Kontakte hinterlegt.</p>
+              } @else {
+                <div class="contact-forms">
+                  @for (contact of contacts.controls; let i = $index; track i) {
+                    <div class="contact-form" [formGroupName]="i">
+                      <div class="contact-form__header">
+                        <strong>Kontakt {{ i + 1 }}</strong>
+                        <button
+                          mat-icon-button
+                          type="button"
+                          (click)="removeContact(i)"
+                          aria-label="Kontakt entfernen"
+                        >
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </div>
+                      <div class="contact-form__grid">
+                        <mat-form-field appearance="outline">
+                          <mat-label>Name</mat-label>
+                          <input matInput formControlName="name" />
+                        </mat-form-field>
+                        <mat-form-field appearance="outline">
+                          <mat-label>Rolle</mat-label>
+                          <input matInput formControlName="role" />
+                        </mat-form-field>
+                        <mat-form-field appearance="outline">
+                          <mat-label>E-Mail</mat-label>
+                          <input matInput type="email" formControlName="email" />
+                          @if (
+                            contact.get('email')?.invalid &&
+                            contact.get('email')?.touched
+                          ) {
+                            <mat-error>Keine gültige E-Mail-Adresse.</mat-error>
+                          }
+                        </mat-form-field>
+                        <mat-form-field appearance="outline">
+                          <mat-label>Telefon</mat-label>
+                          <input matInput formControlName="phone" />
+                        </mat-form-field>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+
+            <div class="form-actions">
+              <button mat-flat-button color="primary" type="submit">Speichern</button>
+              <button mat-button type="button" (click)="resetForm()">Zurücksetzen</button>
+            </div>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    </section>
+
+    <section class="customer-listing">
+      @if (!hasCustomers()) {
+        <div class="customer-empty">
+          <mat-icon>groups</mat-icon>
+          <h3>Noch keine Kunden angelegt</h3>
+          <p>Nutze das Formular, um den ersten Kunden mit Kontakten zu erfassen.</p>
+        </div>
+      } @else {
+        @if (!filteredCustomers().length) {
+          <div class="customer-empty customer-empty--search">
+            <mat-icon>search</mat-icon>
+            <h3>Keine Treffer</h3>
+            <p>Filter anpassen oder Suche löschen, um wieder alle Kunden zu sehen.</p>
+          </div>
+        } @else {
+          <div class="customer-grid">
+            @for (customer of filteredCustomers(); track customer.id) {
+              <mat-card appearance="outlined">
+                <mat-card-header>
+                  <mat-card-title>
+                    {{ customer.name }}
+                    <span class="customer-id">#{{ customer.customerNumber }}</span>
+                  </mat-card-title>
+                  @if (customer.projectNumber) {
+                    <mat-card-subtitle>Projekt {{ customer.projectNumber }}</mat-card-subtitle>
+                  }
+                  <button
+                    mat-icon-button
+                    color="warn"
+                    aria-label="Kunde löschen"
+                    (click)="deleteCustomer(customer)"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </mat-card-header>
+                <mat-card-content>
+                  <div class="customer-details">
+                    @if (customer.address) {
+                      <div class="detail-row">
+                        <span>Adresse</span>
+                        <p>{{ customer.address }}</p>
+                      </div>
+                    }
+                    @if (customer.notes) {
+                      <div class="detail-row">
+                        <span>Notizen</span>
+                        <p>{{ customer.notes }}</p>
+                      </div>
+                    }
+                  </div>
+                  <div class="contact-list">
+                    <h4>Kontaktpersonen</h4>
+                    @if (!customer.contacts.length) {
+                      <p class="contacts-placeholder">Keine Kontakte hinterlegt.</p>
+                    } @else {
+                      <div class="contact-chips">
+                        @for (contact of customer.contacts; track contact.id) {
+                          <div class="contact-chip">
+                            <div class="contact-chip__title">
+                              <mat-icon>person</mat-icon>
+                              <div>
+                                <strong>{{ contact.name }}</strong>
+                                @if (contact.role) {
+                                  <small>{{ contact.role }}</small>
+                                }
+                              </div>
+                            </div>
+                            <div class="contact-chip__meta">
+                              @if (contact.email) {
+                                <span>
+                                  <mat-icon>mail</mat-icon>
+                                  {{ contact.email }}
+                                </span>
+                              }
+                              @if (contact.phone) {
+                                <span>
+                                  <mat-icon>call</mat-icon>
+                                  {{ contact.phone }}
+                                </span>
+                              }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                  <div class="order-links">
+                    <h4>Verknüpfte Aufträge</h4>
+                    @let ordersForCustomer = linkedOrders(customer.id);
+                    @if (ordersForCustomer.length) {
+                      <mat-chip-set>
+                        @for (order of ordersForCustomer; track order.id) {
+                          <mat-chip appearance="outlined">
+                            <mat-icon>assignment</mat-icon>
+                            {{ order.id }} · {{ order.name }}
+                          </mat-chip>
+                        }
+                      </mat-chip-set>
+                    } @else {
+                      <p class="orders-empty">Keine Aufträge verknüpft.</p>
+                    }
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            }
+          </div>
+        }
+      }
+    </section>
+  </div>
+</div>

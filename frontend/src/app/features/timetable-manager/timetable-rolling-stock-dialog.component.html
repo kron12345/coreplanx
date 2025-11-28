@@ -1,0 +1,423 @@
+<h2 mat-dialog-title>Fahrzeugdaten (TTT) bearbeiten</h2>
+
+<mat-dialog-content class="dialog-content">
+  <form [formGroup]="form" class="rolling-stock-form">
+    <section class="grid-section">
+      <mat-form-field appearance="outline">
+        <mat-label>Komposition</mat-label>
+        <mat-select formControlName="compositionId">
+          <mat-option [value]="null">Keine Zuordnung</mat-option>
+          <mat-option
+            *ngFor="let option of compositionOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+        <mat-hint>Optionaler Verweis auf Stammdaten</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Bezeichnung</mat-label>
+        <input
+          matInput
+          formControlName="designation"
+          placeholder="z. B. IC2 5-teilig"
+        />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Traktionsart</mat-label>
+        <mat-select formControlName="tractionMode">
+          <mat-option [value]="null">Nicht gesetzt</mat-option>
+          <mat-option
+            *ngFor="let option of tractionOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Energieversorgung</mat-label>
+        <mat-select formControlName="powerSupplySystems" multiple>
+          <mat-option
+            *ngFor="let option of powerSupplyOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+        <mat-hint>Mehrfachauswahl möglich</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Höchstgeschwindigkeit (km/h)</mat-label>
+        <input matInput type="number" formControlName="maxSpeed" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Länge (m)</mat-label>
+        <input matInput type="number" formControlName="lengthMeters" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Masse (t)</mat-label>
+        <input matInput type="number" formControlName="weightTons" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Bremssystem</mat-label>
+        <mat-select formControlName="brakeType">
+          <mat-option [value]="null">Nicht gesetzt</mat-option>
+          <mat-option
+            *ngFor="let option of brakeTypeOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Bremshundertstel (%)</mat-label>
+        <input matInput type="number" formControlName="brakePercentage" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>ETCS-Level</mat-label>
+        <mat-select formControlName="etcsLevel">
+          <mat-option [value]="null">Nicht gesetzt</mat-option>
+          <mat-option
+            *ngFor="let option of etcsLevelOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Zugsicherungssysteme</mat-label>
+        <mat-select formControlName="trainProtectionSystems" multiple>
+          <mat-option
+            *ngFor="let option of trainProtectionOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+        <mat-hint>Mehrfachauswahl möglich</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Lichtraumprofil</mat-label>
+        <mat-select formControlName="gaugeProfile">
+          <mat-option [value]="null">Nicht gesetzt</mat-option>
+          <mat-option
+            *ngFor="let option of gaugeProfileOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Neigetechnik</mat-label>
+        <mat-select formControlName="tiltingCapability">
+          <mat-option [value]="null">Nicht gesetzt</mat-option>
+          <mat-option
+            *ngFor="let option of tiltingOptions"
+            [value]="option.value"
+          >
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Hinweise</mat-label>
+        <textarea
+          matInput
+          rows="2"
+          formControlName="remarks"
+          placeholder="z. B. Besondere betriebliche Auflagen"
+        ></textarea>
+      </mat-form-field>
+    </section>
+
+    <section class="segments-section" formArrayName="segments">
+      <div class="segments-header">
+        <h3>Fahrzeuggliederung</h3>
+        <span class="spacer"></span>
+        <button
+          mat-stroked-button
+          type="button"
+          color="primary"
+          (click)="applyComposition()"
+          [disabled]="!(form.get('compositionId')?.value)"
+        >
+          <mat-icon>stacked_bar_chart</mat-icon>
+          Komposition übernehmen
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="addSegment()"
+        >
+          <mat-icon>add</mat-icon>
+          Segment hinzufügen
+        </button>
+      </div>
+      <p class="segments-hint">
+        Reihenfolge entspricht der Zugbildung von führend bis schiebend. Fahrzeugnummern können optional als kommaseparierte oder zeilenweise Liste angegeben werden.
+      </p>
+
+      <div class="segments-list">
+        <mat-card
+          class="segment-card"
+          appearance="outlined"
+          *ngFor="let segment of segments.controls; let i = index"
+        >
+          <mat-card-content [formGroupName]="i" class="segment-grid">
+            <div class="segment-header">
+              <h4>#{{ i + 1 }}</h4>
+              <div class="segment-actions">
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Nach oben"
+                  (click)="moveSegment(i, -1)"
+                  [disabled]="i === 0"
+                >
+                  <mat-icon>arrow_upward</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Nach unten"
+                  (click)="moveSegment(i, 1)"
+                  [disabled]="i === segments.length - 1"
+                >
+                  <mat-icon>arrow_downward</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Segment entfernen"
+                  color="warn"
+                  (click)="removeSegment(i)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Rolle</mat-label>
+              <mat-select formControlName="role">
+                <mat-option [value]="''">Nicht gesetzt</mat-option>
+                <mat-option
+                  *ngFor="let option of segmentRoleOptions"
+                  [value]="option.value"
+                >
+                  {{ option.label }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Fahrzeugtyp</mat-label>
+              <mat-select formControlName="vehicleTypeId" required>
+                <mat-option
+                  *ngFor="let option of vehicleTypeOptions"
+                  [value]="option.value"
+                >
+                  {{ option.label }}
+                </mat-option>
+              </mat-select>
+              <mat-error>Bitte Fahrzeugtyp wählen.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Anzahl</mat-label>
+              <input matInput type="number" formControlName="count" min="1" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Set-ID</mat-label>
+              <input matInput formControlName="setId" placeholder="z. B. SET-A" />
+              <mat-hint>Identifikation für Flügelzüge</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Set-Label</mat-label>
+              <input matInput formControlName="setLabel" placeholder="z. B. ICE 1501A" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Ziel (Wing)</mat-label>
+              <input matInput formControlName="destination" placeholder="z. B. Köln Hbf" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="span-2">
+              <mat-label>Fahrzeugnummern</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                formControlName="vehicleNumbers"
+                placeholder="z. B. 147 522-7, Dosto Steuerwagen"
+              ></textarea>
+              <mat-hint>Kommasepariert oder je Zeile</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="span-2">
+              <mat-label>Bemerkung</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                formControlName="remarks"
+              ></textarea>
+            </mat-form-field>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (segmentError(); as message) {
+        <div class="segments-error">
+          <mat-icon fontIcon="error_outline"></mat-icon>
+          <span>{{ message }}</span>
+        </div>
+      }
+    </section>
+
+    <section class="operations-section" formArrayName="operations">
+      <div class="operations-header">
+        <h3>Flügel- / Join-Operationen</h3>
+        <span class="spacer"></span>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="addOperation()"
+        >
+          <mat-icon>call_split</mat-icon>
+          Operation hinzufügen
+        </button>
+      </div>
+      <p class="operations-hint">
+        Operationen dokumentieren das Flügeln oder Zusammenführen einzelner Sets an betrieblichen Halten.
+        Set-IDs sollten mit den oben definierten Segmenten korrespondieren.
+      </p>
+
+      <div class="operations-list">
+        <mat-card
+          class="operation-card"
+          appearance="outlined"
+          *ngFor="let operation of operations.controls; let i = index"
+        >
+          <mat-card-content [formGroupName]="i" class="operation-grid">
+            <div class="operation-header">
+              <h4>Operation #{{ i + 1 }}</h4>
+              <div class="operation-actions">
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Nach oben"
+                  (click)="moveOperation(i, -1)"
+                  [disabled]="i === 0"
+                >
+                  <mat-icon>arrow_upward</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Nach unten"
+                  (click)="moveOperation(i, 1)"
+                  [disabled]="i === operations.length - 1"
+                >
+                  <mat-icon>arrow_downward</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Operation entfernen"
+                  color="warn"
+                  (click)="removeOperation(i)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Betriebshalt</mat-label>
+              <mat-select formControlName="stopId">
+                <mat-option [value]="null">Bitte wählen</mat-option>
+                <mat-option
+                  *ngFor="let option of stopOptions"
+                  [value]="option.value"
+                >
+                  {{ option.label }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Typ</mat-label>
+              <mat-select formControlName="type">
+                <mat-option [value]="null">Bitte wählen</mat-option>
+                <mat-option
+                  *ngFor="let option of operationTypeOptions"
+                  [value]="option.value"
+                >
+                  {{ option.label }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Set-IDs</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                formControlName="setIds"
+                placeholder="z. B. SET-A, SET-B"
+              ></textarea>
+              <mat-hint>Kommagetrennt oder je Zeile</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="span-2">
+              <mat-label>Bemerkung</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                formControlName="remarks"
+              ></textarea>
+            </mat-form-field>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (operationError(); as message) {
+        <div class="operations-error">
+          <mat-icon fontIcon="error_outline"></mat-icon>
+          <span>{{ message }}</span>
+        </div>
+      }
+    </section>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  @if (hasInitialRollingStock) {
+    <button mat-button type="button" color="warn" (click)="clear()">
+      Rolling Stock entfernen
+    </button>
+  }
+  <button mat-flat-button color="primary" type="button" (click)="submit()">
+    Speichern
+  </button>
+</mat-dialog-actions>

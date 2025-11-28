@@ -1,0 +1,119 @@
+.calendar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  span {
+    font-weight: 600;
+    margin-right: 8px;
+  }
+
+  button.selected {
+    background: rgba(26, 115, 232, 0.12);
+    border-color: #1a73e8;
+    color: #1a73e8;
+  }
+}
+
+.calendar-table {
+  overflow-x: auto;
+}
+
+.calendar-table table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 520px;
+}
+
+.calendar-table th,
+.calendar-table td {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  text-align: center;
+  padding: 2px;
+  min-width: 16px;
+}
+
+.calendar-table th {
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.month-col {
+  background: rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+  min-width: 80px;
+}
+
+.calendar-table td {
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.7rem;
+}
+
+.calendar-table td.empty {
+  cursor: default;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.calendar-table td.trailing-cell {
+  display: none;
+}
+
+.calendar-table td.weekend {
+  background: rgba(255, 235, 238, 0.6);
+}
+
+.calendar-table td.selected {
+  background: #1a73e8;
+  color: #fff;
+  font-weight: 600;
+}
+
+.calendar-table td.accent {
+  box-shadow: inset 0 0 0 2px rgba(244, 67, 54, 0.8);
+  position: relative;
+}
+
+.calendar-table td.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.calendar-table td.disabled:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.calendar-table td:not(.empty):hover {
+  background: rgba(26, 115, 232, 0.15);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+}

@@ -1,0 +1,30 @@
+<div class="templates-shell manager-shell">
+  <nav class="templates-nav">
+    <a
+      mat-stroked-button
+      routerLink="/templates"
+      routerLinkActive="templates-nav__link--active"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      Übersicht
+    </a>
+    <a
+      mat-stroked-button
+      routerLink="/templates/schedules"
+      routerLinkActive="templates-nav__link--active"
+    >
+      Fahrplanvorlagen
+    </a>
+    <a
+      mat-stroked-button
+      routerLink="/templates/business"
+      routerLinkActive="templates-nav__link--active"
+    >
+      Geschäftsvorlagen
+    </a>
+  </nav>
+
+  <section class="templates-content">
+    <router-outlet />
+  </section>
+</div>

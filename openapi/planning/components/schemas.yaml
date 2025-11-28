@@ -1,0 +1,2233 @@
+schemas:
+  PlanningStageSnapshot:
+    type: object
+    properties:
+      stageId:
+        type: string
+      resources:
+        type: array
+        items:
+          $ref: '#/components/schemas/Resource'
+      activities:
+        type: array
+        items:
+          $ref: '#/components/schemas/Activity'
+      trainRuns:
+        type: array
+        items:
+          $ref: '#/components/schemas/TrainRun'
+      trainSegments:
+        type: array
+        items:
+          $ref: '#/components/schemas/TrainSegment'
+      timelineRange:
+        $ref: '#/components/schemas/TimelineRange'
+      version:
+        type: string
+        nullable: true
+    required:
+    - stageId
+    - resources
+    - activities
+    - timelineRange
+  TimelineRange:
+    type: object
+    properties:
+      start:
+        type: string
+        format: date-time
+      end:
+        type: string
+        format: date-time
+    required:
+    - start
+    - end
+  Resource:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      kind:
+        type: string
+        enum:
+        - personnel-service
+        - vehicle-service
+        - personnel
+        - vehicle
+      dailyServiceCapacity:
+        type: integer
+        minimum: 0
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - kind
+  Activity:
+    type: object
+    properties:
+      id:
+        type: string
+      clientId:
+        type: string
+        nullable: true
+      title:
+        type: string
+      start:
+        type: string
+        format: date-time
+      end:
+        type: string
+        format: date-time
+        nullable: true
+      type:
+        type: string
+      from:
+        type: string
+        nullable: true
+      to:
+        type: string
+        nullable: true
+      remark:
+        type: string
+        nullable: true
+      serviceId:
+        type: string
+        nullable: true
+      serviceTemplateId:
+        type: string
+        nullable: true
+      serviceDate:
+        type: string
+        nullable: true
+      serviceCategory:
+        type: string
+        nullable: true
+      serviceRole:
+        type: string
+        nullable: true
+      locationId:
+        type: string
+        nullable: true
+      locationLabel:
+        type: string
+        nullable: true
+      capacityGroupId:
+        type: string
+        nullable: true
+      requiredQualifications:
+        type: array
+        items:
+          type: string
+      assignedQualifications:
+        type: array
+        items:
+          type: string
+      workRuleTags:
+        type: array
+        items:
+          type: string
+      rowVersion:
+        type: string
+        nullable: true
+        description: "Optionale Row-Version f\xFCr Optimistic Locking."
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+      scope:
+        type: string
+        description: "Fachlicher Geltungsbereich der Aktivit\xE4t."
+        enum:
+        - personnel-only
+        - vehicle-only
+        - mixed
+      participants:
+        type: array
+        description: "Teilnehmende Ressourcen mit Typ und optionaler Rolle."
+        items:
+          $ref: '#/components/schemas/ActivityParticipant'
+      groupId:
+        type: string
+        nullable: true
+        description: "Optionale Gruppierung (z. B. Vor-/Nachleistungsgruppe)."
+      groupOrder:
+        type: integer
+        format: int32
+        nullable: true
+        description: "Reihenfolge innerhalb der Gruppe (aufsteigend)."
+      trainRunId:
+        type: string
+        nullable: true
+        description: "Optionaler Verweis auf den zugeh\xF6rigen Zuglauf."
+      trainSegmentIds:
+        type: array
+        description: "Optional Liste der abgedeckten Zugabschnitte."
+        items:
+          type: string
+      attributes:
+        $ref: '#/components/schemas/ActivityAttributes'
+      meta:
+        type: object
+        additionalProperties: true
+        description: "Legacy-Feld f\xFCr benutzerdefinierte Daten (bevorzugt `attributes`\
+          \ verwenden)."
+    required:
+    - id
+    - title
+    - start
+  ActivityTypeDefinition:
+    type: object
+    description: "Definition eines Activity Types (technisch)."
+    properties:
+      id:
+        type: string
+      label:
+        type: string
+      description:
+        type: string
+        nullable: true
+      appliesTo:
+        type: array
+        items:
+          type: string
+          enum: [personnel, vehicle, personnel-service, vehicle-service]
+      relevantFor:
+        type: array
+        items:
+          type: string
+          enum: [personnel, vehicle, personnel-service, vehicle-service]
+      category:
+        type: string
+        enum: [rest, movement, service, other]
+      timeMode:
+        type: string
+        enum: [duration, range, point]
+      fields:
+        type: array
+        items:
+          type: string
+          enum: [start, end, from, to, remark]
+      defaultDurationMinutes:
+        type: integer
+        format: int32
+    required: [id, label, appliesTo, relevantFor, category, timeMode, fields, defaultDurationMinutes]
+    example:
+      id: service-start
+      label: Dienstanfang
+      appliesTo: [personnel, vehicle, personnel-service, vehicle-service]
+      relevantFor: [personnel, vehicle, personnel-service, vehicle-service]
+      category: service
+      timeMode: point
+      fields: [start, end, from, to, remark]
+      defaultDurationMinutes: 45
+  ActivityTemplate:
+    type: object
+    properties:
+      id: { type: string }
+      label: { type: string }
+      description: { type: string, nullable: true }
+      activityType: { type: string, nullable: true }
+      defaultDurationMinutes: { type: integer, format: int32, nullable: true }
+      attributes:
+        $ref: '#/components/schemas/ActivityAttributes'
+    required: [id, label, attributes]
+    example:
+      id: pause-30-template
+      label: Pause 30 min
+      description: Standardpause mit 30 Minuten
+      activityType: break
+      defaultDurationMinutes: 30
+      attributes:
+        category:
+          value: pause
+        is_break:
+          value: true
+        is_short_break:
+          value: true
+  ActivityDefinition:
+    type: object
+    properties:
+      id: { type: string }
+      label: { type: string }
+      description: { type: string, nullable: true }
+      activityType: { type: string }
+      templateId: { type: string, nullable: true }
+      defaultDurationMinutes: { type: integer, format: int32, nullable: true }
+      relevantFor:
+        type: array
+        items:
+          type: string
+          enum: [personnel, vehicle, personnel-service, vehicle-service]
+      attributes:
+        $ref: '#/components/schemas/ActivityAttributes'
+    required: [id, label, activityType, attributes]
+    example:
+      id: pause-30
+      label: Pause 30
+      activityType: break
+      templateId: pause-30-template
+      defaultDurationMinutes: 30
+      attributes:
+        default_duration:
+          value: 30
+        kind:
+          value: pause
+        is_break:
+          value: true
+        is_short_break:
+          value: true
+  ActivityCatalogSnapshot:
+    type: object
+    description: "Gesamter Katalog für Activity Types, Templates, Definitions, Layer und Übersetzungen."
+    properties:
+      types:
+        type: array
+        items:
+          $ref: '#/components/schemas/ActivityTypeDefinition'
+      templates:
+        type: array
+        items:
+          $ref: '#/components/schemas/ActivityTemplate'
+      definitions:
+        type: array
+        items:
+          $ref: '#/components/schemas/ActivityDefinition'
+      layerGroups:
+        type: array
+        items:
+          $ref: '#/components/schemas/LayerGroup'
+      translations:
+        $ref: '#/components/schemas/TranslationState'
+    required: [types, templates, definitions, layerGroups, translations]
+    example:
+      types:
+        - id: service-start
+          label: Dienstanfang
+          appliesTo: [personnel, vehicle, personnel-service, vehicle-service]
+          relevantFor: [personnel, vehicle, personnel-service, vehicle-service]
+          category: service
+          timeMode: point
+          fields: [start, end, from, to, remark]
+          defaultDurationMinutes: 45
+        - id: break
+          label: Pause
+          appliesTo: [personnel, vehicle, personnel-service, vehicle-service]
+          relevantFor: [personnel, vehicle, personnel-service, vehicle-service]
+          category: service
+          timeMode: duration
+          fields: [start, end, remark]
+          defaultDurationMinutes: 30
+      templates:
+        - id: pause-30-template
+          label: Pause 30 min
+          activityType: break
+          defaultDurationMinutes: 30
+          attributes:
+            is_break: { value: true }
+            is_short_break: { value: true }
+            consider_capacity_conflicts: { value: true }
+        - id: pause-60-template
+          label: Pause 60 min
+          activityType: break
+          defaultDurationMinutes: 60
+          attributes:
+            is_break: { value: true }
+            consider_capacity_conflicts: { value: true }
+      definitions:
+        - id: pause-30
+          label: Pause 30
+          activityType: break
+          templateId: pause-30-template
+          attributes:
+            default_duration: { value: 30 }
+            kind: { value: pause }
+            is_break: { value: true }
+            is_short_break: { value: true }
+            consider_capacity_conflicts: { value: true }
+        - id: pause-60
+          label: Pause 60
+          activityType: break
+          templateId: pause-60-template
+          attributes:
+            default_duration: { value: 60 }
+            kind: { value: pause }
+            is_break: { value: true }
+            consider_capacity_conflicts: { value: true }
+      layerGroups:
+        - id: background
+          label: Hintergrund
+          order: 10
+        - id: default
+          label: Standard
+          order: 50
+        - id: marker
+          label: Marker
+          order: 90
+      translations:
+        de:
+          "activityType:break":
+            label: "Pause"
+            abbreviation: "PA"
+          "activityType:service-start":
+            label: "Dienstanfang"
+            abbreviation: "DA"
+          "layer:background":
+            label: "Hintergrund"
+  PlanningStageRealtimeEvent:
+    type: object
+    description: "Nachricht, die \xFCber den SSE-Stream `/planning/stages/{stageId}/events`\
+      \ gesendet wird."
+    properties:
+      stageId:
+        type: string
+        enum:
+        - base
+        - operations
+        - dispatch
+      scope:
+        type: string
+        enum:
+        - resources
+        - activities
+        - timeline
+      version:
+        type: string
+        nullable: true
+      sourceClientId:
+        type: string
+        nullable: true
+      sourceConnectionId:
+        type: string
+        nullable: true
+      upserts:
+        description: "Ressourcen- oder Aktivit\xE4tsobjekte \u2013 abh\xE4ngig von\
+          \ `scope`."
+        type: array
+        items:
+          oneOf:
+          - $ref: '#/components/schemas/Resource'
+          - $ref: '#/components/schemas/Activity'
+      deleteIds:
+        type: array
+        items:
+          type: string
+      timelineRange:
+        $ref: '#/components/schemas/TimelineRange'
+    required:
+    - stageId
+  ActivityAttributes:
+    type: object
+    description: >
+      Attribut-Bag für Activities. Bekannte Schlüssel werden hier beschrieben,
+      weitere Keys sind erlaubt (`additionalProperties`).
+    properties:
+      draw_as:
+        type: string
+        description: "Darstellungsart im Gantt."
+        enum:
+        - line-above
+        - line-below
+        - shift-up
+        - shift-down
+        - dot
+        - square
+        - triangle-up
+        - triangle-down
+        - thick
+        - background
+        default: thick
+        x-translation-key: "activityType:<type>"
+      layer_group:
+        type: string
+        description: "Layer-Gruppe für die Z-Reihenfolge im Gantt."
+        default: default
+        examples: [default, background, marker]
+        x-translation-key: "layer:<layer_group>"
+      color:
+        type: string
+        description: "Farbe des Balkens/Markers (Hex, RGB etc.)."
+        pattern: "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$"
+        default: "#1976d2"
+      default_duration:
+        type: number
+        format: int32
+        description: "Default-Dauer in Minuten (falls vorhanden)."
+      relevant_for:
+        type: array
+        description: "Kommagetrennte Liste der Ressourcentypen, für die die Activity relevant ist."
+        items:
+          type: string
+          enum: [personnel, vehicle, personnel-service, vehicle-service]
+      consider_capacity_conflicts:
+        type: boolean
+        description: "Kapazitätskonflikte berücksichtigen."
+        default: true
+      is_short_break:
+        type: boolean
+        description: "Kennzeichnet eine Kurzpause."
+        default: false
+      is_break:
+        type: boolean
+        description: "Kennzeichnet eine Pause."
+        default: false
+      is_service_start:
+        type: boolean
+        description: "Kennzeichnet Dienstanfang."
+        default: false
+      is_service_end:
+        type: boolean
+        description: "Kennzeichnet Dienstende."
+        default: false
+      is_absence:
+        type: boolean
+        description: "Kennzeichnet Abwesenheiten (z. B. Urlaub, Krank)."
+        default: false
+      is_reserve:
+        type: boolean
+        description: "Kennzeichnet Reserve-/Bereitschaftszeiten."
+        default: false
+    additionalProperties: true
+  LayerGroup:
+    type: object
+    properties:
+      id:
+        type: string
+        description: "Technischer Key der Layer-Gruppe (z. B. background, marker, remarks)."
+      label:
+        type: string
+        description: "Anzeigename (kann per Übersetzung `layer:<id>` angepasst werden)."
+      order:
+        type: integer
+        description: "Reihenfolge/Z-Index; kleinere Werte liegen unten."
+        default: 50
+      description:
+        type: string
+        nullable: true
+    required: [id, label, order]
+  TranslationEntry:
+    type: object
+    description: "Übersetzungseintrag für einen Schlüssel und eine Locale."
+    properties:
+      key:
+        type: string
+        description: "Technischer Key (z. B. `activityType:<id>`, `layer:<id>`)."
+        example: "activityType:service-start"
+      locale:
+        type: string
+        description: "Locale (BCP 47), z. B. de, en, fr-CH."
+        example: "de"
+      label:
+        type: string
+        description: "Anzeigename."
+        nullable: true
+        example: "Dienstanfang"
+      abbreviation:
+        type: string
+        description: "Optionale Kurzform."
+        nullable: true
+        example: "DA"
+    required: [key, locale]
+  TranslationState:
+    type: object
+    description: "Übersetzungs-Map je Locale → Key → Entry."
+    additionalProperties:
+      type: object
+      description: "Locale-Bucket"
+      additionalProperties:
+        type: object
+        properties:
+          label:
+            type: string
+            nullable: true
+          abbreviation:
+            type: string
+            nullable: true
+    example:
+      de:
+        "activityType:service-start":
+          label: "Dienstanfang"
+          abbreviation: "DA"
+        "layer:marker":
+          label: "Marker"
+      en:
+        "activityType:service-start":
+          label: "Service start"
+    - scope
+  Personnel:
+    type: object
+    properties:
+      id: { type: string }
+      name: { type: string }
+      externalRef: { type: string, nullable: true }
+      homeBase: { type: string, nullable: true }
+      attributes:
+        type: object
+        additionalProperties: true
+    required: [id, name]
+  PersonnelService:
+    type: object
+    properties:
+      id: { type: string }
+      name: { type: string }
+      poolId: { type: string, nullable: true }
+      attributes:
+        type: object
+        additionalProperties: true
+    required: [id, name]
+  Vehicle:
+    type: object
+    properties:
+      id: { type: string }
+      name: { type: string }
+      typeId: { type: string, nullable: true }
+      externalRef: { type: string, nullable: true }
+      homeDepot: { type: string, nullable: true }
+      attributes:
+        type: object
+        additionalProperties: true
+    required: [id, name]
+  VehicleService:
+    type: object
+    properties:
+      id: { type: string }
+      name: { type: string }
+      poolId: { type: string, nullable: true }
+      attributes:
+        type: object
+        additionalProperties: true
+    required: [id, name]
+  ResourceSnapshot:
+    type: object
+    description: "Gebündelte Ressourcen für Plantafel/Timeline."
+    properties:
+      personnel:
+        type: array
+        items:
+          $ref: '#/components/schemas/Personnel'
+      personnelServices:
+        type: array
+        items:
+          $ref: '#/components/schemas/PersonnelService'
+      personnelServicePools:
+        type: array
+        items:
+          $ref: '#/components/schemas/PersonnelServicePool'
+      personnelPools:
+        type: array
+        items:
+          $ref: '#/components/schemas/PersonnelPool'
+      vehicles:
+        type: array
+        items:
+          $ref: '#/components/schemas/Vehicle'
+      vehicleServices:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleService'
+      vehicleServicePools:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleServicePool'
+      vehiclePools:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehiclePool'
+      vehicleTypes:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleType'
+      vehicleCompositions:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleComposition'
+    required:
+    - personnel
+    - personnelServices
+    - personnelServicePools
+    - personnelPools
+    - vehicles
+    - vehicleServices
+    - vehicleServicePools
+    - vehiclePools
+    - vehicleTypes
+    - vehicleCompositions
+  TimelineActivity:
+    type: object
+    description: "Aktivität für Timeline-LOD=activity (neue Logik)."
+    properties:
+      id: { type: string }
+      stage:
+        type: string
+        enum: [base, operations]
+      type: { type: string }
+      start:
+        type: string
+        format: date-time
+      end:
+        type: string
+        format: date-time
+        nullable: true
+      isOpenEnded:
+        type: boolean
+      status:
+        type: string
+        nullable: true
+      serviceRole:
+        type: string
+        nullable: true
+        enum: [start, segment, end]
+      from:
+        type: string
+        nullable: true
+      to:
+        type: string
+        nullable: true
+      remark:
+        type: string
+        nullable: true
+      label:
+        type: string
+        nullable: true
+      serviceId:
+        type: string
+        nullable: true
+      resourceAssignments:
+        type: array
+        items:
+          type: object
+          properties:
+            resourceId: { type: string }
+            resourceType:
+              type: string
+              enum: [personnel, vehicle, personnel-service, vehicle-service]
+            role: { type: string, nullable: true }
+            lineIndex: { type: integer, nullable: true }
+          required: [resourceId, resourceType]
+      attributes:
+        $ref: '#/components/schemas/ActivityAttributes'
+        nullable: true
+      version:
+        type: integer
+        nullable: true
+    required: [id, stage, type, start, isOpenEnded, resourceAssignments]
+  TimelineService:
+    type: object
+    description: "Aggregierter Dienst/Abwesenheit für LOD=service."
+    properties:
+      id: { type: string }
+      type:
+        type: string
+        enum: [SERVICE, ABSENCE]
+      stage:
+        type: string
+        enum: [base, operations]
+      resourceId: { type: string }
+      start:
+        type: string
+        format: date-time
+      end:
+        type: string
+        format: date-time
+        nullable: true
+      isOpenEnded:
+        type: boolean
+      status:
+        type: string
+        nullable: true
+      label:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required: [id, type, stage, resourceId, start, isOpenEnded]
+  TimelineResponse:
+    type: object
+    properties:
+      lod:
+        type: string
+        enum: [activity, service]
+      activities:
+        type: array
+        items:
+          $ref: '#/components/schemas/TimelineActivity'
+      services:
+        type: array
+        items:
+          $ref: '#/components/schemas/TimelineService'
+  TemplateSet:
+    type: object
+    properties:
+      id: { type: string }
+      name: { type: string }
+      description: { type: string, nullable: true }
+      tableName: { type: string }
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+    required: [id, name, tableName, createdAt, updatedAt]
+  CreateTemplateSetRequest:
+    type: object
+    properties:
+      id: { type: string }
+      name: { type: string }
+      description: { type: string, nullable: true }
+    required: [name]
+  UpdateTemplateSetRequest:
+    type: object
+    properties:
+      name: { type: string }
+      description: { type: string, nullable: true }
+
+  TemplateActivityUpsert:
+    type: object
+    description: Payload zum Anlegen/Aktualisieren einer Template-Aktivität via REST.
+    allOf:
+      - $ref: '#/components/schemas/TimelineActivity'
+
+  ActivityMutationRequest:
+    type: object
+    properties:
+      upserts:
+        type: array
+        items:
+          $ref: '#/components/schemas/Activity'
+      deleteIds:
+        type: array
+        items:
+          type: string
+      clientRequestId:
+        type: string
+    additionalProperties: false
+  ActivityMutationResponse:
+    type: object
+    properties:
+      appliedUpserts:
+        type: array
+        items:
+          type: string
+      deletedIds:
+        type: array
+        items:
+          type: string
+      version:
+        type: string
+        nullable: true
+    required:
+    - appliedUpserts
+    - deletedIds
+  ResourceMutationRequest:
+    type: object
+    properties:
+      upserts:
+        type: array
+        items:
+          $ref: '#/components/schemas/Resource'
+      deleteIds:
+        type: array
+        items:
+          type: string
+      clientRequestId:
+        type: string
+    additionalProperties: false
+  ResourceMutationResponse:
+    type: object
+    properties:
+      appliedUpserts:
+        type: array
+        items:
+          type: string
+      deletedIds:
+        type: array
+        items:
+          type: string
+      version:
+        type: string
+        nullable: true
+    required:
+    - appliedUpserts
+    - deletedIds
+  ActivityValidationRequest:
+    type: object
+    properties:
+      activityIds:
+        type: array
+        items:
+          type: string
+      windowStart:
+        type: string
+        format: date-time
+      windowEnd:
+        type: string
+        format: date-time
+      resourceIds:
+        type: array
+        items:
+          type: string
+      clientRequestId:
+        type: string
+    additionalProperties: false
+  ActivityParticipant:
+    type: object
+    description: "Teilnehmende Ressource einer Aktivit\xE4t."
+    properties:
+      resourceId:
+        type: string
+      kind:
+        type: string
+        enum:
+        - personnel-service
+        - vehicle-service
+        - personnel
+        - vehicle
+      role:
+        type: string
+        nullable: true
+        description: "Optionale fachliche Rolle, z. B. primary-personnel, teacher, student."
+    required:
+    - resourceId
+    - kind
+  ActivityGroup:
+    type: object
+    description: "Gruppe von Aktivit\xE4ten, z. B. Vor- oder Nachleistungsgruppe."
+    properties:
+      id:
+        type: string
+      label:
+        type: string
+      description:
+        type: string
+        nullable: true
+      scope:
+        type: string
+        enum:
+        - personnel-only
+        - vehicle-only
+        - mixed
+      role:
+        type: string
+        description: "Funktion der Gruppe relativ zu einer Hauptleistung."
+        enum:
+        - pre
+        - main
+        - post
+        - independent
+      attachedToActivityId:
+        type: string
+        nullable: true
+        description: "Optionale Hauptaktivit\xE4t, an die diese Gruppe angeh\xE4ngt ist."
+    required:
+    - id
+    - label
+    - scope
+    - role
+  ActivityValidationResponse:
+    type: object
+    properties:
+      generatedAt:
+        type: string
+        format: date-time
+      issues:
+        type: array
+        items:
+          $ref: '#/components/schemas/ActivityValidationIssue'
+    required:
+    - generatedAt
+    - issues
+  ActivityValidationIssue:
+    type: object
+    properties:
+      id:
+        type: string
+      rule:
+        type: string
+        enum:
+        - location-conflict
+        - capacity-conflict
+        - working-time
+        - qualification
+        - custom
+      severity:
+        type: string
+        enum:
+        - info
+        - warning
+        - error
+      message:
+        type: string
+      activityIds:
+        type: array
+        items:
+          type: string
+      meta:
+        type: object
+        additionalProperties: true
+    required:
+	    - id
+	    - rule
+	    - severity
+	    - message
+	    - activityIds
+	  TrainRun:
+	    type: object
+	    description: "Geplanter Zuglauf (Fahrplanperspektive)."
+	    properties:
+	      id:
+	        type: string
+	      trainNumber:
+	        type: string
+	      timetableId:
+	        type: string
+	        nullable: true
+	      attributes:
+	        type: object
+	        additionalProperties: true
+	        description: "Freies Attribut-Bag f\xFCr fahrplanspezifische Daten."
+	    required:
+	    - id
+	    - trainNumber
+	  TrainSegment:
+	    type: object
+	    description: "Abschnitt eines Zuglaufes zwischen zwei Betriebsstellen."
+	    properties:
+	      id:
+	        type: string
+	      trainRunId:
+	        type: string
+	      sectionIndex:
+	        type: integer
+	        format: int32
+	      startTime:
+	        type: string
+	        format: date-time
+	      endTime:
+	        type: string
+	        format: date-time
+	      fromLocationId:
+	        type: string
+	      toLocationId:
+	        type: string
+	      pathId:
+	        type: string
+	        nullable: true
+	      distanceKm:
+	        type: number
+	        format: float
+	        nullable: true
+	      attributes:
+	        type: object
+	        additionalProperties: true
+	        description: "Freies Attribut-Bag f\xFCr zus\xE4tzliche Segmentinformationen."
+	    required:
+	    - id
+	    - trainRunId
+	    - sectionIndex
+	    - startTime
+	    - endTime
+	    - fromLocationId
+	    - toLocationId
+  PersonnelServicePool:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+        nullable: true
+      serviceIds:
+        type: array
+        items:
+          type: string
+      shiftCoordinator:
+        type: string
+        nullable: true
+      contactEmail:
+        type: string
+        format: email
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - serviceIds
+  PersonnelServicePoolListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/PersonnelServicePool'
+    required:
+    - items
+  PersonnelPool:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+        nullable: true
+      personnelIds:
+        type: array
+        items:
+          type: string
+      locationCode:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - personnelIds
+  PersonnelPoolListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/PersonnelPool'
+    required:
+    - items
+  VehicleServicePool:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+        nullable: true
+      serviceIds:
+        type: array
+        items:
+          type: string
+      dispatcher:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - serviceIds
+  VehicleServicePoolListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleServicePool'
+    required:
+    - items
+  VehiclePool:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+        nullable: true
+      vehicleIds:
+        type: array
+        items:
+          type: string
+      depotManager:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - vehicleIds
+  VehiclePoolListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehiclePool'
+    required:
+    - items
+  VehicleType:
+    type: object
+    properties:
+      id:
+        type: string
+      label:
+        type: string
+      category:
+        type: string
+        nullable: true
+      capacity:
+        type: integer
+        nullable: true
+      maxSpeed:
+        type: integer
+        nullable: true
+      maintenanceIntervalDays:
+        type: integer
+        nullable: true
+      energyType:
+        type: string
+        nullable: true
+      manufacturer:
+        type: string
+        nullable: true
+      trainTypeCode:
+        type: string
+        nullable: true
+      lengthMeters:
+        type: number
+        format: float
+        nullable: true
+      weightTons:
+        type: number
+        format: float
+        nullable: true
+      brakeType:
+        type: string
+        nullable: true
+      brakePercentage:
+        type: integer
+        nullable: true
+      tiltingCapability:
+        type: string
+        enum:
+        - none
+        - passive
+        - active
+        nullable: true
+      powerSupplySystems:
+        type: array
+        items:
+          type: string
+      trainProtectionSystems:
+        type: array
+        items:
+          type: string
+      etcsLevel:
+        type: string
+        nullable: true
+      gaugeProfile:
+        type: string
+        nullable: true
+      maxAxleLoad:
+        type: number
+        format: float
+        nullable: true
+      noiseCategory:
+        type: string
+        nullable: true
+      remarks:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - label
+  VehicleTypeListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleType'
+    required:
+    - items
+  VehicleCompositionEntry:
+    type: object
+    properties:
+      typeId:
+        type: string
+      quantity:
+        type: integer
+    required:
+    - typeId
+    - quantity
+  VehicleComposition:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      entries:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleCompositionEntry'
+      turnaroundBuffer:
+        type: string
+        nullable: true
+      remark:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - entries
+  VehicleCompositionListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/VehicleComposition'
+    required:
+    - items
+  PlanWeekTemplateListResponse:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanWeekTemplate'
+    required:
+    - items
+  PlanWeekActivityListResponse:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanWeekActivity'
+    required:
+    - items
+  PlanWeekTemplate:
+    type: object
+    properties:
+      id:
+        type: string
+      label:
+        type: string
+      description:
+        type: string
+        nullable: true
+      baseWeekStartIso:
+        type: string
+        format: date
+      variant:
+        type: string
+        nullable: true
+      slices:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanWeekSlice'
+      createdAtIso:
+        type: string
+        format: date-time
+      updatedAtIso:
+        type: string
+        format: date-time
+      version:
+        type: string
+    required:
+    - id
+    - label
+    - baseWeekStartIso
+    - slices
+    - createdAtIso
+    - updatedAtIso
+    - version
+  PlanWeekSlice:
+    type: object
+    properties:
+      id:
+        type: string
+      templateId:
+        type: string
+      label:
+        type: string
+        nullable: true
+      startIso:
+        type: string
+        format: date
+      endIso:
+        type: string
+        format: date
+    required:
+    - id
+    - templateId
+    - startIso
+    - endIso
+  PlanWeekActivityParticipant:
+    type: object
+    properties:
+      resourceId:
+        type: string
+      role:
+        type: string
+        nullable: true
+        description: "Optionale Rolle (z. B. primary-personnel, secondary-vehicle)."
+    required:
+    - resourceId
+  PlanWeekActivity:
+    type: object
+    properties:
+      id:
+        type: string
+      templateId:
+        type: string
+      title:
+        type: string
+      startIso:
+        type: string
+        format: date-time
+      endIso:
+        type: string
+        format: date-time
+      type:
+        type: string
+        nullable: true
+      remark:
+        type: string
+        nullable: true
+      attributes:
+        type: object
+        additionalProperties: true
+      participants:
+        type: array
+        minItems: 1
+        description: "Ressourcen, die dieser Vorlage-Aktivit\xE4t zugeordnet sind."
+        items:
+          $ref: '#/components/schemas/PlanWeekActivityParticipant'
+    required:
+    - id
+    - templateId
+    - title
+    - startIso
+    - endIso
+    - participants
+  PlanWeekValidityListResponse:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanWeekValidity'
+    required:
+    - items
+  PlanWeekValidity:
+    type: object
+    properties:
+      id:
+        type: string
+      templateId:
+        type: string
+      validFromIso:
+        type: string
+        format: date
+      validToIso:
+        type: string
+        format: date
+      includeWeekNumbers:
+        type: array
+        items:
+          type: integer
+      excludeWeekNumbers:
+        type: array
+        items:
+          type: integer
+      status:
+        type: string
+        enum:
+        - draft
+        - approved
+        - rolled-out
+    required:
+    - id
+    - templateId
+    - validFromIso
+    - validToIso
+    - status
+  PlanWeekRolloutRequest:
+    type: object
+    properties:
+      templateId:
+        type: string
+      version:
+        type: string
+      weekStartIso:
+        type: string
+        format: date
+      weekCount:
+        type: integer
+        minimum: 1
+      skipWeekCodes:
+        type: array
+        description: "ISO-Wochenkennungen (z.\u202FB. 2024-W15), die ausgelassen werden\
+          \ sollen."
+        items:
+          type: string
+    required:
+    - templateId
+    - version
+    - weekStartIso
+    - weekCount
+  PlanWeekRolloutResponse:
+    type: object
+    properties:
+      createdInstances:
+        type: array
+        items:
+          $ref: '#/components/schemas/WeekInstanceSummary'
+    required:
+    - createdInstances
+  WeekInstanceListResponse:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/WeekInstance'
+    required:
+    - items
+  WeekInstance:
+    type: object
+    properties:
+      id:
+        type: string
+      templateId:
+        type: string
+      weekStartIso:
+        type: string
+        format: date
+      templateVersion:
+        type: string
+      services:
+        type: array
+        items:
+          $ref: '#/components/schemas/ScheduledService'
+      assignments:
+        type: array
+        items:
+          $ref: '#/components/schemas/ServiceAssignment'
+      status:
+        type: string
+        enum:
+        - planned
+        - released
+        - in-progress
+        - archived
+    required:
+    - id
+    - templateId
+    - weekStartIso
+    - templateVersion
+    - services
+    - assignments
+    - status
+  ScheduledService:
+    type: object
+    properties:
+      id:
+        type: string
+      instanceId:
+        type: string
+      sliceId:
+        type: string
+      startIso:
+        type: string
+        format: date-time
+      endIso:
+        type: string
+        format: date-time
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - instanceId
+    - sliceId
+    - startIso
+    - endIso
+  ServiceAssignment:
+    type: object
+    properties:
+      id:
+        type: string
+      scheduledServiceId:
+        type: string
+      resourceId:
+        type: string
+      resourceKind:
+        type: string
+        enum:
+        - vehicle
+        - personnel
+      assignedAtIso:
+        type: string
+        format: date-time
+      assignedBy:
+        type: string
+        nullable: true
+    required:
+    - id
+    - scheduledServiceId
+    - resourceId
+    - resourceKind
+    - assignedAtIso
+  WeekInstanceSummary:
+    type: object
+    properties:
+      id:
+        type: string
+      weekStartIso:
+        type: string
+        format: date
+      status:
+        type: string
+        enum:
+        - planned
+        - released
+        - in-progress
+        - archived
+    required:
+    - id
+    - weekStartIso
+    - status
+    PlanWeekRealtimeEvent:
+      type: object
+    properties:
+      scope:
+        type: string
+        enum:
+        - template
+        - service
+        - validity
+        - rollout
+      templateId:
+        type: string
+        nullable: true
+      upserts:
+        type: array
+        items:
+          oneOf:
+          - $ref: '#/components/schemas/PlanWeekTemplate'
+          - $ref: '#/components/schemas/PlanWeekSlice'
+          - $ref: '#/components/schemas/PlanWeekValidity'
+          - $ref: '#/components/schemas/PlanWeekActivity'
+          - $ref: '#/components/schemas/WeekInstanceSummary'
+      deleteIds:
+        type: array
+        items:
+          type: string
+      version:
+        type: string
+        nullable: true
+      sourceClientId:
+        type: string
+        nullable: true
+      sourceConnectionId:
+        type: string
+        nullable: true
+      timestamp:
+        type: string
+        format: date-time
+        nullable: true
+    required:
+    - scope
+  LatLng:
+    type: object
+    properties:
+      lat:
+        type: number
+        format: double
+      lng:
+        type: number
+        format: double
+    required:
+    - lat
+    - lng
+  TopologyAttribute:
+    type: object
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+      validFrom:
+        type: string
+        format: date
+        nullable: true
+    required:
+    - key
+    - value
+  OperationalPoint:
+    type: object
+    properties:
+      opId:
+        type: string
+      uniqueOpId:
+        type: string
+      countryCode:
+        type: string
+      name:
+        type: string
+      opType:
+        type: string
+      position:
+        $ref: '#/components/schemas/LatLng'
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - opId
+    - uniqueOpId
+    - countryCode
+    - name
+    - opType
+    - position
+  OperationalPointListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/OperationalPoint'
+    required:
+    - items
+  SectionOfLine:
+    type: object
+    properties:
+      solId:
+        type: string
+      startUniqueOpId:
+        type: string
+      endUniqueOpId:
+        type: string
+      lengthKm:
+        type: number
+        format: double
+        nullable: true
+      nature:
+        type: string
+        enum:
+        - REGULAR
+        - LINK
+      polyline:
+        type: array
+        items:
+          $ref: '#/components/schemas/LatLng'
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - solId
+    - startUniqueOpId
+    - endUniqueOpId
+    - nature
+  SectionOfLineListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/SectionOfLine'
+    required:
+    - items
+  PersonnelSite:
+    type: object
+    properties:
+      siteId:
+        type: string
+      siteType:
+        type: string
+        enum:
+        - MELDESTELLE
+        - PAUSENRAUM
+        - BEREITSCHAFT
+        - "B\xDCRO"
+      name:
+        type: string
+      uniqueOpId:
+        type: string
+        nullable: true
+      position:
+        $ref: '#/components/schemas/LatLng'
+      openingHoursJson:
+        type: string
+        nullable: true
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - siteId
+    - siteType
+    - name
+    - position
+  PersonnelSiteListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/PersonnelSite'
+    required:
+    - items
+  ReplacementStop:
+    type: object
+    properties:
+      replacementStopId:
+        type: string
+      name:
+        type: string
+      stopCode:
+        type: string
+        nullable: true
+      position:
+        $ref: '#/components/schemas/LatLng'
+      nearestUniqueOpId:
+        type: string
+        nullable: true
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - replacementStopId
+    - name
+    - position
+  ReplacementStopListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/ReplacementStop'
+    required:
+    - items
+  ReplacementRoute:
+    type: object
+    properties:
+      replacementRouteId:
+        type: string
+      name:
+        type: string
+      operator:
+        type: string
+        nullable: true
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - replacementRouteId
+    - name
+  ReplacementRouteListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/ReplacementRoute'
+    required:
+    - items
+  ReplacementEdge:
+    type: object
+    properties:
+      replacementEdgeId:
+        type: string
+      replacementRouteId:
+        type: string
+      fromStopId:
+        type: string
+      toStopId:
+        type: string
+      seq:
+        type: integer
+      avgDurationSec:
+        type: integer
+        nullable: true
+      distanceM:
+        type: integer
+        nullable: true
+      polyline:
+        type: array
+        items:
+          $ref: '#/components/schemas/LatLng'
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - replacementEdgeId
+    - replacementRouteId
+    - fromStopId
+    - toStopId
+    - seq
+  ReplacementEdgeListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/ReplacementEdge'
+    required:
+    - items
+  OpReplacementStopLink:
+    type: object
+    properties:
+      linkId:
+        type: string
+      uniqueOpId:
+        type: string
+      replacementStopId:
+        type: string
+      relationType:
+        type: string
+        enum:
+        - PRIMARY_SEV_STOP
+        - ALTERNATIVE
+        - TEMPORARY
+      walkingTimeSec:
+        type: integer
+        nullable: true
+      distanceM:
+        type: integer
+        nullable: true
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - linkId
+    - uniqueOpId
+    - replacementStopId
+    - relationType
+  OpReplacementStopLinkListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/OpReplacementStopLink'
+    required:
+    - items
+  TransferNodeOperationalPoint:
+    type: object
+    properties:
+      kind:
+        type: string
+        enum:
+        - OP
+      uniqueOpId:
+        type: string
+    required:
+    - kind
+    - uniqueOpId
+    additionalProperties: false
+  TransferNodePersonnelSite:
+    type: object
+    properties:
+      kind:
+        type: string
+        enum:
+        - PERSONNEL_SITE
+      siteId:
+        type: string
+    required:
+    - kind
+    - siteId
+    additionalProperties: false
+  TransferNodeReplacementStop:
+    type: object
+    properties:
+      kind:
+        type: string
+        enum:
+        - REPLACEMENT_STOP
+      replacementStopId:
+        type: string
+    required:
+    - kind
+    - replacementStopId
+    additionalProperties: false
+  TransferNode:
+    oneOf:
+    - $ref: '#/components/schemas/TransferNodeOperationalPoint'
+    - $ref: '#/components/schemas/TransferNodePersonnelSite'
+    - $ref: '#/components/schemas/TransferNodeReplacementStop'
+    discriminator:
+      propertyName: kind
+      mapping:
+        OP: '#/components/schemas/TransferNodeOperationalPoint'
+        PERSONNEL_SITE: '#/components/schemas/TransferNodePersonnelSite'
+        REPLACEMENT_STOP: '#/components/schemas/TransferNodeReplacementStop'
+  TransferEdge:
+    type: object
+    properties:
+      transferId:
+        type: string
+      from:
+        $ref: '#/components/schemas/TransferNode'
+      to:
+        $ref: '#/components/schemas/TransferNode'
+      mode:
+        type: string
+        enum:
+        - WALK
+        - SHUTTLE
+        - INTERNAL
+      avgDurationSec:
+        type: integer
+        nullable: true
+      distanceM:
+        type: integer
+        nullable: true
+      bidirectional:
+        type: boolean
+      attributes:
+        type: array
+        items:
+          $ref: '#/components/schemas/TopologyAttribute'
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      createdBy:
+        type: string
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedBy:
+        type: string
+        nullable: true
+    required:
+    - transferId
+    - from
+    - to
+    - mode
+    - bidirectional
+  TransferEdgeListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/TransferEdge'
+    required:
+    - items
+  TopologyImportRequest:
+    type: object
+    properties:
+      kinds:
+        type: array
+        items:
+          type: string
+          enum:
+          - operational-points
+          - sections-of-line
+          - personnel-sites
+          - replacement-stops
+          - replacement-routes
+          - replacement-edges
+          - op-replacement-stop-links
+          - transfer-edges
+  TopologyImportResponse:
+    type: object
+    properties:
+      startedAt:
+        type: string
+        format: date-time
+      requestedKinds:
+        type: array
+        items:
+          type: string
+          enum:
+          - operational-points
+          - sections-of-line
+          - personnel-sites
+          - replacement-stops
+          - replacement-routes
+          - replacement-edges
+          - op-replacement-stop-links
+          - transfer-edges
+      message:
+        type: string
+        nullable: true
+    required:
+    - startedAt
+    - requestedKinds
+  TopologyImportStatus:
+    type: string
+    enum:
+    - queued
+    - in-progress
+    - succeeded
+    - failed
+    - ignored
+  TopologyImportEventRequest:
+    type: object
+    properties:
+      status:
+        $ref: '#/components/schemas/TopologyImportStatus'
+      kinds:
+        type: array
+        items:
+          type: string
+          enum:
+          - operational-points
+          - sections-of-line
+          - personnel-sites
+          - replacement-stops
+          - replacement-routes
+          - replacement-edges
+          - op-replacement-stop-links
+          - transfer-edges
+      message:
+        type: string
+        nullable: true
+      source:
+        type: string
+        nullable: true
+    required:
+    - status
+  TopologyImportRealtimeEvent:
+    allOf:
+    - $ref: '#/components/schemas/TopologyImportEventRequest'
+    - type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+      required:
+      - timestamp

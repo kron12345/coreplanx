@@ -1,0 +1,10 @@
+.range-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+mat-form-field {
+  width: 100%;
+}

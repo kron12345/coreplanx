@@ -1,0 +1,85 @@
+.layout {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fb;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px;
+
+  .spacer {
+    flex: 1;
+  }
+}
+
+.toolbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  mat-icon {
+    font-size: 28px;
+  }
+}
+
+.toolbar-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+
+  .brand-title {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  .brand-subtitle {
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+}
+
+.primary-nav {
+  display: flex;
+  gap: 4px;
+
+  a,
+  button {
+    font-weight: 500;
+    text-transform: none;
+    border-radius: 20px;
+    padding: 6px 18px;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .active {
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+
+.content {
+  display: none;
+}
+
+.page {
+  flex: 1;
+  min-height: 0;
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+
+  &.page--wide {
+    width: 100%;
+  }
+}

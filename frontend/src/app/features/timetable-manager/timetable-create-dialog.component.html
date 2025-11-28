@@ -1,0 +1,173 @@
+<h2 mat-dialog-title>Fahrplan im Fahrplanmanager anlegen</h2>
+
+<form class="create-form" [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="dialog-content">
+    <section class="form-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Titel</mat-label>
+        <input matInput formControlName="title" placeholder="z. B. IC 201 Basel → Hamburg" />
+        <mat-error *ngIf="form.controls.title.hasError('required')">Titel ist erforderlich.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>RefTrainID</mat-label>
+        <input matInput formControlName="refTrainId" placeholder="z. B. TT-2026-0005" />
+        <mat-error *ngIf="form.controls.refTrainId.hasError('required')">RefTrainID ist erforderlich.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Zugnummer (OPN)</mat-label>
+        <input matInput formControlName="opn" placeholder="z. B. OPN-4711" />
+        <mat-error *ngIf="form.controls.opn.hasError('required')">OPN ist erforderlich.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Zugnummer</mat-label>
+        <input matInput formControlName="trainNumber" placeholder="z. B. IC 201" />
+        <mat-error *ngIf="form.controls.trainNumber.hasError('required')">Zugnummer ist erforderlich.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Verantwortliches RU</mat-label>
+        <input matInput formControlName="responsibleRu" placeholder="z. B. Qnamic Rail GmbH" />
+        <mat-error *ngIf="form.controls.responsibleRu.hasError('required')">Angabe erforderlich.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Status / Phase</mat-label>
+        <mat-select formControlName="status">
+          <mat-option *ngFor="let option of phaseOptions" [value]="option.value">
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Quelle</mat-label>
+        <mat-select formControlName="sourceType">
+          <mat-option *ngFor="let option of sourceOptions" [value]="option.value">
+            {{ option.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Path Request ID (TTT)</mat-label>
+        <input matInput formControlName="pathRequestId" placeholder="z. B. PR-DE.QNA-2026-0001" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Rahmenvertrag</mat-label>
+        <input matInput formControlName="frameworkAgreementId" placeholder="z. B. RVK-2026-1234" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Externes System</mat-label>
+        <input matInput formControlName="externalSystem" placeholder="z. B. RNE PCS" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Letzte Meldung</mat-label>
+        <textarea matInput formControlName="lastMessage" rows="2"></textarea>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Linked Order Item</mat-label>
+        <input matInput formControlName="linkedOrderItemId" placeholder="z. B. A-2026-0005-OP-001" />
+      </mat-form-field>
+    </section>
+
+    <section class="calendar-section">
+      <h3>Gültigkeit</h3>
+      <div class="calendar-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Gültig ab</mat-label>
+          <input matInput [matDatepicker]="pickerStart" formControlName="validFrom" />
+          <mat-datepicker-toggle matSuffix [for]="pickerStart"></mat-datepicker-toggle>
+          <mat-datepicker #pickerStart></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Gültig bis</mat-label>
+          <input matInput [matDatepicker]="pickerEnd" formControlName="validTo" />
+          <mat-datepicker-toggle matSuffix [for]="pickerEnd"></mat-datepicker-toggle>
+          <mat-datepicker #pickerEnd></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Betriebstage (Bitmap)</mat-label>
+          <input
+            matInput
+            maxlength="7"
+            formControlName="daysBitmap"
+            placeholder="1111111"
+          />
+          <mat-hint align="end">0/1 für Mo-So</mat-hint>
+          <mat-error *ngIf="form.controls.daysBitmap.hasError('pattern')">
+            Erwartet wird eine 7-stellige 0/1-Kombination.
+          </mat-error>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="notes-section">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Notizen</mat-label>
+        <textarea matInput rows="3" formControlName="notes"></textarea>
+      </mat-form-field>
+    </section>
+
+    <section class="stops-section">
+      <div class="stops-header">
+        <h3>Halte & Zeiten</h3>
+        <button mat-stroked-button type="button" color="primary" (click)="openPlanAssembly()">
+          <mat-icon>route</mat-icon>
+          Fahrplan zusammenstellen
+        </button>
+      </div>
+      <p class="stops-hint">
+        Kommerzielle und betriebliche Zeiten werden anhand der erfassten Halte erzeugt. Anpassungen können später im Fahrplanmanager erfolgen.
+      </p>
+      <mat-card class="stops-preview" appearance="outlined">
+        <mat-card-content>
+          <div
+            class="stops-preview__item"
+            *ngFor="let stop of stopPreview(); let last = last"
+          >
+            <div class="index">#{{ stop.sequence }}</div>
+            <div class="name">{{ stop.name }}</div>
+            <div class="times">
+              @if (stop.arrivalTime) {
+                <span>An: {{ stop.arrivalTime }}</span>
+              }
+              @if (stop.departureTime) {
+                <span>Ab: {{ stop.departureTime }}</span>
+              }
+              @if (!stop.arrivalTime && !stop.departureTime) {
+                <span>Noch ohne Zeiten</span>
+              }
+            </div>
+            @if (!last) {
+              <mat-icon fontIcon="arrow_forward" class="arrow"></mat-icon>
+            }
+          </div>
+          @if (!stopPreview().length) {
+            <p class="empty">Noch keine Halte definiert.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+    </section>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <div class="error" *ngIf="errorMessage() as message">
+      <mat-icon fontIcon="error_outline"></mat-icon>
+      {{ message }}
+    </div>
+    <span class="spacer"></span>
+    <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+    <button mat-flat-button color="primary" type="submit">
+      Fahrplan speichern
+    </button>
+  </mat-dialog-actions>
+</form>

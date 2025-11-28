@@ -1,0 +1,166 @@
+<h2 mat-dialog-title>Testzug anlegen</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="dialog-form">
+    <section class="dialog-section">
+      <h3>Allgemeine Daten</h3>
+      <div class="dialog-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Zugnummer</mat-label>
+          <input matInput formControlName="trainNumber" maxlength="40" placeholder="z. B. ICE 1501" />
+          <mat-hint align="end">{{ form.controls.trainNumber.value.length }}/40</mat-hint>
+          @if (form.controls.trainNumber.touched && form.controls.trainNumber.hasError('required')) {
+            <mat-error>Pflichtfeld</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Titel</mat-label>
+          <input matInput formControlName="title" maxlength="120" placeholder="z. B. Testlauf" />
+          <mat-hint align="end">{{ form.controls.title.value.length }}/120</mat-hint>
+          @if (form.controls.title.touched && form.controls.title.hasError('required')) {
+            <mat-error>Pflichtfeld</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Fahrplanjahr</mat-label>
+          <mat-select formControlName="timetableYearLabel">
+            @for (year of yearOptions; track year) {
+              <mat-option [value]="year">{{ year }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Abschnitt</mat-label>
+          <mat-select formControlName="section">
+            @for (section of sectionOptions; track section.key) {
+              <mat-option [value]="section.key">{{ section.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Kalenderstart</mat-label>
+          <input matInput type="date" formControlName="calendarStart" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Kalenderende</mat-label>
+          <input matInput type="date" formControlName="calendarEnd" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="dialog-section">
+      <div class="section-header">
+        <h3>Halte & Fahrzeiten</h3>
+        <button mat-stroked-button type="button" (click)="addStop()">
+          <mat-icon>add</mat-icon>
+          Unterwegshalt
+        </button>
+      </div>
+      <p class="section-hint">
+        Mindestens Start- und Zielhalt. Zeiten im Format HH:MM (optional) – wir verwenden den ersten Verkehrstag
+        als Referenz.
+      </p>
+      <div class="stop-list" formArrayName="stops">
+        @for (group of stops.controls; let i = $index; track i) {
+          <div class="stop-row" [formGroupName]="i">
+            <div class="stop-row__index">#{{ i + 1 }}</div>
+            <div class="stop-row__fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Halt</mat-label>
+                <input matInput formControlName="locationName" maxlength="80" />
+                @if (
+                  group.controls.locationName.touched && group.controls.locationName.hasError('required')
+                ) {
+                  <mat-error>Pflichtfeld</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Typ</mat-label>
+                <mat-select formControlName="type" [disabled]="isEdgeStop(i)">
+                  <mat-option value="origin">Start</mat-option>
+                  <mat-option value="intermediate">Unterwegs</mat-option>
+                  <mat-option value="destination">Ziel</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Ankunft (HH:MM)</mat-label>
+                <input matInput formControlName="arrivalTime" placeholder="z. B. 08:30" />
+                @if (group.controls.arrivalTime.hasError('time')) {
+                  <mat-error>Format HH:MM</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Abfahrt (HH:MM)</mat-label>
+                <input matInput formControlName="departureTime" placeholder="z. B. 08:35" />
+                @if (group.controls.departureTime.hasError('time')) {
+                  <mat-error>Format HH:MM</mat-error>
+                }
+              </mat-form-field>
+            </div>
+            <div class="stop-row__actions">
+              <span class="stop-row__label">{{ stopLabel(i, group) }}</span>
+              <button
+                mat-icon-button
+                type="button"
+                (click)="removeStop(i)"
+                [disabled]="isEdgeStop(i)"
+                aria-label="Halt entfernen"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="dialog-section">
+      <h3>Technische Parameter</h3>
+      <div class="dialog-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Höchstgeschwindigkeit (km/h)</mat-label>
+          <input matInput type="number" formControlName="technicalMaxSpeed" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Länge (m)</mat-label>
+          <input matInput type="number" formControlName="technicalLength" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Gewicht (t)</mat-label>
+          <input matInput type="number" formControlName="technicalWeight" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Traktion / Antrieb</mat-label>
+          <input matInput formControlName="technicalTraction" maxlength="60" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>ETCS-Level</mat-label>
+          <input matInput formControlName="technicalEtcsLevel" maxlength="40" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="dialog-section">
+      <h3>Grenzpunkte & Hinweise</h3>
+      <div class="dialog-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Start-Grenzpunkt</mat-label>
+          <input matInput formControlName="originBorderPoint" maxlength="80" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Ziel-Grenzpunkt</mat-label>
+          <input matInput formControlName="destinationBorderPoint" maxlength="80" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="grid-span">
+          <mat-label>Grenz-Hinweis</mat-label>
+          <textarea matInput rows="2" formControlName="borderNotes" maxlength="200"></textarea>
+        </mat-form-field>
+      </div>
+    </section>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="submit()">Erstellen</button>
+</mat-dialog-actions>

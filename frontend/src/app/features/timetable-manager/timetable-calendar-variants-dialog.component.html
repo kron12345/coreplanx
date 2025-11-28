@@ -1,0 +1,130 @@
+<h2 mat-dialog-title>Kalender-Varianten</h2>
+
+<mat-dialog-content class="dialog-content">
+  <form [formGroup]="form" class="variants-form">
+    <section formArrayName="variants" class="variant-section">
+      <div
+        class="variant-card"
+        *ngFor="let group of variants.controls; let i = index"
+        [formGroupName]="i"
+      >
+        <header>
+          <h3>Variante #{{ i + 1 }}</h3>
+          <span class="spacer"></span>
+          <div class="actions">
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Nach oben"
+              (click)="moveVariant(i, -1)"
+              [disabled]="i === 0"
+            >
+              <mat-icon>arrow_upward</mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Nach unten"
+              (click)="moveVariant(i, 1)"
+              [disabled]="i === variants.length - 1"
+            >
+              <mat-icon>arrow_downward</mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Variante entfernen"
+              color="warn"
+              (click)="removeVariant(i)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </header>
+
+        <div class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Beschreibung</mat-label>
+            <input matInput formControlName="description" placeholder="z. B. Messeverkehr" />
+            <mat-error>Angabe erforderlich.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Typ</mat-label>
+            <mat-select formControlName="type">
+              <mat-option
+                *ngFor="let option of typeOptions"
+                [value]="option.value"
+              >
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Gültig ab</mat-label>
+            <input matInput type="date" formControlName="validFrom" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Gültig bis</mat-label>
+            <input matInput type="date" formControlName="validTo" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Wirkt auf</mat-label>
+            <mat-select formControlName="appliesTo">
+              <mat-option
+                *ngFor="let option of appliesOptions"
+                [value]="option.value"
+              >
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Wochentage</mat-label>
+            <mat-select formControlName="daysOfWeek" multiple>
+              <mat-option
+                *ngFor="let option of daysOfWeekOptions"
+                [value]="option.value"
+              >
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>Leer lassen, wenn einzelne Tage benutzt werden.</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Einzeltage</mat-label>
+            <textarea
+              matInput
+              rows="2"
+              formControlName="dates"
+              placeholder="z. B. 2026-04-15, 2026-04-16"
+            ></textarea>
+            <mat-hint>Kommagetrennt oder je Zeile.</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="reason">
+          <mat-label>Grund</mat-label>
+          <textarea matInput rows="2" formControlName="reason"></textarea>
+        </mat-form-field>
+      </div>
+
+      <button mat-stroked-button type="button" (click)="addVariant()">
+        <mat-icon>add</mat-icon>
+        Variante hinzufügen
+      </button>
+    </section>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="submit()">Speichern</button>
+</mat-dialog-actions>

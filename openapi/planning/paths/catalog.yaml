@@ -1,0 +1,425 @@
+catalog:
+  dummy: true
+
+planning_catalog_snapshot:
+  get:
+    summary: Gesamten Activity-Katalog abrufen
+    responses:
+      '200':
+        description: Snapshot
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityCatalogSnapshot'
+  put:
+    summary: Gesamten Activity-Katalog ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityCatalogSnapshot'
+    responses:
+      '200':
+        description: Persistierter Snapshot
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityCatalogSnapshot'
+
+planning_catalog_types:
+  get:
+    summary: Activity Types auflisten
+    responses:
+      '200':
+        description: Liste der Activity Types
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+  post:
+    summary: Activity Type anlegen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+    responses:
+      '201':
+        description: Angelegter Type
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+
+planning_catalog_types_typeId:
+  get:
+    summary: Activity Type abrufen
+    parameters:
+      - in: path
+        name: typeId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Activity Type
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+  put:
+    summary: Activity Type ersetzen/aktualisieren
+    parameters:
+      - in: path
+        name: typeId
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+    responses:
+      '200':
+        description: Aktualisierter Type
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+  delete:
+    summary: Activity Type löschen
+    parameters:
+      - in: path
+        name: typeId
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Gelöscht
+
+planning_catalog_templates:
+  get:
+    summary: Activity Templates auflisten
+    responses:
+      '200':
+        description: Liste der Templates
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+  post:
+    summary: Activity Template anlegen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+    responses:
+      '201':
+        description: Angelegtes Template
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+
+planning_catalog_templates_templateId:
+  get:
+    summary: Activity Template abrufen
+    parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Activity Template
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+  put:
+    summary: Activity Template ersetzen/aktualisieren
+    parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+    responses:
+      '200':
+        description: Aktualisiertes Template
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+  delete:
+    summary: Activity Template löschen
+    parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Gelöscht
+
+planning_catalog_definitions:
+  get:
+    summary: Activity Definitions auflisten
+    responses:
+      '200':
+        description: Liste der Definitions
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+  post:
+    summary: Activity Definition anlegen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+    responses:
+      '201':
+        description: Angelegte Definition
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+
+planning_catalog_definitions_definitionId:
+  get:
+    summary: Activity Definition abrufen
+    parameters:
+      - in: path
+        name: definitionId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Activity Definition
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+  put:
+    summary: Activity Definition ersetzen/aktualisieren
+    parameters:
+      - in: path
+        name: definitionId
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+    responses:
+      '200':
+        description: Aktualisierte Definition
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+  delete:
+    summary: Activity Definition löschen
+    parameters:
+      - in: path
+        name: definitionId
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Gelöscht
+
+planning_catalog_layers:
+  get:
+    summary: Layer-Gruppen auflisten
+    responses:
+      '200':
+        description: Liste der Layer-Gruppen
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+  post:
+    summary: Layer-Gruppe anlegen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+    responses:
+      '201':
+        description: Angelegte Layer-Gruppe
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+
+planning_catalog_layers_layerId:
+  get:
+    summary: Layer-Gruppe abrufen
+    parameters:
+      - in: path
+        name: layerId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Layer-Gruppe
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+  put:
+    summary: Layer-Gruppe ersetzen/aktualisieren
+    parameters:
+      - in: path
+        name: layerId
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+    responses:
+      '200':
+        description: Aktualisierte Layer-Gruppe
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+  delete:
+    summary: Layer-Gruppe löschen
+    parameters:
+      - in: path
+        name: layerId
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Gelöscht
+
+planning_catalog_translations:
+  get:
+    summary: Alle Übersetzungen abrufen
+    responses:
+      '200':
+        description: Übersetzungs-State
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/TranslationState'
+  put:
+    summary: Übersetzungs-State ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/TranslationState'
+    responses:
+      '200':
+        description: Persistierter State
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/TranslationState'
+
+planning_catalog_translations_locale:
+  get:
+    summary: Übersetzungen für eine Locale abrufen
+    parameters:
+      - in: path
+        name: locale
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Übersetzungen für Locale
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  label:
+                    type: string
+                    nullable: true
+                  abbreviation:
+                    type: string
+                    nullable: true
+  put:
+    summary: Übersetzungen für eine Locale ersetzen/aktualisieren
+    parameters:
+      - in: path
+        name: locale
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties:
+              type: object
+              properties:
+                label:
+                  type: string
+                  nullable: true
+                abbreviation:
+                  type: string
+                  nullable: true
+    responses:
+      '200':
+        description: Persistierte Übersetzungen
+  delete:
+    summary: Übersetzungen für eine Locale löschen
+    parameters:
+      - in: path
+        name: locale
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Gelöscht

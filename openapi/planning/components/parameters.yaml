@@ -1,0 +1,55 @@
+parameters:
+  StageId:
+    name: stageId
+    in: path
+    required: true
+    schema:
+      type: string
+      enum:
+      - base
+      - operations
+      - dispatch
+  UserId:
+    name: userId
+    in: query
+    required: false
+    description: "Optional User-Identit\xE4t, damit der SSE-Stream nur passende Events\
+      \ liefert."
+    schema:
+      type: string
+  ConnectionId:
+    name: connectionId
+    in: query
+    required: false
+    description: "Eindeutiger Verbindungs- bzw. Tab-Identifier, um Echo-Events zu\
+      \ unterdr\xFCcken."
+    schema:
+      type: string
+  TemplateId:
+    name: templateId
+    in: path
+    required: true
+    schema:
+      type: string
+    description: Eindeutige ID einer Planwochen-Vorlage.
+  ValidityId:
+    name: validityId
+    in: path
+    required: true
+    schema:
+      type: string
+    description: "Eindeutige ID eines G\xFCltigkeitsintervalls."
+  WeekInstanceId:
+    name: weekInstanceId
+    in: path
+    required: true
+    schema:
+      type: string
+    description: ID einer Wocheninstanz in der Betriebsplanung.
+  TemplateActivityId:
+    name: activityId
+    in: path
+    required: true
+    schema:
+      type: string
+    description: ID einer Aktivität innerhalb einer Planwoche.

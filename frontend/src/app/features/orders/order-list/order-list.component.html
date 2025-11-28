@@ -1,0 +1,475 @@
+<div class="orders-page manager-shell">
+  <section class="orders-hero">
+    <div class="orders-hero__body">
+      <div class="orders-hero__lead">
+        <p class="orders-hero__eyebrow">Pipeline · {{ heroMetrics().totalOrders }} aktiv</p>
+        <h1>Aufträge</h1>
+        <p class="orders-hero__subtitle">
+          {{ heroMetrics().totalOrders }} Aufträge mit {{ heroMetrics().totalItems }} Positionen ·
+          {{ heroMetrics().upcomingItems }} starten in den nächsten 7 Tagen und {{ heroMetrics().attentionItems }} benötigen Aufmerksamkeit.
+        </p>
+      </div>
+      <div class="orders-hero__actions">
+        <button mat-stroked-button type="button" (click)="openCreateDialog()">
+          <mat-icon>add</mat-icon>
+          Neuer Auftrag
+        </button>
+        <span class="shortcut-hint">Shortcut: Strg/⌘ + F zum Fokussieren</span>
+      </div>
+    </div>
+
+    <div class="orders-hero__metrics">
+      @for (metric of heroMetricList(); track metric.key) {
+        <div class="hero-metric">
+          <span class="hero-metric__label">{{ metric.label }}</span>
+          <strong>{{ metric.value }}</strong>
+          <span class="hero-metric__hint">{{ metric.hint }}</span>
+          <button type="button" class="hero-metric__cta" (click)="metric.action()">
+            <mat-icon>{{ metric.icon }}</mat-icon>
+            Anzeigen
+          </button>
+        </div>
+      }
+    </div>
+  </section>
+
+  @if (templatePanelOpen()) {
+    <app-order-template-recommendation
+      [filters]="filters()"
+      (close)="toggleTemplatePanel(false)"
+    />
+  }
+
+  <section class="orders-insights" aria-label="Auftrags-Insights">
+    <div class="insights-header">
+      <div>
+        <p>Team-Insights</p>
+        <span>Kurzer Überblick, womit die Crew gerade arbeitet.</span>
+      </div>
+      <button type="button" mat-stroked-button (click)="toggleInsightsCollapsed()">
+        <mat-icon>{{ insightsCollapsed() ? 'unfold_more' : 'unfold_less' }}</mat-icon>
+        {{ insightsCollapsed() ? 'Einblenden' : 'Ausblenden' }}
+      </button>
+    </div>
+
+    @if (!insightsCollapsed()) {
+      <div class="orders-insights__grid">
+        @let context = collaborationContext();
+        <article class="insight-card insight-card--context">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>{{ context.icon }}</mat-icon>
+              <div>
+                <strong>{{ context.title }}</strong>
+                <span>{{ context.message }}</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            <p class="insight-card__hint">{{ context.hint }}</p>
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--tags">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>sell</mat-icon>
+              <div>
+                <strong>Beliebte Tags</strong>
+                <span>Meistgenutzte Kontexte aus den gefilterten Aufträgen.</span>
+              </div>
+            </div>
+            <button mat-icon-button type="button" matTooltip="Tag-Filter zurücksetzen" (click)="clearTagFilter()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </header>
+          <div class="insight-card__body">
+            @if (!topTags().length) {
+              <p class="insight-card__empty">Noch keine Tags vergeben.</p>
+            } @else {
+              <div class="insight-pills">
+                @for (tagStat of topTags(); track tagStat[0]) {
+                  <button
+                    type="button"
+                    class="insight-pill"
+                    (click)="applyTagInsight(tagStat[0])"
+                  >
+                    <mat-icon>sell</mat-icon>
+                    <span>{{ formatTagLabel(tagStat[0]) }}</span>
+                    <small>{{ tagStat[1] }}</small>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--responsibles">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>group</mat-icon>
+              <div>
+                <strong>Top Verantwortliche</strong>
+                <span>Direkt in der Suche filtern.</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!topResponsibles().length) {
+              <p class="insight-card__empty">Noch keine Verantwortlichen vorhanden.</p>
+            } @else {
+              <div class="insight-pills">
+                @for (responsible of topResponsibles(); track responsible[0]) {
+                  <button
+                    type="button"
+                    class="insight-pill insight-pill--person"
+                    (click)="applyResponsibleInsight(responsible[0])"
+                  >
+                    <mat-icon>person</mat-icon>
+                    <span>{{ responsible[0] }}</span>
+                    <small>{{ responsible[1] }}</small>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--signals">
+          @let insight = healthInsight();
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>{{ insight.icon }}</mat-icon>
+              <div>
+                <strong>{{ insight.title }}</strong>
+                <span>{{ insight.summary }}</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-signal">
+            <div class="insight-signal__metrics">
+              <div>
+                <span class="value">{{ insight.attentionPercent }}%</span>
+                <span class="label">Abweichungen</span>
+              </div>
+              <div>
+                <span class="value">{{ insight.upcomingPercent }}%</span>
+                <span class="label">Demnächst</span>
+              </div>
+            </div>
+            <div class="insight-signal__bar">
+              <span
+                class="attention"
+                [style.width.%]="insight.attentionPercent"
+              ></span>
+              <span
+                class="upcoming"
+                [style.left.%]="insight.attentionPercent"
+                [style.width.%]="insight.upcomingPercent"
+              ></span>
+            </div>
+            <div class="insight-signal__actions">
+              <button mat-stroked-button type="button" (click)="focusAttention()">
+                <mat-icon>warning</mat-icon>
+                Abweichungen anzeigen
+              </button>
+              <button mat-button type="button" (click)="focusUpcoming()">
+                <mat-icon>event</mat-icon>
+                Diese Woche
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+    }
+  </section>
+
+  <section class="orders-controller manager-filter">
+    <div class="filter-shelf">
+      <div class="filter-shelf__row filter-shelf__row--primary">
+        <mat-form-field appearance="outline" class="filter-shelf__search">
+          <mat-label>Suchen</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input
+            matInput
+            [formControl]="searchControl"
+            placeholder="Aufträge, Tags, Verantwortliche"
+            [matAutocomplete]="orderSearchAutocomplete"
+          />
+          <mat-autocomplete
+            #orderSearchAutocomplete="matAutocomplete"
+            autoActiveFirstOption
+            (optionSelected)="onSearchSuggestionSelected($event)"
+          >
+            @if (!searchSuggestions().length) {
+              <mat-option disabled>Keine Vorschläge</mat-option>
+            } @else {
+              @for (suggestion of searchSuggestions(); track suggestion.value) {
+                <mat-option [value]="suggestion.value">
+                  <div class="search-suggestion">
+                    <mat-icon>{{ suggestion.icon }}</mat-icon>
+                    <div>
+                      <strong>{{ suggestion.label }}</strong>
+                      <span>{{ suggestion.description }}</span>
+                    </div>
+                  </div>
+                </mat-option>
+              }
+            }
+          </mat-autocomplete>
+          <button
+            mat-icon-button
+            matSuffix
+            [matMenuTriggerFor]="searchHelpMenu"
+            type="button"
+            aria-label="Suchhilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+
+        <mat-menu #searchHelpMenu="matMenu">
+          <button mat-menu-item disabled>
+            <mat-icon>search</mat-icon>
+            <span>Freitext durchsucht Name, ID, Kunde, Kommentar.</span>
+          </button>
+          <button mat-menu-item disabled>
+            <mat-icon>sell</mat-icon>
+            <span><code>tag:</code> oder <code>#</code> filtert nach Tags.</span>
+          </button>
+          <button mat-menu-item disabled>
+            <mat-icon>person</mat-icon>
+            <span><code>resp:</code> oder <code>&#64;</code> für Verantwortliche.</span>
+          </button>
+        </mat-menu>
+      </div>
+
+      <div class="filter-shelf__row filter-shelf__row--secondary">
+        <div class="filter-shelf__active">
+          <div class="filter-shelf__active-header">
+            <div class="filter-shelf__active-title">
+              <span>Aktive Filter</span>
+              <span class="filter-count">
+                <mat-icon>list_alt</mat-icon>
+                {{ orders().length }} Ergebnisse
+              </span>
+            </div>
+          </div>
+
+          <div class="filter-pills">
+            @if (searchControl.value.trim()) {
+              <button type="button" class="filter-pill" (click)="searchControl.setValue('')">
+                <mat-icon>search</mat-icon>
+                <span>Suche</span>
+                <strong>"{{ searchControl.value.trim() }}"</strong>
+                <span class="filter-pill__count">{{ orders().length }} Treffer</span>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().tag !== 'all') {
+              <button type="button" class="filter-pill" (click)="clearTagFilter()">
+                <mat-icon>sell</mat-icon>
+                <span>Tag</span>
+                <strong>{{ formatTagLabel(filters().tag) }}</strong>
+                <span class="filter-pill__count">
+                  {{ tagUsageCount(filters().tag) }} Aufträge
+                </span>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().ttrPhase !== 'all') {
+              <button type="button" class="filter-pill" (click)="clearTtrPhaseFilter()">
+                <mat-icon>timeline</mat-icon>
+                <span>TTR-Phase</span>
+                <strong>{{ describeTtrPhase(filters().ttrPhase) }}</strong>
+                <span class="filter-pill__count">{{ describeTtrPhaseWindow(filters().ttrPhase) }}</span>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (hasFpRange()) {
+              <button type="button" class="filter-pill" (click)="clearFpRangeFilter()">
+                <mat-icon>calendar_month</mat-icon>
+                <span>Fahrplanfenster</span>
+                <strong>{{ fpRangeLabel() }}</strong>
+                <span class="filter-pill__count">{{ timelineReferenceLabel() }}</span>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().timelineReference !== 'fpDay') {
+              <button type="button" class="filter-pill" (click)="resetTimelineReference()">
+                <mat-icon>schedule</mat-icon>
+                <span>Bezug</span>
+                <strong>{{ timelineReferenceLabel() }}</strong>
+                <span class="filter-pill__count">{{ timelineReferenceHint() }}</span>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (
+              !searchControl.value.trim() &&
+              filters().tag === 'all' &&
+              filters().ttrPhase === 'all' &&
+              !hasFpRange() &&
+              filters().timelineReference === 'fpDay' &&
+              filters().timeRange === 'all' &&
+              filters().trainStatus === 'all' &&
+              filters().businessStatus === 'all' &&
+              filters().trainNumber.trim() === '' &&
+              filters().timetableYearLabel === 'all' &&
+              filters().linkedBusinessId === null
+            ) {
+              <span class="filter-pill filter-pill--empty">
+                <mat-icon>radio_button_unchecked</mat-icon>
+                Keine Filter aktiv
+              </span>
+            }
+          </div>
+        </div>
+
+        <div class="filter-tags">
+          <span>Tags</span>
+          <div class="filter-tags__chips">
+            @if (!tagStats().length) {
+              <span class="filter-tags__empty">Noch keine Tags</span>
+            } @else {
+              @for (tagStat of tagStats(); track tagStat[0]) {
+                @let tag = tagStat[0];
+                @let count = tagStat[1];
+                <button
+                  type="button"
+                  class="tag-filter-chip"
+                  [ngClass]="[
+                    'tag-filter-chip--' + tagTone(tag),
+                    isTagSelected(tag) ? 'tag-filter-chip--active' : ''
+                  ]"
+                  (click)="toggleTagFilter(tag)">
+                  <mat-icon>{{ isTagSelected(tag) ? 'check' : 'sell' }}</mat-icon>
+                  {{ formatTagLabel(tag) }}
+                  <span class="tag-filter-chip__count">{{ count }}</span>
+                </button>
+              }
+            }
+          </div>
+        </div>
+
+        <button
+          mat-stroked-button
+          type="button"
+          class="template-panel-toggle"
+          (click)="toggleTemplatePanel()"
+        >
+          <mat-icon>workspace_premium</mat-icon>
+          Vorlagen-Empfehlungen
+        </button>
+
+        <div class="orders-filter-stack">
+          <app-filter-bar
+            class="orders-filter-bar"
+            (savePreset)="saveCurrentFilterPreset()"
+          />
+
+          @if (savedFilterPresets().length) {
+            <div class="saved-presets saved-presets--inline">
+              <span>Gespeicherte Ansichten</span>
+              <div class="saved-presets__list">
+                @for (preset of savedFilterPresets(); track preset.id) {
+                  <div
+                    class="preset-chip"
+                    [class.preset-chip--active]="activePreset() === preset.id"
+                  >
+                    <button type="button" class="preset-pill" (click)="applyFilterPreset(preset)">
+                      <mat-icon>layers</mat-icon>
+                      <span>{{ preset.name }}</span>
+                      @if (activePreset() === preset.id) {
+                        <span class="preset-active">
+                          <mat-icon>star</mat-icon>
+                          Aktiv
+                        </span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-action"
+                      matTooltip="Duplizieren"
+                      (click)="duplicateFilterPreset(preset)"
+                      aria-label="Filteransicht duplizieren"
+                    >
+                      <mat-icon>content_copy</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-action"
+                      matTooltip="Umbenennen"
+                      (click)="renameFilterPreset(preset)"
+                      aria-label="Filteransicht umbenennen"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-remove"
+                      (click)="removeFilterPreset(preset.id)"
+                      aria-label="Filteransicht entfernen"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="orders-main manager-body">
+    @if (!orders().length) {
+      <div class="orders-empty">
+        <mat-card appearance="outlined" class="empty-state">
+          <mat-card-content>
+            <mat-icon>inventory_2</mat-icon>
+            <div>
+              <h3>Keine Aufträge gefunden</h3>
+              <p>Filter zurücksetzen oder einen neuen Auftrag erstellen.</p>
+              <button mat-flat-button color="primary" (click)="openCreateDialog()">
+                <mat-icon>add</mat-icon>
+                Auftrag anlegen
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    } @else {
+      <div class="orders-body" [class.orders-body--loading]="isViewTransitioning()">
+        @if (isViewTransitioning()) {
+          @for (skeleton of skeletonPlaceholders; track skeleton) {
+            <div class="order-card-skeleton">
+              <div class="skeleton-line skeleton-line--short"></div>
+              <div class="skeleton-line skeleton-line--long"></div>
+              <div class="skeleton-pill-row">
+                <span class="skeleton-pill"></span>
+                <span class="skeleton-pill"></span>
+              </div>
+              <div class="skeleton-block"></div>
+            </div>
+          }
+        } @else {
+          @for (entry of orders(); track trackByOrderId($index, entry)) {
+            <div class="order-card-wrapper">
+              <app-order-card
+                [order]="entry.order"
+                [items]="entry.items"
+                [highlightItemId]="highlightItemId()"
+              ></app-order-card>
+            </div>
+          }
+        }
+      </div>
+    }
+  </div>
+</div>

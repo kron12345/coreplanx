@@ -1,0 +1,109 @@
+
+.gantt-timeline-row {
+  position: relative;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  height: 64px;
+
+  &--zebra {
+    background: rgba(0, 0, 0, 0.02);
+  }
+}
+
+.gantt-timeline-row__canvas {
+  position: relative;
+  height: 64px;
+}
+
+.gantt-timeline-row__background {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.04);
+  pointer-events: none;
+
+  &.gantt-timeline-row__background--weekend {
+    background: rgba(211, 47, 47, 0.08);
+  }
+
+  &.gantt-timeline-row__background--rest {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  &.gantt-timeline-row__background--tick {
+    border-right: 1px solid rgba(15, 23, 42, 0.08);
+    box-sizing: border-box;
+  }
+
+  &.gantt-timeline-row__background--tick-base {
+    background: rgba(15, 23, 42, 0.015);
+  }
+
+  &.gantt-timeline-row__background--tick-alt {
+    background: rgba(15, 23, 42, 0.03);
+  }
+
+  &.gantt-timeline-row__background--tick-major {
+    border-right: 1px solid rgba(15, 23, 42, 0.16);
+  }
+}
+
+.gantt-timeline-row__service-range {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(21, 101, 192, 0.12);
+  border: 1px solid rgba(21, 101, 192, 0.35);
+  border-radius: 6px;
+  pointer-events: none;
+  box-sizing: border-box;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  padding: 0;
+  overflow: visible;
+
+  &--incomplete {
+    background: rgba(33, 150, 243, 0.08);
+  }
+
+  &--missing-start {
+    border-left: 2px dashed rgba(198, 40, 40, 0.9);
+    background: linear-gradient(90deg, rgba(244, 67, 54, 0.12), rgba(33, 150, 243, 0.08));
+  }
+
+  &--missing-end {
+    border-right: 2px dashed rgba(198, 40, 40, 0.9);
+    background: linear-gradient(90deg, rgba(33, 150, 243, 0.08), rgba(244, 67, 54, 0.12));
+  }
+}
+
+.gantt-timeline-row__service-label {
+  position: absolute;
+  left: 8px;
+  top: -14px;
+  padding: 2px 6px;
+  background: rgba(21, 101, 192, 0.9);
+  color: #fff;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.2);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.gantt-timeline-row__activities {
+  position: relative;
+  height: 100%;
+  overflow: visible;
+}
+
+.gantt-timeline-row__now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(198, 40, 40, 0.9), rgba(239, 83, 80, 0.9));
+  pointer-events: none;
+}

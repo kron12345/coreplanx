@@ -1,0 +1,13 @@
+.general-section {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+mat-form-field {
+  width: 100%;
+
+  .help-icon {
+    color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.54));
+  }
+}

@@ -1,0 +1,416 @@
+<div class="md-category">
+  <div class="md-category__list">
+    <header class="md-category__list-header">
+      <h3>{{ config.entityLabel }} ({{ items().length }})</h3>
+      <button mat-stroked-button color="primary" type="button" (click)="handleCreate()">
+        <mat-icon fontIcon="add"></mat-icon>
+        Neu anlegen
+      </button>
+    </header>
+
+    <table
+      mat-table
+      [dataSource]="items()"
+      [trackBy]="trackById"
+      class="md-category__table"
+      [attr.aria-label]="config.entityLabel + ' Tabelle'"
+    >
+      <ng-container *ngFor="let column of config.columns" [matColumnDef]="column.key">
+        <th mat-header-cell *matHeaderCellDef>{{ column.label }}</th>
+        <td
+          mat-cell
+          *matCellDef="let row"
+          (click)="handleSelect(row.id)"
+          [class.is-active]="row.id === selectedId()"
+        >
+          {{ displayCell(row, column.key) }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let row">
+          <button
+            mat-icon-button
+            type="button"
+            (click)="handleSelect(row.id); $event.stopPropagation()"
+            [attr.aria-label]="
+              'Bearbeiten ' +
+              displayCell(row, config.columns.length ? config.columns[0].key : 'id')
+            "
+          >
+            <mat-icon fontIcon="edit"></mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns()"></tr>
+      <tr
+        mat-row
+        *matRowDef="let row; columns: displayedColumns()"
+        (click)="handleSelect(row.id)"
+        [class.is-active]="row.id === selectedId()"
+      ></tr>
+    </table>
+  </div>
+
+  <div class="md-category__detail" *ngIf="selectedItem() as selection">
+    <header class="md-category__detail-header">
+      <h3>{{ config.entityLabel }} bearbeiten</h3>
+      <div class="md-category__detail-actions">
+        <span class="md-category__detail-meta">ID {{ selection.id }}</span>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          *ngIf="config.allowDelete !== false"
+          (click)="handleDelete()"
+          [disabled]="!selectedItem()"
+        >
+          <mat-icon fontIcon="delete"></mat-icon>
+          Löschen
+        </button>
+      </div>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="handleSave()" class="md-category__form">
+      <input type="hidden" formControlName="id" />
+
+      <div class="md-category__form-grid">
+        <ng-container *ngFor="let field of config.fields">
+          <ng-container *ngIf="isTemporalField(field); else regularField">
+            <div class="md-category__timeline-field" [formArrayName]="field.key">
+              @let timelineControls = temporalControls(field.key);
+
+              <ng-template #timelineEntry let-index="index" let-removable="removable">
+                <div
+                  class="md-category__timeline-entry"
+                  [class.md-category__timeline-entry--current]="index === 0"
+                  [formGroupName]="index"
+                >
+                  <mat-form-field appearance="outline" class="md-category__timeline-value">
+                    <mat-label>
+                      {{ index === 0 ? field.label : field.label + ' (Historie)' }}
+                    </mat-label>
+                    <input
+                      matInput
+                      [type]="temporalInputType(field)"
+                      formControlName="value"
+                      [placeholder]="field.placeholder ?? ''"
+                    />
+                    <mat-error
+                      *ngIf="temporalEntryControlHasError(field.key, index, 'value', 'required')"
+                    >
+                      Wert ist erforderlich.
+                    </mat-error>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Gültig ab</mat-label>
+                    <input matInput type="date" formControlName="validFrom" />
+                    <mat-error
+                      *ngIf="temporalEntryControlHasError(field.key, index, 'validFrom', 'required')"
+                    >
+                      Bitte ein Startdatum angeben.
+                    </mat-error>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Gültig bis</mat-label>
+                    <input matInput type="date" formControlName="validTo" />
+                    <mat-error
+                      *ngIf="temporalEntryHasGroupError(field.key, index, 'invalidRange')"
+                    >
+                      „Gültig bis“ muss nach „Gültig ab“ liegen.
+                    </mat-error>
+                  </mat-form-field>
+
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="removeTemporalEntry(field.key, index)"
+                    [disabled]="!removable"
+                    aria-label="Zeitraum entfernen"
+                  >
+                    <mat-icon fontIcon="delete"></mat-icon>
+                  </button>
+                </div>
+              </ng-template>
+
+              <div class="md-category__timeline-row">
+                <ng-container
+                  [ngTemplateOutlet]="timelineEntry"
+                  [ngTemplateOutletContext]="{
+                    index: 0,
+                    removable: timelineControls.length > 1
+                  }"
+                ></ng-container>
+
+                <div class="md-category__timeline-actions">
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="md-category__timeline-action"
+                    [disabled]="timelineControls.length <= 1"
+                    (click)="toggleTemporalHistory(field.key)"
+                    [attr.aria-label]="
+                      isTemporalHistoryVisible(field.key)
+                        ? 'Historie verbergen'
+                        : 'Historie anzeigen'
+                    "
+                    [matTooltip]="
+                      timelineControls.length <= 1
+                        ? 'Keine Historie vorhanden'
+                        : isTemporalHistoryVisible(field.key)
+                          ? 'Historie verbergen'
+                          : 'Historie anzeigen'
+                    "
+                    [matTooltipDisabled]="timelineControls.length <= 1"
+                  >
+                    <mat-icon
+                      [fontIcon]="
+                        isTemporalHistoryVisible(field.key)
+                          ? 'history_toggle_off'
+                          : 'history'
+                      "
+                    ></mat-icon>
+                  </button>
+
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="md-category__timeline-action"
+                    (click)="addTemporalEntry(field)"
+                    aria-label="Zeitraum hinzufügen"
+                    matTooltip="Zeitraum hinzufügen"
+                  >
+                    <mat-icon fontIcon="add"></mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <span class="md-category__timeline-hint" *ngIf="field.hint">{{ field.hint }}</span>
+
+              <div
+                class="md-category__timeline-history"
+                *ngIf="isTemporalHistoryVisible(field.key)"
+              >
+                <ng-container
+                  *ngFor="let control of timelineControls.controls; let index = index; trackBy: trackByIndex"
+                >
+                  <ng-container
+                    *ngIf="index > 0"
+                    [ngTemplateOutlet]="timelineEntry"
+                    [ngTemplateOutletContext]="{ index: index, removable: true }"
+                  ></ng-container>
+                </ng-container>
+              </div>
+
+              <div
+                class="md-category__timeline-error"
+                *ngIf="timelineControls.invalid && (timelineControls.dirty || timelineControls.touched) && timelineControls.errors as errors"
+              >
+                <mat-icon fontIcon="warning"></mat-icon>
+                <span *ngIf="errors['missingStart']">Bitte für jeden Zeitraum ein Startdatum angeben.</span>
+                <span *ngIf="errors['invalidRange']">„Gültig bis“ muss nach „Gültig ab“ liegen.</span>
+                <span *ngIf="errors['overlap']">Zeiträume dürfen sich nicht überschneiden.</span>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #regularField>
+            <div class="md-category__field" [class.md-category__field--boolean]="field.type === 'boolean'">
+              <ng-container [ngSwitch]="field.type">
+                <mat-form-field appearance="outline" *ngSwitchCase="'text'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input
+                    matInput
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                  />
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngSwitchCase="'textarea'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <textarea
+                    matInput
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                    rows="3"
+                  ></textarea>
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngSwitchCase="'number'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                  />
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngSwitchCase="'date'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input
+                    matInput
+                    type="date"
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                  />
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngSwitchCase="'time'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <input
+                    matInput
+                    type="time"
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                  />
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngSwitchCase="'select'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <mat-select
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                  >
+                    <mat-option *ngFor="let option of fieldOptions(field)" [value]="option.value">
+                      {{ option.label }}
+                    </mat-option>
+                  </mat-select>
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngSwitchCase="'multiselect'">
+                  <mat-label>{{ field.label }}</mat-label>
+                  <mat-select
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                    multiple
+                  >
+                    <mat-option *ngFor="let option of fieldOptions(field)" [value]="option.value">
+                      {{ option.label }}
+                    </mat-option>
+                  </mat-select>
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    class="md-category__field-clear"
+                    *ngIf="canClearField(field)"
+                    [disabled]="isFieldEmpty(field)"
+                    (click)="clearField(field)"
+                    aria-label="Feld leeren"
+                    matTooltip="Feld leeren"
+                  >
+                    <mat-icon fontIcon="close"></mat-icon>
+                  </button>
+                  <mat-hint *ngIf="field.hint">{{ field.hint }}</mat-hint>
+                </mat-form-field>
+
+                <div class="md-category__boolean-field" *ngSwitchCase="'boolean'">
+                  <mat-slide-toggle [formControlName]="field.key">
+                    {{ field.label }}
+                  </mat-slide-toggle>
+                  <span class="md-category__boolean-hint" *ngIf="field.hint">{{ field.hint }}</span>
+                </div>
+              </ng-container>
+            </div>
+          </ng-template>
+        </ng-container>
+      </div>
+
+      <div class="md-category__form-actions">
+        <button mat-stroked-button type="button" (click)="handleSelect(selection.id)">
+          Änderungen verwerfen
+        </button>
+        <button mat-flat-button color="primary" type="submit">Speichern</button>
+      </div>
+    </form>
+  </div>
+</div>

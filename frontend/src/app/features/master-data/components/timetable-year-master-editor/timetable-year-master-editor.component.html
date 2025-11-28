@@ -1,0 +1,13 @@
+<section class="timetable-year-editor">
+  <app-attribute-entity-editor
+    [title]="'Fahrplanjahre'"
+    [entities]="records()"
+    [attributeDefinitions]="definitions"
+    [defaultFallbackValues]="defaults"
+    [requiredKeys]="requiredKeys"
+    [detailError]="error()"
+    [createDefaultsFactory]="createDefaultsFactory"
+    (saveEntity)="handleSave($event)"
+    (deleteEntities)="handleDelete($event)"
+  />
+</section>

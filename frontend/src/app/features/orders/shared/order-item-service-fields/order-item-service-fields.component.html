@@ -1,0 +1,179 @@
+@let startCtrl = controlName('startControl');
+@let endCtrl = controlName('endControl');
+@let serviceTypeCtrl = controlName('serviceTypeControl');
+@let fromCtrl = controlName('fromControl');
+@let toCtrl = controlName('toControl');
+@let trafficCtrl = controlName('trafficPeriodControl');
+
+<div class="service-section" [formGroup]="form">
+  @if (startCtrl || endCtrl) {
+    <div class="columns">
+      @if (startCtrl) {
+      <mat-form-field
+        appearance="outline"
+        [floatLabel]="timeInputType === 'time' ? 'always' : 'auto'"
+      >
+        <mat-label>Start</mat-label>
+        <input
+          matInput
+          [attr.type]="timeInputType"
+          [formControlName]="startCtrl!"
+        />
+        @if (description('start')) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="description('start')!"
+            aria-label="Start Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        }
+        @if (form.controls[startCtrl!].touched && form.controls[startCtrl!].invalid) {
+          <mat-error>Bitte eine gültige Startzeit angeben.</mat-error>
+        }
+      </mat-form-field>
+      }
+      @if (endCtrl) {
+      <mat-form-field
+        appearance="outline"
+        [floatLabel]="timeInputType === 'time' ? 'always' : 'auto'"
+      >
+        <mat-label>Ende</mat-label>
+        <input
+          matInput
+          [attr.type]="timeInputType"
+          [formControlName]="endCtrl!"
+        />
+        @if (description('end')) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="description('end')!"
+            aria-label="Ende Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        }
+        @if (form.controls[endCtrl!].touched && form.controls[endCtrl!].invalid) {
+          <mat-error>Bitte eine gültige Endzeit angeben.</mat-error>
+        }
+      </mat-form-field>
+      }
+    </div>
+  }
+
+  @if (serviceTypeCtrl) {
+      <mat-form-field appearance="outline">
+        <mat-label>Leistungstyp</mat-label>
+        <input
+          matInput
+          [formControlName]="serviceTypeCtrl!"
+          [placeholder]="placeholder('serviceType') ?? ''"
+        />
+        @if (description('serviceType')) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="description('serviceType')!"
+            aria-label="Leistungstyp Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        }
+        @if (form.controls[serviceTypeCtrl!].touched && form.controls[serviceTypeCtrl!].invalid) {
+          <mat-error>Bitte einen Leistungstyp angeben.</mat-error>
+        }
+      </mat-form-field>
+  }
+
+  @if (fromCtrl || toCtrl) {
+    <div class="columns">
+      @if (fromCtrl) {
+        <mat-form-field appearance="outline">
+          <mat-label>Von</mat-label>
+          <input
+            matInput
+            [formControlName]="fromCtrl!"
+            [placeholder]="placeholder('from') ?? ''"
+          />
+          @if (description('from')) {
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="description('from')!"
+              aria-label="Von Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          }
+          @if (form.controls[fromCtrl!].touched && form.controls[fromCtrl!].invalid) {
+            <mat-error>Pflichtfeld.</mat-error>
+          }
+        </mat-form-field>
+      }
+      @if (toCtrl) {
+        <mat-form-field appearance="outline">
+          <mat-label>Nach</mat-label>
+          <input
+            matInput
+            [formControlName]="toCtrl!"
+            [placeholder]="placeholder('to') ?? ''"
+          />
+          @if (description('to')) {
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="description('to')!"
+              aria-label="Nach Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          }
+          @if (form.controls[toCtrl!].touched && form.controls[toCtrl!].invalid) {
+            <mat-error>Pflichtfeld.</mat-error>
+          }
+        </mat-form-field>
+      }
+    </div>
+  }
+
+  @if (trafficCtrl) {
+    <mat-form-field appearance="outline">
+      <mat-label>Referenzkalender</mat-label>
+      <mat-select [formControlName]="trafficCtrl!">
+        @for (period of trafficPeriods; track period.id) {
+          <mat-option [value]="period.id">{{ period.name }}</mat-option>
+        }
+      </mat-select>
+      @if (description('trafficPeriod')) {
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="description('trafficPeriod')!"
+          aria-label="Referenzkalender Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      }
+      @if (
+        form.controls[trafficCtrl!].touched &&
+        form.controls[trafficCtrl!].invalid
+      ) {
+        <mat-error>Bitte einen Referenzkalender auswählen.</mat-error>
+      }
+    </mat-form-field>
+  }
+</div>

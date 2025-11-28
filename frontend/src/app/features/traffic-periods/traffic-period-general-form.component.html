@@ -1,0 +1,42 @@
+<section class="form-section" [formGroup]="form">
+  <div class="grid grid--two">
+    <mat-form-field appearance="outline">
+      <mat-label>Name</mat-label>
+      <input matInput formControlName="name" />
+      @if (form.controls.name.invalid && form.controls.name.touched) {
+        <mat-error>Name ist erforderlich.</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Typ</mat-label>
+      <mat-select formControlName="type">
+        @for (option of typeOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Beschreibung</mat-label>
+    <textarea matInput rows="2" formControlName="description"></textarea>
+  </mat-form-field>
+
+  <div class="grid grid--two">
+    <mat-form-field appearance="outline">
+      <mat-label>Verantwortlich</mat-label>
+      <input matInput formControlName="responsible" placeholder="z. B. Fahrplanplanung" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Standardjahr</mat-label>
+      <input matInput type="number" formControlName="defaultYear" />
+    </mat-form-field>
+  </div>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Tags (kommagetrennt)</mat-label>
+    <input matInput formControlName="tags" placeholder="Werktage, Baustelle" />
+  </mat-form-field>
+</section>

@@ -1,0 +1,140 @@
+<section class="templates-landing">
+  <header class="landing-hero">
+    <div>
+      <p class="landing-hero__eyebrow">Vorlagen</p>
+      <h1>Bausteine für wiederholbare Abläufe</h1>
+      <p>
+        Pflege Fahrplan- und Geschäfts­vorlagen, teile Best Practices und automatisiere Aufgaben vor
+        der Produktion.
+      </p>
+      <div class="landing-hero__actions">
+        <a mat-flat-button color="primary" routerLink="/templates/schedules">
+          <mat-icon>schema</mat-icon>
+          Fahrplanvorlagen öffnen
+        </a>
+        <a mat-stroked-button routerLink="/templates/business">
+          <mat-icon>bolt</mat-icon>
+          Geschäftsvorlagen öffnen
+        </a>
+      </div>
+    </div>
+    <div class="landing-hero__summary">
+      <div>
+        <span class="label">Fahrplanvorlagen</span>
+        <strong>{{ scheduleStats().total }}</strong>
+        <small>
+          {{ scheduleStats().active }} aktiv · {{ scheduleStats().drafts }} Entwürfe ·
+          {{ scheduleStats().multiStage }} Serien
+        </small>
+      </div>
+      <div>
+        <span class="label">Geschäftsvorlagen</span>
+        <strong>{{ businessStats().total }}</strong>
+        <small>{{ businessStats().automationCount }} Automatisierungen · {{ businessStats().multiStage }} Ketten</small>
+      </div>
+    </div>
+  </header>
+
+  <div class="landing-cards">
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Fahrplanvorlagen</mat-card-title>
+        <mat-card-subtitle>
+          {{ scheduleStats().total }} Vorlagen · wichtigste Kategorie:
+          {{ scheduleStats().topCategory || '—' }}
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <p>
+          Baue TTT-konforme Fahrpläne auf, halte sie versioniert vor und rolle sie in Aufträgen aus.
+        </p>
+        <ul class="card-list">
+          <li>Filter & Sortierung nach Status, Kategorie und Verkehrstagen</li>
+          <li>Direkte Verknüpfung mit Aufträgen & Positionen</li>
+          <li>Serien & Recurrence-Vorschau</li>
+        </ul>
+      </mat-card-content>
+      <mat-card-actions>
+        <a mat-stroked-button color="primary" routerLink="/templates/schedules">
+          <mat-icon>schema</mat-icon>
+          Zu den Fahrplanvorlagen
+        </a>
+      </mat-card-actions>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Geschäftsvorlagen</mat-card-title>
+      <mat-card-subtitle>
+        {{ businessStats().total }} Vorlagen ·
+        {{ businessStats().withAutomation }} mit Automatisierung ·
+        {{ businessStats().multiStage }} mehrstufig
+      </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <p>Definiere Aufgabenpakete wie Fristen, Jahresbestellungen oder TTT/TTR-Abstimmungen.</p>
+        <ul class="card-list">
+          <li>Relative Fälligkeiten & empfohlene Zuständigkeiten</li>
+          <li>Ein-Klick Erstellung aus Aufträgen oder Positionen</li>
+          <li>Regeln für automatische Geschäftserstellung</li>
+        </ul>
+      </mat-card-content>
+      <mat-card-actions>
+        <a mat-stroked-button color="primary" routerLink="/templates/business">
+          <mat-icon>bolt</mat-icon>
+          Zu den Geschäftsvorlagen
+        </a>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+
+  <section class="landing-preview">
+    <article class="preview-card">
+      <header>
+        <mat-icon>autorenew</mat-icon>
+        <div>
+          <strong>Automatisierungen</strong>
+          <span>{{ businessStats().automationCount }} Regeln aktiv</span>
+        </div>
+      </header>
+      <ul>
+        @for (rule of recentAutomations(); track rule.id) {
+          <li>
+            <div>
+              <strong>{{ rule.title }}</strong>
+              <span>{{ rule.trigger }} · {{ rule.condition }}</span>
+            </div>
+            <mat-icon [ngClass]="{ active: rule.active }">
+              {{ rule.active ? 'toggle_on' : 'toggle_off' }}
+            </mat-icon>
+          </li>
+        } @empty {
+          <li class="preview-empty">Noch keine Regeln angelegt.</li>
+        }
+      </ul>
+    </article>
+
+    <article class="preview-card">
+      <header>
+        <mat-icon>workspace_premium</mat-icon>
+        <div>
+          <strong>Empfohlene Geschäftsvorlagen</strong>
+          <span>Direkt nutzbar für aktuelle Aufträge</span>
+        </div>
+      </header>
+      <ul>
+        @for (template of highlightedTemplates(); track template.id) {
+          <li>
+            <div>
+              <strong>{{ template.title }}</strong>
+              <span>{{ template.dueRule.label }}</span>
+            </div>
+            <mat-chip>{{ template.category }}</mat-chip>
+          </li>
+        } @empty {
+          <li class="preview-empty">Noch keine Vorlagen definiert.</li>
+        }
+      </ul>
+    </article>
+  </section>
+</section>

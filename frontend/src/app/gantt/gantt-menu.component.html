@@ -1,0 +1,49 @@
+<nav class="gantt-menu" role="toolbar" aria-label="Gantt-Steuerung">
+  <div class="gantt-menu__info" aria-live="polite">
+    <mat-icon fontIcon="calendar_today"></mat-icon>
+    <span>{{ viewRangeLabel }}</span>
+  </div>
+
+  <div class="gantt-menu__filters">
+    <mat-form-field appearance="outline" class="gantt-menu__search">
+      <mat-label>Ressourcen filtern</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        matInput
+        type="search"
+        [ngModel]="filterText"
+        (ngModelChange)="onFilterChange($event)"
+        placeholder="z. B. Depot, Name, ID"
+        aria-label="Ressourcen filtern"
+      />
+    </mat-form-field>
+  </div>
+
+  <div class="gantt-menu__actions">
+    <button mat-icon-button type="button" aria-label="Zoom aus" (click)="zoomOut.emit()">
+      <mat-icon fontIcon="remove"></mat-icon>
+    </button>
+
+    <button mat-icon-button type="button" aria-label="Zoom ein" (click)="zoomIn.emit()">
+      <mat-icon fontIcon="add"></mat-icon>
+    </button>
+
+    <span class="gantt-menu__zoom-label" aria-live="polite">{{ zoomLabel }}</span>
+
+    <button mat-icon-button type="button" aria-label="Heute" (click)="gotoToday.emit()">
+      <mat-icon fontIcon="today"></mat-icon>
+    </button>
+
+    <button mat-icon-button type="button" aria-label="Datum wählen" [matMenuTriggerFor]="dateMenu">
+      <mat-icon fontIcon="event"></mat-icon>
+    </button>
+
+    <span class="gantt-menu__extra-actions">
+      <ng-content></ng-content>
+    </span>
+  </div>
+
+  <mat-menu #dateMenu="matMenu">
+    <mat-calendar (selectedChange)="onDatePicked($event)" [selected]="today"></mat-calendar>
+  </mat-menu>
+</nav>

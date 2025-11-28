@@ -1,0 +1,85 @@
+<form [formGroup]="form" class="import-filters">
+  <div class="import-filters__section">
+    <div class="import-filters__section-title">
+      <mat-icon>search</mat-icon>
+      <span>Allgemeine Suche</span>
+    </div>
+    <div class="import-filters__grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Suche</mat-label>
+        <input matInput formControlName="search" placeholder="Train-ID oder Name" />
+        <button mat-icon-button matSuffix type="button" class="help-icon" [matTooltip]="descriptions['search']" aria-label="Suche Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Start</mat-label>
+        <input matInput formControlName="start" placeholder="z. B. Basel" />
+        <button mat-icon-button matSuffix type="button" class="help-icon" [matTooltip]="descriptions['start']" aria-label="Start-Filter Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Ziel</mat-label>
+        <input matInput formControlName="end" placeholder="z. B. Zürich" />
+        <button mat-icon-button matSuffix type="button" class="help-icon" [matTooltip]="descriptions['end']" aria-label="Ziel-Filter Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+  </div>
+
+  <mat-divider class="import-filters__divider"></mat-divider>
+
+  <div class="import-filters__section">
+    <div class="import-filters__section-title">
+      <mat-icon>schedule</mat-icon>
+      <span>Takt & Vorlagen</span>
+    </div>
+    <div class="import-filters__grid import-filters__grid--template">
+      <mat-form-field appearance="outline">
+        <mat-label>Vorlage (Takt)</mat-label>
+        <mat-select formControlName="templateId">
+          <mat-option value="">Alle Vorlagen</mat-option>
+          @for (template of taktTemplates; track template.id) {
+            <mat-option [value]="template.id">{{ template.title }}</mat-option>
+          }
+        </mat-select>
+        <button mat-icon-button matSuffix type="button" class="help-icon" [matTooltip]="descriptions['templateId']" aria-label="Vorlagen-Filter Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <div class="import-filters__checkbox">
+        <mat-checkbox formControlName="irregularOnly">Nur Taktabweichungen</mat-checkbox>
+        <button mat-icon-button type="button" class="help-icon" [matTooltip]="descriptions['irregularOnly']" aria-label="Nur Taktabweichungen Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </div>
+      <mat-form-field appearance="outline">
+        <mat-label>Min. Abweichung (min)</mat-label>
+        <input matInput type="number" min="0" formControlName="minDeviation" />
+        <button mat-icon-button matSuffix type="button" class="help-icon" [matTooltip]="descriptions['minDeviation']" aria-label="Minimale Abweichung Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Sortierung</mat-label>
+        <mat-select formControlName="deviationSort">
+          <mat-option value="none">Keine</mat-option>
+          <mat-option value="desc">Größte zuerst</mat-option>
+          <mat-option value="asc">Kleinste zuerst</mat-option>
+        </mat-select>
+        <button mat-icon-button matSuffix type="button" class="help-icon" [matTooltip]="descriptions['deviationSort']" aria-label="Sortierung Hilfe">
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+  </div>
+
+  <div class="import-filters__actions">
+    <button mat-stroked-button type="button" (click)="onReset()">
+      <mat-icon>clear_all</mat-icon>
+      Filter zurücksetzen
+    </button>
+  </div>
+</form>

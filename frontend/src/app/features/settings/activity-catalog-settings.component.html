@@ -1,0 +1,560 @@
+<div class="activity-catalog">
+  <header class="activity-catalog__header">
+    <div>
+      <p class="activity-catalog__eyebrow">Activities</p>
+      <h2>Activity-Katalog</h2>
+      <p class="activity-catalog__lead">
+        Verwalte Activity Keys und Templates. Anzeigenamen kommen aus dem Übersetzungs-Editor
+        (Key: <code>activityType:&lt;typeId&gt;</code>).
+      </p>
+    </div>
+    <div class="activity-catalog__badges">
+      <span class="pill pill--ghost">Activities: {{ activities().length }}</span>
+      <span class="pill">Templates: {{ templates().length }}</span>
+    </div>
+  </header>
+
+  <mat-tab-group>
+    <mat-tab label="Activity Keys">
+      <div class="master-detail">
+        <section class="master">
+            <div class="master__header">
+              <div>
+                <h3>Activity Keys</h3>
+                <p>Technische Keys mit Attributen und Gantt-Verhalten.</p>
+              </div>
+              <mat-form-field appearance="outline" class="master__search">
+                <mat-label>Suchen</mat-label>
+                <input matInput [value]="activitySearch()" (input)="activitySearch.set($any($event.target).value ?? '')" />
+              </mat-form-field>
+              <button mat-stroked-button color="primary" type="button" (click)="newActivity()">
+                <mat-icon fontIcon="add"></mat-icon>
+                Neu
+              </button>
+            </div>
+          <div class="master__filters">
+            <mat-form-field appearance="outline">
+              <mat-label>draw_as</mat-label>
+              <mat-select [value]="drawFilter()" (valueChange)="drawFilter.set($event)">
+                <mat-option [value]="null">Alle</mat-option>
+                @for (opt of DRAW_AS_OPTIONS; track opt) {
+                  <mat-option [value]="opt">{{ opt }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Layer</mat-label>
+              <mat-select [value]="layerFilter()" (valueChange)="layerFilter.set($event)">
+                <mat-option [value]="null">Alle</mat-option>
+                @for (opt of layerOptions(); track opt.id) {
+                  <mat-option [value]="opt.id">{{ opt.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="master__list">
+            @for (activity of filteredActivities(); track activity.id) {
+              <mat-card
+                class="list-card"
+                [class.list-card--active]="activityEditId() === activity.id"
+                (click)="startActivityEdit(activity)"
+              >
+                <div class="list-card__top">
+                  <div>
+                    <div class="list-card__title">{{ activityDisplayName(activity) }}</div>
+                    <div class="list-card__subtitle">{{ activity.id }}</div>
+                  </div>
+                  <span class="chip chip--ghost">{{ typeLabel(activity.activityType) }}</span>
+                </div>
+                <div class="list-card__meta">
+                  @if (attributeValue(activity.attributes, 'draw_as')) {
+                    <span class="chip">draw: {{ attributeValue(activity.attributes, 'draw_as') }}</span>
+                  }
+                  @if (attributeValue(activity.attributes, 'layer')) {
+                    <span class="chip">layer: {{ attributeValue(activity.attributes, 'layer') }}</span>
+                  }
+                  @if (attributeValue(activity.attributes, 'color')) {
+                    <span
+                      class="chip chip--color"
+                      [style.background]="attributeValue(activity.attributes, 'color') || '#ccc'"
+                    ></span>
+                  }
+                </div>
+              </mat-card>
+            }
+            @if (!activities().length) {
+              <p class="empty">Noch keine Activities.</p>
+            }
+          </div>
+        </section>
+
+        <section class="detail">
+          <mat-card class="panel panel--accent">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Detail</p>
+                <h3>{{ activityEditId() ? 'Activity bearbeiten' : 'Neue Activity' }}</h3>
+              </div>
+              @if (activityForm.dirty) {
+                <span class="badge badge--warn" matTooltip="Nicht gespeicherte Änderungen">Unsaved</span>
+              }
+              <div class="panel__actions">
+                @if (activityEditId()) {
+                  <button
+                    mat-icon-button
+                    color="warn"
+                    type="button"
+                    matTooltip="Activity löschen"
+                    (click)="removeActivity(selectedActivity()!)"
+                  >
+                    <mat-icon fontIcon="delete"></mat-icon>
+                  </button>
+                }
+                <button mat-flat-button color="primary" type="button" (click)="saveActivity()">
+                  <mat-icon fontIcon="save"></mat-icon>
+                  Speichern
+                </button>
+              </div>
+            </div>
+
+            <form class="form" [formGroup]="activityForm">
+              <div class="form__row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Activity Key</mat-label>
+                  <input matInput formControlName="id" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Activity-Type</mat-label>
+                  <mat-select formControlName="activityType">
+                    @for (type of activityTypes.definitions(); track type.id) {
+                      <mat-option [value]="type.id">{{ type.label }} ({{ type.id }})</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
+              <div class="form__row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Template (optional)</mat-label>
+                  <mat-select formControlName="templateId" (valueChange)="applyTemplateToActivity($event)">
+                    <mat-option [value]="null">Kein Template</mat-option>
+                    @for (template of templates(); track template.id) {
+                      <mat-option [value]="template.id">{{ template.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <div class="form__hint">
+                  <strong>Anzeigename</strong>
+                  <p>Kommt aus Übersetzung <code>activityType:&lt;typeId&gt;</code>.</p>
+                </div>
+              </div>
+
+              <div class="preview">
+                <div class="preview__label">Gantt-Vorschau</div>
+                <div
+                  class="preview__bar"
+                  [class.preview__bar--line-above]="selectedDrawAs() === 'line-above'"
+                  [class.preview__bar--line-below]="selectedDrawAs() === 'line-below'"
+                  [class.preview__bar--dot]="selectedDrawAs() === 'dot'"
+                  [class.preview__bar--square]="selectedDrawAs() === 'square'"
+                  [class.preview__bar--triangle-up]="selectedDrawAs() === 'triangle-up'"
+                  [class.preview__bar--triangle-down]="selectedDrawAs() === 'triangle-down'"
+                  [class.preview__bar--thick]="selectedDrawAs() === 'thick'"
+                  [class.preview__bar--background]="selectedLayer() === 'background' || selectedDrawAs() === 'background'"
+                  [style.background]="selectedLayer() === 'background' ? selectedColor() : 'transparent'"
+                >
+                  <div
+                    class="preview__shape"
+                    [class.preview__shape--dot]="selectedDrawAs() === 'dot'"
+                    [class.preview__shape--square]="selectedDrawAs() === 'square'"
+                    [class.preview__shape--triangle-up]="selectedDrawAs() === 'triangle-up'"
+                    [class.preview__shape--triangle-down]="selectedDrawAs() === 'triangle-down'"
+                    [style.background]="selectedColor()"
+                    [style.border-color]="selectedColor()"
+                  ></div>
+                  <div
+                    class="preview__line"
+                    [style.background]="selectedColor()"
+                    [class.preview__line--thick]="selectedDrawAs() === 'thick'"
+                    [class.preview__line--shift-up]="selectedDrawAs() === 'shift-up'"
+                    [class.preview__line--shift-down]="selectedDrawAs() === 'shift-down'"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="attributes">
+                <div class="attributes__header">
+                  <div>
+                    <span>Attribute</span>
+                    <p class="attributes__hint">Definiert Verhalten, Darstellung und Felder im Gantt.</p>
+                  </div>
+                  <div class="attributes__actions">
+                    <mat-form-field appearance="outline" class="attributes__preset">
+                      <mat-label>Preset hinzufügen</mat-label>
+                      <mat-select (selectionChange)="addActivityAttributeFromPreset($event.value)" [value]="null">
+                        <mat-option [value]="null">Ohne</mat-option>
+                        <mat-option value="default_duration">Default-Dauer</mat-option>
+                        <mat-option value="relevant_for">Relevant für</mat-option>
+                        @for (preset of attributePresets(); track preset.key) {
+                          <mat-option [value]="preset.key">{{ preset.key }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <button mat-stroked-button type="button" (click)="addActivityAttribute()">
+                      <mat-icon fontIcon="add"></mat-icon>
+                      Attribut
+                    </button>
+                  </div>
+                </div>
+
+                <div class="attributes__list" formArrayName="attributes">
+                  @for (attr of activityAttributes.controls; track attr; let i = $index) {
+                    <div class="attributes__row" [formGroupName]="i">
+                      @if (attr.value.key === 'default_duration') {
+                        <div class="attributes__special attributes__special--wide">
+                          <div>
+                            <span class="attributes__label">Default-Dauer (min)</span>
+                            <small>Wird auch als Attribut gespeichert.</small>
+                          </div>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Minuten</mat-label>
+                            <input matInput type="number" [formControl]="metaValueControl(attr)" />
+                          </mat-form-field>
+                        </div>
+                      } @else if (attr.value.key === 'relevant_for') {
+                        <div class="attributes__special attributes__special--wide">
+                          <div>
+                            <span class="attributes__label">Relevant für</span>
+                            <small>Kommagetrennte Liste der Ressourcenarten.</small>
+                          </div>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Ressourcen</mat-label>
+                            <mat-select multiple [value]="metaValueControl(attr).value?.split(',')" (valueChange)="updateRelevantForMeta(attr, $event)">
+                              <mat-option value="vehicle">Fahrzeug</mat-option>
+                              <mat-option value="personnel">Personal</mat-option>
+                              <mat-option value="vehicle-service">Fahrzeugdienst</mat-option>
+                              <mat-option value="personnel-service">Personaldienst</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      } @else if (attr.value.key === 'color') {
+                        <div class="attributes__special">
+                          <span class="attributes__label">Farbe</span>
+                          <div class="color-field">
+                            <input type="color" [value]="metaValueControl(attr).value || '#1976d2'" (input)="metaValueControl(attr).setValue($any($event.target).value)" />
+                            <mat-form-field appearance="outline">
+                              <mat-label>Hex</mat-label>
+                              <input matInput [formControl]="metaValueControl(attr)" />
+                            </mat-form-field>
+                          </div>
+                        </div>
+                      } @else if (attr.value.key === 'draw_as') {
+                        <div class="attributes__special">
+                          <span class="attributes__label">Draw as</span>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Variante</mat-label>
+                            <mat-select [formControl]="metaValueControl(attr)">
+                              @for (opt of DRAW_AS_OPTIONS; track opt) {
+                                <mat-option [value]="opt">{{ opt }}</mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      } @else if (attr.value.key === 'layer') {
+                        <div class="attributes__special">
+                          <span class="attributes__label">Layer</span>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Layer</mat-label>
+                            <mat-select [formControl]="metaValueControl(attr)">
+                              @for (opt of layerOptions(); track opt.id) {
+                                <mat-option [value]="opt.id">{{ opt.label }}</mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      } @else {
+                        <mat-form-field appearance="outline">
+                          <mat-label>Key</mat-label>
+                          <input matInput formControlName="key" />
+                        </mat-form-field>
+                        <div class="meta-grid">
+                          <div class="meta-grid__header">
+                            <span>Meta</span>
+                            <button mat-stroked-button type="button" (click)="addActivityMeta(attr)">
+                              <mat-icon fontIcon="add"></mat-icon>
+                              Meta
+                            </button>
+                          </div>
+                          <div class="meta-grid__rows" formArrayName="meta">
+                            @for (meta of attributeMetaArray(attr).controls; track mi; let mi = $index) {
+                              <div class="meta-grid__row" [formGroupName]="mi">
+                                <mat-form-field appearance="outline">
+                                  <mat-label>Key</mat-label>
+                                  <input matInput formControlName="key" />
+                                </mat-form-field>
+                                <mat-form-field appearance="outline">
+                                  <mat-label>Value</mat-label>
+                                  <input matInput formControlName="value" />
+                                </mat-form-field>
+                                <button mat-icon-button type="button" (click)="removeActivityMeta(attr, mi)">
+                                  <mat-icon fontIcon="delete"></mat-icon>
+                                </button>
+                              </div>
+                            }
+                          </div>
+                        </div>
+                      }
+                      <button mat-icon-button type="button" (click)="removeActivityAttribute(i)" matTooltip="Attribut entfernen">
+                        <mat-icon fontIcon="delete"></mat-icon>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </form>
+          </mat-card>
+        </section>
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Templates">
+      <div class="master-detail">
+        <section class="master">
+          <div class="master__header">
+            <div>
+              <h3>Templates</h3>
+              <p>Vorlagen für Activity-Attribute.</p>
+            </div>
+            <mat-form-field appearance="outline" class="master__search">
+              <mat-label>Suchen</mat-label>
+              <input matInput [value]="templateSearch()" (input)="templateSearch.set($any($event.target).value ?? '')" />
+            </mat-form-field>
+            <button mat-stroked-button color="primary" type="button" (click)="newTemplate()">
+              <mat-icon fontIcon="add"></mat-icon>
+              Neu
+            </button>
+          </div>
+          <div class="master__list">
+            @for (template of filteredTemplates(); track template.id) {
+              <mat-card
+                class="list-card"
+                [class.list-card--active]="templateEditId() === template.id"
+                (click)="startTemplateEdit(template)"
+              >
+                <div class="list-card__top">
+                  <div>
+                    <div class="list-card__title">{{ template.label }}</div>
+                    <div class="list-card__subtitle">{{ template.id }}</div>
+                  </div>
+                  <span class="chip chip--ghost">{{ template.activityType || '—' }}</span>
+                </div>
+                <div class="list-card__meta">
+                  @if (attributeValue(template.attributes, 'draw_as')) {
+                    <span class="chip">draw: {{ attributeValue(template.attributes, 'draw_as') }}</span>
+                  }
+                  @if (attributeValue(template.attributes, 'layer')) {
+                    <span class="chip">layer: {{ attributeValue(template.attributes, 'layer') }}</span>
+                  }
+                  @if (attributeValue(template.attributes, 'color')) {
+                    <span
+                      class="chip chip--color"
+                      [style.background]="attributeValue(template.attributes, 'color') || '#ccc'"
+                    ></span>
+                  }
+                </div>
+              </mat-card>
+            }
+            @if (!templates().length) {
+              <p class="empty">Noch keine Templates.</p>
+            }
+          </div>
+        </section>
+
+        <section class="detail">
+          <mat-card class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Template</p>
+                <h3>{{ templateEditId() ? 'Template bearbeiten' : 'Neues Template' }}</h3>
+              </div>
+              <div class="panel__actions">
+                @if (templateEditId()) {
+                  <button
+                    mat-icon-button
+                    color="warn"
+                    type="button"
+                    matTooltip="Template löschen"
+                    (click)="removeTemplate(selectedTemplate()!)"
+                  >
+                    <mat-icon fontIcon="delete"></mat-icon>
+                  </button>
+                }
+                <button mat-flat-button color="primary" type="button" (click)="saveTemplate()">
+                  <mat-icon fontIcon="save"></mat-icon>
+                  Speichern
+                </button>
+              </div>
+            </div>
+
+            <form class="form" [formGroup]="templateForm">
+              <div class="form__row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Name</mat-label>
+                  <input matInput formControlName="label" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Template Key</mat-label>
+                  <input matInput formControlName="id" />
+                </mat-form-field>
+              </div>
+              <div class="form__row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Activity-Type</mat-label>
+                  <mat-select formControlName="activityType">
+                    <mat-option [value]="''">Optional</mat-option>
+                    @for (type of activityTypes.definitions(); track type.id) {
+                      <mat-option [value]="type.id">{{ type.label }} ({{ type.id }})</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Beschreibung</mat-label>
+                  <textarea matInput formControlName="description"></textarea>
+                </mat-form-field>
+              </div>
+
+              <div class="attributes">
+                <div class="attributes__header">
+                  <div>
+                    <span>Attribute</span>
+                    <p class="attributes__hint">Definiert das Verhalten für Activities, die dieses Template nutzen.</p>
+                  </div>
+                  <div class="attributes__actions">
+                    <mat-form-field appearance="outline" class="attributes__preset">
+                      <mat-label>Preset hinzufügen</mat-label>
+                      <mat-select (selectionChange)="addTemplateAttributeFromPreset($event.value)" [value]="null">
+                        <mat-option [value]="null">Ohne</mat-option>
+                        <mat-option value="default_duration">Default-Dauer</mat-option>
+                        <mat-option value="relevant_for">Relevant für</mat-option>
+                        @for (preset of attributePresets(); track preset.key) {
+                          <mat-option [value]="preset.key">{{ preset.key }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <button mat-stroked-button type="button" (click)="addTemplateAttribute()">
+                      <mat-icon fontIcon="add"></mat-icon>
+                      Attribut
+                    </button>
+                  </div>
+                </div>
+
+                <div class="attributes__list" formArrayName="attributes">
+                  @for (attr of templateAttributes.controls; track attr; let i = $index) {
+                    <div class="attributes__row" [formGroupName]="i">
+                      @if (attr.value.key === 'default_duration') {
+                        <div class="attributes__special attributes__special--wide">
+                          <div>
+                            <span class="attributes__label">Default-Dauer (min)</span>
+                            <small>Wird auch als Attribut gespeichert.</small>
+                          </div>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Minuten</mat-label>
+                            <input matInput type="number" [formControl]="metaValueControl(attr)" />
+                          </mat-form-field>
+                        </div>
+                      } @else if (attr.value.key === 'relevant_for') {
+                        <div class="attributes__special attributes__special--wide">
+                          <div>
+                            <span class="attributes__label">Relevant für</span>
+                            <small>Kommagetrennte Liste der Ressourcenarten.</small>
+                          </div>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Ressourcen</mat-label>
+                            <mat-select multiple [value]="metaValueControl(attr).value?.split(',')" (valueChange)="updateRelevantForMeta(attr, $event)">
+                              <mat-option value="vehicle">Fahrzeug</mat-option>
+                              <mat-option value="personnel">Personal</mat-option>
+                              <mat-option value="vehicle-service">Fahrzeugdienst</mat-option>
+                              <mat-option value="personnel-service">Personaldienst</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      } @else if (attr.value.key === 'color') {
+                        <div class="attributes__special">
+                          <span class="attributes__label">Farbe</span>
+                          <div class="color-field">
+                            <input type="color" [value]="metaValueControl(attr).value || '#1976d2'" (input)="metaValueControl(attr).setValue($any($event.target).value)" />
+                            <mat-form-field appearance="outline">
+                              <mat-label>Hex</mat-label>
+                              <input matInput [formControl]="metaValueControl(attr)" />
+                            </mat-form-field>
+                          </div>
+                        </div>
+                      } @else if (attr.value.key === 'draw_as') {
+                        <div class="attributes__special">
+                          <span class="attributes__label">Draw as</span>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Variante</mat-label>
+                            <mat-select [formControl]="metaValueControl(attr)">
+                              @for (opt of DRAW_AS_OPTIONS; track opt) {
+                                <mat-option [value]="opt">{{ opt }}</mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      } @else if (attr.value.key === 'layer') {
+                        <div class="attributes__special">
+                          <span class="attributes__label">Layer</span>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Layer</mat-label>
+                            <mat-select [formControl]="metaValueControl(attr)">
+                              @for (opt of layerOptions(); track opt.id) {
+                                <mat-option [value]="opt.id">{{ opt.label }}</mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      } @else {
+                        <mat-form-field appearance="outline">
+                          <mat-label>Key</mat-label>
+                          <input matInput formControlName="key" />
+                        </mat-form-field>
+                        <div class="meta-grid">
+                          <div class="meta-grid__header">
+                            <span>Meta</span>
+                            <button mat-stroked-button type="button" (click)="addTemplateMeta(attr)">
+                              <mat-icon fontIcon="add"></mat-icon>
+                              Meta
+                            </button>
+                          </div>
+                          <div class="meta-grid__rows" formArrayName="meta">
+                            @for (meta of attributeMetaArray(attr).controls; track mi; let mi = $index) {
+                              <div class="meta-grid__row" [formGroupName]="mi">
+                                <mat-form-field appearance="outline">
+                                  <mat-label>Key</mat-label>
+                                  <input matInput formControlName="key" />
+                                </mat-form-field>
+                                <mat-form-field appearance="outline">
+                                  <mat-label>Value</mat-label>
+                                  <input matInput formControlName="value" />
+                                </mat-form-field>
+                                <button mat-icon-button type="button" (click)="removeTemplateMeta(attr, mi)">
+                                  <mat-icon fontIcon="delete"></mat-icon>
+                                </button>
+                              </div>
+                            }
+                          </div>
+                        </div>
+                      }
+                      <button mat-icon-button type="button" (click)="removeTemplateAttribute(i)" matTooltip="Attribut entfernen">
+                        <mat-icon fontIcon="delete"></mat-icon>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </form>
+          </mat-card>
+        </section>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

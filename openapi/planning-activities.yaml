@@ -1,0 +1,378 @@
+openapi: 3.1.0
+info:
+  title: Planning Activities API
+  version: 0.1.0
+  description: |
+    REST-Schnittstelle für die Gantt-Aktivitäten der Order-Management-Anwendung.
+    Alle Clients arbeiten gegen denselben Datenbestand. Validierungen für Orts-,
+    Kapazitäts-, Arbeitszeit- und Qualifikationskonflikte werden serverseitig
+    ausgeführt und können gezielt angefordert werden.
+servers:
+  - url: /api/v1
+    description: Default Backend-URL (überschreibbar per API_CONFIG).
+paths:
+  /planning/base/templates:
+    $ref: './planning/paths/base.yaml#/planning_base_templates'
+  /planning/base/templates/{templateId}:
+    $ref: './planning/paths/base.yaml#/planning_base_templates_templateId'
+  /planning/base/templates/{templateId}/validities:
+    $ref: './planning/paths/base.yaml#/planning_base_templates_templateId_validities'
+  /planning/base/templates/{templateId}/validities/{validityId}:
+    $ref: './planning/paths/base.yaml#/planning_base_templates_templateId_validities_validityId'
+  /planning/base/templates:rollout:
+    $ref: './planning/paths/base.yaml#/planning_base_templates_rollout'
+  /planning/base/templates/events:
+    $ref: './planning/paths/base.yaml#/planning_base_templates_events'
+  /planning/operations/weeks:
+    $ref: './planning/paths/operations.yaml#/planning_operations_weeks'
+  /planning/operations/weeks/{weekInstanceId}:
+    $ref: './planning/paths/operations.yaml#/planning_operations_weeks_weekInstanceId'
+  /planning/stages/{stageId}:
+    $ref: './planning/paths/stages.yaml#/planning_stages_stageId'
+  /planning/stages/{stageId}/resources:
+    $ref: './planning/paths/stages.yaml#/planning_stages_stageId_resources'
+  /planning/stages/{stageId}/activities:
+    $ref: './planning/paths/stages.yaml#/planning_stages_stageId_activities'
+  /planning/stages/{stageId}/activities:validate:
+    $ref: './planning/paths/stages.yaml#/planning_stages_stageId_activities_validate'
+  /planning/stages/{stageId}/events:
+    $ref: './planning/paths/stages.yaml#/planning_stages_stageId_events'
+  /planning/master-data/personnel-service-pools:
+    $ref: './planning/paths/master-data.yaml#/planning_master_data_personnel_service_pools'
+  /planning/master-data/personnel-pools:
+    $ref: './planning/paths/master-data.yaml#/planning_master_data_personnel_pools'
+  /planning/master-data/vehicle-service-pools:
+    $ref: './planning/paths/master-data.yaml#/planning_master_data_vehicle_service_pools'
+  /planning/master-data/vehicle-pools:
+    $ref: './planning/paths/master-data.yaml#/planning_master_data_vehicle_pools'
+  /planning/master-data/vehicle-types:
+    $ref: './planning/paths/master-data.yaml#/planning_master_data_vehicle_types'
+  /planning/master-data/vehicle-compositions:
+    $ref: './planning/paths/master-data.yaml#/planning_master_data_vehicle_compositions'
+  /planning/topology/operational-points:
+    $ref: './planning/paths/topology.yaml#/planning_topology_operational_points'
+  /planning/topology/sections-of-line:
+    $ref: './planning/paths/topology.yaml#/planning_topology_sections_of_line'
+  /planning/topology/personnel-sites:
+    $ref: './planning/paths/topology.yaml#/planning_topology_personnel_sites'
+  /planning/topology/replacement-stops:
+    $ref: './planning/paths/topology.yaml#/planning_topology_replacement_stops'
+  /planning/topology/replacement-routes:
+    $ref: './planning/paths/topology.yaml#/planning_topology_replacement_routes'
+  /planning/topology/replacement-edges:
+    $ref: './planning/paths/topology.yaml#/planning_topology_replacement_edges'
+  /planning/topology/op-replacement-stop-links:
+    $ref: './planning/paths/topology.yaml#/planning_topology_op_replacement_stop_links'
+  /planning/topology/op-replacement-links:
+    $ref: './planning/paths/topology.yaml#/planning_topology_op_replacement_links'
+  /planning/topology/transfer-edges:
+    $ref: './planning/paths/topology.yaml#/planning_topology_transfer_edges'
+  /planning/topology/import:
+    $ref: './planning/paths/topology.yaml#/planning_topology_import'
+  /planning/topology/import/events:
+    $ref: './planning/paths/topology.yaml#/planning_topology_import_events'
+  # Catalog (Activity Types, Templates, Definitions, Layers, Translations)
+  /planning/catalog:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_snapshot'
+  /planning/catalog/types:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_types'
+  /planning/catalog/types/{typeId}:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_types_typeId'
+  /planning/catalog/templates:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_templates'
+  /planning/catalog/templates/{templateId}:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_templates_templateId'
+  /planning/catalog/definitions:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_definitions'
+  /planning/catalog/definitions/{definitionId}:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_definitions_definitionId'
+  /planning/catalog/layers:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_layers'
+  /planning/catalog/layers/{layerId}:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_layers_layerId'
+  /planning/catalog/translations:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_translations'
+  /planning/catalog/translations/{locale}:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_translations_locale'
+  /planning/resources:
+    get:
+      summary: Gebündelte Ressourcen für die Plantafel abrufen
+      description: Liefert Personal/Services/Fahrzeuge/Pools in einem Snapshot (neue Ressourcelogik).
+      responses:
+        '200':
+          description: Aktueller Ressourcen-Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/ResourceSnapshot'
+    put:
+      summary: Ressourcen-Snapshot vollständig ersetzen
+      description: Ersetzt alle Ressourcen (Personal/Services/Fahrzeuge/Pools) gemäß Payload in der Datenbank.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './planning/components/schemas.yaml#/schemas/ResourceSnapshot'
+      responses:
+        '200':
+          description: Persistierter Ressourcen-Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/ResourceSnapshot'
+  /api/timeline:
+    get:
+      summary: Timeline laden (neue Logik mit Stage + LOD)
+      description: >
+        Liefert Activities oder Service-Aggregationen im angegebenen Zeitfenster.
+        Query-Parameter `stage=base|operations`, `lod=activity|service`, `from`, `to` (ISO).
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: stage
+          required: false
+          schema:
+            type: string
+            enum: [base, operations]
+          description: Planungsstage (default base).
+        - in: query
+          name: lod
+          required: false
+          schema:
+            type: string
+            enum: [activity, service]
+          description: Level of Detail.
+      responses:
+        '200':
+          description: Timeline-Daten
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TimelineResponse'
+  /api/templates/{templateId}/timeline:
+    get:
+      summary: Template-Timeline laden (Stage + LOD)
+      description: >
+        Liefert Activities oder Service-Aggregationen für eine Template-Timeline (eigene Tabelle je Template).
+        Query-Parameter `stage=base|operations`, `lod=activity|service`, `from`, `to` (ISO).
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: stage
+          required: false
+          schema:
+            type: string
+            enum: [base, operations]
+          description: Stage-Kontext innerhalb des Templates (default base).
+        - in: query
+          name: lod
+          required: false
+          schema:
+            type: string
+            enum: [activity, service]
+          description: Level of Detail.
+      responses:
+        '200':
+          description: Template-Timeline-Daten
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TimelineResponse'
+  /api/templates:
+    get:
+      summary: Templates auflisten
+      description: Liefert Metadaten aller Templates (eigene Timeline-Tabellen).
+      responses:
+        '200':
+          description: Liste der Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './planning/components/schemas.yaml#/schemas/TemplateSet'
+    post:
+      summary: Template anlegen
+      description: Legt ein neues Template an und erzeugt die zugehörige Timeline-Tabelle.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './planning/components/schemas.yaml#/schemas/CreateTemplateSetRequest'
+      responses:
+        '201':
+          description: Angelegtes Template
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TemplateSet'
+  /api/templates/{templateId}:
+    get:
+      summary: Template laden
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template-Metadaten
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TemplateSet'
+    put:
+      summary: Template aktualisieren
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './planning/components/schemas.yaml#/schemas/UpdateTemplateSetRequest'
+      responses:
+        '200':
+          description: Aktualisiertes Template
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TemplateSet'
+    delete:
+      summary: Template löschen
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Gelöscht, zugehörige Timeline-Tabelle entfernt
+  /api/templates/{templateId}/activities/{activityId}:
+    put:
+      summary: Template-Aktivität anlegen/aktualisieren
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TemplateActivityUpsert'
+      responses:
+        '200':
+          description: Gespeicherte Aktivität
+          content:
+            application/json:
+              schema:
+                $ref: './planning/components/schemas.yaml#/schemas/TimelineActivity'
+    delete:
+      summary: Template-Aktivität löschen
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Aktivität entfernt
+  /api/templates/{templateId}/rollout:
+    post:
+      summary: Template in Live-Planning ausrollen
+      description: Kopiert die Template-Aktivitäten in die Live-`activities`-Tabelle (Stage wählbar, optionaler Zeitanker).
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stage:
+                  type: string
+                  enum: [base, operations]
+                anchorStart:
+                  type: string
+                  format: date-time
+                  description: Optionaler Ankerzeitpunkt, relativ werden alle Aktivitäten verschoben.
+              required: [stage]
+      responses:
+        '200':
+          description: Ausgerollte Aktivitäten (Live)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './planning/components/schemas.yaml#/schemas/TimelineActivity'
+
+# WebSocket-Notizen (AsyncAPI empfohlen, hier nur informativ):
+# - Live-Timeline WS: Namespace /timeline
+#   Eingehend: VIEWPORT_CHANGED {from,to,lod,stage}, ACTIVITY_UPDATE_REQUEST {activityId,newStart,newEnd,stage}
+#   Ausgehend: ACTIVITY_UPDATE_ACCEPTED, ACTIVITY_UPDATED, SERVICE_UPDATED, ABSENCE_UPDATED, ACTIVITY_UPDATE_VALIDATION_RESULT
+# - Template-Timeline WS: Namespace /templates
+#   Kontext zusätzlich templateId; gleiche Message-Typen wie Live-Timeline.
+
+# WebSocket-Hinweise (nicht formal als OpenAPI-WebSocket beschrieben):
+# - Live-Timeline WS: Namespace /timeline, Messages: VIEWPORT_CHANGED (stage,lod,from,to), ACTIVITY_UPDATE_REQUEST, ACTIVITY_UPDATED/SERVICE_UPDATED Broadcasts.
+# - Template-Timeline WS: Namespace /templates, Kontext zusätzlich templateId; gleiche Message-Typen wie Live.
+components:
+  parameters:
+    $ref: './planning/components/parameters.yaml#/parameters'
+  schemas:
+    $ref: './planning/components/schemas.yaml#/schemas'

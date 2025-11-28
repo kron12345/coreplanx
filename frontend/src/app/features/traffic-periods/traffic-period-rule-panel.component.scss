@@ -1,0 +1,29 @@
+.rule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.calendar-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+
+  button.active {
+    background: rgba(26, 115, 232, 0.12);
+  }
+}
+
+.calendar-grid {
+  display: block;
+}
+
+.rule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}

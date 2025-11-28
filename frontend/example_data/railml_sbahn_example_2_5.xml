@@ -1,0 +1,3519 @@
+<?xml version="1.0" encoding="utf-8"?>
+<railml xmlns:ns1="https://www.railml.org/schemas/2021" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="https://www.railml.org/schemas/2021" xsi:schemaLocation="https://www.railml.org/schemas/2021 https://schemas.railml.org/2021/railML-2.5/schema/railML.xsd" version="2.5">
+  <ns1:infrastructure>
+    <ns1:operationControlPoints>
+      <ns1:ocp id="BAS" name="Basel SBB" type="station"/>
+      <ns1:ocp id="MUT" name="Muttenz" type="station"/>
+      <ns1:ocp id="PRA" name="Pratteln" type="station"/>
+      <ns1:ocp id="LIE" name="Liestal" type="station"/>
+      <ns1:ocp id="SIS" name="Sissach" type="station"/>
+      <ns1:ocp id="OLT" name="Olten" type="station"/>
+    </ns1:operationControlPoints>
+  </ns1:infrastructure>
+  <ns1:timetable>
+    <ns1:timetablePeriods>
+      <ns1:timetablePeriod id="tp_2025_2026" startDate="2025-12-14" endDate="2026-12-12"/>
+    </ns1:timetablePeriods>
+    <ns1:operatingPeriods>
+      <ns1:operatingPeriod id="op_daily" description="Daily (Mo–So)">
+        <ns1:operatingDay operatingCode="1111111"/>
+      </ns1:operatingPeriod>
+      <ns1:operatingPeriod id="op_weekdays" description="Mo–Fr">
+        <ns1:operatingDay operatingCode="1111100"/>
+      </ns1:operatingPeriod>
+      <ns1:operatingPeriod id="op_weekend" description="Sa–So">
+        <ns1:operatingDay operatingCode="0000011"/>
+      </ns1:operatingPeriod>
+      <ns1:operatingPeriod id="op_summer_work" description="Sommer-Baustelle (Juni–August 2026)">
+        <ns1:operatingDay operatingCode="1111111" startDate="2026-06-01" endDate="2026-08-31"/>
+      </ns1:operatingPeriod>
+      <ns1:operatingPeriod id="op_event_2026_06_20" description="Eventtag 20.06.2026">
+        <ns1:operatingDay operatingCode="1111111" startDate="2026-06-20" endDate="2026-06-20"/>
+      </ns1:operatingPeriod>
+    </ns1:operatingPeriods>
+    <ns1:trains>
+      <ns1:train id="S1_BAS_OLT_0500_wk" type="commercial" categoryRef="S" trainNumber="1000" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0500_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:06:00" departure="05:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:11:00" departure="05:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:20:00" departure="05:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:28:00" departure="05:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="05:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0500_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:07:00" departure="05:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:13:00" departure="05:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:23:00" departure="05:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:32:00" departure="05:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="05:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0500_wk" type="commercial" categoryRef="S" trainNumber="2000" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0500_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:10:00" departure="05:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:18:00" departure="05:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:27:00" departure="05:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:32:00" departure="05:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="05:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0500_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:11:00" departure="05:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:20:00" departure="05:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:30:00" departure="05:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:36:00" departure="05:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="05:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0515_wk" type="commercial" categoryRef="S" trainNumber="1001" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0515_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:21:00" departure="05:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:26:00" departure="05:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:35:00" departure="05:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:43:00" departure="05:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="05:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0515_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:22:00" departure="05:23:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:28:00" departure="05:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:38:00" departure="05:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:47:00" departure="05:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="05:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0515_wk" type="commercial" categoryRef="S" trainNumber="2001" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0515_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:25:00" departure="05:26:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:33:00" departure="05:34:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:42:00" departure="05:43:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:47:00" departure="05:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="05:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0515_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:26:00" departure="05:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:35:00" departure="05:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:45:00" departure="05:46:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:51:00" departure="05:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="05:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0530_wk" type="commercial" categoryRef="S" trainNumber="1002" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0530_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:36:00" departure="05:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:41:00" departure="05:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:50:00" departure="05:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:58:00" departure="05:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0530_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:37:00" departure="05:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:43:00" departure="05:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:53:00" departure="05:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:02:00" departure="06:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0530_wk" type="commercial" categoryRef="S" trainNumber="2002" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0530_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:40:00" departure="05:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:48:00" departure="05:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:57:00" departure="05:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:02:00" departure="06:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0530_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:41:00" departure="05:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="05:50:00" departure="05:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:00:00" departure="06:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:06:00" departure="06:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0545_wk" type="commercial" categoryRef="S" trainNumber="1003" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0545_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:51:00" departure="05:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:56:00" departure="05:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:05:00" departure="06:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:13:00" departure="06:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0545_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="05:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="05:52:00" departure="05:53:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="05:58:00" departure="05:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:08:00" departure="06:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:17:00" departure="06:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0545_wk" type="commercial" categoryRef="S" trainNumber="2003" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0545_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:55:00" departure="05:56:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:03:00" departure="06:04:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:12:00" departure="06:13:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:17:00" departure="06:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0545_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="05:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="05:56:00" departure="05:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:05:00" departure="06:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:15:00" departure="06:16:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:21:00" departure="06:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0600_wk" type="commercial" categoryRef="S" trainNumber="1004" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0600_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:06:00" departure="06:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:11:00" departure="06:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:20:00" departure="06:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:28:00" departure="06:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0600_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:07:00" departure="06:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:13:00" departure="06:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:23:00" departure="06:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:32:00" departure="06:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0600_wk" type="commercial" categoryRef="S" trainNumber="2004" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0600_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:10:00" departure="06:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:18:00" departure="06:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:27:00" departure="06:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:32:00" departure="06:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0600_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:11:00" departure="06:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:20:00" departure="06:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:30:00" departure="06:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:36:00" departure="06:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0615_wk" type="commercial" categoryRef="S" trainNumber="1005" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0615_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:21:00" departure="06:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:26:00" departure="06:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:35:00" departure="06:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:43:00" departure="06:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0615_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:22:00" departure="06:23:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:28:00" departure="06:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:38:00" departure="06:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:47:00" departure="06:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="06:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0615_wk" type="commercial" categoryRef="S" trainNumber="2005" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0615_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:25:00" departure="06:26:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:33:00" departure="06:34:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:42:00" departure="06:43:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:47:00" departure="06:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0615_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:26:00" departure="06:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:35:00" departure="06:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:45:00" departure="06:46:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:51:00" departure="06:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="06:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0630_wk" type="commercial" categoryRef="S" trainNumber="1006" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0630_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:36:00" departure="06:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:41:00" departure="06:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:50:00" departure="06:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:58:00" departure="06:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0630_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:37:00" departure="06:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:43:00" departure="06:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:53:00" departure="06:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:02:00" departure="07:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0630_wk" type="commercial" categoryRef="S" trainNumber="2006" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0630_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:40:00" departure="06:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:48:00" departure="06:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:57:00" departure="06:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:02:00" departure="07:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0630_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:41:00" departure="06:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="06:50:00" departure="06:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:00:00" departure="07:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:06:00" departure="07:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0645_wk" type="commercial" categoryRef="S" trainNumber="1007" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0645_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:51:00" departure="06:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:56:00" departure="06:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:05:00" departure="07:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:13:00" departure="07:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0645_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="06:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="06:52:00" departure="06:53:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="06:58:00" departure="06:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:08:00" departure="07:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:17:00" departure="07:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0645_wk" type="commercial" categoryRef="S" trainNumber="2007" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0645_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:55:00" departure="06:56:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:03:00" departure="07:04:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:12:00" departure="07:13:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:17:00" departure="07:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0645_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="06:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="06:56:00" departure="06:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:05:00" departure="07:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:15:00" departure="07:16:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:21:00" departure="07:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0700_wk" type="commercial" categoryRef="S" trainNumber="1008" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0700_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:06:00" departure="07:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:11:00" departure="07:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:20:00" departure="07:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:28:00" departure="07:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0700_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:07:00" departure="07:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:13:00" departure="07:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:23:00" departure="07:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:32:00" departure="07:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0700_wk" type="commercial" categoryRef="S" trainNumber="2008" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0700_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:10:00" departure="07:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:18:00" departure="07:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:27:00" departure="07:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:32:00" departure="07:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0700_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:11:00" departure="07:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:20:00" departure="07:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:30:00" departure="07:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:36:00" departure="07:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0715_wk" type="commercial" categoryRef="S" trainNumber="1009" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0715_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:21:00" departure="07:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:26:00" departure="07:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:35:00" departure="07:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:43:00" departure="07:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0715_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:22:00" departure="07:23:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:28:00" departure="07:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:38:00" departure="07:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:47:00" departure="07:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="07:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0715_wk" type="commercial" categoryRef="S" trainNumber="2009" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0715_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:25:00" departure="07:26:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:33:00" departure="07:34:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:42:00" departure="07:43:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:47:00" departure="07:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0715_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:26:00" departure="07:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:35:00" departure="07:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:45:00" departure="07:46:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:51:00" departure="07:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="07:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0730_wk" type="commercial" categoryRef="S" trainNumber="1010" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0730_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:36:00" departure="07:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:41:00" departure="07:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:50:00" departure="07:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:58:00" departure="07:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0730_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:37:00" departure="07:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:43:00" departure="07:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:53:00" departure="07:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:02:00" departure="08:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0730_wk" type="commercial" categoryRef="S" trainNumber="2010" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0730_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:40:00" departure="07:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:48:00" departure="07:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:57:00" departure="07:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:02:00" departure="08:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0730_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:41:00" departure="07:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="07:50:00" departure="07:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:00:00" departure="08:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:06:00" departure="08:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0745_wk" type="commercial" categoryRef="S" trainNumber="1011" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0745_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:51:00" departure="07:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:56:00" departure="07:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:05:00" departure="08:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:13:00" departure="08:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0745_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="07:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="07:52:00" departure="07:53:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="07:58:00" departure="07:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:08:00" departure="08:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:17:00" departure="08:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0745_wk" type="commercial" categoryRef="S" trainNumber="2011" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0745_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:55:00" departure="07:56:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:03:00" departure="08:04:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:12:00" departure="08:13:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:17:00" departure="08:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0745_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="07:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="07:56:00" departure="07:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:05:00" departure="08:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:15:00" departure="08:16:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:21:00" departure="08:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0800_wk" type="commercial" categoryRef="S" trainNumber="1012" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0800_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:06:00" departure="08:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:11:00" departure="08:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:20:00" departure="08:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:28:00" departure="08:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0800_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:07:00" departure="08:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:13:00" departure="08:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:23:00" departure="08:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:32:00" departure="08:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0800_wk" type="commercial" categoryRef="S" trainNumber="2012" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0800_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:10:00" departure="08:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:18:00" departure="08:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:27:00" departure="08:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:32:00" departure="08:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0800_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:11:00" departure="08:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:20:00" departure="08:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:30:00" departure="08:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:36:00" departure="08:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0815_wk" type="commercial" categoryRef="S" trainNumber="1013" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0815_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:21:00" departure="08:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:26:00" departure="08:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:35:00" departure="08:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:43:00" departure="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0815_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:22:00" departure="08:23:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:28:00" departure="08:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:38:00" departure="08:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:47:00" departure="08:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0815_wk" type="commercial" categoryRef="S" trainNumber="2013" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0815_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:25:00" departure="08:26:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:33:00" departure="08:34:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:42:00" departure="08:43:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:47:00" departure="08:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0815_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:26:00" departure="08:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:35:00" departure="08:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:45:00" departure="08:46:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:51:00" departure="08:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0830_wk" type="commercial" categoryRef="S" trainNumber="1014" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0830_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:36:00" departure="08:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:41:00" departure="08:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:50:00" departure="08:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:58:00" departure="08:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0830_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:37:00" departure="08:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:43:00" departure="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:53:00" departure="08:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:02:00" departure="09:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0830_wk" type="commercial" categoryRef="S" trainNumber="2014" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0830_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:40:00" departure="08:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:48:00" departure="08:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:57:00" departure="08:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:02:00" departure="09:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0830_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:41:00" departure="08:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:50:00" departure="08:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:00:00" departure="09:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:06:00" departure="09:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0845_wk" type="commercial" categoryRef="S" trainNumber="1015" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0845_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:51:00" departure="08:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:56:00" departure="08:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:05:00" departure="09:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:13:00" departure="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0845_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:52:00" departure="08:53:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:58:00" departure="08:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:08:00" departure="09:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:17:00" departure="09:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0845_wk" type="commercial" categoryRef="S" trainNumber="2015" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0845_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:55:00" departure="08:56:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:03:00" departure="09:04:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:12:00" departure="09:13:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:17:00" departure="09:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0845_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:56:00" departure="08:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:05:00" departure="09:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:15:00" departure="09:16:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:21:00" departure="09:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0900_wk" type="commercial" categoryRef="S" trainNumber="1016" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0900_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:06:00" departure="09:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:11:00" departure="09:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:20:00" departure="09:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:28:00" departure="09:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0900_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:07:00" departure="09:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:13:00" departure="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:23:00" departure="09:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:32:00" departure="09:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0900_wk" type="commercial" categoryRef="S" trainNumber="2016" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0900_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:10:00" departure="09:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:18:00" departure="09:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:27:00" departure="09:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:32:00" departure="09:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0900_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:11:00" departure="09:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:20:00" departure="09:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:30:00" departure="09:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:36:00" departure="09:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0915_wk" type="commercial" categoryRef="S" trainNumber="1017" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0915_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:21:00" departure="09:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:26:00" departure="09:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:35:00" departure="09:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:43:00" departure="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0915_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:22:00" departure="09:23:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:28:00" departure="09:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:38:00" departure="09:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:47:00" departure="09:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0915_wk" type="commercial" categoryRef="S" trainNumber="2017" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0915_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:25:00" departure="09:26:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:33:00" departure="09:34:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:42:00" departure="09:43:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:47:00" departure="09:48:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0915_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:15:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:26:00" departure="09:27:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:35:00" departure="09:36:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:45:00" departure="09:46:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:51:00" departure="09:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0930_wk" type="commercial" categoryRef="S" trainNumber="1018" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0930_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:36:00" departure="09:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:41:00" departure="09:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:50:00" departure="09:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:58:00" departure="09:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0930_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:37:00" departure="09:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:43:00" departure="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:53:00" departure="09:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:02:00" departure="10:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0930_wk" type="commercial" categoryRef="S" trainNumber="2018" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0930_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:40:00" departure="09:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:48:00" departure="09:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:57:00" departure="09:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:02:00" departure="10:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0930_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:41:00" departure="09:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:50:00" departure="09:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:00:00" departure="10:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:06:00" departure="10:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0945_wk" type="commercial" categoryRef="S" trainNumber="1019" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0945_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:51:00" departure="09:52:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:56:00" departure="09:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:05:00" departure="10:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:13:00" departure="10:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0945_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:52:00" departure="09:53:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:58:00" departure="09:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:08:00" departure="10:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:17:00" departure="10:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0945_wk" type="commercial" categoryRef="S" trainNumber="2019" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Mo–Fr alle 15 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0945_wk_base" operatingPeriodRef="op_weekdays">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:55:00" departure="09:56:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:03:00" departure="10:04:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:12:00" departure="10:13:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:17:00" departure="10:18:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0945_wk_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:45:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:56:00" departure="09:57:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:05:00" departure="10:06:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:15:00" departure="10:16:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:21:00" departure="10:22:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0800_we" type="commercial" categoryRef="S" trainNumber="3000" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0800_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:06:00" departure="08:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:11:00" departure="08:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:20:00" departure="08:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:28:00" departure="08:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0800_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:07:00" departure="08:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:13:00" departure="08:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:23:00" departure="08:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:32:00" departure="08:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0800_we" type="commercial" categoryRef="S" trainNumber="4000" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0800_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:10:00" departure="08:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:18:00" departure="08:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:27:00" departure="08:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:32:00" departure="08:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0800_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:11:00" departure="08:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:20:00" departure="08:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:30:00" departure="08:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:36:00" departure="08:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0830_we" type="commercial" categoryRef="S" trainNumber="3001" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0830_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:36:00" departure="08:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:41:00" departure="08:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:50:00" departure="08:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:58:00" departure="08:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0830_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="08:37:00" departure="08:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:43:00" departure="08:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:53:00" departure="08:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:02:00" departure="09:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0830_we" type="commercial" categoryRef="S" trainNumber="4001" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0830_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:40:00" departure="08:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:48:00" departure="08:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="08:57:00" departure="08:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:02:00" departure="09:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0830_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="08:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="08:41:00" departure="08:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="08:50:00" departure="08:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:00:00" departure="09:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:06:00" departure="09:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0900_we" type="commercial" categoryRef="S" trainNumber="3002" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0900_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:06:00" departure="09:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:11:00" departure="09:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:20:00" departure="09:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:28:00" departure="09:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0900_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:07:00" departure="09:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:13:00" departure="09:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:23:00" departure="09:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:32:00" departure="09:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0900_we" type="commercial" categoryRef="S" trainNumber="4002" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0900_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:10:00" departure="09:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:18:00" departure="09:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:27:00" departure="09:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:32:00" departure="09:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0900_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:11:00" departure="09:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:20:00" departure="09:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:30:00" departure="09:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:36:00" departure="09:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0930_we" type="commercial" categoryRef="S" trainNumber="3003" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0930_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:36:00" departure="09:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:41:00" departure="09:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:50:00" departure="09:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:58:00" departure="09:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_0930_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="09:37:00" departure="09:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:43:00" departure="09:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:53:00" departure="09:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:02:00" departure="10:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0930_we" type="commercial" categoryRef="S" trainNumber="4003" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0930_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:40:00" departure="09:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:48:00" departure="09:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="09:57:00" departure="09:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:02:00" departure="10:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_0930_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="09:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="09:41:00" departure="09:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="09:50:00" departure="09:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:00:00" departure="10:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:06:00" departure="10:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_1000_we" type="commercial" categoryRef="S" trainNumber="3004" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_1000_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="10:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:06:00" departure="10:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:11:00" departure="10:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:20:00" departure="10:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:28:00" departure="10:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_1000_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="10:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:07:00" departure="10:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:13:00" departure="10:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:23:00" departure="10:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:32:00" departure="10:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="10:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_1000_we" type="commercial" categoryRef="S" trainNumber="4004" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_1000_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="10:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:10:00" departure="10:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:18:00" departure="10:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:27:00" departure="10:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:32:00" departure="10:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_1000_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="10:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:11:00" departure="10:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:20:00" departure="10:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:30:00" departure="10:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:36:00" departure="10:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="10:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_1030_we" type="commercial" categoryRef="S" trainNumber="3005" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_1030_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="10:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:36:00" departure="10:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:41:00" departure="10:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:50:00" departure="10:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:58:00" departure="10:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="11:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_1030_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="10:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="10:37:00" departure="10:38:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:43:00" departure="10:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:53:00" departure="10:54:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="11:02:00" departure="11:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="11:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_1030_we" type="commercial" categoryRef="S" trainNumber="4005" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 Sa–So alle 30 Minuten</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_1030_we_base" operatingPeriodRef="op_weekend">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="10:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:40:00" departure="10:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:48:00" departure="10:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="10:57:00" departure="10:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="11:02:00" departure="11:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="11:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_1030_we_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="10:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="10:41:00" departure="10:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="10:50:00" departure="10:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="11:00:00" departure="11:01:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="11:06:00" departure="11:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="11:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_2000_daily" type="commercial" categoryRef="S" trainNumber="5000" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 täglich</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_2000_daily_base" operatingPeriodRef="op_daily">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="20:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="20:06:00" departure="20:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="20:11:00" departure="20:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="20:20:00" departure="20:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="20:28:00" departure="20:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="20:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_2000_daily_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="20:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="20:07:00" departure="20:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="20:13:00" departure="20:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="20:23:00" departure="20:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="20:32:00" departure="20:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="20:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_2000_daily" type="commercial" categoryRef="S" trainNumber="5100" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 täglich</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_2000_daily_base" operatingPeriodRef="op_daily">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="20:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="20:10:00" departure="20:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="20:18:00" departure="20:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="20:27:00" departure="20:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="20:32:00" departure="20:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="20:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_2000_daily_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="20:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="20:11:00" departure="20:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="20:20:00" departure="20:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="20:30:00" departure="20:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="20:36:00" departure="20:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="20:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_2100_daily" type="commercial" categoryRef="S" trainNumber="5001" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 täglich</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_2100_daily_base" operatingPeriodRef="op_daily">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="21:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="21:06:00" departure="21:07:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="21:11:00" departure="21:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="21:20:00" departure="21:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="21:28:00" departure="21:29:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="21:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_BAS_OLT_2100_daily_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="21:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="21:07:00" departure="21:08:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="21:13:00" departure="21:14:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="21:23:00" departure="21:24:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="21:32:00" departure="21:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="21:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_2100_daily" type="commercial" categoryRef="S" trainNumber="5101" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>S1 täglich</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_2100_daily_base" operatingPeriodRef="op_daily">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="21:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="21:10:00" departure="21:11:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="21:18:00" departure="21:19:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="21:27:00" departure="21:28:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="21:32:00" departure="21:33:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="21:39:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+          <ns1:trainPart id="S1_OLT_BAS_2100_daily_summer" operatingPeriodRef="op_summer_work">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="21:00:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="21:11:00" departure="21:12:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="21:20:00" departure="21:21:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="21:30:00" departure="21:31:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="21:36:00" departure="21:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="21:44:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_BAS_OLT_0030_event" type="commercial" categoryRef="S" trainNumber="9001" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>Zusatzkurs Konzerttag 20.06.2026</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_BAS_OLT_0030_event_event" operatingPeriodRef="op_event_2026_06_20">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="BAS">
+                <ns1:times scope="scheduled" departure="00:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="00:36:00" departure="00:37:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="00:41:00" departure="00:42:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="00:50:00" departure="00:51:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="00:58:00" departure="00:59:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="OLT">
+                <ns1:times scope="scheduled" arrival="01:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+      <ns1:train id="S1_OLT_BAS_0030_event" type="commercial" categoryRef="S" trainNumber="9002" timetablePeriodRef="tp_2025_2026">
+        <ns1:remarks>Zusatzkurs Konzerttag 20.06.2026</ns1:remarks>
+        <ns1:trainParts>
+          <ns1:trainPart id="S1_OLT_BAS_0030_event_event" operatingPeriodRef="op_event_2026_06_20">
+            <ns1:ocpsTT>
+              <ns1:ocpTT sequence="1" ocpRef="OLT">
+                <ns1:times scope="scheduled" departure="00:30:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="2" ocpRef="SIS">
+                <ns1:times scope="scheduled" arrival="00:40:00" departure="00:41:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="3" ocpRef="LIE">
+                <ns1:times scope="scheduled" arrival="00:48:00" departure="00:49:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="4" ocpRef="PRA">
+                <ns1:times scope="scheduled" arrival="00:57:00" departure="00:58:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="5" ocpRef="MUT">
+                <ns1:times scope="scheduled" arrival="01:02:00" departure="01:03:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+              <ns1:ocpTT sequence="6" ocpRef="BAS">
+                <ns1:times scope="scheduled" arrival="01:09:00"/>
+                <ns1:stopDescription commercial="true"/>
+              </ns1:ocpTT>
+            </ns1:ocpsTT>
+          </ns1:trainPart>
+        </ns1:trainParts>
+      </ns1:train>
+    </ns1:trains>
+  </ns1:timetable>
+</railml>

@@ -1,0 +1,156 @@
+planning_base_templates:
+  get:
+    summary: Listet alle Planwochen-Vorlagen (Basisplanung).
+    operationId: listPlanWeekTemplates
+    responses:
+      '200':
+        description: Liste aller Templates.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekTemplateListResponse'
+planning_base_templates_templateId:
+  parameters:
+  - $ref: '#/components/parameters/TemplateId'
+  put:
+    summary: Legt eine Planwoche an oder aktualisiert sie.
+    operationId: upsertPlanWeekTemplate
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanWeekTemplate'
+    responses:
+      '200':
+        description: Persistierte Vorlage.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekTemplate'
+  delete:
+    summary: "Entfernt eine Planwoche samt zugeh\xF6riger G\xFCltigkeiten."
+    operationId: deletePlanWeekTemplate
+    responses:
+      '204':
+        description: "Vorlage gel\xF6scht."
+planning_base_templates_templateId_validities:
+  parameters:
+  - $ref: '#/components/parameters/TemplateId'
+  get:
+    summary: "Listet G\xFCltigkeiten einer Vorlage."
+    operationId: listPlanWeekValidities
+    responses:
+      '200':
+        description: "G\xFCltigkeitsintervalle zur gew\xE4hlten Vorlage."
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekValidityListResponse'
+planning_base_templates_templateId_validities_validityId:
+  parameters:
+  - $ref: '#/components/parameters/TemplateId'
+  - $ref: '#/components/parameters/ValidityId'
+  put:
+    summary: "Legt ein G\xFCltigkeitsintervall an oder aktualisiert es."
+    operationId: upsertPlanWeekValidity
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanWeekValidity'
+    responses:
+      '200':
+        description: "Persistierte G\xFCltigkeit."
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekValidity'
+  delete:
+    summary: "Entfernt ein G\xFCltigkeitsintervall."
+    operationId: deletePlanWeekValidity
+    responses:
+      '204':
+        description: "G\xFCltigkeit gel\xF6scht."
+planning_base_templates_rollout:
+  post:
+    summary: Rollt eine Planwoche auf konkrete Kalenderwochen aus.
+    operationId: rolloutPlanWeekTemplate
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanWeekRolloutRequest'
+    responses:
+      '200':
+        description: Aufgesetzte Wocheninstanzen.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekRolloutResponse'
+planning_base_templates_events:
+  get:
+    summary: "Server-Sent Events f\xFCr \xC4nderungen an Planwochen, G\xFCltigkeiten\
+      \ und Rollouts."
+    description: "Publiziert \xC4nderungen an Templates, Services, Validities und\
+      \ Rollout-Status, damit\ndie Basisplanungs-UI ohne Polling aktuell bleibt. Jeder\
+      \ `data:`-Block enth\xE4lt ein\nJSON-Objekt vom Typ `PlanWeekRealtimeEvent`.\n"
+    operationId: streamPlanWeekTemplates
+    parameters:
+    - $ref: '#/components/parameters/UserId'
+    - $ref: '#/components/parameters/ConnectionId'
+    - name: templateId
+      in: query
+      required: false
+      description: "Optionaler Filter \u2013 nur Ereignisse zur angegebenen Vorlage."
+      schema:
+        type: string
+    responses:
+      '200':
+        description: "Event-Stream mit `PlanWeekRealtimeEvent`-Payloads. Server sollte\
+          \ regelm\xE4\xDFige\nHeartbeats senden und Verbindungen offen halten.\n"
+        content:
+          text/event-stream:
+            schema:
+              type: string
+planning_base_templates_templateId_activities:
+  parameters:
+  - $ref: '#/components/parameters/TemplateId'
+  get:
+    summary: Listet Aktivitäten einer Planwoche.
+    operationId: listPlanWeekActivities
+    responses:
+      '200':
+        description: Referenzaktivitäten zur gewählten Planwoche.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekActivityListResponse'
+planning_base_templates_templateId_activities_activityId:
+  parameters:
+  - $ref: '#/components/parameters/TemplateId'
+  - $ref: '#/components/parameters/TemplateActivityId'
+  put:
+    summary: Legt eine Aktivität an oder aktualisiert sie.
+    operationId: upsertPlanWeekActivity
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanWeekActivity'
+    responses:
+      '200':
+        description: Gespeicherte Aktivität.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanWeekActivity'
+  delete:
+    summary: Entfernt eine Aktivität aus der Planwoche.
+    operationId: deletePlanWeekActivity
+    responses:
+      '204':
+        description: Aktivität gelöscht.

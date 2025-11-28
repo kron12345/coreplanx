@@ -1,0 +1,122 @@
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: min(640px, 90vw);
+}
+
+.dialog-section {
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  header {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+
+    mat-icon {
+      color: #4338ca;
+    }
+
+    h3 {
+      margin: 0;
+    }
+
+    p {
+      margin: 0;
+      color: rgba(15, 23, 42, 0.6);
+      font-size: 0.9rem;
+    }
+  }
+}
+
+.business-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.business-card {
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &--active {
+    border-color: #4338ca;
+    box-shadow: 0 6px 18px rgba(67, 56, 202, 0.18);
+  }
+
+  &__title {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+
+    span {
+      font-size: 0.8rem;
+      color: rgba(15, 23, 42, 0.6);
+    }
+  }
+
+  &__meta {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: rgba(15, 23, 42, 0.7);
+      font-size: 0.85rem;
+    }
+  }
+}
+
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.item-chip {
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: rgba(15, 23, 42, 0.02);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &--active {
+    border-style: solid;
+    border-color: #0f766e;
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  strong {
+    display: block;
+  }
+
+  small {
+    color: rgba(15, 23, 42, 0.6);
+  }
+}
+
+.empty-hint {
+  margin: 6px 0;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.6);
+}

@@ -1,0 +1,64 @@
+<section class="calendar-section">
+  <header class="calendar-header">
+    <h3>{{ title }} {{ rangeHeaderLabel() }}</h3>
+    <div class="selection-actions">
+      <span>{{ selectedCount() }} Tage markiert</span>
+      <button mat-button type="button" (click)="clearSelection()">Zurücksetzen</button>
+      <button mat-button type="button" (click)="selectWorkdays()">Mo–Fr</button>
+      <button mat-button type="button" (click)="selectWeekends()">Sa/So</button>
+      @for (weekday of weekdayNames; track weekday; let idx = $index) {
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="toggleWeekday(idx)"
+          [class.selected]="weekdaySelected(idx)"
+        >
+          {{ weekday }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <div class="calendar-table">
+    <table>
+      <thead>
+        <tr>
+          <th class="month-col">Monat</th>
+          @for (label of headerLabelsForRender(); track $index) {
+            <th>{{ label }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (month of weekGroups(); track month.label) {
+          <tr>
+            <td class="month-col">{{ month.label }}</td>
+            @for (cell of month.cells; track colIndex; let colIndex = $index) {
+              <td
+                [class.leading]="cell.kind === 'leading'"
+                [class.trailing-cell]="cell.kind === 'trailing'"
+                [class.empty]="!cell.date"
+                [class.weekend]="cell.weekday !== null && cell.weekday >= 5"
+                [class.selected]="isSelected(cell.date)"
+                [class.disabled]="isDisabled(cell.date)"
+                [class.accent]="isAccent(cell.date)"
+                (click)="toggleCell(cell, $event)"
+              >
+                {{ cell.label }}
+              </td>
+            }
+            @if (month.cells.length < headerLabelsForRender().length) {
+              @for (extra of extraColumns(headerLabelsForRender().length - month.cells.length); track extra) {
+                <td class="empty trailing-cell"></td>
+              }
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (hint) {
+    <p class="hint">{{ hint }}</p>
+  }
+</section>

@@ -1,0 +1,72 @@
+<div class="gantt-timeline-row" [class.gantt-timeline-row--zebra]="zebra">
+  <div class="gantt-timeline-row__canvas" [style.width.px]="contentWidth" #canvas>
+    @for (segment of backgroundSegments; track segment.left + ':' + segment.width + ':' + segment.cssClass) {
+      <div
+        class="gantt-timeline-row__background"
+        [ngClass]="segment.cssClass"
+        [style.left.px]="segment.left"
+        [style.width.px]="segment.width"
+      ></div>
+    }
+
+    @for (range of serviceRanges; track range.id) {
+      <div
+        class="gantt-timeline-row__service-range"
+        [ngClass]="{
+          'gantt-timeline-row__service-range--missing-start':
+            range.status === 'missing-start' || range.status === 'missing-both',
+          'gantt-timeline-row__service-range--missing-end':
+            range.status === 'missing-end' || range.status === 'missing-both',
+          'gantt-timeline-row__service-range--incomplete': range.status !== 'complete'
+        }"
+        [style.left.px]="range.left"
+        [style.width.px]="range.width"
+      >
+        <span class="gantt-timeline-row__service-label">
+          {{ range.label }}
+        </span>
+      </div>
+    }
+
+    @if (nowMarkerLeft !== null) {
+      <div class="gantt-timeline-row__now" [style.left.px]="nowMarkerLeft"></div>
+    }
+
+    <div class="gantt-timeline-row__activities">
+      @for (bar of bars; track bar.id) {
+        <app-gantt-activity
+          [activity]="bar.activity"
+          [leftPx]="bar.left"
+          [widthPx]="bar.width"
+          [classes]="bar.classes ?? []"
+          [zIndex]="bar.zIndex ?? null"
+          [ngStyle]="bar.color ? {'background': bar.color, 'border-color': bar.color} : null"
+          [isSelected]="bar.selected ?? false"
+          [isPrimarySelection]="bar.primarySelected ?? false"
+          [displayMode]="viewMode"
+          [displayTitle]="bar.label ?? ''"
+          [showRouteDetails]="bar.showRoute ?? false"
+          [dragDisabled]="bar.dragDisabled ?? false"
+          [isMirror]="bar.isMirror ?? false"
+          [roleIcon]="bar.roleIcon ?? null"
+          [roleLabel]="bar.roleLabel ?? null"
+          [dragData]="{
+            activity: bar.activity,
+            resourceId,
+            participantResourceId: bar.participantResourceId ?? resourceId,
+            participantCategory: bar.participantCategory ?? null,
+            isOwnerSlot: bar.isOwner ?? true,
+            initialLeft: bar.left,
+            width: bar.width,
+            mode: 'move'
+          }"
+          (activitySelected)="activitySelected.emit($event)"
+          (toggleSelection)="activityToggleSelection.emit($event)"
+          (dragStarted)="activityDragStarted.emit($event)"
+          (dragMoved)="activityDragMoved.emit($event)"
+          (dragEnded)="activityDragEnded.emit($event)"
+        />
+      }
+    </div>
+  </div>
+</div>

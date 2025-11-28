@@ -1,0 +1,14 @@
+.create-from-template {
+  border-radius: 24px;
+
+  .template-form {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  button[type='submit'] {
+    grid-column: 1 / -1;
+    justify-self: flex-start;
+  }
+}

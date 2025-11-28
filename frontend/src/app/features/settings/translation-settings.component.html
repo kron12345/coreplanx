@@ -1,0 +1,113 @@
+<div class="i18n-settings">
+  <header class="i18n-settings__header">
+    <div>
+      <h1>Übersetzungen</h1>
+      <p>Verwalten Sie alle sichtbaren Texte (Labels/Abkürzungen) pro Locale. Activity Types sind als Preset verfügbar.</p>
+    </div>
+    <div class="i18n-settings__actions">
+      <mat-form-field appearance="outline" class="i18n-settings__locale">
+        <mat-label>Locale</mat-label>
+        <mat-select [value]="activeLocale()" (valueChange)="changeLocale($event)">
+          @for (loc of availableLocales(); track loc) {
+            <mat-option [value]="loc">{{ loc }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="i18n-settings__locale-add">
+        <mat-label>Neue Locale</mat-label>
+        <input matInput [(ngModel)]="newLocaleValue" placeholder="z. B. en" />
+      </mat-form-field>
+      <button mat-stroked-button type="button" (click)="addLocale()">
+        <mat-icon fontIcon="add"></mat-icon>
+        Locale wechseln/erzeugen
+      </button>
+      <button mat-stroked-button type="button" color="warn" (click)="clearLocale()" matTooltip="Alle Übersetzungen dieser Locale löschen">
+        <mat-icon fontIcon="restart_alt"></mat-icon>
+        Locale zurücksetzen
+      </button>
+    </div>
+  </header>
+
+  <mat-card class="i18n-settings__card">
+    <div class="i18n-settings__presets">
+      <mat-form-field appearance="outline" class="i18n-settings__preset-field">
+        <mat-label>Preset hinzufügen</mat-label>
+        <mat-select [value]="null" (valueChange)="applyPreset($event)">
+          <mat-option [value]="null">Ohne</mat-option>
+          @for (preset of presets(); track preset.key) {
+            <mat-option [value]="preset.key">
+              {{ preset.label }}
+              <span class="preset-key">{{ preset.key }}</span>
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <form class="i18n-settings__new" [formGroup]="newEntryForm" (ngSubmit)="saveNewEntry()">
+      <h3>Neuen Schlüssel anlegen</h3>
+      <div class="i18n-settings__new-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Key</mat-label>
+          <input matInput formControlName="key" placeholder="z. B. label:save" [matAutocomplete]="keyAuto" />
+          <mat-autocomplete #keyAuto="matAutocomplete">
+            @for (option of filteredKnownKeys$ | async; track option) {
+              <mat-option [value]="option">{{ option }}</mat-option>
+            }
+          </mat-autocomplete>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Label</mat-label>
+          <input matInput formControlName="label" placeholder="Anzeigename" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Abkürzung</mat-label>
+          <input matInput formControlName="abbreviation" placeholder="Kurzform (optional)" />
+        </mat-form-field>
+      </div>
+      <div class="i18n-settings__new-actions">
+        <button mat-flat-button color="primary" type="submit">
+          <mat-icon fontIcon="add"></mat-icon>
+          Speichern
+        </button>
+      </div>
+    </form>
+
+    <mat-divider />
+
+    <div class="i18n-settings__list">
+      @for (row of rows(); track row.key) {
+        <div class="i18n-settings__row">
+          <div class="i18n-settings__meta">
+            <strong>{{ row.key }}</strong>
+            <span class="i18n-settings__hint">{{ row.hint }}</span>
+          </div>
+          <div class="i18n-settings__fields">
+            <mat-form-field appearance="outline" class="i18n-settings__field">
+              <mat-label>Label</mat-label>
+              <input
+                matInput
+                [value]="translationFor(row.key)"
+                (input)="updateTranslation(row.key, $any($event.target).value)"
+                placeholder="Übersetzung"
+              />
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="i18n-settings__field i18n-settings__field--short">
+              <mat-label>Abkürzung</mat-label>
+              <input
+                matInput
+                [value]="abbreviationFor(row.key)"
+                (input)="updateAbbreviation(row.key, $any($event.target).value)"
+                placeholder="Kurz"
+              />
+            </mat-form-field>
+            <button mat-icon-button type="button" (click)="clearKey(row.key)" matTooltip="Eintrag entfernen">
+              <mat-icon fontIcon="delete"></mat-icon>
+            </button>
+          </div>
+        </div>
+        <mat-divider />
+      }
+    </div>
+  </mat-card>
+</div>

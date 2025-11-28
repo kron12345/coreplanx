@@ -1,0 +1,33 @@
+<h2 mat-dialog-title>
+  {{ isEditMode ? 'Referenzkalender bearbeiten' : 'Neuer Referenzkalender' }}
+</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="editor-form">
+    <app-traffic-period-general-form [form]="form" [typeOptions]="typeOptions" />
+
+    <app-traffic-period-rules-section
+      [rules]="rulesArray"
+      [variantTypeOptions]="variantTypeOptions"
+      [appliesOptions]="appliesOptions"
+      [calendarMode]="calendarModeAccessor"
+      [ruleReady]="ruleReadyAccessor"
+      [primaryRuleReady]="primaryRuleReady()"
+      [canAddRule]="canAddRule()"
+      [uiWarnings]="uiWarnings()"
+      (addRuleRequested)="addRule()"
+      (setPrimaryRequested)="setPrimaryRule($event)"
+      (removeRuleRequested)="removeRule($event)"
+      (calendarModeChange)="setCalendarMode($event.index, $event.mode)"
+      (selectedDatesChange)="onRuleSelectedDatesChange($event.index, $event.dates)"
+      (excludedDatesChange)="onRuleExcludedDatesChange($event.index, $event.dates)"
+    />
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" (click)="save()">
+    {{ isEditMode ? 'Aktualisieren' : 'Speichern' }}
+  </button>
+</mat-dialog-actions>

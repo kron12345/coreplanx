@@ -1,0 +1,192 @@
+<h2 mat-dialog-title>Auftragsposition bearbeiten</h2>
+
+<mat-dialog-content class="edit-dialog">
+  <section class="summary">
+    <mat-chip-set>
+      <mat-chip color="primary" selected>
+        <mat-icon inline>{{ isPlanItem ? 'train' : 'settings' }}</mat-icon>
+        {{ isPlanItem ? 'Fahrplan' : 'Leistung' }}
+      </mat-chip>
+      <mat-chip>
+        <mat-icon inline>timeline</mat-icon>
+        {{ phaseLabel() }}
+      </mat-chip>
+      <mat-chip>
+        <mat-icon inline>event</mat-icon>
+        Fahrplanjahr {{ timetableYearLabel() }}
+      </mat-chip>
+    </mat-chip-set>
+    <p class="summary__validity">
+      <mat-icon inline>calendar_month</mat-icon>
+      {{ validityLabel() }}
+    </p>
+  </section>
+
+  @if (isPlanItem) {
+    <section class="quick-actions">
+      <div>
+        <h3>{{ quickActionTitle() }}</h3>
+        <p>{{ quickActionDescription() }}</p>
+      </div>
+      <div class="quick-actions__buttons">
+        <button mat-flat-button color="primary" type="button" (click)="openPlanModificationDialog()">
+          <mat-icon>auto_fix_high</mat-icon>
+          {{ quickActionButtonLabel() }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <form [formGroup]="form" class="form">
+    <mat-accordion class="edit-accordion">
+      <mat-expansion-panel [expanded]="true">
+        <mat-expansion-panel-header>
+          <mat-panel-title>Allgemein</mat-panel-title>
+        </mat-expansion-panel-header>
+        <app-order-item-general-fields [form]="form"></app-order-item-general-fields>
+      </mat-expansion-panel>
+
+      @if (isServiceItem) {
+        <mat-expansion-panel [expanded]="true">
+          <mat-expansion-panel-header>
+            <mat-panel-title>Leistungsdetails</mat-panel-title>
+          </mat-expansion-panel-header>
+          <app-order-item-range-fields [form]="form"></app-order-item-range-fields>
+          <app-order-item-service-fields
+            [form]="form"
+            [config]="serviceFieldsConfig"
+            [trafficPeriods]="availablePeriods()"
+          ></app-order-item-service-fields>
+        </mat-expansion-panel>
+      } @else if (!isPlanItem) {
+        <mat-expansion-panel [expanded]="true">
+          <mat-expansion-panel-header>
+            <mat-panel-title>Gültigkeit</mat-panel-title>
+          </mat-expansion-panel-header>
+          <app-order-item-range-fields [form]="form"></app-order-item-range-fields>
+        </mat-expansion-panel>
+      }
+
+      @if (isPlanItem) {
+        <mat-expansion-panel [expanded]="true">
+          <mat-expansion-panel-header>
+            <mat-panel-title>Verkehrstage & Varianten</mat-panel-title>
+          </mat-expansion-panel-header>
+          @if (canEditCalendar) {
+            <app-reference-calendar-inline-form
+              [yearControl]="calendarYearControl"
+              [datesControl]="calendarDatesControl"
+              [excludedDatesControl]="calendarExclusionsControl"
+              title="Referenzkalender bearbeiten"
+              description="Markiere alle Verkehrstage der Serie oder entferne Tage direkt aus dem Archivkalender."
+            ></app-reference-calendar-inline-form>
+            <p class="calendar-editor-note">
+              Änderungen werden direkt im Referenzkalender gespeichert.
+            </p>
+            <div class="calendar-summary" *ngIf="calendarPreviewDates().length; else calendarEmpty">
+              <mat-chip-set>
+                @for (date of calendarPreviewHead(); track date) {
+                  <mat-chip appearance="outlined">{{ date }}</mat-chip>
+                }
+                @if (calendarPreviewOverflow() > 0) {
+                  <mat-chip appearance="outlined" class="muted-chip">
+                    +{{ calendarPreviewOverflow() }} weitere
+                  </mat-chip>
+                }
+              </mat-chip-set>
+            </div>
+            <ng-template #calendarEmpty>
+              <p class="calendar-hint">Keine Verkehrstage ausgewählt.</p>
+            </ng-template>
+          } @else {
+            <p class="calendar-lock-hint">
+              Kalender wird in dieser Phase über „Fahrplan bearbeiten“ gepflegt (Unterkalender).
+            </p>
+            <div class="calendar-summary">
+              @if (calendarPreviewDates().length) {
+                <mat-chip-set>
+                  @for (date of calendarPreviewHead(); track date) {
+                    <mat-chip appearance="outlined">{{ date }}</mat-chip>
+                  }
+                  @if (calendarPreviewOverflow() > 0) {
+                    <mat-chip appearance="outlined" class="muted-chip">
+                      +{{ calendarPreviewOverflow() }} weitere
+                    </mat-chip>
+                  }
+                </mat-chip-set>
+              } @else {
+                <p>Keine Verkehrstage hinterlegt.</p>
+              }
+            </div>
+          }
+        </mat-expansion-panel>
+
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title>Fahrplanübersicht</mat-panel-title>
+          </mat-expansion-panel-header>
+          @if (currentPlan(); as plan) {
+            <div class="plan-details">
+              <div class="plan-details__primary">
+                <div class="plan-details__title">{{ plan.title }}</div>
+                <div class="plan-details__meta">
+                  <span>
+                    <mat-icon>train</mat-icon>
+                    {{ plan.trainNumber }}
+                  </span>
+                  <span>
+                    <mat-icon>person</mat-icon>
+                    {{ plan.responsibleRu }}
+                  </span>
+                </div>
+                <div class="plan-details__route">
+                  <mat-icon>alt_route</mat-icon>
+                  {{ planRouteLabel(plan) }}
+                </div>
+              </div>
+              <div class="plan-details__calendar">
+                <mat-icon>calendar_month</mat-icon>
+                <span>
+                  {{ plan.calendar.validFrom || '–' }}
+                  @if (plan.calendar.validTo) {
+                    – {{ plan.calendar.validTo }}
+                  }
+                </span>
+              </div>
+              <div class="plan-details__actions">
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  type="button"
+                  (click)="openPlanModificationDialog()"
+                >
+                  <mat-icon>edit</mat-icon>
+                  Fahrplan bearbeiten
+                </button>
+              </div>
+            </div>
+          } @else {
+            <p class="plan-hint">Kein Fahrplan mit dieser Position verknüpft.</p>
+          }
+        </mat-expansion-panel>
+      }
+    </mat-accordion>
+  </form>
+
+  @if (errorMessage()) {
+    <div class="error">{{ errorMessage() }}</div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="cancel()">Abbrechen</button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    (click)="submit()"
+    [disabled]="form.invalid"
+  >
+    Speichern
+  </button>
+</mat-dialog-actions>

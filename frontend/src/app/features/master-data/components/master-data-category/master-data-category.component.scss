@@ -1,0 +1,260 @@
+.md-category {
+  display: grid;
+  grid-template-columns: minmax(320px, 360px) 1fr;
+  gap: 16px;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+.md-category__list {
+  display: flex;
+  flex-direction: column;
+  background: var(--mdc-filled-text-field-container-color, #fff);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 6px 16px rgba(0, 0, 0, 0.06);
+  min-width: 0;
+}
+
+.md-category__list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.md-category__table {
+  width: 100%;
+
+  tr {
+    cursor: pointer;
+    transition: background-color 160ms ease;
+
+    &.is-active {
+      background-color: rgba(25, 118, 210, 0.08);
+    }
+  }
+
+  td.is-active {
+    font-weight: 600;
+  }
+}
+
+.md-category__detail {
+  display: flex;
+  flex-direction: column;
+  background: var(--mdc-filled-text-field-container-color, #fff);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 6px 16px rgba(0, 0, 0, 0.06);
+  min-width: 0;
+}
+
+.md-category__detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.md-category__detail-meta {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.54);
+}
+
+.md-category__detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.md-category__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.md-category__form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.md-category__field {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.md-category__field mat-form-field {
+  width: 100%;
+  margin: 0;
+}
+
+.md-category__field-clear {
+  color: rgba(0, 0, 0, 0.54);
+}
+
+.md-category__field-clear:disabled {
+  color: rgba(0, 0, 0, 0.26);
+}
+
+.md-category__field--boolean {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: rgba(25, 118, 210, 0.05);
+}
+
+.md-category__boolean-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.md-category__boolean-hint {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.md-category__timeline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.md-category__timeline-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.md-category__timeline-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 180px) minmax(140px, 180px) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: rgba(25, 118, 210, 0.05);
+  transition: border-color 160ms ease, background-color 160ms ease;
+  flex: 1 1 340px;
+}
+
+.md-category__timeline-entry--current {
+  border-left: 4px solid #1976d2;
+  background: rgba(25, 118, 210, 0.12);
+}
+
+.md-category__timeline-entry mat-form-field {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.md-category__timeline-entry button {
+  margin-bottom: 0;
+}
+
+.md-category__timeline-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.md-category__timeline-action {
+  white-space: nowrap;
+  color: rgba(0, 0, 0, 0.7);
+
+  &:disabled {
+    color: rgba(0, 0, 0, 0.26);
+  }
+}
+
+.md-category__timeline-hint {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.md-category__timeline-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.md-category__timeline-history .md-category__timeline-entry {
+  border-left: 3px solid rgba(25, 118, 210, 0.3);
+  background: rgba(25, 118, 210, 0.04);
+}
+
+.md-category__timeline-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #d32f2f;
+}
+
+.md-category__timeline-error mat-icon {
+  font-size: 18px;
+}
+
+.md-category__form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@container (max-width: 720px) {
+  .md-category {
+    grid-template-columns: 1fr;
+  }
+
+  .md-category__list,
+  .md-category__detail {
+    padding: 16px;
+  }
+
+  .md-category__timeline-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .md-category__timeline-entry {
+    flex: 1 1 auto;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .md-category__timeline-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1200px) {
+  .md-category {
+    grid-template-columns: 1fr;
+  }
+
+  .md-category__list,
+  .md-category__detail {
+    padding: 16px;
+  }
+}

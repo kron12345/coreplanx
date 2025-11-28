@@ -1,0 +1,174 @@
+<div class="custom-attributes">
+  <header class="custom-attributes__header">
+    <div>
+      <h1>Anpassbare Attribute</h1>
+      <p>
+        Erstellen und verwalten Sie zusätzliche Attribute, die in den Stammdaten sichtbar und
+        bearbeitbar sind. Die Einstellungen werden lokal gehalten und können später an einen
+        Backend-Service übertragen werden.
+      </p>
+    </div>
+    <span class="custom-attributes__badge" *ngIf="isDirty()">Änderungen nicht gespeichert</span>
+  </header>
+
+  <section class="custom-attributes__controls">
+    <mat-form-field appearance="outline" class="custom-attributes__target">
+      <mat-label>Bereich</mat-label>
+      <mat-select [value]="selectedTargetId()" (valueChange)="handleTargetChange($event)">
+        @for (target of targets; track target.id) {
+          <mat-option [value]="target.id">
+            {{ target.label }}
+          </mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    @if (activeTarget(); as target) {
+      <div class="custom-attributes__description">
+        <mat-icon fontIcon="info"></mat-icon>
+        <span>{{ target.description }}</span>
+      </div>
+    }
+  </section>
+
+  <section class="custom-attributes__list">
+    @if (definitions().length === 0) {
+      <div class="custom-attributes__empty">
+        <mat-icon fontIcon="category"></mat-icon>
+        <p>Noch keine zusätzlichen Attribute für diesen Bereich angelegt.</p>
+        <span>Fügen Sie unten ein neues Attribut hinzu.</span>
+      </div>
+    } @else {
+      @for (definition of definitions(); track definition.id) {
+        <mat-card class="attribute-card">
+          @if (editingId() === definition.id) {
+            <form class="attribute-card__form" [formGroup]="editForm" (ngSubmit)="saveEdit()">
+              <div class="attribute-card__grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Bezeichnung</mat-label>
+                  <input matInput formControlName="label" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Technischer Schlüssel</mat-label>
+                  <input matInput formControlName="key" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Typ</mat-label>
+                  <mat-select formControlName="type">
+                    <mat-option value="string">Text</mat-option>
+                    <mat-option value="number">Zahl</mat-option>
+                    <mat-option value="boolean">Ja/Nein</mat-option>
+                    <mat-option value="date">Datum</mat-option>
+                    <mat-option value="time">Zeit</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <div class="attribute-card__toggles">
+                  <mat-slide-toggle formControlName="temporal">
+                    Zeitabhängig (mit Gültigkeiten)
+                  </mat-slide-toggle>
+                  <mat-slide-toggle formControlName="required">Pflichtfeld</mat-slide-toggle>
+                </div>
+
+                <mat-form-field appearance="outline" class="attribute-card__description">
+                  <mat-label>Beschreibung (optional)</mat-label>
+                  <textarea matInput rows="2" formControlName="description"></textarea>
+                </mat-form-field>
+              </div>
+
+              <div class="attribute-card__actions">
+                <button mat-stroked-button type="button" (click)="cancelEdit()">Abbrechen</button>
+                <button mat-flat-button color="primary" type="submit">Speichern</button>
+              </div>
+            </form>
+          } @else {
+            <div class="attribute-card__content">
+              <div>
+                <h3>{{ definition.label }}</h3>
+                <p *ngIf="definition.description">{{ definition.description }}</p>
+                <div class="attribute-card__meta">
+                  <span class="attribute-card__chip">{{ attributeTypeLabel(definition.type) }}</span>
+                  <span class="attribute-card__chip attribute-card__chip--required" *ngIf="definition.required">
+                    Pflichtfeld
+                  </span>
+                  <code class="attribute-card__key">{{ definition.key }}</code>
+                </div>
+              </div>
+              <div class="attribute-card__actions">
+                <button
+                  mat-icon-button
+                  type="button"
+                  aria-label="Attribut bearbeiten"
+                  (click)="startEdit(definition)"
+                  matTooltip="Bearbeiten"
+                >
+                  <mat-icon fontIcon="edit"></mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  type="button"
+                  aria-label="Attribut löschen"
+                  (click)="remove(definition)"
+                  matTooltip="Löschen"
+                >
+                  <mat-icon fontIcon="delete"></mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </mat-card>
+      }
+    }
+  </section>
+
+  <mat-divider class="custom-attributes__divider" />
+
+  <section class="custom-attributes__create">
+    <h2>Neues Attribut hinzufügen</h2>
+    <form class="create-form" [formGroup]="newAttributeForm" (ngSubmit)="create()">
+      <div class="create-form__grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Bezeichnung</mat-label>
+          <input matInput formControlName="label" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Technischer Schlüssel</mat-label>
+          <input matInput formControlName="key" />
+          <mat-hint>Nur Kleinbuchstaben, Zahlen und Bindestriche</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Typ</mat-label>
+          <mat-select formControlName="type">
+            <mat-option value="string">Text</mat-option>
+            <mat-option value="number">Zahl</mat-option>
+            <mat-option value="boolean">Ja/Nein</mat-option>
+            <mat-option value="date">Datum</mat-option>
+            <mat-option value="time">Zeit</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="create-form__toggles">
+          <mat-slide-toggle formControlName="temporal">
+            Zeitabhängig (mit Gültigkeiten)
+          </mat-slide-toggle>
+          <mat-slide-toggle formControlName="required">Pflichtfeld</mat-slide-toggle>
+        </div>
+
+        <mat-form-field appearance="outline" class="create-form__description">
+          <mat-label>Beschreibung (optional)</mat-label>
+          <textarea matInput rows="2" formControlName="description"></textarea>
+        </mat-form-field>
+      </div>
+
+      <div class="create-form__actions">
+        <button mat-flat-button color="primary" type="submit">
+          <mat-icon fontIcon="add"></mat-icon>
+          Attribut hinzufügen
+        </button>
+      </div>
+    </form>
+  </section>
+</div>

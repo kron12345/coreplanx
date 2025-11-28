@@ -1,0 +1,36 @@
+.gantt-resource {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  height: 100%;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.gantt-resource__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-weight: 600;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+
+.gantt-resource__label {
+  font-size: 0.95rem;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt-resource__icon {
+  font-size: 18px;
+  opacity: 0.8;
+}

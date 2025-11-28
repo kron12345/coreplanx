@@ -1,0 +1,268 @@
+.period-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.period-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  h2 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 4px 0 0 0;
+    color: rgba(0, 0, 0, 0.6);
+    max-width: 520px;
+  }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.period-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.period-accordion {
+  width: 100%;
+}
+
+.period-grid--nested {
+  margin-top: 12px;
+}
+
+.group-heading {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters__search {
+  grid-column: span 2;
+
+  @media (max-width: 900px) {
+    grid-column: span 1;
+  }
+}
+
+.tag-filter {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+
+  span {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  mat-chip.selected {
+    background: rgba(26, 115, 232, 0.12);
+    color: #1a73e8;
+  }
+}
+
+.empty {
+  max-width: 640px;
+  margin: 0 auto;
+
+  mat-card-content {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+
+    @media (max-width: 720px) {
+      flex-direction: column;
+    }
+  }
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: rgba(0, 0, 0, 0.38);
+  }
+}
+
+.period-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+}
+
+
+.period-card {
+  display: flex;
+  flex-direction: column;
+  --tp-active: #1a73e8;
+  --tp-inactive: rgba(0, 0, 0, 0.12);
+
+  mat-card-header {
+    align-items: flex-start;
+  }
+
+  &.period-card--highlight {
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.35);
+    transition: box-shadow 0.3s ease;
+  }
+}
+
+.header-spacer {
+  flex: 1 1 auto;
+}
+
+.card-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #e8eaed;
+  color: #3c4043;
+
+  &.standard {
+    background: #e6f4ea;
+    color: #1e8e3e;
+  }
+
+  &.special {
+    background: #fff4e5;
+    color: #f57c00;
+  }
+
+  &.construction {
+    background: #fdecea;
+    color: #d93025;
+  }
+}
+
+.responsible {
+  margin-left: 12px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.year-chip {
+  margin-left: 8px;
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.description {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+
+.rule {
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.rule__timeline {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 8px;
+}
+
+.timeline-month {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.timeline-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.timeline-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--tp-inactive);
+}
+
+.rule__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+.rule__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: inherit;
+}
+
+.rule__note {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
+}
+
+.timestamps {
+  margin-top: 16px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.6);
+}

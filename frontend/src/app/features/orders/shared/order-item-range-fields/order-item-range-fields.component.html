@@ -1,0 +1,17 @@
+<div class="range-fields">
+  <mat-form-field appearance="outline">
+    <mat-label>Bearbeitungsstart</mat-label>
+    <input matInput type="date" [formControlName]="startControl" />
+    @if (form.controls[startControl].touched && form.controls[startControl].invalid) {
+      <mat-error>Bitte ein gültiges Startdatum auswählen.</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Bearbeitungsende</mat-label>
+    <input matInput type="date" [formControlName]="endControl" />
+    @if (form.controls[endControl].touched && form.controls[endControl].invalid) {
+      <mat-error>Bitte ein gültiges Enddatum auswählen.</mat-error>
+    }
+  </mat-form-field>
+</div>

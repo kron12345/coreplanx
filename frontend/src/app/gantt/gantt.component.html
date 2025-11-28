@@ -1,0 +1,143 @@
+<section class="gantt" role="region" aria-label="Planungsgantt">
+  <app-gantt-menu
+    [zoomLabel]="zoomLabel()"
+    [viewRangeLabel]="viewRangeLabel()"
+    [filterText]="filterText()"
+    (zoomIn)="onZoomIn()"
+    (zoomOut)="onZoomOut()"
+    (gotoToday)="onGotoToday()"
+    (gotoDate)="onGotoDate($event)"
+    (filterChange)="onFilterChange($event)"
+  >
+    <ng-content select="[gantt-menu-actions]"></ng-content>
+  </app-gantt-menu>
+
+  <div class="gantt__main">
+    <div class="gantt__grid" role="grid">
+      <div class="gantt__resource-header" role="columnheader">Ressourcen</div>
+
+      <div
+        class="gantt__timeline-header"
+        role="columnheader"
+        #headerScroller="appTrackHorizontalScroll"
+        [appTrackHorizontalScroll]="rowScrollerElements()"
+        [appScrollLeft]="scrollX()"
+        (appHorizontalScroll)="onTimelineScroll($event)"
+        (wheel)="onTimelineWheel($event, headerScroller.element)"
+        (pointerdown)="onTimelinePointerDown($event, headerScroller.element)"
+        (pointermove)="onTimelinePointerMove($event)"
+        (pointerup)="onTimelinePointerUp($event)"
+        (pointercancel)="onTimelinePointerUp($event)"
+      >
+        <app-gantt-timeline-header
+          [ticks]="ticks()"
+          [contentWidth]="contentWidth()"
+        />
+      </div>
+
+      <div class="gantt__viewport" role="rowgroup">
+        @for (row of rows(); track row.id) {
+          <div class="gantt__row" [class.gantt__row--group]="row.kind === 'group'" role="row">
+            <div class="gantt__resource-cell" role="rowheader">
+              @if (row.kind === 'group') {
+                <button
+                  type="button"
+                  class="gantt-resource-group"
+                  (click)="onGroupToggle(row.id)"
+                  [attr.aria-expanded]="row.expanded"
+                >
+                  <mat-icon
+                    class="gantt-resource-group__caret"
+                    [fontIcon]="row.expanded ? 'expand_more' : 'chevron_right'"
+                  ></mat-icon>
+                  <mat-icon class="gantt-resource-group__icon" [fontIcon]="row.icon"></mat-icon>
+                  <span class="gantt-resource-group__label">{{ row.label }}</span>
+                  <span class="gantt-resource-group__count">{{ row.resourceCount }}</span>
+                </button>
+              } @else {
+                <app-gantt-resources
+                  [resource]="row.resource"
+                  [viewMode]="resourceViewMode(row.resource.id)"
+                  [viewModeToggleEnabled]="row.resource.kind === 'personnel' || row.resource.kind === 'vehicle'"
+                  [canAssignService]="row.resource.kind === 'personnel-service' || row.resource.kind === 'vehicle-service'"
+                  (viewModeChange)="onResourceViewModeChange(row.resource.id, $event)"
+                  (assignService)="onServiceAssignRequest(row.resource)"
+                  (remove)="onResourceRemove(row.resource.id)"
+                />
+              }
+            </div>
+
+            @if (row.kind === 'group') {
+              <div class="gantt__timeline-cell gantt__timeline-cell--group" role="gridcell">
+                <span class="gantt-group-placeholder">
+                  {{ row.resourceCount }} Ressourcen
+                </span>
+              </div>
+            } @else {
+              <div
+                class="gantt__timeline-cell"
+                role="gridcell"
+                [attr.data-resource-id]="row.resource.id"
+                [attr.data-resource-kind]="row.resource.kind"
+                #rowScroller="appTrackHorizontalScroll"
+                [appTrackHorizontalScroll]="headerScrollerTargets()"
+                [appScrollLeft]="scrollX()"
+                (appHorizontalScroll)="onTimelineScroll($event)"
+                (wheel)="onTimelineWheel($event, rowScroller.element)"
+                (mousemove)="onTimelineMouseMove($event, rowScroller.element)"
+                (mouseleave)="onTimelineMouseLeave()"
+                (pointerdown)="onTimelinePointerDown($event, rowScroller.element)"
+                (pointermove)="onTimelinePointerMove($event)"
+                (pointerup)="onTimelinePointerUp($event)"
+                (pointercancel)="onTimelinePointerUp($event)"
+                (click)="onTimelineCellClick($event, row.resource, rowScroller.element)"
+              >
+                <app-gantt-timeline-row
+                  [bars]="row.bars"
+                  [contentWidth]="contentWidth()"
+                  [backgroundSegments]="timelineBackgroundSegments()"
+                  [serviceRanges]="row.services"
+                  [nowMarkerLeft]="nowMarkerLeft()"
+                  [zebra]="row.zebra"
+                  [viewMode]="resourceViewMode(row.resource.id)"
+                  [resourceId]="row.resource.id"
+                  (activitySelected)="onActivityEditRequested(row.resource, $event)"
+                  (activityToggleSelection)="onActivitySelectionToggle(row.resource, $event)"
+                  (activityDragStarted)="onActivityDragStarted($event)"
+                  (activityDragMoved)="onActivityDragMoved($event)"
+                  (activityDragEnded)="onActivityDragEnded($event)"
+                />
+              </div>
+            }
+          </div>
+        }
+      </div>
+      @if (!hasRows() && isViewportReady()) {
+        <div class="gantt__empty" role="note">
+          Keine Aktivitäten im aktuellen Zeitraum.
+        </div>
+      }
+    </div>
+  </div>
+
+  <div
+    class="gantt__lasso"
+    *ngIf="lassoBox() as box"
+    [style.left.px]="box.left"
+    [style.top.px]="box.top"
+    [style.width.px]="box.width"
+    [style.height.px]="box.height"
+  ></div>
+
+  <app-gantt-status-bar
+    [viewStart]="viewStart()"
+    [viewEnd]="viewDisplayEnd()"
+    [zoomLabel]="zoomLabel()"
+    [cursorTime]="cursorTime()"
+    [resourceCount]="resourceCount()"
+    [visibleResourceCount]="visibleResourceCount()"
+    [activityCount]="totalActivityCount()"
+    [visibleActivityCount]="visibleActivityCount()"
+    [dragStatus]="dragStatus()"
+  />
+</section>

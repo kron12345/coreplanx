@@ -1,0 +1,170 @@
+.dialog-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.rolling-stock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.grid-section {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.grid-section .full-width {
+  grid-column: 1 / -1;
+}
+
+.segments-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.segments-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.segments-header .spacer {
+  flex: 1;
+}
+
+.segments-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.segments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.segment-card {
+  padding: 0;
+}
+
+.segment-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.segment-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.segment-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.segment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.segment-grid .span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 960px) {
+  .segment-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+.segments-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d32f2f;
+  font-weight: 500;
+}
+
+.operations-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.operations-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.operations-header .spacer {
+  flex: 1;
+}
+
+.operations-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.operations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.operation-card {
+  padding: 0;
+}
+
+.operation-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.operation-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.operation-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.operation-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.operation-grid .span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 960px) {
+  .operation-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+.operations-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d32f2f;
+  font-weight: 500;
+}

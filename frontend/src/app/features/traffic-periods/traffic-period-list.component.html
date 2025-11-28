@@ -1,0 +1,260 @@
+<div class="period-page">
+  <header class="period-header">
+    <div>
+      <h2>Referenzkalender</h2>
+      <p>
+        Kalenderdefinitionen für Serienfahrten. Diese Referenzkalender werden beim Rollout von
+        Vorlagen zugeordnet, um Verkehrstage zu steuern.
+      </p>
+    </div>
+    <div class="header-actions">
+      <mat-chip color="primary" selected>{{ periods().length }} Kalender</mat-chip>
+      <mat-slide-toggle
+        [checked]="groupedViewEnabled()"
+        (change)="onGroupViewChange($event.checked)"
+      >
+        Gruppierte Ansicht
+      </mat-slide-toggle>
+      <button mat-flat-button color="primary" (click)="openCreateDialog()">
+        <mat-icon>add</mat-icon>
+        Neuer Referenzkalender
+      </button>
+    </div>
+  </header>
+
+  <section class="filters">
+    <mat-form-field appearance="outline" class="filters__search">
+      <mat-label>Suchen</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput [formControl]="searchControl" placeholder="Name, Beschreibung, Verantwortung" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Typ</mat-label>
+      <mat-select [value]="filters().type" (valueChange)="onTypeChange($event)">
+        @for (option of typeOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Sortierung</mat-label>
+      <mat-select [value]="sortSelection(sort())" (valueChange)="onSortChange($event)">
+        @for (option of sortOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </section>
+
+  @if (tags().length) {
+    <section class="tag-filter">
+      <span>Tags</span>
+      <mat-chip-set>
+        <mat-chip
+          (click)="onTagChange('all')"
+          [ngClass]="{ selected: filters().tag === 'all' }"
+        >
+          Alle
+        </mat-chip>
+        @for (tag of tags(); track tag) {
+          <mat-chip
+            (click)="onTagChange(tag)"
+            [ngClass]="{ selected: filters().tag === tag }"
+          >
+            {{ tag }}
+          </mat-chip>
+        }
+      </mat-chip-set>
+    </section>
+  }
+
+  <ng-template #periodCard let-period>
+    <mat-card
+      class="period-card"
+      appearance="outlined"
+      [attr.id]="periodElementId(period.id)"
+    >
+      <mat-card-header>
+        <div mat-card-avatar class="type-icon" [ngClass]="period.type">
+          <mat-icon>event</mat-icon>
+        </div>
+        <mat-card-title>{{ period.name }}</mat-card-title>
+        <mat-card-subtitle>
+          <mat-chip>{{ periodTypeLabel(period.type) }}</mat-chip>
+          @if (period.timetableYearLabel) {
+            <mat-chip class="year-chip">Fahrplanjahr {{ period.timetableYearLabel }}</mat-chip>
+          }
+          @if (period.responsible) {
+            <span class="responsible">{{ period.responsible }}</span>
+          }
+        </mat-card-subtitle>
+        <span class="header-spacer"></span>
+        <div class="card-actions">
+          <button
+            mat-icon-button
+            matTooltip="Bearbeiten"
+            (click)="editPeriod(period)"
+          >
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            color="warn"
+            matTooltip="Löschen"
+            (click)="deletePeriod(period)"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </mat-card-header>
+
+      <mat-card-content>
+        @if (period.description) {
+          <p class="description">{{ period.description }}</p>
+        }
+
+        @if (period.tags?.length) {
+          <mat-chip-set>
+            @for (tag of period.tags; track tag) {
+              <mat-chip>{{ tag }}</mat-chip>
+            }
+          </mat-chip-set>
+        }
+
+        <mat-divider></mat-divider>
+
+        <div class="rules">
+          @for (rule of period.rules; track trackByRuleId($index, rule)) {
+            @let timeline = ruleTimeline(rule);
+            <div class="rule">
+              <div class="rule__header">
+                <span class="rule__name">{{ rule.name }}</span>
+                <span class="rule__dates">
+                  {{ rule.validityStart | date: 'mediumDate' }}
+                  @if (rule.validityEnd) {
+                    – {{ rule.validityEnd | date: 'mediumDate' }}
+                  } @else {
+                    – offen
+                  }
+                </span>
+              </div>
+              @if (timeline.length) {
+                <div class="rule__timeline">
+                  @for (month of timeline; track month.monthIndex) {
+                    <div
+                      class="timeline-month"
+                      matTooltip="{{ month.tooltip }}"
+                      matTooltipPosition="above"
+                    >
+                      <span class="timeline-label">{{ month.label }}</span>
+                      <div class="timeline-bar" [style.background]="month.gradient"></div>
+                    </div>
+                  }
+                </div>
+              }
+              <div class="rule__chips">
+                @if (rule.variantNumber) {
+                  <span class="badge">Variante {{ rule.variantNumber }}</span>
+                }
+                @if (variantTypeLabel(rule)) {
+                  <span class="badge">Typ: {{ variantTypeLabel(rule) }}</span>
+                }
+                @if (appliesLabel(rule)) {
+                  <span class="badge">Bereich: {{ appliesLabel(rule) }}</span>
+                }
+                @if (patternLabel(rule)) {
+                  <span class="badge">Muster: {{ patternLabel(rule) }}</span>
+                }
+                @if (rule.includesHolidays) {
+                  <span class="badge">Feiertage inkl.</span>
+                }
+                @if (includesLabel(rule)) {
+                  <span class="badge">Inkl.: {{ includesLabel(rule) }}</span>
+                }
+                @if (excludesLabel(rule)) {
+                  <span class="badge">Exkl.: {{ excludesLabel(rule) }}</span>
+                }
+              </div>
+              @if (rule.reason) {
+                <div class="rule__note">{{ rule.reason }}</div>
+              } @else if (rule.description) {
+                <div class="rule__note">{{ rule.description }}</div>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="timestamps">
+          <span>Erstellt {{ period.createdAt | date: 'short' }}</span>
+          <span>Aktualisiert {{ period.updatedAt | date: 'short' }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </ng-template>
+
+  @if (!periods().length) {
+    <mat-card appearance="outlined" class="empty">
+      <mat-card-content>
+        <mat-icon>event_busy</mat-icon>
+        <div>
+          <h3>Keine Referenzkalender gefunden</h3>
+          <p>Passe die Filter an oder importiere Daten aus dem Fahrplanmanagement.</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    @let grouped = groupedPeriodsView();
+    @if (groupedViewEnabled()) {
+      @if (grouped.groups.length) {
+        <section class="period-groups">
+          <mat-accordion class="period-accordion" multi>
+            @for (group of grouped.groups; track group.key) {
+              <mat-expansion-panel
+                [expanded]="groupExpanded(group.key)"
+                (opened)="onGroupExpanded(group.key)"
+                (closed)="onGroupCollapsed(group.key)"
+              >
+                <mat-expansion-panel-header>
+                  <mat-panel-title>{{ group.label }}</mat-panel-title>
+                  <mat-panel-description>
+                    {{ group.items.length }} Kalender
+                  </mat-panel-description>
+                </mat-expansion-panel-header>
+                <section class="period-grid period-grid--nested">
+                  @for (period of group.items; track trackByPeriodId($index, period)) {
+                    <ng-container
+                      [ngTemplateOutlet]="periodCard"
+                      [ngTemplateOutletContext]="{ $implicit: period }"
+                    ></ng-container>
+                  }
+                </section>
+              </mat-expansion-panel>
+            }
+          </mat-accordion>
+        </section>
+      }
+      @if (grouped.ungrouped.length) {
+        <h3 class="group-heading">Ohne Gruppe</h3>
+        <section class="period-grid">
+          @for (period of grouped.ungrouped; track trackByPeriodId($index, period)) {
+            <ng-container
+              [ngTemplateOutlet]="periodCard"
+              [ngTemplateOutletContext]="{ $implicit: period }"
+            ></ng-container>
+          }
+        </section>
+      }
+    } @else {
+      <section class="period-grid">
+        @for (period of periods(); track trackByPeriodId($index, period)) {
+          <ng-container
+            [ngTemplateOutlet]="periodCard"
+            [ngTemplateOutletContext]="{ $implicit: period }"
+          ></ng-container>
+        }
+      </section>
+    }
+  }
+</div>

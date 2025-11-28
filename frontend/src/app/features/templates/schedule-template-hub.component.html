@@ -1,0 +1,45 @@
+<section class="schedule-hub">
+  <header class="hub-hero">
+    <div>
+      <p class="hub-eyebrow">Vorlagen · Fahrplan</p>
+      <h1>Fahrplanbibliothek</h1>
+      <p>
+        Strukturiere wiederkehrende Fahrpläne, halte Versionen vor und spiele sie direkt in Aufträge
+        ein.
+      </p>
+      <div class="hub-actions">
+        <button mat-flat-button color="primary" type="button" (click)="openCreateDialog()">
+          <mat-icon>add</mat-icon>
+          Vorlage anlegen
+        </button>
+        <a mat-stroked-button routerLink="/templates/business">
+          <mat-icon>bolt</mat-icon>
+          Geschäftsvorlagen anzeigen
+        </a>
+      </div>
+    </div>
+    <div class="hub-metrics">
+      <div>
+        <span>Vorlagen gesamt</span>
+        <strong>{{ scheduleStats().total }}</strong>
+      </div>
+      <div>
+        <span>Aktive</span>
+        <strong>{{ scheduleStats().active }}</strong>
+      </div>
+      <div>
+        <span>Entwürfe</span>
+        <strong>{{ scheduleStats().drafts }}</strong>
+      </div>
+      <div>
+        <span>Automationen</span>
+        <strong>{{ businessStats().automations }}</strong>
+      </div>
+    </div>
+  </header>
+
+  <app-schedule-template-list
+    [highlightId]="templateHighlight()"
+    [showHeader]="false"
+  />
+</section>

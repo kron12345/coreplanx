@@ -1,0 +1,140 @@
+planning_stages_stageId:
+  get:
+    summary: "Liefert Ressourcen, Aktivit\xE4ten und Zeitscheibe eines Planungsstadiums."
+    operationId: getPlanningStage
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    responses:
+      '200':
+        description: Stage Snapshot
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningStageSnapshot'
+planning_stages_stageId_resources:
+  get:
+    summary: Listet Ressourcen eines Planungsstadiums.
+    operationId: listStageResources
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    responses:
+      '200':
+        description: Liste der Ressourcen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Resource'
+  put:
+    summary: Batch-Synchronisation von Ressourcen (Create/Update/Delete).
+    operationId: mutateStageResources
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResourceMutationRequest'
+    responses:
+      '200':
+        description: Ergebnis der Ressourcensynchronisation inkl. neuer Version.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMutationResponse'
+planning_stages_stageId_activities:
+  get:
+    summary: "Listet Aktivit\xE4ten gefiltert nach Zeitraum/Ressourcen."
+    operationId: listStageActivities
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    - name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+      description: Startzeit (inklusive) zur Filterung.
+    - name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+      description: Endzeit (exklusive) zur Filterung.
+    - name: resourceIds
+      in: query
+      schema:
+        type: string
+      description: Kommagetrennte Ressourcen-IDs.
+    responses:
+      '200':
+        description: "Gefilterte Aktivit\xE4tenliste."
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Activity'
+  put:
+    summary: "Batch-Synchronisation von Aktivit\xE4ten (Create/Update/Delete)."
+    operationId: mutateStageActivities
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ActivityMutationRequest'
+    responses:
+      '200':
+        description: Ergebnis der Synchronisation inkl. neuer Version.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivityMutationResponse'
+planning_stages_stageId_activities_validate:
+  post:
+    summary: "Startet serverseitige Validierung der angegebenen Aktivit\xE4ten."
+    description: "Pr\xFCft Ortskonflikte (gleicher Standort, \xFCberlappende Zeiten),\n\
+      Kapazit\xE4tskonflikte (Kapazit\xE4tsgruppe \xFCberschritten),\nArbeitszeitregeln\
+      \ (z.\u202FB. Ruhezeiten, maximale Dauer) sowie\nQualifikationsanforderungen.\
+      \ Weitere Regeln lassen sich \xFCber `rule` =\n`custom` erg\xE4nzen.\n"
+    operationId: validateStageActivities
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ActivityValidationRequest'
+    responses:
+      '200':
+        description: Liste der gefundenen Konflikte.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivityValidationResponse'
+planning_stages_stageId_events:
+  get:
+    summary: "Server-Sent-Events f\xFCr Echtzeit-Sync einer Planungsstage."
+    description: "Liefert ein `text/event-stream`, das Ressourcen-, Aktivit\xE4ten-\
+      \ und Timeline-\xC4nderungen\nin Echtzeit \xFCbertr\xE4gt. Jeder Datensatz ist\
+      \ ein JSON-Objekt vom Typ\n`PlanningStageRealtimeEvent`. Clients sollten pro\
+      \ Stage genau eine Verbindung \xF6ffnen.\n"
+    operationId: streamPlanningStageEvents
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    - $ref: '#/components/parameters/UserId'
+    - $ref: '#/components/parameters/ConnectionId'
+    responses:
+      '200':
+        description: "Event-Stream. Jeder `data:`-Block enth\xE4lt ein JSON-Objekt\
+          \ vom Typ\n`PlanningStageRealtimeEvent`. Der Server sollte Verbindungen\
+          \ offen halten\nund bei Inaktivit\xE4t Heartbeat-Ereignisse senden.\n"
+        content:
+          text/event-stream:
+            schema:
+              type: string

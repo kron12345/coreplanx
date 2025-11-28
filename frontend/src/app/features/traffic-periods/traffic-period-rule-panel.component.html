@@ -1,0 +1,91 @@
+<div class="rule-grid" [formGroup]="group">
+  <mat-form-field appearance="outline">
+    <mat-label>Bezeichnung</mat-label>
+    <input matInput formControlName="name" placeholder="z. B. Werktage" />
+  </mat-form-field>
+  <mat-form-field appearance="outline">
+    <mat-label>Jahr</mat-label>
+    <input matInput type="number" formControlName="year" />
+  </mat-form-field>
+  <mat-form-field appearance="outline">
+    <mat-label>Variantentyp</mat-label>
+    <mat-select formControlName="variantType">
+      @for (option of variantTypeOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <mat-form-field appearance="outline">
+    <mat-label>Gültig für</mat-label>
+    <mat-select formControlName="appliesTo">
+      @for (option of appliesOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <mat-form-field appearance="outline">
+    <mat-label>Variantennummer</mat-label>
+    <input matInput formControlName="variantNumber" placeholder="z. B. 00 oder A1" />
+  </mat-form-field>
+  <mat-form-field appearance="outline">
+    <mat-label>Begründung / Hinweis</mat-label>
+    <textarea matInput rows="2" formControlName="reason"></textarea>
+  </mat-form-field>
+</div>
+
+<div class="calendar-switch">
+  <span>Bearbeiten:</span>
+  <button
+    mat-button
+    type="button"
+    [class.active]="calendarMode === 'include'"
+    (click)="onCalendarModeChange('include')"
+  >
+    {{ isPrimary ? 'Verkehrstage (Hauptkalender)' : 'Verkehrstage' }}
+  </button>
+  <button
+    mat-button
+    type="button"
+    [class.active]="calendarMode === 'exclude'"
+    (click)="onCalendarModeChange('exclude')"
+  >
+    {{ isPrimary ? 'Ausschlüsse' : 'Zusätzliche Ausnahmen' }}
+  </button>
+</div>
+
+<div class="calendar-grid">
+  @if (calendarMode === 'include') {
+    <app-annual-calendar-selector
+      [title]="isPrimary ? 'Verkehrstage (Hauptkalender)' : 'Verkehrstage'"
+      [year]="group.get('year')?.value"
+      [selectedDates]="group.get('selectedDates')?.value"
+      [accentDates]="group.get('excludedDates')?.value"
+      [hint]="isPrimary
+        ? 'Markiere die regulären Verkehrstage. Bereits ausgeschlossene Tage sind markiert.'
+        : 'Markiere die Verkehrstage dieser Ausnahme.'"
+      (selectedDatesChange)="selectedDatesChange.emit($event)"
+    ></app-annual-calendar-selector>
+  } @else {
+    <app-annual-calendar-selector
+      [title]="isPrimary ? 'Ausschlüsse' : 'Zusätzliche Ausnahmen'"
+      [year]="group.get('year')?.value"
+      [selectedDates]="group.get('excludedDates')?.value"
+      [allowedDates]="group.get('selectedDates')?.value"
+      [hint]="isPrimary
+        ? 'Nur Tage aus dem Hauptkalender können ausgeschlossen werden.'
+        : 'Du kannst nur Tage auswählen, die weiter oben als Verkehrstage markiert sind.'"
+      (selectedDatesChange)="excludedDatesChange.emit($event)"
+    ></app-annual-calendar-selector>
+  }
+</div>
+
+<div class="rule-actions">
+  <button mat-stroked-button type="button" (click)="primarySelected.emit()" [disabled]="disablePrimaryButton">
+    <mat-icon>star</mat-icon>
+    Als Hauptkalender setzen
+  </button>
+  <button mat-button color="warn" type="button" (click)="removeRequested.emit()" [disabled]="!canRemove">
+    <mat-icon>delete</mat-icon>
+    Entfernen
+  </button>
+</div>

@@ -1,0 +1,337 @@
+<div class="template-page">
+  @if (showHeader) {
+    <header class="page-header">
+      <div class="page-header__titles">
+        <h1>Fahrplanvorlagen</h1>
+        <p>
+          Erstelle und pflege TTT-konforme Fahrpläne, die du später in Serie
+          ausrollen kannst.
+        </p>
+      </div>
+      <div class="page-header__actions">
+        <button mat-flat-button color="primary" (click)="openCreateDialog()">
+          <mat-icon>add</mat-icon>
+          Vorlage anlegen
+        </button>
+      </div>
+    </header>
+  }
+
+  <section class="filters">
+    <mat-form-field appearance="outline" class="filters__search">
+      <mat-label>Suchen</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        matInput
+        [formControl]="searchControl"
+        placeholder="Titel, OTN oder Beschreibung"
+      />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select
+        [value]="filters().status"
+        (valueChange)="onStatusFilterChange($event)"
+      >
+        @for (option of statusOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Kategorie</mat-label>
+      <mat-select
+        [value]="filters().category"
+        (valueChange)="onCategoryFilterChange($event)"
+      >
+        @for (option of categoryOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Verkehrstag</mat-label>
+      <mat-select [value]="filters().day" (valueChange)="onDayFilterChange($event)">
+        @for (option of dayOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Sortierung</mat-label>
+      <mat-select
+        [value]="sortSelection(sort())"
+        (valueChange)="onSortChange($event)"
+      >
+        @for (option of sortOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </section>
+
+  @if (tags().length) {
+    <section class="tag-filter">
+      <span>Tags</span>
+      <mat-chip-set>
+        <mat-chip
+          (click)="onTagFilterChange('all')"
+          [ngClass]="{ selected: filters().tag === 'all' }"
+        >
+          Alle
+        </mat-chip>
+        @for (tag of tags(); track tag) {
+          <mat-chip
+            (click)="onTagFilterChange(tag)"
+            [ngClass]="{ selected: filters().tag === tag }"
+          >
+            {{ tag }}
+          </mat-chip>
+        }
+      </mat-chip-set>
+    </section>
+  }
+
+  @if (!templates().length) {
+    <mat-card appearance="outlined" class="empty-state">
+      <mat-card-content>
+        <mat-icon>schema</mat-icon>
+        <div>
+          <h3>Keine Vorlagen gefunden</h3>
+          <p>
+            Passe deine Filter an oder starte mit einer neuen Fahrplanvorlage.
+          </p>
+          <button mat-stroked-button color="primary" (click)="openCreateDialog()">
+            <mat-icon>add</mat-icon>
+            Neue Vorlage erstellen
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <section class="template-grid">
+      @for (template of templates(); track trackByTemplateId($index, template)) {
+        <mat-card
+          class="template-card"
+          appearance="outlined"
+          [attr.id]="templateElementId(template.id)"
+        >
+          <mat-card-header>
+            <div mat-card-avatar class="status-icon" [ngClass]="template.status">
+              <mat-icon>{{ statusIcon[template.status] }}</mat-icon>
+            </div>
+            <mat-card-title>
+              {{ template.title }}
+            </mat-card-title>
+            <mat-card-subtitle>
+              <span class="badge">{{ statusBadges[template.status] }}</span>
+              <span class="badge badge--category">{{ template.category }}</span>
+              <span class="train-number">OTN {{ template.trainNumber }}</span>
+            </mat-card-subtitle>
+          </mat-card-header>
+
+          <mat-card-content>
+            @if (template.composition) {
+              <div class="composition">
+                <div class="composition__title">
+                  <mat-icon>train</mat-icon>
+                  Komposition
+                </div>
+                @if (template.composition.base && template.composition.base.length) {
+                  <div class="composition__base">
+                    <strong>Grundaufstellung</strong>
+                    <div class="composition__chips">
+                      @for (vehicle of template.composition.base; track vehicle.type + vehicle.note) {
+                        <mat-chip>
+                          {{ vehicle.count }} × {{ vehicle.type }}
+                          @if (vehicle.note) {
+                            <small>{{ vehicle.note }}</small>
+                          }
+                        </mat-chip>
+                      }
+                    </div>
+                  </div>
+                }
+                @if (template.composition.changes && template.composition.changes.length) {
+                  <div class="composition__changes">
+                    <strong>Änderungen an Halten</strong>
+                    <ul>
+                      @for (change of template.composition.changes; track change.stopIndex + change.action) {
+                        <li>
+                          <span class="change-stop">
+                            {{ stopName(template, change.stopIndex) }} ·
+                            {{ change.action === 'attach' ? 'Ankuppeln' : 'Abkuppeln' }}
+                          </span>
+                          <span class="change-vehicles">
+                            @for (vehicle of change.vehicles; track vehicle.type + vehicle.note) {
+                              {{ vehicle.count }} × {{ vehicle.type }}
+                            }
+                          </span>
+                          @if (change.note) {
+                            <small>{{ change.note }}</small>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+              </div>
+            }
+
+            <div class="meta">
+              <div>
+                <mat-icon>event</mat-icon>
+                Gültig ab {{ template.validity.startDate | date: 'mediumDate' }}
+                @if (template.validity.endDate) {
+                  – {{ template.validity.endDate | date: 'mediumDate' }}
+                } @else {
+                  – offen
+                }
+              </div>
+              <div>
+                <mat-icon>person</mat-icon>
+                {{ template.responsibleRu }}
+              </div>
+              <div>
+                <mat-icon>update</mat-icon>
+                Aktualisiert {{ template.updatedAt | date: 'short' }}
+              </div>
+            </div>
+
+            @if (template.tags?.length) {
+              <mat-chip-set>
+                @for (tag of template.tags; track tag) {
+                  <mat-chip>{{ tag }}</mat-chip>
+                }
+              </mat-chip-set>
+            }
+
+            @if (template.description) {
+              <p class="description">{{ template.description }}</p>
+            }
+
+            <div class="timeline">
+              @for (stop of stops(template); track stop.id) {
+                <div class="timeline__row">
+                  <div class="timeline__dot" [ngClass]="stop.type"></div>
+                  <div class="timeline__content">
+                    <h4>{{ stop.locationName }}</h4>
+                    <div class="timeline__tags">
+                      <span class="tag">
+                        @switch (stop.type) {
+                          @case ('origin') { Start }
+                          @case ('destination') { Ziel }
+                          @default { Halt }
+                        }
+                      </span>
+                      @if (stop.platformWish) {
+                        <span class="tag">Gleis {{ stop.platformWish }}</span>
+                      }
+                      @if (stop.activities.length) {
+                        <span class="tag">Aktivität {{ stop.activities.join(', ') }}</span>
+                      }
+                    </div>
+                    <div class="timeline__timing">
+                      @if (stop.arrivalLabel) {
+                        <span><strong>Ankunft:</strong> {{ stop.arrivalLabel }}</span>
+                      }
+                      @if (stop.departureLabel) {
+                        <span><strong>Abfahrt:</strong> {{ stop.departureLabel }}</span>
+                      }
+                      @if (stop.dwellMinutes) {
+                        <span>{{ stop.dwellMinutes }} min Halt</span>
+                      }
+                    </div>
+                    @if (stop.notes) {
+                      <div class="timeline__notes">{{ stop.notes }}</div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <div class="actions">
+              <mat-form-field appearance="outline">
+                <mat-label>Auftragsposition verknüpfen</mat-label>
+                <mat-select
+                  #linkSelect="matSelect"
+                  (selectionChange)="onLinkSelection(template.id, linkSelect, $event)"
+                  [disabled]="orderItemOptions().length === 0"
+                >
+                  @if (!orderItemOptions().length) {
+                    <mat-option disabled>Keine Auftragspositionen verfügbar</mat-option>
+                  } @else {
+                    @for (item of orderItemOptions(); track item.itemId) {
+                      <mat-option [value]="item.itemId">
+                        {{ item.orderName }} · {{ item.itemName }}
+                      </mat-option>
+                    }
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <div class="status-buttons">
+                <span>Status setzen:</span>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="template.status === 'draft'"
+                  (click)="setStatus(template.id, 'draft')"
+                >
+                  Entwurf
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  color="primary"
+                  [disabled]="template.status === 'active'"
+                  (click)="setStatus(template.id, 'active')"
+                >
+                  Aktiv
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  color="warn"
+                  [disabled]="template.status === 'archived'"
+                  (click)="setStatus(template.id, 'archived')"
+                >
+                  Archiv
+                </button>
+              </div>
+            </div>
+
+            <div class="linked-items">
+              <span>Verknüpfte Auftragspositionen</span>
+              @if (linkedOrderItems(template.id).length === 0) {
+                <span class="hint">
+                  Noch keine Verknüpfungen – wähle eine Position aus der Liste.
+                </span>
+              } @else {
+                <mat-chip-set>
+                  @for (entry of linkedOrderItems(template.id); track entry.item.id) {
+                    <mat-chip [removable]="true" (removed)="unlinkTemplate(template.id, entry.item.id)">
+                      {{ itemLabel(entry.item.id) }}
+                      <mat-icon matChipRemove>close</mat-icon>
+                    </mat-chip>
+                  }
+                </mat-chip-set>
+              }
+            </div>
+
+            <div class="template-card__footer">
+              <button mat-stroked-button type="button" (click)="openEditDialog(template)">
+                <mat-icon>edit</mat-icon>
+                Bearbeiten
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </section>
+  }
+</div>

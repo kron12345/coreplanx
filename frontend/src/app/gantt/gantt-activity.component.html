@@ -1,0 +1,145 @@
+<ng-template #activityContent>
+  <div class="gantt-activity__content">
+    <div
+      class="gantt-activity__row"
+      [class.gantt-activity__row--with-route]="shouldShowRoute"
+      [class.gantt-activity__row--no-route]="!shouldShowRoute"
+    >
+      @if (shouldShowRoute) {
+        <span class="gantt-activity__route gantt-activity__route--from">
+          {{ fromLabel }}
+        </span>
+      }
+      @if (roleIcon) {
+        <span class="gantt-activity__role-icon" [attr.title]="roleLabel ?? null">
+          <mat-icon [fontIcon]="roleIcon"></mat-icon>
+        </span>
+      }
+      @if (showTitle) {
+        <span class="gantt-activity__title">{{ effectiveTitle }}</span>
+      }
+      @if (shouldShowRoute) {
+        <span class="gantt-activity__route gantt-activity__route--to">
+          {{ toLabel }}
+        </span>
+      }
+    </div>
+  </div>
+</ng-template>
+
+<div
+  class="gantt-activity"
+  role="button"
+  tabindex="0"
+  [attr.data-activity-id]="activity.id"
+  [attr.data-resource-id]="dragData.resourceId"
+  cdkDrag
+  cdkDragPreviewContainer="global"
+  [cdkDragData]="dragData"
+  [cdkDragDisabled]="dragDisabled"
+  [ngClass]="hostClasses"
+  [style.left.px]="leftPx"
+  [style.width.px]="widthPx"
+  [style.z-index]="zIndex ?? null"
+  [attr.aria-label]="ariaLabel"
+  cdkOverlayOrigin
+  #activityOrigin="cdkOverlayOrigin"
+  (click)="handleClick($event)"
+  (dblclick)="handleDoubleClick($event)"
+  (keydown.enter)="handleKeyboardActivate($event)"
+  (keydown.space)="handleKeyboardActivate($event)"
+  (pointerdown)="handlePointerDown($event)"
+  (pointermove)="handlePointerMove($event)"
+  (pointerup)="handlePointerEnd($event)"
+  (pointercancel)="handlePointerEnd($event)"
+  (pointerleave)="handlePointerEnd($event)"
+  (mouseenter)="onTriggerMouseEnter()"
+  (mouseleave)="onTriggerMouseLeave()"
+  (cdkDragStarted)="onDragStarted($event)"
+  (cdkDragMoved)="onDragMoved($event)"
+  (cdkDragEnded)="onDragEnded($event)"
+  [class.gantt-activity--copy-mode]="dragMode === 'copy'"
+>
+  <button
+    *ngIf="dragMode === 'copy'"
+    type="button"
+    class="gantt-activity__copy-chip"
+    (click)="disableCopyMode($event)"
+  >
+    × Kopieren
+  </button>
+  <ng-container [ngTemplateOutlet]="activityContent"></ng-container>
+</div>
+
+<ng-template
+  cdkConnectedOverlay
+  [cdkConnectedOverlayOrigin]="activityOrigin"
+  [cdkConnectedOverlayOpen]="isPopoverOpen"
+  [cdkConnectedOverlayPositions]="popoverPositions"
+  cdkConnectedOverlayPush="true"
+>
+  <div class="gantt-activity-popover" (mouseenter)="onPopoverMouseEnter()" (mouseleave)="onPopoverMouseLeave()">
+    <div class="gantt-activity-popover__title">{{ effectiveTitle }}</div>
+    <div class="gantt-activity-popover__content">
+      @if (activity.remark) {
+        <div class="gantt-activity-popover__remark">
+          {{ activity.remark }}
+        </div>
+      }
+      <div class="gantt-activity-popover__sections">
+        <div class="gantt-activity-popover__section">
+          <div class="gantt-activity-popover__section-title">Zeit</div>
+          <div class="gantt-activity-popover__row">
+            <span class="gantt-activity-popover__label">Start</span>
+            <span class="gantt-activity-popover__value">{{ startLabel }}</span>
+          </div>
+          @if (activity.end) {
+            <div class="gantt-activity-popover__row">
+              <span class="gantt-activity-popover__label">Ende</span>
+              <span class="gantt-activity-popover__value">{{ endLabel }}</span>
+            </div>
+            <div class="gantt-activity-popover__row">
+              <span class="gantt-activity-popover__label">Dauer</span>
+              <span class="gantt-activity-popover__value">{{ durationLabel }}</span>
+            </div>
+          }
+        </div>
+        @if (hasRoute) {
+          <div class="gantt-activity-popover__section">
+            <div class="gantt-activity-popover__section-title">Route</div>
+            <div class="gantt-activity-popover__row">
+              <span class="gantt-activity-popover__label">Von</span>
+              <span class="gantt-activity-popover__value">{{ fromLabel }}</span>
+            </div>
+            <div class="gantt-activity-popover__row">
+              <span class="gantt-activity-popover__label">Nach</span>
+              <span class="gantt-activity-popover__value">{{ toLabel }}</span>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="gantt-activity-popover__actions">
+        <button type="button" class="gantt-activity-popover__action" (click)="enableCopyMode()">
+          Vertikal kopieren
+        </button>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template cdkDragPreview>
+  <div class="gantt-activity gantt-activity--preview" [ngClass]="hostClasses" [style.width.px]="widthPx">
+    <ng-container [ngTemplateOutlet]="activityContent"></ng-container>
+  </div>
+</ng-template>
+
+<ng-template cdkDragPlaceholder>
+  <div
+    class="gantt-activity gantt-activity--placeholder"
+    [ngClass]="hostClasses"
+    [style.left.px]="leftPx"
+    [style.width.px]="widthPx"
+  >
+    <ng-container [ngTemplateOutlet]="activityContent"></ng-container>
+  </div>
+</ng-template>

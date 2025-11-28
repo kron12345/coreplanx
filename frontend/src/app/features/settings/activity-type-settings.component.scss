@@ -1,0 +1,122 @@
+.activity-type-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.activity-type-settings__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+
+  h2 {
+    margin: 0 0 4px;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.6);
+  }
+}
+
+.activity-type-settings__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-type-settings__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.activity-type-card {
+  padding: 0;
+}
+
+.activity-type-card__content,
+.activity-type-card__form {
+  padding: 16px 20px;
+}
+
+.activity-type-card__grid,
+.activity-type-create-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.activity-type-card__description,
+.activity-type-create-form__description {
+  grid-column: span 2;
+}
+
+.activity-type-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.activity-type-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.activity-type-card__fields {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  label {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+}
+
+.activity-type-card__field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+
+  mat-checkbox,
+  .activity-type-card__field-static {
+    align-items: flex-start;
+  }
+
+  small {
+    display: block;
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.6);
+  }
+}
+
+.activity-type-card__field-static {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.04);
+  font-size: 0.85rem;
+}
+
+.activity-type-card__actions,
+.activity-type-create-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}

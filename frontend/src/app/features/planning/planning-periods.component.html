@@ -1,0 +1,77 @@
+<section class="periods">
+  <header class="periods__header">
+    <div>
+      <h1>Zeiträume · Basisplanung</h1>
+      <p>Wähle ein Template und definiere Zeiträume sowie Spezialtage.</p>
+    </div>
+    <mat-form-field appearance="outline">
+      <mat-label>Template</mat-label>
+      <select matNativeControl [value]="selectedTemplate()?.id ?? ''" (change)="onTemplateChange($any($event.target).value)">
+        @for (tpl of templates(); track tpl.id) {
+          <option [value]="tpl.id">{{ tpl.name || tpl.id }}</option>
+        }
+      </select>
+    </mat-form-field>
+  </header>
+
+  <div class="periods__grid">
+    <mat-card>
+      <mat-card-title>Zeiträume</mat-card-title>
+      <mat-card-content>
+        <form class="form-inline" [formGroup]="periodForm" (ngSubmit)="addPeriod()">
+          <mat-form-field appearance="outline">
+            <mat-label>Startdatum</mat-label>
+            <input matInput type="date" formControlName="start" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" type="submit">Hinzufügen</button>
+        </form>
+
+        <div class="list">
+          @if (!periods().length) {
+            <p class="muted">Keine Zeiträume definiert.</p>
+          } @else {
+            @for (period of periods(); track period.id) {
+              <div class="list__item">
+                <div>
+                  <strong>{{ period.validFrom }}</strong>
+                  <span>bis {{ period.validTo || 'offen' }}</span>
+                </div>
+                <button mat-icon-button color="warn" (click)="removePeriod(period.id)" matTooltip="Zeitraum entfernen">
+                  <mat-icon fontIcon="delete"></mat-icon>
+                </button>
+              </div>
+            }
+          }
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-title>Spezialtage</mat-card-title>
+      <mat-card-content>
+        <form class="form-inline" [formGroup]="specialDayForm" (ngSubmit)="addSpecialDay()">
+          <mat-form-field appearance="outline">
+            <mat-label>Datum</mat-label>
+            <input matInput type="date" formControlName="date" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" type="submit">Hinzufügen</button>
+        </form>
+
+        <div class="list">
+          @if (!specialDays().length) {
+            <p class="muted">Keine Spezialtage hinterlegt.</p>
+          } @else {
+            @for (day of specialDays(); track day) {
+              <div class="list__item">
+                <div>{{ day }}</div>
+                <button mat-icon-button color="warn" (click)="removeSpecialDay(day)" matTooltip="Tag entfernen">
+                  <mat-icon fontIcon="delete"></mat-icon>
+                </button>
+              </div>
+            }
+          }
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</section>

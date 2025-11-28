@@ -1,0 +1,231 @@
+:host {
+  --gantt-scrollbar-width: 0px;
+  position: relative;
+  display: block;
+}
+
+.gantt {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  background: linear-gradient(180deg, #fafafa 0%, #f4f6f8 100%);
+}
+
+:host(.gantt--panning) .gantt__timeline-cell,
+:host(.gantt--panning) .gantt__timeline-header {
+  cursor: grabbing;
+}
+
+.gantt__main {
+  flex: 1;
+  min-height: 0;
+  padding: 0 16px 16px;
+  height: 100%;
+  display: flex;
+}
+
+.gantt__grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1;
+  height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+}
+
+.gantt__resource-header {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  padding: 12px 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.gantt__timeline-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  width: calc(100% - var(--gantt-scrollbar-width, 0px));
+  margin-right: var(--gantt-scrollbar-width, 0px);
+  box-sizing: border-box;
+  touch-action: pan-y;
+}
+
+.gantt__viewport {
+  grid-column: 1 / span 2;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.gantt__row {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 64px;
+  position: relative;
+}
+
+.gantt__row--group {
+  height: 44px;
+  background: rgba(13, 71, 161, 0.04);
+}
+
+.gantt__row--drag-origin {
+  z-index: 400; // ensure dragged row stays above all others while moving vertically
+}
+
+.gantt__row--drag-hover {
+  z-index: 350;
+}
+
+:host(.gantt--dragging) .gantt__row--drag-origin .gantt-timeline-row__activities,
+:host(.gantt--dragging) .gantt__row--drag-hover .gantt-timeline-row__activities {
+  position: relative;
+  z-index: 50;
+}
+
+.gantt__resource-cell {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.gantt__timeline-cell {
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: pan-y;
+  z-index: 1;
+  transition: box-shadow 120ms ease, z-index 0s;
+}
+
+.gantt__timeline-cell--drag-origin {
+  z-index: 20;
+}
+
+.gantt__timeline-cell--drag-hover {
+  z-index: 10;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.gantt__timeline-cell--drag-origin,
+.gantt__timeline-cell--drag-hover {
+  // Keep the horizontal scroll position while enabling drag styling.
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.gantt__timeline-cell--group {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: rgba(13, 71, 161, 0.04);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 0.75rem;
+}
+
+.gantt__timeline-cell::-webkit-scrollbar {
+  display: none;
+}
+
+.gantt__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 0.9rem;
+}
+
+.gantt__lasso {
+  position: absolute;
+  border: 1px solid rgba(33, 150, 243, 0.85);
+  background: rgba(33, 150, 243, 0.15);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.gantt__timeline-cell::-webkit-scrollbar,
+.gantt__timeline-header::-webkit-scrollbar {
+  height: 8px;
+}
+
+.gantt__timeline-cell::-webkit-scrollbar-thumb,
+.gantt__timeline-header::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.gantt__timeline-cell::-webkit-scrollbar-track,
+.gantt__timeline-header::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gantt-resource-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.gantt-resource-group:hover,
+.gantt-resource-group:focus-visible {
+  text-decoration: underline;
+}
+
+.gantt-resource-group__caret {
+  font-size: 18px;
+  opacity: 0.7;
+}
+
+.gantt-resource-group__icon {
+  font-size: 18px;
+  opacity: 0.8;
+}
+
+.gantt-resource-group__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt-resource-group__count {
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.gantt-group-placeholder {
+  pointer-events: none;
+  font-size: 0.72rem;
+  opacity: 0.65;
+}

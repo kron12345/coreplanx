@@ -1,0 +1,39 @@
+<h2 mat-dialog-title>Audit-Eintrag hinzufügen</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="audit-form">
+    <mat-form-field appearance="outline">
+      <mat-label>Aktion</mat-label>
+      <input matInput formControlName="action" placeholder="z. B. Sondertag erfasst" />
+      <mat-error>Angabe erforderlich.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Durchgeführt von</mat-label>
+      <input matInput formControlName="actor" placeholder="z. B. DB Fernverkehr AG" />
+      <mat-error>Angabe erforderlich.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Bereich</mat-label>
+      <mat-select formControlName="relatedEntity">
+        <mat-option
+          *ngFor="let option of entityOptions"
+          [value]="option.value"
+        >
+          {{ option.label }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Notiz</mat-label>
+      <textarea matInput rows="3" formControlName="notes"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="submit()">Speichern</button>
+</mat-dialog-actions>

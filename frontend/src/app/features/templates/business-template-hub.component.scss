@@ -1,0 +1,39 @@
+.business-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: clamp(16px, 3vw, 28px);
+  border-radius: 24px;
+  background: linear-gradient(120deg, #1d4ed8, #10b981);
+  color: #fff;
+
+  p {
+    margin: 0;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    color: rgba(248, 250, 252, 0.75);
+  }
+
+  h1 {
+    margin: 4px 0;
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+  }
+
+  span {
+    color: rgba(248, 250, 252, 0.82);
+  }
+
+  a {
+    text-transform: none;
+    font-weight: 600;
+  }
+}

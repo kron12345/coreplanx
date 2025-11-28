@@ -1,0 +1,90 @@
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+  padding-top: 8px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+  }
+}
+
+.window-section {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+
+  h4 {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475467;
+  }
+}
+
+.condition-section {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475467;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: #475467;
+    font-size: 0.85rem;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+
+    button {
+      white-space: nowrap;
+    }
+  }
+
+  &__empty {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #64748b;
+    font-style: italic;
+  }
+}
+
+.condition-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.condition-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: center;
+
+  &__remove {
+    margin-top: 12px;
+  }
+}

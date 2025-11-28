@@ -1,0 +1,60 @@
+.inline-calendar {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inline-calendar__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+
+  h4 {
+    margin: 0 0 4px;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.6);
+  }
+}
+
+.inline-calendar__year {
+  width: 220px;
+}
+
+.inline-calendar__year-range {
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+  align-self: flex-end;
+}
+
+.inline-calendar__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.inline-calendar__mode {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+
+  button.active {
+    background: rgba(26, 115, 232, 0.1);
+  }
+}
+
+.inline-calendar__error {
+  color: #c62828;
+  font-weight: 600;
+}

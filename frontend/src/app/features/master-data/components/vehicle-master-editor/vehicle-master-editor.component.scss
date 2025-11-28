@@ -1,0 +1,22 @@
+.vehicle-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+header {
+  display: flex;
+  justify-content: flex-start;
+}
+
+mat-button-toggle-group {
+  border-radius: 999px;
+}
+
+mat-button-toggle {
+  text-transform: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

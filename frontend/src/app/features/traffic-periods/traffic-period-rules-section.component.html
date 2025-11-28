@@ -1,0 +1,73 @@
+<section class="rules-section">
+  <div class="step-guide">
+    <div class="step" [class.step--done]="primaryRuleReady">
+      <div class="step__title">1. Hauptkalender festlegen</div>
+      <div class="step__text">Wähle alle regulären Verkehrstage und markiere den Kalender als Hauptkalender.</div>
+    </div>
+    <div class="step" [class.step--disabled]="!primaryRuleReady">
+      <div class="step__title">2. Ausnahmen hinzufügen</div>
+      <div class="step__text">Zusätzliche Regeln werden erst aktiv, wenn der Hauptkalender vollständig ist.</div>
+    </div>
+  </div>
+
+  <div class="rules-header">
+    <div>
+      <h3>Kalender & Ausnahmen</h3>
+      <p>Lege einen Hauptkalender und beliebig viele Ausnahmen/Subkalender fest.</p>
+    </div>
+    <button mat-stroked-button type="button" (click)="addRuleRequested.emit()" [disabled]="!canAddRule">
+      <mat-icon>add</mat-icon>
+      Ausnahme hinzufügen
+    </button>
+  </div>
+  @if (!canAddRule) {
+    <p class="helper-text">
+      Der Hauptkalender benötigt zuerst Verkehrstage, bevor Ausnahmen erstellt werden können.
+    </p>
+  }
+
+  @if (uiWarnings.length) {
+    <div class="rules-warnings">
+      <mat-icon>warning</mat-icon>
+      <div>
+        @for (warn of uiWarnings; track warn) {
+          <div>{{ warn }}</div>
+        }
+      </div>
+    </div>
+  }
+
+  <mat-accordion class="rules-accordion" [multi]="true">
+    @for (group of rules.controls; track group; let idx = $index) {
+      <mat-expansion-panel [expanded]="idx === 0">
+        <mat-expansion-panel-header>
+          <mat-panel-title>{{ group.controls.name.value || ('Kalender ' + (idx + 1)) }}</mat-panel-title>
+          <mat-panel-description>
+            <mat-chip-set>
+              <mat-chip [color]="group.controls.primary.value ? 'primary' : undefined">
+                {{ group.controls.primary.value ? 'Hauptkalender' : 'Ausnahme' }}
+              </mat-chip>
+              <mat-chip [class.chip--valid]="ruleReady(idx)">
+                {{ ruleReady(idx) ? '✓ Verkehrstage' : 'Noch keine Tage' }}
+              </mat-chip>
+            </mat-chip-set>
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <app-traffic-period-rule-panel
+          [group]="group"
+          [calendarMode]="calendarMode(idx)"
+          [variantTypeOptions]="variantTypeOptions"
+          [appliesOptions]="appliesOptions"
+          [canRemove]="rules.length > 1"
+          [disablePrimaryButton]="group.controls.primary.value"
+          (calendarModeChange)="triggerCalendarModeChange(idx, $event)"
+          (selectedDatesChange)="triggerSelectedDates(idx, $event)"
+          (excludedDatesChange)="triggerExcludedDates(idx, $event)"
+          (primarySelected)="setPrimaryRequested.emit(idx)"
+          (removeRequested)="removeRuleRequested.emit(idx)"
+        />
+      </mat-expansion-panel>
+    }
+  </mat-accordion>
+</section>

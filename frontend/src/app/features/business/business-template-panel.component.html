@@ -1,0 +1,124 @@
+<section class="panel-hero">
+  <div>
+    <p class="panel-eyebrow">Geschäfte · TTR Phasen</p>
+    <h2>Standardprozesse entlang der TTR-Phasen</h2>
+    <p>
+      Jede Phase erzeugt automatisch das passende Geschäft mit Fristen, Zuständigkeiten und
+      Checklisten. Du kannst die Automatik je Phase aktivieren oder deaktivieren.
+    </p>
+  </div>
+  <div class="panel-actions">
+    <button mat-flat-button color="primary" type="button" (click)="openCreatePhase()">
+      <mat-icon>add</mat-icon>
+      Eigene Phase
+    </button>
+  </div>
+</section>
+
+<div class="phase-grid">
+  @for (phase of phaseTemplates(); track phase.id) {
+    <mat-card appearance="outlined" class="phase-card">
+      <header class="phase-card__header">
+        <div>
+          <p class="phase-card__eyebrow">{{ phase.label }}</p>
+          <h3>{{ phase.template.title }}</h3>
+          <span class="phase-card__window">{{ phase.window.label }}</span>
+        </div>
+        <div class="phase-card__header-actions">
+          <button
+            mat-icon-button
+            type="button"
+            aria-label="Vorlage bearbeiten"
+            (click)="editPhase(phase)"
+          >
+            <mat-icon>edit</mat-icon>
+          </button>
+          <mat-slide-toggle
+            [checked]="phase.autoEnabled"
+            (change)="togglePhaseAutomation(phase.toggleKey, $event.checked)"
+          >
+            Automatisch
+          </mat-slide-toggle>
+        </div>
+      </header>
+      <mat-card-content>
+        <p class="phase-card__summary">{{ phase.summary }}</p>
+        <div class="phase-card__meta">
+          <span>
+            <mat-icon>person</mat-icon>
+            {{ phase.template.recommendedAssignment.name }}
+          </span>
+          <span>
+            <mat-icon>schedule</mat-icon>
+            {{ dueRuleLabel(phase.template) }}
+          </span>
+          <span>
+            <mat-icon>sell</mat-icon>
+            {{ phase.template.tags.length ? phase.template.tags.join(', ') : 'Keine Tags' }}
+          </span>
+        </div>
+        <div class="phase-card__conditions">
+          <span class="phase-card__conditions-label">Bedingungen</span>
+          @if (phase.conditions.length) {
+            <mat-chip-set>
+              @for (condition of phase.conditions; track condition.id) {
+                <mat-chip appearance="outlined">
+                  {{ conditionLabel(condition) }}
+                </mat-chip>
+              }
+            </mat-chip-set>
+          } @else {
+            <p class="phase-card__conditions-empty">
+              Ohne Filter – jede passende Auftragsposition erzeugt ein Geschäft.
+            </p>
+          }
+        </div>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-flat-button color="primary" type="button" (click)="instantiateTemplate(phase.template.id)">
+          <mat-icon>add_circle</mat-icon>
+          Geschäft erstellen
+        </button>
+        @if (phase.isCustom) {
+          <button mat-button color="warn" type="button" (click)="deletePhase(phase.id)">
+            <mat-icon>delete</mat-icon>
+            Löschen
+          </button>
+        }
+      </mat-card-actions>
+    </mat-card>
+  }
+</div>
+
+<section class="automation-overview">
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Automationsstatus</mat-card-title>
+      <mat-card-subtitle>Alle Phasen auf einen Blick.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <table class="automation-table">
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Trigger</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (rule of automationRules(); track rule.id) {
+            <tr>
+              <td>{{ rule.title }}</td>
+              <td>{{ rule.trigger }}</td>
+              <td>
+                <span class="status-chip" [class.status-chip--active]="rule.active">
+                  {{ rule.active ? 'Aktiv' : 'Inaktiv' }}
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card-content>
+  </mat-card>
+</section>

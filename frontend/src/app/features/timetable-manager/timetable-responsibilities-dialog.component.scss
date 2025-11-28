@@ -1,0 +1,62 @@
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.responsibilities-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.responsibility-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.responsibility-card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.responsibility-card header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.responsibility-card header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.responsibility-card header .spacer {
+  flex: 1;
+}
+
+.responsibility-card header .actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.notes {
+  width: 100%;
+}
+
+button[mat-stroked-button] {
+  align-self: flex-start;
+}

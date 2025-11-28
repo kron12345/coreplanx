@@ -1,0 +1,323 @@
+planning_topology_operational_points:
+  get:
+    summary: Listet alle Operational Points.
+    operationId: listOperationalPoints
+    responses:
+      '200':
+        description: Vollständige Liste der Operational Points.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OperationalPoint'
+  put:
+    summary: Ersetzt die Operational-Points-Sammlung.
+    operationId: saveOperationalPoints
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OperationalPointListRequest'
+    responses:
+      '200':
+        description: Persistierte Operational Points.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OperationalPoint'
+planning_topology_sections_of_line:
+  get:
+    summary: Listet alle Sections of Line.
+    operationId: listSectionsOfLine
+    responses:
+      '200':
+        description: Vollständige Liste der Sections of Line.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/SectionOfLine'
+  put:
+    summary: Ersetzt die Section-of-Line-Sammlung.
+    operationId: saveSectionsOfLine
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SectionOfLineListRequest'
+    responses:
+      '200':
+        description: Persistierte Sections of Line.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/SectionOfLine'
+planning_topology_personnel_sites:
+  get:
+    summary: Listet alle Personalstandorte (Sites).
+    operationId: listPersonnelSites
+    responses:
+      '200':
+        description: Vollständige Liste der Personalstandorte.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonnelSite'
+  put:
+    summary: Ersetzt die Personnel-Sites-Sammlung.
+    operationId: savePersonnelSites
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PersonnelSiteListRequest'
+    responses:
+      '200':
+        description: Persistierte Personnel Sites.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonnelSite'
+planning_topology_replacement_stops:
+  get:
+    summary: Listet alle SEV-Haltestellen.
+    operationId: listReplacementStops
+    responses:
+      '200':
+        description: Vollständige Liste der Ersatzhaltestellen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplacementStop'
+  put:
+    summary: Ersetzt die Replacement-Stops-Sammlung.
+    operationId: saveReplacementStops
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReplacementStopListRequest'
+    responses:
+      '200':
+        description: Persistierte Replacement Stops.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplacementStop'
+planning_topology_replacement_routes:
+  get:
+    summary: Listet alle Ersatzrouten.
+    operationId: listReplacementRoutes
+    responses:
+      '200':
+        description: Vollständige Liste der Ersatzrouten.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplacementRoute'
+  put:
+    summary: Ersetzt die Replacement-Routes-Sammlung.
+    operationId: saveReplacementRoutes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReplacementRouteListRequest'
+    responses:
+      '200':
+        description: Persistierte Replacement Routes.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplacementRoute'
+planning_topology_replacement_edges:
+  get:
+    summary: Listet alle Ersatzkanten (Stops-Verbindungen).
+    operationId: listReplacementEdges
+    responses:
+      '200':
+        description: Vollständige Liste der Ersatzkanten.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplacementEdge'
+  put:
+    summary: Ersetzt die Replacement-Edges-Sammlung.
+    operationId: saveReplacementEdges
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReplacementEdgeListRequest'
+    responses:
+      '200':
+        description: Persistierte Replacement Edges.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplacementEdge'
+planning_topology_op_replacement_stop_links:
+  get:
+    summary: Listet Zuordnungen zwischen Operational Points und Ersatzhaltestellen.
+    operationId: listOpReplacementStopLinks
+    responses:
+      '200':
+        description: Vollständige Liste der Verknüpfungen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OpReplacementStopLink'
+  put:
+    summary: Ersetzt alle OP-zu-Replacement-Stop-Beziehungen.
+    operationId: saveOpReplacementStopLinks
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpReplacementStopLinkListRequest'
+    responses:
+      '200':
+        description: Persistierte Verknüpfungen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OpReplacementStopLink'
+planning_topology_op_replacement_links:
+  get:
+    summary: Alias für `/op-replacement-stop-links`.
+    operationId: listOpReplacementStopLinksAlias
+    responses:
+      '200':
+        description: Gleiche Daten wie `/op-replacement-stop-links`.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OpReplacementStopLink'
+  put:
+    summary: Alias für `/op-replacement-stop-links`.
+    operationId: saveOpReplacementStopLinksAlias
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpReplacementStopLinkListRequest'
+    responses:
+      '200':
+        description: Persistierte Verknüpfungen (Alias).
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OpReplacementStopLink'
+planning_topology_transfer_edges:
+  get:
+    summary: Listet alle Transferkanten (Fußwege, Shuttle etc.).
+    operationId: listTransferEdges
+    responses:
+      '200':
+        description: Vollständige Liste der Transferkanten.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TransferEdge'
+  put:
+    summary: Ersetzt die Transfer-Edges-Sammlung.
+    operationId: saveTransferEdges
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TransferEdgeListRequest'
+    responses:
+      '200':
+        description: Persistierte Transfer Edges.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TransferEdge'
+planning_topology_import:
+  post:
+    summary: Startet den Topologie-Import (Platzhalter).
+    operationId: triggerTopologyImport
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TopologyImportRequest'
+    responses:
+      '200':
+        description: Bestätigung, dass der Import angestoßen wurde.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopologyImportResponse'
+planning_topology_import_events:
+  get:
+    summary: "Server-Sent Events mit Fortschrittsmeldungen zum Topologie-Import."
+    operationId: streamTopologyImportEvents
+    responses:
+      '200':
+        description: "SSE-Stream mit `TopologyImportRealtimeEvent`-Payloads."
+        content:
+          text/event-stream:
+            schema:
+              type: string
+  post:
+    summary: Publiziert eine Importmeldung (z. B. aus einem Python-Script).
+    operationId: publishTopologyImportEvent
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TopologyImportEventRequest'
+    responses:
+      '200':
+        description: Gesendetes Ereignis inklusive Zeitstempel.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopologyImportRealtimeEvent'

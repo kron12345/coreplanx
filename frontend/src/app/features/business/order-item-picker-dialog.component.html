@@ -1,0 +1,78 @@
+<h2 mat-dialog-title>Auftragspositionen zuordnen</h2>
+
+<mat-dialog-content>
+  <div class="picker-filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Suchen</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput placeholder="Auftrag oder Position" (input)="updateSearch($any($event.target).value)" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Typ</mat-label>
+      <mat-select [value]="typeFilter()" (valueChange)="updateType($event)">
+        <mat-option value="all">Alle Typen</mat-option>
+        @for (type of typeOptions(); track type) {
+          <mat-option [value]="type">{{ type }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Auftrag</mat-label>
+      <mat-select [value]="orderFilter()" (valueChange)="updateOrder($event)">
+        <mat-option value="all">Alle Aufträge</mat-option>
+        @for (order of orderOptions(); track order.id) {
+          <mat-option [value]="order.id">{{ order.name }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  @if (!filteredOptions().length) {
+    <div class="picker-empty">
+      <mat-icon>inbox</mat-icon>
+      <div>
+        <strong>Keine Positionen gefunden</strong>
+        <p>Bitte Filter anpassen oder die Suche zurücksetzen.</p>
+      </div>
+    </div>
+  } @else {
+    <div class="picker-options">
+      @for (option of filteredOptions(); track option.itemId) {
+        <button
+          type="button"
+          class="picker-option"
+          [class.selected]="isSelected(option.itemId)"
+          (click)="toggleSelection(option.itemId)"
+        >
+          <div class="picker-option__header">
+            <div>
+              <div class="picker-option__title">{{ option.itemName }}</div>
+              <div class="picker-option__subtitle">{{ option.orderName }}</div>
+            </div>
+            <mat-chip appearance="outlined">{{ option.type }}</mat-chip>
+          </div>
+          <div class="picker-option__meta">
+            @if (option.serviceType) {
+              <span><mat-icon inline>build</mat-icon>{{ option.serviceType }}</span>
+            }
+            @if (option.timetableYearLabel) {
+              <span><mat-icon inline>event</mat-icon>{{ option.timetableYearLabel }}</span>
+            }
+          </div>
+          <mat-icon class="picker-option__state" color="primary">
+            {{ isSelected(option.itemId) ? 'check_circle' : 'radio_button_unchecked' }}
+          </mat-icon>
+        </button>
+      }
+    </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="apply()">
+    Übernehmen ({{ selectedIds().size }})
+  </button>
+</mat-dialog-actions>

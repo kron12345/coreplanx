@@ -1,0 +1,45 @@
+<mat-card appearance="outlined" class="create-from-template">
+  <mat-card-header>
+    <mat-card-title>Geschäft aus Vorlage</mat-card-title>
+    <mat-card-subtitle>Direkt aus dem Geschäftsbereich starten.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="template-form">
+      <mat-form-field appearance="outline">
+        <mat-label>Vorlage</mat-label>
+        <mat-select formControlName="templateId" required>
+          @for (template of templates(); track template.id) {
+            <mat-option [value]="template.id">{{ template.title }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Zieltermin</mat-label>
+        <input matInput type="date" formControlName="targetDate" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Auftragsposition</mat-label>
+        <mat-select formControlName="linkedOrderItemId">
+          <mat-option value="">Keine Verknüpfung</mat-option>
+          @for (option of orderItemOptions(); track option.itemId) {
+            <mat-option [value]="option.itemId">
+              {{ option.orderName }} · {{ option.itemName }}
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Notiz</mat-label>
+        <textarea matInput rows="2" formControlName="note"></textarea>
+      </mat-form-field>
+
+      <button mat-flat-button color="primary" type="submit">
+        <mat-icon>add</mat-icon>
+        Geschäft anlegen
+      </button>
+    </form>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,186 @@
+planning_master_data_personnel_service_pools:
+  get:
+    summary: Listet Personaldienstpools.
+    operationId: listPersonnelServicePools
+    responses:
+      '200':
+        description: Alle gespeicherten Personaldienstpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonnelServicePool'
+  put:
+    summary: Ersetzt den kompletten Satz an Personaldienstpools.
+    operationId: savePersonnelServicePools
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PersonnelServicePoolListRequest'
+    responses:
+      '200':
+        description: Persistierte Personaldienstpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonnelServicePool'
+planning_master_data_personnel_pools:
+  get:
+    summary: Listet Personalpools.
+    operationId: listPersonnelPools
+    responses:
+      '200':
+        description: Alle gespeicherten Personalpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonnelPool'
+  put:
+    summary: Ersetzt den kompletten Satz an Personalpools.
+    operationId: savePersonnelPools
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PersonnelPoolListRequest'
+    responses:
+      '200':
+        description: Persistierte Personalpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonnelPool'
+planning_master_data_vehicle_service_pools:
+  get:
+    summary: Listet Fahrzeugdienstpools.
+    operationId: listVehicleServicePools
+    responses:
+      '200':
+        description: Alle gespeicherten Fahrzeugdienstpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleServicePool'
+  put:
+    summary: Ersetzt den kompletten Satz an Fahrzeugdienstpools.
+    operationId: saveVehicleServicePools
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VehicleServicePoolListRequest'
+    responses:
+      '200':
+        description: Persistierte Fahrzeugdienstpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleServicePool'
+planning_master_data_vehicle_pools:
+  get:
+    summary: Listet Fahrzeugpools.
+    operationId: listVehiclePools
+    responses:
+      '200':
+        description: Alle gespeicherten Fahrzeugpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehiclePool'
+  put:
+    summary: Ersetzt den kompletten Satz an Fahrzeugpools.
+    operationId: saveVehiclePools
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VehiclePoolListRequest'
+    responses:
+      '200':
+        description: Persistierte Fahrzeugpools.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehiclePool'
+planning_master_data_vehicle_types:
+  get:
+    summary: Listet Fahrzeugtypen.
+    operationId: listVehicleTypes
+    responses:
+      '200':
+        description: Alle gespeicherten Fahrzeugtypen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleType'
+  put:
+    summary: Ersetzt den kompletten Satz an Fahrzeugtypen.
+    operationId: saveVehicleTypes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VehicleTypeListRequest'
+    responses:
+      '200':
+        description: Persistierte Fahrzeugtypen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleType'
+planning_master_data_vehicle_compositions:
+  get:
+    summary: Listet Fahrzeugkompositionen.
+    operationId: listVehicleCompositions
+    responses:
+      '200':
+        description: Alle gespeicherten Fahrzeugkompositionen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleComposition'
+  put:
+    summary: Ersetzt den kompletten Satz an Fahrzeugkompositionen.
+    operationId: saveVehicleCompositions
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/VehicleCompositionListRequest'
+    responses:
+      '200':
+        description: Persistierte Fahrzeugkompositionen.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleComposition'

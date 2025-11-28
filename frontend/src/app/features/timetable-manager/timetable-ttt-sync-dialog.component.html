@@ -1,0 +1,44 @@
+<h2 mat-dialog-title>TTT Synchronisation</h2>
+
+<mat-dialog-content class="dialog-content">
+  <section>
+    <h3>Export (TTT Payload)</h3>
+    <p class="hint">Diese Daten können an das TTT-System übertragen werden.</p>
+    <mat-form-field appearance="outline" class="json-field">
+      <mat-label>Export JSON</mat-label>
+      <textarea matInput [value]="exportJson()" rows="12" readonly></textarea>
+    </mat-form-field>
+    <button mat-stroked-button type="button" (click)="copyToClipboard()">
+      <mat-icon>content_copy</mat-icon>
+      In Zwischenablage kopieren
+    </button>
+  </section>
+
+  <section>
+    <h3>Import</h3>
+    <p class="hint">Fügen Sie hier ein TTT-Payload ein, um Varianten, Verantwortlichkeiten und Modifikationen zu übernehmen.</p>
+    <mat-form-field appearance="outline" class="json-field">
+      <mat-label>Import JSON</mat-label>
+      <textarea
+        matInput
+        rows="12"
+        [formControl]="importControl"
+        placeholder="TTT Payload als JSON einfügen"
+      ></textarea>
+      <mat-error *ngIf="importControl.invalid">Bitte gültiges JSON einfügen.</mat-error>
+    </mat-form-field>
+    <button mat-flat-button color="primary" type="button" (click)="applyImport()">
+      <mat-icon>cloud_upload</mat-icon>
+      Import anwenden
+    </button>
+  </section>
+
+  <div class="error" *ngIf="errorMessage() as message">
+    <mat-icon fontIcon="info"></mat-icon>
+    <span>{{ message }}</span>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Schließen</button>
+</mat-dialog-actions>

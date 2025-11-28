@@ -1,0 +1,110 @@
+<div class="plan-preview-panel">
+  @if (template) {
+    <div class="plan-preview__header">
+      <div>
+        <div class="plan-preview__title">{{ template.title }}</div>
+        <div class="plan-preview__subtitle">
+          {{ template.trainNumber }} · {{ template.category }}
+        </div>
+      </div>
+      @if (template.recurrence) {
+        <mat-chip-set>
+          <mat-chip>
+            <mat-icon>schedule</mat-icon>
+            {{ template.recurrence.startTime }} – {{ template.recurrence.endTime }}
+          </mat-chip>
+          <mat-chip>
+            <mat-icon>repeat</mat-icon>
+            alle {{ template.recurrence.intervalMinutes }} min
+          </mat-chip>
+          <mat-chip>
+            <mat-icon>calendar_today</mat-icon>
+            {{ template.recurrence.days.join(', ') }}
+          </mat-chip>
+        </mat-chip-set>
+      }
+    </div>
+
+    @if (stats) {
+      <div class="plan-preview__template">
+        <div class="plan-preview__route">
+          <span>{{ stats.origin }}</span>
+          <mat-icon>chevron_right</mat-icon>
+          <span>{{ stats.destination }}</span>
+        </div>
+        <div class="plan-preview__meta">
+          <span>{{ stats.stopCount }} Halte</span>
+          @if (stats.travelLabel) {
+            <span>{{ stats.travelLabel }}</span>
+          }
+          <span>Verantwortlich: {{ template.responsibleRu }}</span>
+        </div>
+        <div class="plan-preview__stops">
+          @for (stop of stats.stopNames; track stop; let idx = $index) {
+            <span class="plan-preview__stop">
+              <mat-icon>
+                {{ idx === 0 ? 'play_arrow' : idx === stats.stopNames.length - 1 ? 'stop' : 'radio_button_checked' }}
+              </mat-icon>
+              {{ stop }}
+            </span>
+          }
+        </div>
+      </div>
+    } @else {
+      <div class="plan-preview__placeholder">Vorlage enthält keine Halte.</div>
+    }
+
+    @if (preview) {
+      <div class="plan-preview__summary" [class.plan-preview__summary--invalid]="!preview.ready">
+        <div class="plan-preview__stat">
+          <span>Züge</span>
+          <strong>{{ preview.ready ? preview.totalDepartures : '—' }}</strong>
+        </div>
+        <div class="plan-preview__stat">
+          <span>Zeitraum</span>
+          <strong>{{ preview.durationLabel || '—' }}</strong>
+        </div>
+        <div class="plan-preview__stat">
+          <span>OTN</span>
+          <strong>{{ preview.otnRange || '—' }}</strong>
+        </div>
+        <div class="plan-preview__stat">
+          <span>Erste/Letzte</span>
+          <strong>{{ preview.firstDeparture || '--:--' }} · {{ preview.lastDeparture || '--:--' }}</strong>
+        </div>
+      </div>
+
+      @if (preview.warnings.length) {
+        <div class="plan-preview__warnings">
+          <mat-icon>warning</mat-icon>
+          <div>
+            @for (warn of preview.warnings; track warn) {
+              <div>{{ warn }}</div>
+            }
+          </div>
+        </div>
+      } @else if (preview.sampleDepartures.length) {
+        <div class="plan-preview__samples">
+          <span class="plan-preview__samples-label">Beispielabfahrten</span>
+          <div class="plan-preview__samples-list">
+            @for (dep of preview.sampleDepartures; track dep) {
+              <span class="plan-preview__sample-chip">{{ dep }}</span>
+            }
+            @if (preview.totalDepartures > preview.sampleDepartures.length) {
+              <span class="plan-preview__sample-chip plan-preview__sample-chip--muted">
+                +{{ preview.totalDepartures - preview.sampleDepartures.length }} weitere
+              </span>
+            }
+          </div>
+        </div>
+      }
+    }
+  } @else {
+    <div class="plan-preview__placeholder">
+      <mat-icon>visibility</mat-icon>
+      <div>
+        Wähle eine Vorlage aus, um eine Vorschau der Serie zu erhalten.
+      </div>
+    </div>
+  }
+</div>

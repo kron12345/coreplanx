@@ -1,0 +1,231 @@
+<h2 mat-dialog-title>Neue Fahrplanvorlage</h2>
+
+<mat-dialog-content class="dialog-content">
+  <form class="template-form" [formGroup]="form">
+    <section class="section">
+      <h3>Stammdaten</h3>
+      <div class="grid grid--two">
+        <mat-form-field appearance="outline">
+          <mat-label>Titel</mat-label>
+          <input matInput formControlName="title" placeholder="z. B. S3 Basel → Olten" />
+          @if (form.controls.title.invalid && form.controls.title.touched) {
+            <mat-error>Titel ist erforderlich.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Zugnummer / OTN</mat-label>
+          <input matInput formControlName="trainNumber" placeholder="z. B. S3" />
+          @if (
+            form.controls.trainNumber.invalid && form.controls.trainNumber.touched
+          ) {
+            <mat-error>Zugnummer ist erforderlich.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Beschreibung</mat-label>
+        <textarea
+          matInput
+          formControlName="description"
+          rows="3"
+          placeholder="Worum geht es bei dieser Vorlage?"
+        ></textarea>
+      </mat-form-field>
+
+      <div class="grid grid--three">
+        <mat-form-field appearance="outline">
+          <mat-label>Verantwortliche EVU</mat-label>
+          <input matInput formControlName="responsibleRu" placeholder="z. B. Qnamic Rail GmbH" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Status</mat-label>
+          <mat-select formControlName="status">
+            @for (option of statusOptions; track option) {
+              <mat-option [value]="option">{{ option | titlecase }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Kategorie</mat-label>
+          <mat-select formControlName="category">
+            @for (option of categoryOptions; track option) {
+              <mat-option [value]="option">{{ option }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="grid grid--two">
+        <mat-form-field appearance="outline">
+          <mat-label>Gültig ab</mat-label>
+          <input matInput [matDatepicker]="startPicker" formControlName="startDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="startPicker" />
+          <mat-datepicker #startPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Gültig bis (optional)</mat-label>
+          <input matInput [matDatepicker]="endPicker" formControlName="endDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="endPicker" />
+          <mat-datepicker #endPicker></mat-datepicker>
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Tags (kommagetrennt)</mat-label>
+        <input matInput formControlName="tags" placeholder="S-Bahn, Basel, Nachtverkehr" />
+      </mat-form-field>
+    </section>
+
+
+    <section class="section">
+      <div class="stops-header">
+        <div>
+          <h3>Fahrweg & Halte</h3>
+          <p class="stops-hint">Bearbeite Halte, Zeiten und Aktivitäten im Dialog „Fahrplan zusammenstellen“.</p>
+        </div>
+        <button mat-stroked-button type="button" (click)="openPlanAssembly()">
+          <mat-icon>build</mat-icon>
+          Fahrplan zusammenstellen
+        </button>
+      </div>
+
+      <div class="stop-summary">
+        <div class="stop-summary__metrics">
+          <span>Anzahl Halte: {{ stopCount() }}</span>
+          <span>Start: {{ startStopLabel() }}</span>
+          <span>Ziel: {{ endStopLabel() }}</span>
+        </div>
+
+        <div class="stop-summary__list" *ngIf="stopPreview().length; else noStopSummary">
+          @for (stop of stopPreview(); track stop.sequence) {
+            <div class="stop-summary__item">
+              <span class="stop-summary__index">#{{ stop.sequence }}</span>
+              <div class="stop-summary__content">
+                <span class="stop-summary__name">{{ stop.name }}</span>
+                @if (stop.time) {
+                  <span class="stop-summary__time">{{ stop.time }}</span>
+                }
+              </div>
+              <mat-chip color="primary" selected>{{ stop.type | titlecase }}</mat-chip>
+            </div>
+          }
+        </div>
+
+        <ng-template #noStopSummary>
+          <p class="hint">Noch keine Halte definiert.</p>
+        </ng-template>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="composition-header">
+        <div>
+          <h3>Fahrzeuge & Komposition</h3>
+          <p class="composition-hint">
+            Definiere eingesetzte Fahrzeuge und Änderungen an Unterwegshalten. Fahrzeugtypen können später
+            aus den Stammdaten referenziert werden.
+          </p>
+        </div>
+        <button mat-stroked-button type="button" (click)="addBaseVehicle()">
+          <mat-icon>add</mat-icon>
+          Fahrzeug hinzufügen
+        </button>
+      </div>
+
+      <div class="composition-base" *ngIf="baseVehicles.length; else emptyBase">
+        <div class="composition-grid">
+          @for (group of baseVehicles.controls; track group) {
+            <div class="composition-row" [formGroup]="group">
+              <mat-form-field appearance="outline">
+                <mat-label>Fahrzeugtyp</mat-label>
+                <input matInput formControlName="vehicleType" placeholder="z. B. FLIRT" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Anzahl</mat-label>
+                <input matInput type="number" min="1" formControlName="count" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Hinweis</mat-label>
+                <input matInput formControlName="note" placeholder="optional" />
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeBaseVehicle($index)" aria-label="Fahrzeug entfernen">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+      <ng-template #emptyBase>
+        <p class="hint">Noch keine Fahrzeuge erfasst.</p>
+      </ng-template>
+
+      <div class="composition-changes">
+        <div class="composition-changes__header">
+          <h4>Änderungen an Halten</h4>
+          <button mat-stroked-button type="button" (click)="addChangeEntry()">
+            <mat-icon>published_with_changes</mat-icon>
+            Änderung hinzufügen
+          </button>
+        </div>
+
+        @if (!changeEntries.length) {
+          <p class="hint">Keine Kopplungen/Entkopplungen hinterlegt.</p>
+        } @else {
+          <div class="composition-grid">
+            @for (group of changeEntries.controls; track group) {
+              <div class="composition-change-row" [formGroup]="group">
+                <mat-form-field appearance="outline">
+                  <mat-label>Halt</mat-label>
+                  <mat-select formControlName="stopIndex">
+                    @for (option of stopOptions; track option.index) {
+                      <mat-option [value]="option.index">
+                        #{{ option.index }} · {{ option.label }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Aktion</mat-label>
+                  <mat-select formControlName="action">
+                    <mat-option value="attach">Ankuppeln</mat-option>
+                    <mat-option value="detach">Abkuppeln</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Fahrzeugtyp</mat-label>
+                  <input matInput formControlName="vehicleType" placeholder="z. B. BR147" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Anzahl</mat-label>
+                  <input matInput type="number" min="1" formControlName="count" />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Hinweis</mat-label>
+                  <input matInput formControlName="note" placeholder="optional" />
+                </mat-form-field>
+                <button
+                  mat-icon-button
+                  type="button"
+                  (click)="removeChangeEntry($index)"
+                  aria-label="Änderung entfernen"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="dialog-actions">
+  <button mat-button (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" (click)="save()">Vorlage speichern</button>
+</mat-dialog-actions>

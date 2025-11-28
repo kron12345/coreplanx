@@ -1,0 +1,40 @@
+<div class="template-recommendation">
+  <div class="template-recommendation__header">
+    <div>
+      <p>Empfehlungen</p>
+      <h3>Passende Geschäftsvorlagen</h3>
+    </div>
+    <button mat-icon-button type="button" (click)="closePanel()" aria-label="Panel schließen">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  @if (!recommendations().length) {
+    <p class="template-recommendation__empty">
+      Keine Vorschläge für die aktuellen Filter. Neue Tags oder Suchbegriffe probieren.
+    </p>
+  } @else {
+    <div class="template-recommendation__list">
+      @for (template of recommendations(); track template.id) {
+        <mat-card appearance="outlined">
+          <mat-card-content>
+            <div class="template-recommendation__row">
+              <div>
+                <strong>{{ template.title }}</strong>
+                <span>{{ template.category }} · {{ template.dueRule.label }}</span>
+              </div>
+              <mat-chip>{{ template.tags.slice(0, 2).join(' ') }}</mat-chip>
+            </div>
+            <p>{{ template.description }}</p>
+          </mat-card-content>
+          <mat-card-actions>
+            <a mat-stroked-button routerLink="/templates/business">
+              <mat-icon>bolt</mat-icon>
+              Details ansehen
+            </a>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+  }
+</div>

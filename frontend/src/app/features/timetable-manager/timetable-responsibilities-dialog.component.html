@@ -1,0 +1,111 @@
+<h2 mat-dialog-title>Aufgaben & Verantwortlichkeiten</h2>
+
+<mat-dialog-content class="dialog-content">
+  <form [formGroup]="form" class="responsibilities-form">
+    <section formArrayName="responsibilities" class="responsibility-section">
+      <div
+        class="responsibility-card"
+        *ngFor="let group of responsibilities.controls; let i = index"
+        [formGroupName]="i"
+      >
+        <header>
+          <h3>Verantwortung #{{ i + 1 }}</h3>
+          <span class="spacer"></span>
+          <div class="actions">
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Nach oben"
+              (click)="moveResponsibility(i, -1)"
+              [disabled]="i === 0"
+            >
+              <mat-icon>arrow_upward</mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Nach unten"
+              (click)="moveResponsibility(i, 1)"
+              [disabled]="i === responsibilities.length - 1"
+            >
+              <mat-icon>arrow_downward</mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Verantwortung entfernen"
+              color="warn"
+              (click)="removeResponsibility(i)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </header>
+
+        <div class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Rolle / Aufgabe</mat-label>
+            <input matInput formControlName="role" placeholder="z. B. Infrastrukturfreigabe" />
+            <mat-error>Angabe erforderlich.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Zuständig</mat-label>
+            <input matInput formControlName="assignee" placeholder="Organisation oder Name" />
+            <mat-error>Angabe erforderlich.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Kontakt</mat-label>
+            <input matInput formControlName="contact" placeholder="E-Mail oder Telefon" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Bereich</mat-label>
+            <mat-select formControlName="scope">
+              <mat-option
+                *ngFor="let option of scopeOptions"
+                [value]="option.value"
+              >
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Status</mat-label>
+            <mat-select formControlName="status">
+              <mat-option [value]="null">Nicht gesetzt</mat-option>
+              <mat-option
+                *ngFor="let option of statusOptions"
+                [value]="option.value"
+              >
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Fällig am</mat-label>
+            <input matInput type="date" formControlName="dueDate" />
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="notes">
+          <mat-label>Notizen</mat-label>
+          <textarea matInput rows="2" formControlName="notes"></textarea>
+        </mat-form-field>
+      </div>
+
+      <button mat-stroked-button type="button" (click)="addResponsibility()">
+        <mat-icon>add</mat-icon>
+        Verantwortung hinzufügen
+      </button>
+    </section>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="submit()">Speichern</button>
+</mat-dialog-actions>

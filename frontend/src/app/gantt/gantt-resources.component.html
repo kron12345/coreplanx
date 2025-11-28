@@ -1,0 +1,27 @@
+<div class="gantt-resource" role="rowheader">
+  <button
+    type="button"
+    class="gantt-resource__trigger"
+    [matMenuTriggerFor]="resourceMenu"
+    [attr.aria-label]="resource.name"
+  >
+    <mat-icon class="gantt-resource__icon" [fontIcon]="resourceIcon()"></mat-icon>
+    <span class="gantt-resource__label">{{ resource.name }}</span>
+  </button>
+
+  <mat-menu #resourceMenu="matMenu">
+    <ng-container *ngIf="viewModeToggleEnabled">
+      <button mat-menu-item (click)="onViewModeClick('block')" [disabled]="viewMode === 'block'">
+        Blockansicht
+      </button>
+      <button mat-menu-item (click)="onViewModeClick('detail')" [disabled]="viewMode === 'detail'">
+        Detailansicht
+      </button>
+      <mat-divider></mat-divider>
+    </ng-container>
+    <button mat-menu-item *ngIf="canAssignService" (click)="onAssignServiceClick()">
+      Dienst zuweisen
+    </button>
+    <button mat-menu-item (click)="onRemoveClick()">Ressource entfernen</button>
+  </mat-menu>
+</div>

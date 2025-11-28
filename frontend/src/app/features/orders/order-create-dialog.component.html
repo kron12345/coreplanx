@@ -1,0 +1,193 @@
+<h2 mat-dialog-title>Neuer Auftrag</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="order-form">
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Auftrags-ID</mat-label>
+        <input matInput formControlName="id" placeholder="A-2025-0003" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions.id"
+          aria-label="Beschreibung Auftrags-ID"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Name</mat-label>
+      <input matInput formControlName="name" />
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="help-icon"
+        [matTooltip]="fieldDescriptions.name"
+        aria-label="Beschreibung Name"
+      >
+        <mat-icon>help_outline</mat-icon>
+      </button>
+      @if (form.controls.name.invalid && form.controls.name.touched) {
+        <mat-error>Bitte einen Namen erfassen.</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Fahrplanjahr</mat-label>
+      <mat-select formControlName="timetableYearLabel">
+        @for (option of timetableYearOptions; track option.label) {
+          <mat-option [value]="option.label">
+            {{ option.label }} · {{ option.startIso }} – {{ option.endIso }}
+          </mat-option>
+        }
+      </mat-select>
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="help-icon"
+        [matTooltip]="fieldDescriptions.timetableYearLabel"
+        aria-label="Beschreibung Fahrplanjahr"
+      >
+        <mat-icon>help_outline</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <section class="customer-section">
+      <div class="section-heading">
+        <mat-icon>business</mat-icon>
+        <span>Kundenbereich</span>
+      </div>
+      <div class="customer-inputs">
+        <mat-form-field appearance="outline">
+          <mat-label>Kunde auswählen</mat-label>
+          <mat-select formControlName="customerId">
+            <mat-option value="">Kein Kunde</mat-option>
+            @for (customer of customers(); track customer.id) {
+              <mat-option [value]="customer.id">
+                {{ customer.customerNumber }} · {{ customer.name }}
+              </mat-option>
+            }
+          </mat-select>
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="fieldDescriptions.customerId"
+            aria-label="Beschreibung Kunde auswählen"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Kunde (frei)</mat-label>
+          <input matInput formControlName="customer" />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="fieldDescriptions.customer"
+            aria-label="Beschreibung freier Kundenname"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+      </div>
+
+      @if (selectedCustomer(); as customer) {
+        <div class="customer-summary">
+          <div class="customer-summary__row">
+            <span>Kundennummer</span>
+            <strong>{{ customer.customerNumber }}</strong>
+          </div>
+          @if (customer.projectNumber) {
+            <div class="customer-summary__row">
+              <span>Projektnummer</span>
+              <strong>{{ customer.projectNumber }}</strong>
+            </div>
+          }
+          @if (customer.address) {
+            <div class="customer-summary__row customer-summary__row--stacked">
+              <span>Adresse</span>
+              <div>{{ customer.address }}</div>
+            </div>
+          }
+          @if (customer.contacts.length) {
+            <div class="customer-summary__contacts">
+              <div class="contacts-title">Kontaktpersonen</div>
+              <div class="contact-list">
+                @for (contact of customer.contacts; track contact.id) {
+                  <div class="contact-card">
+                    <div class="contact-name">{{ contact.name }}</div>
+                    @if (contact.role) {
+                      <div class="contact-role">{{ contact.role }}</div>
+                    }
+                    @if (contact.email) {
+                      <div class="contact-meta">
+                        <mat-icon>mail</mat-icon>
+                        <span>{{ contact.email }}</span>
+                      </div>
+                    }
+                    @if (contact.phone) {
+                      <div class="contact-meta">
+                        <mat-icon>call</mat-icon>
+                        <span>{{ contact.phone }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="customer-summary__placeholder">
+          Kein Kunde ausgewählt. Wähle einen gepflegten Kunden, um Kontaktdaten und Projekte zu übernehmen.
+        </p>
+      }
+    </section>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Tags (kommagetrennt)</mat-label>
+      <input matInput formControlName="tags" placeholder="S-Bahn, Q4" />
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="help-icon"
+        [matTooltip]="fieldDescriptions.tags"
+        aria-label="Beschreibung Tags"
+      >
+        <mat-icon>help_outline</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Kommentar</mat-label>
+      <textarea matInput rows="3" formControlName="comment"></textarea>
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="help-icon"
+        [matTooltip]="fieldDescriptions.comment"
+        aria-label="Beschreibung Kommentar"
+      >
+        <mat-icon>help_outline</mat-icon>
+      </button>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" (click)="save()">Anlegen</button>
+</mat-dialog-actions>

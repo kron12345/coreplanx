@@ -1,0 +1,384 @@
+<div class="timetable-hub">
+  <aside class="timetable-hub__list">
+    <div class="timetable-hub__toolbar">
+      <mat-form-field appearance="outline" class="timetable-hub__year">
+        <mat-label>Fahrplanjahr</mat-label>
+        <mat-select [value]="selectedYearLabel()" (selectionChange)="setSelectedYear($event.value)">
+          @for (year of yearOptions(); track year) {
+            <mat-option [value]="year">{{ year }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <button
+        mat-icon-button
+        color="primary"
+        type="button"
+        (click)="openCreationDialog()"
+        aria-label="Zug im Fahrplanjahr anlegen"
+      >
+        <mat-icon>train</mat-icon>
+      </button>
+    </div>
+    <mat-form-field appearance="outline" class="timetable-hub__search">
+      <mat-label>RefTrainID oder Zugnummer</mat-label>
+      <input matInput [formControl]="searchControl" placeholder="z. B. TT-2030-ICE-001A" />
+      @if (searchControl.value) {
+        <button mat-icon-button matSuffix type="button" (click)="clearSearch()" aria-label="Suche löschen">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </mat-form-field>
+    <div class="timetable-hub__list-items">
+      @for (group of groupedRecords(); track group.headRefTrainId) {
+        <div class="timetable-hub__group">
+          <button
+            type="button"
+            class="timetable-hub__group-header"
+            (click)="toggleGroup(group.headRefTrainId)"
+          >
+            <mat-icon class="timetable-hub__group-toggle">
+              {{ isGroupExpanded(group.headRefTrainId) ? 'expand_more' : 'chevron_right' }}
+            </mat-icon>
+            <div class="timetable-hub__group-header-content">
+              <div class="group-header__title">Ref {{ group.headRefTrainId }}</div>
+              <div class="group-header__subtitle">
+                Jahr {{ group.timetableYearLabel }} · {{ group.calendarDays.length }} Fahrtage
+              </div>
+            </div>
+          </button>
+          @if (isGroupExpanded(group.headRefTrainId)) {
+            @for (record of group.records; track trackRecord($index, record)) {
+              <div class="timetable-hub__record">
+                <div class="timetable-hub__record-header">
+                  <button
+                    type="button"
+                    class="timetable-hub__list-item"
+                    [class.timetable-hub__list-item--active]="activeRecord()?.refTrainId === record.refTrainId"
+                    (click)="selectRecord(record)"
+                  >
+                    <div class="list-item__title">{{ record.trainNumber }} · {{ record.title }}</div>
+                    <div class="list-item__subtitle">
+                      Ref {{ record.refTrainId }} · Jahr {{ record.timetableYearLabel }}
+                    </div>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="timetable-hub__stops-toggle"
+                    (click)="toggleRecordStops(record, $event)"
+                    [attr.aria-label]="'Halte für ' + record.refTrainId + ' ein- oder ausklappen'"
+                  >
+                    <mat-icon>
+                      {{ isRecordStopsExpanded(record) ? 'expand_more' : 'chevron_right' }}
+                    </mat-icon>
+                  </button>
+                </div>
+                @if (isRecordStopsExpanded(record)) {
+                  <div class="timetable-hub__stops">
+                    @for (stop of record.commercial.stops; track stop.sequence) {
+                      <button
+                        type="button"
+                        class="timetable-hub__stop-item"
+                        [class.timetable-hub__stop-item--active]="selectedStop()?.sequence === stop.sequence"
+                        (click)="selectStop(record, stop)"
+                      >
+                        <span class="stop-item__seq">#{{ stop.sequence }}</span>
+                        <span class="stop-item__name">{{ stop.locationName }}</span>
+                        <span class="stop-item__time">
+                          {{ formatClock(stop.arrivalTime) }} / {{ formatClock(stop.departureTime) }}
+                        </span>
+                        @if (stop.hasRollingStockChange) {
+                          <mat-icon class="stop-item__rolling-stock">train</mat-icon>
+                        }
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+      @if (!groupedRecords().length) {
+        <p class="hint">Keine Züge gefunden.</p>
+      }
+    </div>
+  </aside>
+
+  <section class="timetable-hub__detail">
+    @if (activeDisplayRecord(); as record) {
+      <header class="timetable-hub__header">
+        <div>
+          <h2>{{ record.title }}</h2>
+          <p class="subtitle">Ref {{ record.refTrainId }} · Zug {{ record.trainNumber }}</p>
+        </div>
+        <div class="timetable-hub__header-right">
+          <mat-chip-set>
+            <mat-chip color="primary" selected>{{ record.timetableYearLabel }}</mat-chip>
+            <mat-chip appearance="outlined">Kalender: {{ record.calendarRangeLabel }}</mat-chip>
+          </mat-chip-set>
+          @if (!isAggregateView()) {
+            <button
+              mat-icon-button
+              type="button"
+              class="timetable-hub__variant-button"
+              (click)="openVariantDialog(record)"
+              matTooltip="Neue Variante für diesen Zug anlegen"
+            >
+              <mat-icon>playlist_add</mat-icon>
+            </button>
+          }
+        </div>
+      </header>
+
+      <mat-card class="calendar-card">
+        <mat-card-title>Kalender & Fahrtage</mat-card-title>
+        <mat-card-subtitle>Bitmap {{ record.calendarBitmap }}</mat-card-subtitle>
+        <div class="calendar-chip-row">
+          <mat-chip-set>
+            @for (day of calendarPreview(record); track day) {
+              <mat-chip>{{ day }}</mat-chip>
+            }
+            @if (calendarOverflow(record) > 0) {
+              <mat-chip class="muted-chip">+{{ calendarOverflow(record) }} weitere</mat-chip>
+            }
+          </mat-chip-set>
+          <p class="calendar-hint">
+            Fahrtage gelten für das Fahrplanjahr {{ record.timetableYearLabel }}. Anpassungen erfolgen über
+            Unterkalender im Auftragsmanager.
+          </p>
+        </div>
+      </mat-card>
+
+      @if (!isAggregateView()) {
+        <div class="info-cards">
+          <mat-card class="tech-card">
+            <mat-card-title>Technische Parameter</mat-card-title>
+            @if (hasTechnicalData(record)) {
+              <div class="info-grid">
+                <div class="info-stat">
+                  <span class="info-stat__label">Zugtyp</span>
+                  <strong>{{ textValue(record.technical?.trainType) }}</strong>
+                </div>
+                <div class="info-stat">
+                  <span class="info-stat__label">Höchstgeschwindigkeit</span>
+                  <strong>{{ technicalValue(record.technical?.maxSpeed, 'km/h') }}</strong>
+                </div>
+                <div class="info-stat">
+                  <span class="info-stat__label">Länge</span>
+                  <strong>{{ technicalValue(record.technical?.lengthMeters, 'm') }}</strong>
+                </div>
+                <div class="info-stat">
+                  <span class="info-stat__label">Gewicht</span>
+                  <strong>{{ technicalValue(record.technical?.weightTons, 't') }}</strong>
+                </div>
+                <div class="info-stat">
+                  <span class="info-stat__label">Traktion</span>
+                  <strong>{{ textValue(record.technical?.traction) }}</strong>
+                </div>
+                <div class="info-stat">
+                  <span class="info-stat__label">ETCS-Level</span>
+                  <strong>{{ textValue(record.technical?.etcsLevel) }}</strong>
+                </div>
+              </div>
+            } @else {
+              <p class="hint">Keine technischen Angaben hinterlegt.</p>
+            }
+          </mat-card>
+
+          <mat-card class="route-card">
+            <mat-card-title>Grenzpunkte & Strecke</mat-card-title>
+            @if (hasRouteMetadata(record)) {
+              <div class="info-grid info-grid--route">
+                <div class="info-stat">
+                  <span class="info-stat__label">Start-Grenzpunkt</span>
+                  <strong>{{ routePointLabel(record.routeMetadata, 'originBorderPoint') }}</strong>
+                </div>
+                <div class="info-stat">
+                  <span class="info-stat__label">Ziel-Grenzpunkt</span>
+                  <strong>{{ routePointLabel(record.routeMetadata, 'destinationBorderPoint') }}</strong>
+                </div>
+              </div>
+              <div class="route-notes-display">
+                <span class="info-stat__label">Hinweise</span>
+                <p>{{ routeNotes(record.routeMetadata) }}</p>
+              </div>
+            } @else {
+              <p class="hint">Keine Grenzpunkte definiert.</p>
+            }
+          </mat-card>
+        </div>
+
+        <mat-card class="attributes-card">
+          <mat-card-title>Zug-Attribute</mat-card-title>
+          <table class="attributes-table">
+            <tbody>
+              @for (row of trainAttributes(record); track row.label) {
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.value }}</td>
+                </tr>
+              }
+              @if (!trainAttributes(record).length) {
+                <tr>
+                  <td colspan="2">Keine zusätzlichen Attribute vorhanden.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </mat-card>
+
+        @if (selectedStop(); as stop) {
+          <mat-card class="attributes-card">
+            <mat-card-title>Halteattribute</mat-card-title>
+            <table class="attributes-table">
+              <tbody>
+                <tr>
+                  <td>Sequenz</td>
+                  <td>#{{ stop.sequence }}</td>
+                </tr>
+                <tr>
+                  <td>Ort</td>
+                  <td>{{ stop.locationName }}</td>
+                </tr>
+                <tr>
+                  <td>Plan An</td>
+                  <td>{{ formatClock(stop.commercialArrivalTime) }}</td>
+                </tr>
+                <tr>
+                  <td>Plan Ab</td>
+                  <td>{{ formatClock(stop.commercialDepartureTime) }}</td>
+                </tr>
+                <tr>
+                  <td>Betrieb An</td>
+                  <td>{{ formatClock(stop.operationalArrivalTime) }}</td>
+                </tr>
+                <tr>
+                  <td>Betrieb Ab</td>
+                  <td>{{ formatClock(stop.operationalDepartureTime) }}</td>
+                </tr>
+                <tr>
+                  <td>Haltegrund</td>
+                  <td>{{ stop.holdReason }}</td>
+                </tr>
+                <tr>
+                  <td>Verantwortliche EVU</td>
+                  <td>{{ stop.responsibleRu }}</td>
+                </tr>
+                <tr>
+                  <td>Fahrzeuge (Text)</td>
+                  <td>{{ stop.vehicleInfo }}</td>
+                </tr>
+                <tr>
+                  <td>Fahrzeugänderung</td>
+                  <td>{{ stop.hasRollingStockChange ? 'Ja (Änderung an diesem Halt)' : 'Nein' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </mat-card>
+        }
+
+        <div class="section-tabs">
+          @for (tab of sectionTabs; track tab.key) {
+            <button
+              mat-stroked-button
+              type="button"
+              [color]="activeSection() === tab.key ? 'primary' : undefined"
+              [class.active]="activeSection() === tab.key"
+              (click)="selectSection(tab.key)"
+            >
+              {{ tab.label }}
+            </button>
+          }
+        </div>
+
+        @if (!selectedStop() && activeSectionData(); as section) {
+          <mat-card class="plan-card">
+            <mat-card-title>{{ section.label }}</mat-card-title>
+            <p class="plan-description">{{ section.description }}</p>
+            @if (section.stops.length) {
+              @if (activeSection() === 'commercial') {
+                <div class="stop-table stop-table--plan">
+                  <div class="stop-table__header">
+                    <span>#</span>
+                    <span>Ort</span>
+                    <span>Plan An</span>
+                    <span>Plan Ab</span>
+                    <span>Betr An</span>
+                    <span>Betr Ab</span>
+                    <span>Haltegrund</span>
+                    <span>Verantwortliche EVU</span>
+                    <span>Fahrzeuge</span>
+                  </div>
+                  @for (stop of section.stops; track stop.sequence) {
+                    <div class="stop-table__row">
+                      <span>#{{ stop.sequence }}</span>
+                      <span>{{ stop.locationName }}</span>
+                      <span>{{ formatClock(stop.commercialArrivalTime) }}</span>
+                      <span>{{ formatClock(stop.commercialDepartureTime) }}</span>
+                      <span>{{ formatClock(stop.operationalArrivalTime) }}</span>
+                      <span>{{ formatClock(stop.operationalDepartureTime) }}</span>
+                      <span>{{ stop.holdReason }}</span>
+                      <span>{{ stop.responsibleRu }}</span>
+                      <span>{{ stop.vehicleInfo }}</span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="stop-table stop-table--actual">
+                  <div class="stop-table__header">
+                    <span>#</span>
+                    <span>Ort</span>
+                    <span>Ankunft</span>
+                    <span>Abfahrt</span>
+                    <span>Haltegrund</span>
+                    <span>Verantwortliche EVU</span>
+                    <span>Fahrzeuge</span>
+                  </div>
+                  @for (stop of section.stops; track stop.sequence) {
+                    <div class="stop-table__row" (click)="selectStop(record, stop)">
+                      <span>#{{ stop.sequence }}</span>
+                      <span>{{ stop.locationName }}</span>
+                      <span>{{ formatClock(stop.arrivalTime) }}</span>
+                      <span>{{ formatClock(stop.departureTime) }}</span>
+                      <span>{{ stop.holdReason }}</span>
+                      <span>{{ stop.responsibleRu }}</span>
+                      <span>{{ stop.vehicleInfo }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              <p class="hint">Keine Daten vorhanden.</p>
+            }
+          </mat-card>
+        }
+
+        <mat-card class="vehicles-card">
+          <mat-card-title>Fahrzeuge (TTT-relevant)</mat-card-title>
+          @let segments = record.vehicles?.segments ?? [];
+          @if (segments.length) {
+            <div class="vehicle-grid">
+              @for (segment of segments; track $index) {
+                <div class="vehicle-row">
+                  <div>
+                    <strong>Segment #{{ segment.position }}</strong>
+                    <span>{{ segment.count }} × {{ segment.vehicleTypeId }}</span>
+                  </div>
+                  <small *ngIf="segment.remarks">{{ segment.remarks }}</small>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="hint">Keine Fahrzeugdaten hinterlegt.</p>
+          }
+        </mat-card>
+      }
+    } @else {
+      <div class="empty-state">
+        <mat-icon>train</mat-icon>
+        <p>Kein Zug ausgewählt.</p>
+      </div>
+    }
+  </section>
+</div>

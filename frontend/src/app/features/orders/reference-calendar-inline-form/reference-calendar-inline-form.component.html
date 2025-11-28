@@ -1,0 +1,75 @@
+<section class="inline-calendar">
+  <div class="inline-calendar__header">
+    <div>
+      <h4>{{ title }}</h4>
+      <p>{{ description }}</p>
+    </div>
+    <mat-form-field appearance="outline" class="inline-calendar__year">
+      <mat-label>Fahrplanjahr</mat-label>
+      <mat-select [formControl]="yearControl">
+        @for (option of timetableYearOptions; track option.label) {
+          <mat-option [value]="option.label">
+            {{ option.label }} · {{ option.startIso }} – {{ option.endIso }}
+          </mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <span class="inline-calendar__year-range">
+      {{ currentYearBounds.startIso }} – {{ currentYearBounds.endIso }}
+    </span>
+  </div>
+
+  <div class="inline-calendar__mode">
+    <span>Bearbeiten:</span>
+    <button
+      mat-stroked-button
+      type="button"
+      [class.active]="mode === 'include'"
+      (click)="setMode('include')"
+    >
+      Verkehrstage (Hauptkalender)
+    </button>
+    <button
+      mat-stroked-button
+      type="button"
+      [class.active]="mode === 'exclude'"
+      (click)="setMode('exclude')"
+    >
+      Ausschlüsse
+    </button>
+  </div>
+
+  @if (mode === 'include') {
+    <app-annual-calendar-selector
+      [year]="currentYearBounds.startYear"
+      [rangeStartIso]="currentYearBounds.startIso"
+      [rangeEndIso]="currentYearBounds.endIso"
+      [rangeLabel]="currentYearBounds.label"
+      [hint]="hint"
+      [selectedDates]="datesControl.value"
+      [allowedDates]="yearAllowedDates"
+      [accentDates]="excludedDatesControl.value"
+      (selectedDatesChange)="onDatesChange($event)"
+    ></app-annual-calendar-selector>
+  } @else {
+    <app-annual-calendar-selector
+      [year]="currentYearBounds.startYear"
+      [rangeStartIso]="currentYearBounds.startIso"
+      [rangeEndIso]="currentYearBounds.endIso"
+      [rangeLabel]="currentYearBounds.label"
+      [hint]="exclusionHint"
+      [selectedDates]="excludedDatesControl.value"
+      [allowedDates]="exclusionSelectableDates"
+      (selectedDatesChange)="onExcludedDatesChange($event)"
+    ></app-annual-calendar-selector>
+  }
+
+  <div class="inline-calendar__footer">
+    <span>
+      {{ effectiveCount }} Verkehrstage · {{ exclusionCount }} Ausschlüsse
+    </span>
+    @if (datesControl.invalid && datesControl.touched) {
+      <span class="inline-calendar__error">Bitte mindestens einen Tag auswählen.</span>
+    }
+  </div>
+</section>

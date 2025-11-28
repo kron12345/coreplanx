@@ -1,0 +1,19 @@
+.service-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+mat-form-field {
+  width: 100%;
+
+  .help-icon {
+    color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.54));
+  }
+}

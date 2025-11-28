@@ -1,0 +1,50 @@
+:host {
+  display: block;
+}
+
+.topology-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.topology-editor__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.topology-editor__toolbar button mat-progress-spinner {
+  margin-left: 8px;
+}
+
+.topology-editor__console {
+  background: #0c162b;
+  border-radius: 8px;
+  color: #e2ebff;
+  font-family: 'Iosevka', 'Roboto Mono', monospace;
+  padding: 12px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 4px 18px rgba(0, 0, 0, 0.2);
+}
+
+.topology-editor__console header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.topology-editor__console pre {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}

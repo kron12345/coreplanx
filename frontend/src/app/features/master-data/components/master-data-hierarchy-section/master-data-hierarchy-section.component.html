@@ -1,0 +1,43 @@
+<section class="md-hierarchy">
+  <header class="md-hierarchy__header">
+    <div>
+      <h3>{{ config.title }}</h3>
+      <p *ngIf="config.description">{{ config.description }}</p>
+    </div>
+  </header>
+
+  <div class="md-hierarchy__content">
+    <div class="md-hierarchy__parent" *ngIf="parentConfigView() as parentConfig">
+      <app-master-data-category
+        [config]="parentConfig"
+        (selectionChange)="handleParentSelectionChange($event)"
+        (itemsChange)="handleParentItemsChange($event)"
+      ></app-master-data-category>
+    </div>
+
+    <div class="md-hierarchy__children">
+      <ng-container *ngIf="selectedParent() as activeParent; else noParentSelected">
+        <header class="md-hierarchy__children-header">
+          <h4>
+            {{ config.child.entityLabel }} in {{ activeParent.name ?? activeParent.title ?? activeParent.id }}
+          </h4>
+          <span>{{ parentSelectionLabel() }}</span>
+        </header>
+
+        <ng-container *ngIf="childConfigView() as childConfig">
+          <app-master-data-category
+            [config]="childConfig"
+            (itemsChange)="handleChildItemsChange($event)"
+          ></app-master-data-category>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #noParentSelected>
+        <div class="md-hierarchy__empty">
+          <mat-icon fontIcon="info"></mat-icon>
+          <p>Bitte zuerst einen Pool anlegen oder auswählen, um zugehörige Einträge zu pflegen.</p>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</section>

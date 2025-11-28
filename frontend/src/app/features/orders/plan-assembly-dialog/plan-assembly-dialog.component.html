@@ -1,0 +1,291 @@
+<h2 mat-dialog-title>Fahrplan zusammenstellen</h2>
+
+<mat-dialog-content>
+  <div class="hint">
+    <mat-icon>info</mat-icon>
+    <span>
+      Passe Ankunfts- und Abfahrtszeiten, Aktivitäten und weitere Attribute der Halte an.
+      Änderungen erzeugen beim Speichern einen neuen Fahrplan.
+    </span>
+  </div>
+
+  <form class="dialog-layout" [formGroup]="form">
+    <div class="stop-list">
+      <div class="stop-list__header">
+        <div class="stop-list__title">
+          <h3>Halte</h3>
+          <span>{{ stopsControls.length }} Einträge</span>
+        </div>
+        <div class="stop-list__actions">
+          <button mat-mini-fab color="primary" type="button" (click)="addStop(selectedIndex())">
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+      </div>
+      <cdk-virtual-scroll-viewport
+        class="stop-list__viewport"
+        itemSize="64"
+        formArrayName="stops"
+      >
+        <div
+          class="stop-item"
+          *cdkVirtualFor="let stop of stopList(); let i = index; trackBy: trackByIndex"
+          [class.stop-item--active]="selectedIndex() === i"
+          (click)="selectStop(i)"
+        >
+          <div class="stop-item__primary">
+            <span class="stop-item__index">#{{ i + 1 }}</span>
+            <mat-chip class="stop-item__type" color="primary" selected>
+              <mat-icon>{{ stopTypeIcon(stop) }}</mat-icon>
+              {{ stopTypeLabel(stop) }}
+            </mat-chip>
+            <span class="stop-item__name">{{ stopName(stop) }}</span>
+          </div>
+          <div class="stop-item__times">{{ stopTimes(stop) }}</div>
+        </div>
+      </cdk-virtual-scroll-viewport>
+    </div>
+    <div class="detail-pane" *ngIf="selectedStopControl() as stopForm">
+      <div class="detail-header">
+        <div class="detail-header__info">
+          <mat-chip color="primary" selected>#{{ selectedIndex() + 1 }}</mat-chip>
+          <div class="detail-header__labels">
+            <span class="detail-header__name">{{ stopName(stopForm) }}</span>
+            <span class="detail-header__times">{{ stopTimes(stopForm) }}</span>
+          </div>
+        </div>
+        <div class="detail-header__actions">
+          <button
+            mat-icon-button
+            type="button"
+            matTooltip="Nach oben"
+            (click)="moveStop(selectedIndex(), -1)"
+            [disabled]="isEdgeStop(selectedIndex())"
+          >
+            <mat-icon>arrow_upward</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            type="button"
+            matTooltip="Nach unten"
+            (click)="moveStop(selectedIndex(), 1)"
+            [disabled]="isEdgeStop(selectedIndex())"
+          >
+            <mat-icon>arrow_downward</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            type="button"
+            matTooltip="Stop duplizieren"
+            (click)="addStop(selectedIndex())"
+          >
+            <mat-icon>content_copy</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            type="button"
+            color="warn"
+            matTooltip="Stop entfernen"
+            (click)="removeStop(selectedIndex())"
+            [disabled]="stopsControls.length <= 2"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <ng-container [formGroup]="stopForm">
+        <div class="detail-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Typ</mat-label>
+            <mat-select formControlName="type" [disabled]="isEdgeStop(selectedIndex())">
+              <mat-option value="origin">Start</mat-option>
+              <mat-option value="intermediate">Zwischenhalt</mat-option>
+              <mat-option value="destination">Ziel</mat-option>
+            </mat-select>
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.type"
+              aria-label="Typ Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Ort</mat-label>
+            <input matInput formControlName="locationName" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.locationName"
+              aria-label="Ort Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Code</mat-label>
+            <input matInput formControlName="locationCode" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.locationCode"
+              aria-label="Code Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Land</mat-label>
+            <input matInput formControlName="countryCode" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.countryCode"
+              aria-label="Land Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+
+        <div class="detail-grid detail-grid--times">
+          <mat-form-field appearance="outline">
+            <mat-label>Ankunft</mat-label>
+            <input matInput type="time" formControlName="arrivalTime" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.arrivalTime"
+              aria-label="Ankunft Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Ankunft +T</mat-label>
+            <input matInput type="number" formControlName="arrivalOffsetDays" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.arrivalOffsetDays"
+              aria-label="Ankunft Offset Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Abfahrt</mat-label>
+            <input matInput type="time" formControlName="departureTime" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.departureTime"
+              aria-label="Abfahrt Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Abfahrt +T</mat-label>
+            <input matInput type="number" formControlName="departureOffsetDays" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.departureOffsetDays"
+              aria-label="Abfahrt Offset Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Halt (min)</mat-label>
+            <input matInput type="number" formControlName="dwellMinutes" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.dwellMinutes"
+              aria-label="Halt Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+
+        <div class="detail-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Aktivitäten</mat-label>
+            <input matInput formControlName="activities" />
+            <mat-hint>Kommagetrennt, z.&nbsp;B. 0001, 0020</mat-hint>
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.activities"
+              aria-label="Aktivitäten Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Gleis</mat-label>
+            <input matInput formControlName="platform" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.platform"
+              aria-label="Gleis Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Notiz</mat-label>
+            <input matInput formControlName="notes" />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              class="help-icon"
+              [matTooltip]="fieldDescriptions.notes"
+              aria-label="Notiz Hilfe"
+            >
+              <mat-icon>help_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+      </ng-container>
+    </div>
+  </form>
+
+  @if (errorMessage() || validationHint()) {
+    <div class="error">{{ errorMessage() || validationHint() }}</div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="submit()">Übernehmen</button>
+</mat-dialog-actions>

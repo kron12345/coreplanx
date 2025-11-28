@@ -1,0 +1,151 @@
+.edit-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  mat-chip-set {
+    max-width: 100%;
+  }
+
+  &__validity {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 0.9rem;
+  }
+}
+
+.quick-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(25, 118, 210, 0.04);
+
+  h3 {
+    margin: 0 0 4px;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.65);
+  }
+
+  &__buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-accordion {
+  mat-expansion-panel {
+    ::ng-deep .mat-expansion-panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+}
+
+.plan-details {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: center;
+
+  &__primary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__title {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  &__meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: rgba(0, 0, 0, 0.6);
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+  }
+
+  &__route {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  &__calendar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  &__actions {
+    display: inline-flex;
+    justify-content: flex-end;
+  }
+}
+
+.calendar-summary {
+  mat-chip-set {
+    max-width: 100%;
+  }
+}
+
+.calendar-editor-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.calendar-lock-hint {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  color: #b00020;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.muted-chip {
+  opacity: 0.7;
+}
+
+.plan-hint {
+  margin: 0;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.error {
+  margin-top: 16px;
+  color: #b00020;
+}

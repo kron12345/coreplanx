@@ -1,0 +1,44 @@
+.gantt-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 6px 14px;
+  background: rgba(33, 33, 33, 0.92);
+  color: #fff;
+  font-size: 0.72rem;
+  align-items: center;
+}
+
+.gantt-status__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.gantt-status__label {
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.68rem;
+}
+
+.gantt-status__value {
+  font-weight: 600;
+}
+
+.gantt-status__item--drag {
+  grid-column: 1 / -1;
+}
+
+.gantt-status__value--valid {
+  color: #c8e6c9;
+}
+
+.gantt-status__value--invalid {
+  color: #ffab91;
+}
+
+.gantt-status__value--info {
+  color: #e0f7fa;
+}

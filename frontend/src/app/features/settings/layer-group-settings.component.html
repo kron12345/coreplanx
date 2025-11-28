@@ -1,0 +1,87 @@
+<div class="layer-settings">
+  <header class="layer-settings__header">
+    <div>
+      <h1>Layer-Gruppen</h1>
+      <p>Definiert die Ebenen-Reihenfolge für Activities (z. B. Hintergrund, Marker, Pausen).</p>
+    </div>
+    <button mat-stroked-button type="button" (click)="newGroup()">
+      <mat-icon fontIcon="add"></mat-icon>
+      Neu
+    </button>
+  </header>
+
+  <div class="layer-settings__grid">
+    <mat-card class="layer-settings__list">
+      <div class="layer-settings__list-header">
+        <span>Key</span>
+        <span>Label</span>
+        <span>Order</span>
+        <span></span>
+      </div>
+      @for (group of groups(); track group.id) {
+        <div
+          class="layer-settings__row"
+          [class.layer-settings__row--active]="selectedId() === group.id"
+          (click)="select(group)"
+        >
+          <span class="mono">{{ group.id }}</span>
+          <span>{{ group.label }}</span>
+          <span>{{ group.order }}</span>
+          <span class="layer-settings__row-actions">
+            <button mat-icon-button type="button" (click)="move(group, 'up'); $event.stopPropagation()">
+              <mat-icon fontIcon="arrow_upward"></mat-icon>
+            </button>
+            <button mat-icon-button type="button" (click)="move(group, 'down'); $event.stopPropagation()">
+              <mat-icon fontIcon="arrow_downward"></mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              color="warn"
+              (click)="remove(group); $event.stopPropagation()"
+              matTooltip="Gruppe löschen"
+            >
+              <mat-icon fontIcon="delete"></mat-icon>
+            </button>
+          </span>
+        </div>
+      }
+    </mat-card>
+
+    <mat-card class="layer-settings__detail">
+      <div class="layer-settings__detail-header">
+        <div>
+          <p class="eyebrow">Detail</p>
+          <h3>{{ selectedId() ? 'Gruppe bearbeiten' : 'Neue Gruppe' }}</h3>
+        </div>
+        <button mat-flat-button color="primary" type="button" (click)="save()">
+          <mat-icon fontIcon="save"></mat-icon>
+          Speichern
+        </button>
+      </div>
+
+      <form class="layer-settings__form" [formGroup]="form">
+        <mat-form-field appearance="outline">
+          <mat-label>Key</mat-label>
+          <input matInput formControlName="id" placeholder="z. B. remarks" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Label</mat-label>
+          <input matInput formControlName="label" placeholder="Anzeigename" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Order / Z-Index</mat-label>
+          <input matInput type="number" formControlName="order" />
+          <mat-hint>Kleinere Werte liegen unten.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Beschreibung</mat-label>
+          <textarea matInput formControlName="description" rows="2"></textarea>
+        </mat-form-field>
+      </form>
+    </mat-card>
+  </div>
+</div>

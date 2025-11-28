@@ -1,0 +1,110 @@
+<section class="vehicle-editor">
+  <header>
+    <mat-button-toggle-group color="primary" [value]="viewMode()" (valueChange)="viewMode.set($event)">
+      <mat-button-toggle value="servicePools">
+        <mat-icon fontIcon="layers"></mat-icon>
+        Fahrzeugdienstpools
+      </mat-button-toggle>
+      <mat-button-toggle value="services">
+        <mat-icon fontIcon="route"></mat-icon>
+        Fahrzeugdienste
+      </mat-button-toggle>
+      <mat-button-toggle value="vehiclePools">
+        <mat-icon fontIcon="warehouse"></mat-icon>
+        Fahrzeugpools
+      </mat-button-toggle>
+      <mat-button-toggle value="vehicles">
+        <mat-icon fontIcon="directions_transit"></mat-icon>
+        Fahrzeuge
+      </mat-button-toggle>
+      <mat-button-toggle value="vehicleTypes">
+        <mat-icon fontIcon="train"></mat-icon>
+        Fahrzeugtypen
+      </mat-button-toggle>
+      <mat-button-toggle value="compositions">
+        <mat-icon fontIcon="stacked_bar_chart"></mat-icon>
+        Kompositionen
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+  </header>
+
+  <ng-container [ngSwitch]="viewMode()">
+    <app-attribute-entity-editor
+      *ngSwitchCase="'servicePools'"
+      [title]="'Fahrzeugdienstpools'"
+      [entities]="servicePoolRecords()"
+      [attributeDefinitions]="servicePoolDefinitions()"
+      [defaultFallbackValues]="servicePoolDefaults"
+      [detailError]="servicePoolError()"
+      [requiredKeys]="servicePoolRequiredKeys"
+      (saveEntity)="handleServicePoolSave($event)"
+      (deleteEntities)="handleServicePoolDelete($event)"
+    />
+
+    <app-attribute-entity-editor
+      *ngSwitchCase="'services'"
+      [title]="'Fahrzeugdienste'"
+      [entities]="serviceRecords()"
+      [attributeDefinitions]="serviceDefinitions()"
+      [defaultFallbackValues]="serviceDefaults"
+      [detailError]="serviceError()"
+      [groupedEntities]="serviceGroups()"
+      [createDefaultsFactory]="serviceCreateDefaultsFactory"
+      [selectOptions]="serviceSelectOptions()"
+      (saveEntity)="handleServiceSave($event)"
+      (deleteEntities)="handleServiceDelete($event)"
+    />
+
+    <app-attribute-entity-editor
+      *ngSwitchCase="'vehiclePools'"
+      [title]="'Fahrzeugpools'"
+      [entities]="vehiclePoolRecords()"
+      [attributeDefinitions]="vehiclePoolDefinitions()"
+      [defaultFallbackValues]="vehiclePoolDefaults"
+      [detailError]="vehiclePoolError()"
+      [requiredKeys]="vehiclePoolRequiredKeys"
+      (saveEntity)="handleVehiclePoolSave($event)"
+      (deleteEntities)="handleVehiclePoolDelete($event)"
+    />
+
+    <app-attribute-entity-editor
+      *ngSwitchCase="'vehicles'"
+      [title]="'Fahrzeuge'"
+      [entities]="vehicleRecords()"
+      [attributeDefinitions]="vehicleDefinitions()"
+      [defaultFallbackValues]="vehicleDefaults"
+      [detailError]="vehicleError()"
+      [groupedEntities]="vehicleGroups()"
+      [createDefaultsFactory]="vehicleCreateDefaultsFactory"
+      [selectOptions]="vehicleSelectOptions()"
+      (saveEntity)="handleVehicleSave($event)"
+      (deleteEntities)="handleVehicleDelete($event)"
+    />
+
+    <app-attribute-entity-editor
+      *ngSwitchCase="'vehicleTypes'"
+      [title]="'Fahrzeugtypen'"
+      [entities]="vehicleTypeRecords()"
+      [attributeDefinitions]="vehicleTypeDefinitions()"
+      [defaultFallbackValues]="vehicleTypeDefaults"
+      [detailError]="vehicleTypeError()"
+      [requiredKeys]="vehicleTypeRequiredKeys"
+      [numericKeys]="vehicleTypeNumericKeys"
+      [selectOptions]="vehicleTypeSelectOptions"
+      (saveEntity)="handleVehicleTypeSave($event)"
+      (deleteEntities)="handleVehicleTypeDelete($event)"
+    />
+
+    <app-attribute-entity-editor
+      *ngSwitchCase="'compositions'"
+      [title]="'Fahrzeugkompositionen'"
+      [entities]="compositionRecords()"
+      [attributeDefinitions]="compositionDefinitions()"
+      [defaultFallbackValues]="compositionDefaults"
+      [detailError]="compositionError()"
+      [requiredKeys]="compositionRequiredKeys"
+      (saveEntity)="handleCompositionSave($event)"
+      (deleteEntities)="handleCompositionDelete($event)"
+    />
+  </ng-container>
+</section>

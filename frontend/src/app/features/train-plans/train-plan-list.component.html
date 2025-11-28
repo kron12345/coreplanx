@@ -1,0 +1,312 @@
+<div class="plan-page">
+  <header class="page-header">
+    <div class="page-header__titles">
+      <h1>Fahrpläne</h1>
+      <p>
+        Übersicht aller geplanten Züge mit TTT-relevanten Daten. Zugriff ist read-only;
+        Stammdaten stammen aus Rollouts oder angebundenen Fahrplanquellen.
+      </p>
+    </div>
+    <div class="page-header__summary">
+      <mat-chip color="primary" selected>{{ plans().length }} Fahrpläne</mat-chip>
+    </div>
+  </header>
+
+  <section class="filters">
+    <mat-form-field appearance="outline" class="filters__search">
+      <mat-label>Suchen</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput [formControl]="searchControl" placeholder="Titel, Zugnummer, RU" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select [value]="filters().status" (valueChange)="onStatusFilterChange($event)">
+        @for (option of statusOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Quelle</mat-label>
+      <mat-select [value]="filters().source" (valueChange)="onSourceFilterChange($event)">
+        @for (option of sourceOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Verantwortliche EVU</mat-label>
+      <mat-select [value]="filters().responsibleRu" (valueChange)="onRuFilterChange($event)">
+        <mat-option value="all">Alle</mat-option>
+        @for (ru of responsibleRus(); track ru) {
+          <mat-option [value]="ru">{{ ru }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Sortierung</mat-label>
+      <mat-select [value]="sortSelection(sort())" (valueChange)="onSortChange($event)">
+        @for (option of sortOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </section>
+
+  @if (!plans().length) {
+    <mat-card appearance="outlined" class="empty-state">
+      <mat-card-content>
+        <mat-icon>train</mat-icon>
+        <div>
+          <h3>Keine Fahrpläne gefunden</h3>
+          <p>Passe die Filter an oder importiere Fahrplandaten aus dem Managementsystem.</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <section class="plan-grid">
+      @for (plan of plans(); track trackByPlanId($index, plan)) {
+        <mat-card
+          class="plan-card"
+          appearance="outlined"
+          [attr.id]="planElementId(plan.id)"
+        >
+          <mat-card-header>
+            <div mat-card-avatar class="status-icon" [ngClass]="statusClass(plan)">
+              <mat-icon>train</mat-icon>
+            </div>
+            <mat-card-title>{{ plan.title }}</mat-card-title>
+            <mat-card-subtitle>
+              <mat-chip [ngClass]="statusClass(plan)">{{ statusLabels[plan.status] }}</mat-chip>
+              <span class="train-number">OTN {{ plan.trainNumber }}</span>
+            </mat-card-subtitle>
+          </mat-card-header>
+
+          <mat-card-content>
+            <div class="meta">
+              <div>
+                <mat-icon>calendar_today</mat-icon>
+                {{ calendarLabel(plan) }}
+              </div>
+              <div>
+                <mat-icon>person</mat-icon>
+                {{ plan.responsibleRu }}
+              </div>
+              <div>
+                <mat-icon>history</mat-icon>
+                Update {{ plan.updatedAt | date: 'short' }}
+              </div>
+            </div>
+
+            <div class="source">
+              <mat-icon>account_tree</mat-icon>
+              <div class="source__details">
+                <span>{{ sourceLabels[plan.source.type] }} · {{ plan.source.name }}</span>
+                @if (plan.source.templateId) {
+                  <span>Vorlage {{ plan.source.templateId }}</span>
+                }
+                @if (plan.source.systemId) {
+                  <span>System-ID {{ plan.source.systemId }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="technical">
+              <div>
+                <span class="label">Zugtyp</span>
+                <span>{{ plan.technical.trainType }}</span>
+              </div>
+              @if (plan.technical.maxSpeed) {
+                <div>
+                  <span class="label">Vmax</span>
+                  <span>{{ plan.technical.maxSpeed }} km/h</span>
+                </div>
+              }
+              @if (plan.technical.lengthMeters) {
+                <div>
+                  <span class="label">Länge</span>
+                  <span>{{ plan.technical.lengthMeters }} m</span>
+                </div>
+              }
+              @if (plan.technical.weightTons) {
+                <div>
+                  <span class="label">Gewicht</span>
+                  <span>{{ plan.technical.weightTons }} t</span>
+                </div>
+              }
+              @if (plan.technical.traction) {
+                <div>
+                  <span class="label">Traktion</span>
+                  <span>{{ plan.technical.traction }}</span>
+                </div>
+              }
+            </div>
+
+            <div class="identifiers">
+              <mat-chip-set>
+                <mat-chip>Path Request {{ plan.pathRequestId }}</mat-chip>
+                @if (plan.pathId) {
+                  <mat-chip>Path {{ plan.pathId }}</mat-chip>
+                }
+                @if (plan.caseReference?.id; as caseId) {
+                  <mat-chip>Case {{ caseId }}</mat-chip>
+                }
+              </mat-chip-set>
+            </div>
+
+            <div class="timeline">
+              @for (stop of plan.stops; track trackByStopId($index, stop)) {
+                <div class="timeline__row">
+                  <div class="timeline__dot" [ngClass]="stop.type"></div>
+                  <div class="timeline__content">
+                    <div class="timeline__header">
+                      <span class="type">{{ stopTypeLabel(stop.type) }}</span>
+                      <span class="location">{{ stop.locationName }}</span>
+                      @if (stop.platform) {
+                        <span class="platform">Gleis {{ stop.platform }}</span>
+                      }
+                    </div>
+                    <div class="timeline__times">
+                      @if (timelineTime(stop.arrivalTime, stop.arrivalOffsetDays)) {
+                        <span><strong>Ankunft:</strong> {{ timelineTime(stop.arrivalTime, stop.arrivalOffsetDays) }}</span>
+                      }
+                      @if (timelineTime(stop.departureTime, stop.departureOffsetDays)) {
+                        <span><strong>Abfahrt:</strong> {{ timelineTime(stop.departureTime, stop.departureOffsetDays) }}</span>
+                      }
+                      @if (stop.dwellMinutes) {
+                        <span>{{ stop.dwellMinutes }} min Halt</span>
+                      }
+                    </div>
+                    <div class="timeline__activities">
+                      Aktivität {{ stop.activities.join(', ') }}
+                    </div>
+                    @if (stop.notes) {
+                      <div class="timeline__notes">{{ stop.notes }}</div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            @if (plan.rollingStock; as rolling) {
+              <mat-divider></mat-divider>
+              <section class="rolling-stock">
+                <div class="rolling-stock__header">
+                  <mat-icon>directions_transit</mat-icon>
+                  <div>
+                    <h4>Fahrzeuge</h4>
+                    <p>{{ rollingStockSummary(rolling) }}</p>
+                    @if (rolling.designation) {
+                      <span class="rolling-stock__designation">{{ rolling.designation }}</span>
+                    }
+                  </div>
+                </div>
+
+                <div class="rolling-stock__grid">
+                  <div>
+                    <span class="label">Traktion</span>
+                    <span>{{ rolling.tractionMode || '—' }}</span>
+                  </div>
+                  <div>
+                    <span class="label">Energie</span>
+                    <span>{{ formatList(rolling.powerSupplySystems) }}</span>
+                  </div>
+                  <div>
+                    <span class="label">Vmax</span>
+                    <span>
+                      @if (rolling.maxSpeed) {
+                        {{ rolling.maxSpeed }} km/h
+                      } @else {
+                        —
+                      }
+                    </span>
+                  </div>
+                  <div>
+                    <span class="label">Länge</span>
+                    <span>
+                      @if (rolling.lengthMeters) {
+                        {{ rolling.lengthMeters }} m
+                      } @else {
+                        —
+                      }
+                    </span>
+                  </div>
+                  <div>
+                    <span class="label">Gewicht</span>
+                    <span>
+                      @if (rolling.weightTons) {
+                        {{ rolling.weightTons }} t
+                      } @else {
+                        —
+                      }
+                    </span>
+                  </div>
+                  <div>
+                    <span class="label">Bremsen</span>
+                    <span>
+                      @if (rolling.brakeType) {
+                        {{ rolling.brakeType }}
+                      } @else {
+                        —
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                @if (rolling.segments.length) {
+                  <div class="rolling-stock__segments">
+                    <span class="label">Komposition</span>
+                    <mat-chip-set>
+                      @for (segment of rolling.segments; track trackByRollingStockSegment($index, segment)) {
+                        <mat-chip>
+                          <strong>{{ rollingStockSegmentLabel(segment) }}</strong>
+                          @if (rollingStockSegmentMeta(segment); as meta) {
+                            <small>{{ meta }}</small>
+                          }
+                        </mat-chip>
+                      }
+                    </mat-chip-set>
+                  </div>
+                }
+
+                @if (rolling.operations?.length) {
+                  <div class="rolling-stock__operations">
+                    <span class="label">Operationen</span>
+                    <ul>
+                      @for (operation of rolling.operations; track trackByRollingStockOperation($index, operation)) {
+                        <li>
+                          <mat-icon>{{ rollingStockOperationIcon(operation.type) }}</mat-icon>
+                          <span>{{ rollingStockOperationSummary(plan, operation) }}</span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (rolling.remarks) {
+                  <p class="rolling-stock__notes">{{ rolling.remarks }}</p>
+                }
+              </section>
+            }
+
+            @if (plan.linkedOrderItemId) {
+              <div class="link-info">
+                <mat-icon>assignment</mat-icon>
+                <span>Verknüpft mit {{ linkedOrderLabel(plan) }}</span>
+              </div>
+            }
+
+            @if (plan.notes) {
+              <mat-divider></mat-divider>
+              <p class="notes">{{ plan.notes }}</p>
+            }
+          </mat-card-content>
+        </mat-card>
+      }
+    </section>
+  }
+</div>

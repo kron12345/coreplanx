@@ -1,0 +1,105 @@
+<h2 mat-dialog-title>Status aktualisieren</h2>
+<mat-dialog-content class="dialog-content">
+  <section class="dialog-section">
+    <header>
+      <mat-icon>timeline</mat-icon>
+      <div>
+        <h3>Neue TTT Phase</h3>
+        <p>Wähle die Zielphase für die ausgewählten Positionen.</p>
+      </div>
+    </header>
+    <div class="phase-grid">
+      @for (phase of phaseOptions; track phase.value) {
+        <button
+          type="button"
+          class="phase-card"
+          [class.phase-card--active]="selectedPhase() === phase.value"
+          (click)="selectPhase(phase.value)"
+        >
+          <mat-icon>{{ phase.icon }}</mat-icon>
+          <div>
+            <strong>{{ phase.label }}</strong>
+            <small>{{ phase.value }}</small>
+          </div>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="dialog-section">
+    <header>
+      <mat-icon>task_alt</mat-icon>
+      <div>
+        <h3>Interner Bearbeitungsstatus</h3>
+        <p>Optional: internen Status für die ausgewählten Positionen setzen.</p>
+      </div>
+    </header>
+    <div class="status-grid">
+      <button
+        type="button"
+        class="status-pill"
+        [class.status-pill--active]="selectedInternalStatus() === null"
+        (click)="selectInternalStatus(null)"
+      >
+        <mat-icon>remove_circle_outline</mat-icon>
+        <div>
+          <strong>Kein Wechsel</strong>
+          <small>Bestehenden Bearbeitungsstatus beibehalten.</small>
+        </div>
+      </button>
+      @for (status of internalStatusOptions; track status.value) {
+        <button
+          type="button"
+          class="status-pill"
+          [class.status-pill--active]="selectedInternalStatus() === status.value"
+          (click)="selectInternalStatus(status.value)"
+        >
+          <mat-icon>flag</mat-icon>
+          <div>
+            <strong>{{ status.label }}</strong>
+            <small>{{ status.hint }}</small>
+          </div>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="dialog-section">
+    <header>
+      <mat-icon>fact_check</mat-icon>
+      <div>
+        <h3>Positionen</h3>
+        <p>Nur markierte Positionen werden angepasst.</p>
+      </div>
+    </header>
+    <div class="item-grid">
+      @for (item of data.items; track item.id) {
+        <button
+          type="button"
+          class="item-chip"
+          [class.item-chip--active]="selectedItemIds().has(item.id)"
+          (click)="toggleItem(item.id)"
+        >
+          <mat-icon>{{ selectedItemIds().has(item.id) ? 'check_circle' : 'add_circle_outline' }}</mat-icon>
+          <div>
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.timetablePhase ?? 'unbekannt' }}</small>
+          </div>
+        </button>
+      }
+    </div>
+  </section>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Abbrechen</button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    [disabled]="!selectedItemIds().size"
+    (click)="save()"
+  >
+    Aktualisieren
+  </button>
+</mat-dialog-actions>

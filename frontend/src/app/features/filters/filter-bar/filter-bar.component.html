@@ -1,0 +1,158 @@
+<div class="filters">
+  <mat-form-field appearance="outline">
+    <mat-label>Suchen</mat-label>
+    <input
+      matInput
+      placeholder="Name oder ID"
+      [ngModel]="search()"
+      (ngModelChange)="onSearchChange($event)"
+    />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Fahrplanjahr</mat-label>
+    <mat-select
+      [value]="store.filters().timetableYearLabel"
+      (valueChange)="onTimetableYearChange($event)"
+    >
+      <mat-option value="all">Alle Fahrplanjahre</mat-option>
+      @for (year of store.timetableYearOptions(); track year) {
+        <mat-option [value]="year">{{ year }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Zugnummer</mat-label>
+    <input
+      matInput
+      placeholder="z. B. 4711"
+      [ngModel]="trainNumber()"
+      (ngModelChange)="onTrainNumberChange($event)"
+    />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="fp-range-field">
+    <mat-label>Fahrplan-Fenster</mat-label>
+    <mat-date-range-input [rangePicker]="fpRangePicker">
+      <input
+        matStartDate
+        placeholder="Von"
+        [value]="fpRangeStartDate()"
+        (dateChange)="onFpRangeStartChange($event)"
+      />
+      <input
+        matEndDate
+        placeholder="Bis"
+        [value]="fpRangeEndDate()"
+        (dateChange)="onFpRangeEndChange($event)"
+      />
+    </mat-date-range-input>
+    <mat-hint>Bezug: {{ activeTimelineReference().label }}</mat-hint>
+    <mat-datepicker-toggle matIconSuffix [for]="fpRangePicker"></mat-datepicker-toggle>
+    @if (fpRangeStart() || fpRangeEnd()) {
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        aria-label="Zeitraum löschen"
+        (click)="clearFpRange()"
+      >
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+    <mat-date-range-picker #fpRangePicker></mat-date-range-picker>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Stichtag</mat-label>
+    <mat-select
+      [value]="timelineReference()"
+      (valueChange)="onTimelineReferenceChange($event)"
+    >
+      @for (option of timelineReferenceOptions; track option.value) {
+        <mat-option [value]="option.value">
+          <div class="option-with-caption">
+            <span>{{ option.label }}</span>
+            <small>{{ option.caption }}</small>
+          </div>
+        </mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>TTR-Phase</mat-label>
+    <mat-select
+      [value]="ttrPhase()"
+      (valueChange)="onTtrPhaseChange($event)"
+    >
+      @for (option of ttrPhaseOptions; track option.value) {
+        <mat-option [value]="option.value">
+          <div class="option-with-caption">
+            <span>{{ option.label }}</span>
+            <small>{{ option.window }}</small>
+          </div>
+        </mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Zeitraum</mat-label>
+    <mat-select
+      [value]="store.filters().timeRange"
+      (valueChange)="onTimeRangeChange($event)"
+    >
+      @for (option of timeOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>TTT Phase</mat-label>
+    <mat-select
+      [value]="store.filters().trainStatus"
+      (valueChange)="onTrainStatusChange($event)"
+    >
+      @for (option of trainStatusOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Geschäftsstatus</mat-label>
+    <mat-select
+      [value]="store.filters().businessStatus"
+      (valueChange)="onBusinessStatusChange($event)"
+    >
+      @for (option of businessStatusOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <span class="spacer"></span>
+
+  <div class="filters-actions">
+    <button mat-stroked-button (click)="onReset()">Zurücksetzen</button>
+    <button mat-stroked-button color="primary" (click)="onSavePreset()">
+      Ansicht speichern
+    </button>
+  </div>
+</div>
+
+@if (store.filters().linkedBusinessId) {
+  <div class="business-filter-banner">
+    <mat-icon>work_history</mat-icon>
+    <div class="banner-text">
+      <strong>Gefiltert nach Geschäft</strong>
+      <span>{{ activeBusinessFilter()?.title || store.filters().linkedBusinessId }}</span>
+    </div>
+    <button mat-stroked-button color="primary" (click)="clearBusinessFilter()">
+      Filter entfernen
+    </button>
+  </div>
+}

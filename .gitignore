@@ -1,0 +1,23 @@
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build-Outputs
+dist
+.tmp
+.out
+
+# Angular
+frontend/.angular
+frontend/.cache
+
+# Nest
+backend/.nestjs-cache
+backend/.env
+
+# Editor/OS
+.vscode
+.idea
+.DS_Store

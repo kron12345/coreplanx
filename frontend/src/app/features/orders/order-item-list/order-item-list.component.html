@@ -1,0 +1,291 @@
+<div class="items">
+  @if (!items || items.length === 0) {
+    <div class="empty">
+      <mat-icon>inbox</mat-icon>
+      <span>Keine Auftragspositionen vorhanden.</span>
+    </div>
+  } @else {
+    @for (it of orderedItems; track it.id) {
+      <div
+        class="item"
+        [attr.id]="'order-item-' + it.id"
+        [ngClass]="[versionDepthClass(it), highlightItemId === it.id ? 'item--highlight' : '']"
+      >
+        <div class="left">
+          @if (bulkSelectionEnabled) {
+            <mat-checkbox
+              class="inline-checkbox"
+              [checked]="isItemSelected(it)"
+              (change)="toggleSelection(it, $event.checked)"
+            ></mat-checkbox>
+          }
+          <div class="headline">
+            <div class="name">{{ it.name }}</div>
+            @if (versionLabel(it)) {
+              <mat-chip class="version-chip" appearance="outlined">
+                Version {{ versionLabel(it) }}
+              </mat-chip>
+            }
+          </div>
+          @if (isChildVersion(it) && parentVersionLabel(it)) {
+            <div class="version-parent">
+              <mat-icon inline>subdirectory_arrow_right</mat-icon>
+              <span>Abgeleitet von Version {{ parentVersionLabel(it) }}</span>
+            </div>
+          }
+          <div class="meta">
+            <span class="type">{{ typeLabel(it) }}</span>
+            @if (hasSchedule(it)) {
+              <span class="sep">•</span>
+              <span class="time"
+                >{{ formatScheduleTime(it.start) }}–{{ formatScheduleTime(it.end) }}</span
+              >
+            }
+            @if (it.responsible) {
+              <span class="sep">•</span>
+              <span>{{ it.responsible }}</span>
+            }
+            @if (timetablePhaseLabel(it)) {
+              <span class="sep">•</span>
+              <mat-chip class="phase-chip" appearance="outlined" [ngClass]="timetablePhaseClass(it)">
+                {{ timetablePhaseLabel(it) }}
+              </mat-chip>
+            }
+            @if (ttrPhaseLabel(it)) {
+              <span class="sep">•</span>
+              <mat-chip
+                class="ttr-chip"
+                appearance="outlined"
+                [ngClass]="ttrPhaseClass(it)"
+                matTooltip="{{ ttrPhaseTooltip(it) }}"
+                matTooltipShowDelay="250"
+              >
+                {{ ttrPhaseLabel(it) }}
+              </mat-chip>
+            }
+          </div>
+          @if (validitySummary(it)) {
+            <div class="validity">
+              <mat-icon inline>calendar_month</mat-icon>
+              <span>{{ validitySummary(it) }}</span>
+            </div>
+          }
+          @if (internalStatusLabel(it)) {
+            <div class="internal-status">
+              <mat-icon inline>task_alt</mat-icon>
+              <span>Bearbeitungsstatus: {{ internalStatusLabel(it) }}</span>
+            </div>
+          }
+          @if (it.fromLocation || it.toLocation || it.serviceType) {
+            <div class="route">
+              @if (it.fromLocation || it.toLocation) {
+                <span class="segment">
+                  {{ it.fromLocation || '—' }}
+                  <mat-icon inline>arrow_forward</mat-icon>
+                  {{ it.toLocation || '—' }}
+                </span>
+              }
+              @if (it.serviceType) {
+                <span class="tag">{{ it.serviceType }}</span>
+              }
+            </div>
+          }
+          @if (it.tags?.length) {
+            <mat-chip-set class="item-tags" aria-label="Tags der Position">
+              @for (tag of it.tags; track tag) {
+                <mat-chip appearance="outlined" class="tag-chip">
+                  <mat-icon>sell</mat-icon>
+                  {{ tag }}
+                </mat-chip>
+              }
+            </mat-chip-set>
+          }
+          <div class="chips">
+            @if (it.linkedTrainPlanId && trainPlanLabel(it.linkedTrainPlanId)) {
+              <button
+                class="train-chip"
+                type="button"
+                mat-stroked-button
+                (click)="navigateToTrainPlan($event, it.linkedTrainPlanId)"
+              >
+                <mat-icon>train</mat-icon>
+                <span>{{ trainPlanLabel(it.linkedTrainPlanId) }}</span>
+              </button>
+            }
+            @if (trafficPeriodName(it.trafficPeriodId)) {
+              <button
+                class="info-chip"
+                type="button"
+                mat-stroked-button
+                (click)="navigateToTrafficPeriod($event, it.trafficPeriodId!)"
+              >
+                <mat-icon>calendar_today</mat-icon>
+                {{ trafficPeriodName(it.trafficPeriodId) }}
+              </button>
+            }
+            @if (templateName(it.linkedTemplateId)) {
+              <button
+                class="info-chip"
+                type="button"
+                mat-stroked-button
+                (click)="navigateToTemplate($event, it.linkedTemplateId!)"
+              >
+                <mat-icon>schema</mat-icon>
+                {{ templateName(it.linkedTemplateId) }}
+              </button>
+            }
+            @if (it.generatedTimetableRefId) {
+              <button
+                class="info-chip"
+                type="button"
+                mat-stroked-button
+                (click)="navigateToTimetable($event, it.generatedTimetableRefId!)"
+              >
+                <mat-icon>edit_calendar</mat-icon>
+                Fahrplanmanager
+              </button>
+            }
+          </div>
+          @if (it.originalTimetable) {
+            <div class="original-timetable">
+              <mat-icon>history</mat-icon>
+              <div class="original-body">
+                <div class="original-title">
+                  Original: {{ it.originalTimetable.trainNumber }} ·
+                  {{ originalTimetableRange(it) }}
+                </div>
+                <div class="original-route">
+                  {{ originalTimetableRoute(it) }}
+                </div>
+                @let variants = originalVariants(it);
+                @if (variants.length) {
+                  <div class="original-variants">
+                    <span class="section-label">Kalendervarianten</span>
+                    <mat-chip-set>
+                      @for (variant of variants; track variant.id) {
+                        <mat-chip
+                          class="variant-chip"
+                          matTooltip="{{ variantTooltip(variant) }}"
+                          matTooltipShowDelay="200"
+                        >
+                          {{ variantLabel(variant) }}
+                        </mat-chip>
+                      }
+                    </mat-chip-set>
+                  </div>
+                }
+                @let modifications = originalModifications(it);
+                @if (modifications.length) {
+                  <div class="original-modifications">
+                    <span class="section-label">Modifikationen</span>
+                    <div class="modification-list">
+                      @for (mod of modifications; track mod.date + mod.type) {
+                        <div class="modification-entry">
+                          <mat-icon inline>event_busy</mat-icon>
+                          <div>
+                            <div class="modification-title">
+                              {{ mod.date }} · {{ modificationLabel(mod) }}
+                            </div>
+                            @if (mod.notes) {
+                              <div class="modification-notes">{{ mod.notes }}</div>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+          @let businesses = businessesForItem(it);
+          @if (businesses.length) {
+            <div class="businesses">
+              @for (biz of businesses; track biz.id) {
+                <div
+                  class="business-card"
+                  tabindex="0"
+                  role="button"
+                  (click)="onBusinessCardClick($event, biz.id)"
+                  (keydown)="onBusinessCardKeydown($event, biz.id)"
+                  [attr.aria-label]="'Geschäft ' + biz.title + ' öffnen'"
+                >
+                  <div class="business-header">
+                    <span class="business-title">{{ biz.title }}</span>
+                    <mat-chip
+                      class="business-status"
+                      [ngClass]="'status-' + biz.status"
+                      appearance="outlined"
+                    >
+                      {{ statusLabel(biz.status) }}
+                    </mat-chip>
+                  </div>
+                  <div class="business-description">{{ biz.description }}</div>
+                  <div class="business-meta">
+                    <span class="meta-item">
+                      <mat-icon>calendar_today</mat-icon>
+                      <span>{{ biz.createdAt | date: 'shortDate' }}</span>
+                    </span>
+                    @if (biz.dueDate) {
+                      <span class="meta-item due">
+                        <mat-icon>alarm</mat-icon>
+                        <span>{{ biz.dueDate | date: 'short' }}</span>
+                      </span>
+                    }
+                    <span class="meta-item assignment">
+                      <mat-icon>{{ assignmentIcon(biz) }}</mat-icon>
+                      <span>{{ assignmentLabel(biz) }}</span>
+                    </span>
+                  </div>
+                  @if (biz.documents?.length) {
+                    <div class="business-documents">
+                      <span class="documents-label">
+                        <mat-icon>attach_file</mat-icon> Dokumente
+                      </span>
+                      <div class="documents-list">
+                        @for (doc of biz.documents; track doc.id) {
+                          <a
+                            mat-stroked-button
+                            [href]="doc.url || '#'"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <mat-icon>insert_drive_file</mat-icon> {{ doc.name }}
+                          </a>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+        <div class="right">
+          <button
+            mat-icon-button
+            matTooltip="Auftragsposition bearbeiten"
+            (click)="openEditDialog(it, orderId); $event.stopPropagation()"
+            aria-label="Auftragsposition bearbeiten"
+          >
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            matTooltip="Position bestellen"
+            aria-label="Auftragsposition bestellen"
+            (click)="submitRequested.emit(it.id); $event.stopPropagation()"
+          >
+            <mat-icon>send</mat-icon>
+          </button>
+          @if (it.deviation) {
+            <span class="deviation" matTooltip="Abweichung">{{
+              it.deviation
+            }}</span>
+          }
+        </div>
+      </div>
+      <mat-divider />
+    }
+  }
+</div>

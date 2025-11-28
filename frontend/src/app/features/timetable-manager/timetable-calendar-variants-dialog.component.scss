@@ -1,0 +1,62 @@
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.variants-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.variant-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.variant-card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.variant-card header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.variant-card header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.variant-card header .spacer {
+  flex: 1;
+}
+
+.variant-card header .actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.reason {
+  width: 100%;
+}
+
+button[mat-stroked-button] {
+  align-self: flex-start;
+}

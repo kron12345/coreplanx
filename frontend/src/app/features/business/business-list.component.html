@@ -1,0 +1,1019 @@
+<div class="business-page manager-shell">
+  @let metrics = overviewMetrics();
+  @let trends = metricTrends();
+
+  <section class="business-hero">
+    <div class="business-hero__body">
+      <div class="business-hero__lead">
+        <p class="business-hero__eyebrow">Pipeline · {{ metrics.active }} aktiv</p>
+        <h1>Geschäfte</h1>
+        <p class="business-hero__subtitle">
+          {{ metrics.total }} Vorgänge insgesamt – {{ metrics.overdue }} davon überfällig und
+          {{ metrics.dueSoon }} in den nächsten 7 Tagen fällig.
+        </p>
+      </div>
+      <div class="business-hero__actions">
+        <button mat-stroked-button type="button" (click)="openCommandPalette()">
+          <mat-icon>bolt</mat-icon>
+          Befehle
+        </button>
+        <button mat-stroked-button type="button" (click)="resetFilters()">
+          <mat-icon>refresh</mat-icon>
+          Filter zurücksetzen
+        </button>
+        <button mat-flat-button color="primary" type="button" (click)="openCreateDialog()">
+          <mat-icon>add</mat-icon>
+          Neues Geschäft
+        </button>
+        <span class="shortcut-hint">
+          Shortcuts: ⌘/Ctrl + K (Befehle) · ⇧ + N (Neues Geschäft)
+        </span>
+      </div>
+    </div>
+
+    <div class="business-hero__metrics">
+      <div class="hero-metric">
+        <span class="hero-metric__label">Aktiv</span>
+        <strong>{{ metrics.active }}</strong>
+        @if (trends.active !== null) {
+          <span
+            class="hero-metric__trend"
+            [attr.data-trend]="trends.active >= 0 ? 'up' : 'down'"
+          >
+            <mat-icon>{{ trends.active >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+            {{ trends.active >= 0 ? '+' : '' }}{{ trends.active }}
+          </span>
+        }
+        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('active')">
+          <mat-icon>north_east</mat-icon>
+          Anzeigen
+        </button>
+      </div>
+      <div class="hero-metric">
+        <span class="hero-metric__label">Abgeschlossen</span>
+        <strong>{{ metrics.completed }}</strong>
+        @if (trends.completed !== null) {
+          <span
+            class="hero-metric__trend"
+            [attr.data-trend]="trends.completed >= 0 ? 'up' : 'down'"
+          >
+            <mat-icon>{{ trends.completed >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+            {{ trends.completed >= 0 ? '+' : '' }}{{ trends.completed }}
+          </span>
+        }
+        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('completed')">
+          <mat-icon>north_east</mat-icon>
+          Anzeigen
+        </button>
+      </div>
+      <div class="hero-metric">
+        <span class="hero-metric__label">Überfällig</span>
+        <strong>{{ metrics.overdue }}</strong>
+        @if (trends.overdue !== null) {
+          <span
+            class="hero-metric__trend"
+            [attr.data-trend]="trends.overdue <= 0 ? 'up' : 'down'"
+          >
+            <mat-icon>{{ trends.overdue <= 0 ? 'trending_down' : 'trending_up' }}</mat-icon>
+            {{ trends.overdue > 0 ? '+' : '' }}{{ trends.overdue }}
+          </span>
+        }
+        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('overdue')">
+          <mat-icon>north_east</mat-icon>
+          Anzeigen
+        </button>
+      </div>
+      <div class="hero-metric">
+        <span class="hero-metric__label">Diese Woche fällig</span>
+        <strong>{{ metrics.dueSoon }}</strong>
+        @if (trends.dueSoon !== null) {
+          <span
+            class="hero-metric__trend"
+            [attr.data-trend]="trends.dueSoon >= 0 ? 'up' : 'down'"
+          >
+            <mat-icon>{{ trends.dueSoon >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+            {{ trends.dueSoon >= 0 ? '+' : '' }}{{ trends.dueSoon }}
+          </span>
+        }
+        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('dueSoon')">
+          <mat-icon>north_east</mat-icon>
+          Anzeigen
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="business-insights" aria-label="Team-Insights">
+    <div class="insights-header">
+      <div>
+        <p>Team-Insights</p>
+        <span>Schneller Überblick über Tags, Zuständigkeiten und Termine.</span>
+      </div>
+      <button mat-stroked-button type="button" (click)="toggleInsightsCollapsed()">
+        <mat-icon>{{ insightsCollapsed() ? 'unfold_more' : 'unfold_less' }}</mat-icon>
+        {{ insightsCollapsed() ? 'Einblenden' : 'Ausblenden' }}
+      </button>
+    </div>
+
+    @if (!insightsCollapsed()) {
+      <div class="business-insights__grid">
+        @let context = insightContext();
+        <article class="insight-card insight-card--context">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>{{ context.icon }}</mat-icon>
+              <div>
+                <strong>{{ context.title }}</strong>
+                <span>{{ context.message }}</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            <p class="insight-card__hint">{{ context.hint }}</p>
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--tags">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>sell</mat-icon>
+              <div>
+                <strong>Beliebte Tags</strong>
+                <span>Meistgenutzte Kontexte aus den gefilterten Geschäften.</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!topTagInsights().length) {
+              <p class="insight-card__empty">Noch keine Tags vorhanden.</p>
+            } @else {
+              <div class="insight-pills insight-pills--clickable">
+                @for (tagStat of topTagInsights(); track tagStat[0]) {
+                  <button
+                    type="button"
+                    class="insight-pill insight-pill--button"
+                    (click)="applyTagInsight(tagStat[0])"
+                  >
+                    <mat-icon>sell</mat-icon>
+                    <span>{{ formatTagLabel(tagStat[0]) }}</span>
+                    <small>{{ tagStat[1] }}</small>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--assignments">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>group</mat-icon>
+              <div>
+                <strong>Top Zuständigkeiten</strong>
+                <span>Wer betreut aktuell die meisten Geschäfte?</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!topAssignments().length) {
+              <p class="insight-card__empty">Noch keine Zuständigkeiten gesetzt.</p>
+            } @else {
+              <div class="insight-pills insight-pills--clickable">
+                @for (assignment of topAssignments(); track assignment.name) {
+                  <button
+                    type="button"
+                    class="insight-pill insight-pill--button"
+                    (click)="applyAssignmentInsight(assignment.name)"
+                  >
+                    <mat-icon>{{ assignment.type === 'group' ? 'groups' : 'person' }}</mat-icon>
+                    <span>{{ assignment.name }}</span>
+                    <small>{{ assignment.count }}</small>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--status">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>flag</mat-icon>
+              <div>
+                <strong>Statusverteilung</strong>
+                <span>Wo steckt die Pipeline fest?</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!statusBreakdown().length) {
+              <p class="insight-card__empty">Noch keine Geschäfte vorhanden.</p>
+            } @else {
+              <div class="insight-pills insight-pills--clickable">
+                @for (entry of statusBreakdown(); track entry.status) {
+                  <button
+                    type="button"
+                    class="insight-pill insight-pill--button insight-pill--status"
+                    (click)="applyStatusInsight(entry.status)"
+                  >
+                    <mat-icon>flag</mat-icon>
+                    <span>{{ entry.label }}</span>
+                    <small>{{ entry.count }}</small>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="insight-card insight-card--due">
+          <header class="insight-card__header">
+            <div class="insight-card__title">
+              <mat-icon>event</mat-icon>
+              <div>
+                <strong>Termine im Blick</strong>
+                <span>Überfällige und fällige Geschäfte der nächsten Tage.</span>
+              </div>
+            </div>
+          </header>
+          <div class="insight-card__body">
+            @if (!dueSoonHighlights().length) {
+              <p class="insight-card__empty">Keine fälligen Geschäfte.</p>
+            } @else {
+              <div class="insight-due-list">
+                @for (business of dueSoonHighlights(); track business.id) {
+                  <div
+                    class="due-row"
+                    [class.due-row--overdue]="dueDateState(business) === 'overdue'"
+                    [class.due-row--today]="dueDateState(business) === 'today'"
+                  >
+                    <div>
+                      <strong>{{ business.title }}</strong>
+                      <span>
+                        @if (business.dueDate) {
+                          {{ business.dueDate | date: 'mediumDate' }}
+                        } @else {
+                          Keine Fälligkeit
+                        }
+                      </span>
+                    </div>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      aria-label="Geschäft anzeigen"
+                      (click)="selectBusiness(business)"
+                    >
+                      <mat-icon>north_east</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+              <div class="insight-due-actions">
+                <button mat-stroked-button type="button" (click)="focusDueSoon()">
+                  <mat-icon>event</mat-icon>
+                  Diese Woche
+                </button>
+                <button mat-button type="button" (click)="applyMetricFilter('overdue')">
+                  <mat-icon>warning</mat-icon>
+                  Überfällige
+                </button>
+              </div>
+            }
+          </div>
+        </article>
+      </div>
+    }
+  </section>
+
+  <section class="business-controller manager-filter">
+    <div class="filter-shelf">
+      <div class="filter-shelf__row filter-shelf__row--primary">
+        <mat-form-field appearance="outline" class="filter-shelf__search">
+          <mat-label>Suchen</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input
+            matInput
+            [formControl]="searchControl"
+            placeholder="Titel, Beschreibung, Tags"
+            [matAutocomplete]="searchAutocomplete"
+          />
+          <mat-autocomplete
+            #searchAutocomplete="matAutocomplete"
+            autoActiveFirstOption
+            (optionSelected)="onSearchSuggestionSelected($event)"
+          >
+            @if (!searchSuggestions().length) {
+              <mat-option disabled>Keine Vorschläge</mat-option>
+            } @else {
+              @for (suggestion of searchSuggestions(); track suggestion.value) {
+                <mat-option [value]="suggestion.value">
+                  <div class="search-suggestion" [attr.data-kind]="suggestion.kind">
+                    <mat-icon>{{ suggestion.icon }}</mat-icon>
+                    <div>
+                      <strong>{{ suggestion.label }}</strong>
+                      <span>{{ suggestion.description }}</span>
+                    </div>
+                  </div>
+                </mat-option>
+              }
+            }
+          </mat-autocomplete>
+          <button
+            mat-icon-button
+            matSuffix
+            [matMenuTriggerFor]="searchHelpMenu"
+            type="button"
+            aria-label="Suchhilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+
+        <mat-menu #searchHelpMenu="matMenu">
+          <button mat-menu-item disabled>
+            <mat-icon>search</mat-icon>
+            <span>Freitext durchsucht Titel, Beschreibung, Zuständige.</span>
+          </button>
+          <button mat-menu-item disabled>
+            <mat-icon>sell</mat-icon>
+            <span><code>tag:</code> oder <code>#</code> für Tags.</span>
+          </button>
+          <button mat-menu-item disabled>
+            <mat-icon>person</mat-icon>
+            <span><code>assign:</code> für Zuständige.</span>
+          </button>
+          <button mat-menu-item disabled>
+            <mat-icon>flag</mat-icon>
+            <span><code>status:</code> für Status (neu, in_arbeit …).</span>
+          </button>
+        </mat-menu>
+
+        <div class="filter-shelf__quick">
+          <span>Fälligkeit</span>
+          <mat-button-toggle-group
+            [value]="filters().dueDate"
+            (valueChange)="onDueDatePresetChange($event)"
+            appearance="legacy"
+          >
+            @for (preset of dueDatePresetOptions; track preset.value) {
+              <mat-button-toggle [value]="preset.value">
+                <mat-icon>{{ preset.icon }}</mat-icon>
+                {{ preset.label }}
+              </mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+        </div>
+      </div>
+
+      <div class="filter-shelf__row filter-shelf__row--secondary">
+        <div class="filter-shelf__grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Status</mat-label>
+            <mat-icon matPrefix>flag</mat-icon>
+            <mat-select [value]="filters().status" (valueChange)="onStatusFilterChange($event)">
+              @for (option of statusOptions; track option.value) {
+                <mat-option [value]="option.value">{{ option.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Zuständig</mat-label>
+            <mat-icon matPrefix>group</mat-icon>
+            <mat-select [value]="filters().assignment" (valueChange)="onAssignmentFilterChange($event)">
+              <mat-option value="all">Alle</mat-option>
+              @for (assignment of assignments(); track assignment.name) {
+                <mat-option [value]="assignment.name">
+                  {{ assignment.type === 'group' ? 'Gruppe ' : '' }}
+                  {{ assignment.name }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Sortierung</mat-label>
+            <mat-icon matPrefix>sort</mat-icon>
+            <mat-select [value]="sort().field + ':' + sort().direction" (valueChange)="onSortChange($event)">
+              @for (option of sortOptions; track option.value) {
+                <mat-option [value]="option.value">{{ option.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="filter-shelf__active">
+          <div class="filter-shelf__active-header">
+            <div class="filter-shelf__active-title">
+              <span>Aktive Filter</span>
+              <span class="filter-count">
+                <mat-icon>list_alt</mat-icon>
+                {{ businesses().length }} Ergebnisse
+              </span>
+            </div>
+            <button type="button" class="filter-save" (click)="saveCurrentFilterPreset()">
+              <mat-icon>bookmark_add</mat-icon>
+              Speichern
+            </button>
+          </div>
+
+          <div class="filter-pills">
+            @if (searchControl.value) {
+              <button type="button" class="filter-pill" (click)="clearFilter('search')">
+                <mat-icon>search</mat-icon>
+                <span>Suche</span>
+                <strong>"{{ searchControl.value }}"</strong>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().dueDate !== 'all') {
+              <button type="button" class="filter-pill" (click)="clearFilter('dueDate')">
+                <mat-icon>schedule</mat-icon>
+                <span>Fälligkeit</span>
+                <strong>{{ dueDateLabelLookup[filters().dueDate] }}</strong>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().status !== 'all') {
+              <button type="button" class="filter-pill" (click)="clearFilter('status')">
+                <mat-icon>flag</mat-icon>
+                <span>Status</span>
+                <strong>{{ statusLabelLookup[filters().status] }}</strong>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().assignment !== 'all') {
+              <button type="button" class="filter-pill" (click)="clearFilter('assignment')">
+                <mat-icon>group</mat-icon>
+                <span>Zuständig</span>
+                <strong>{{ filters().assignment }}</strong>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
+            @if (filters().tags.length) {
+              @for (tag of filters().tags; track tag) {
+                <button type="button" class="filter-pill filter-pill--tag" (click)="removeTagFilter(tag)">
+                  <mat-icon>sell</mat-icon>
+                  <span>Tag</span>
+                  <strong>{{ formatTagLabel(tag) }}</strong>
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+              <button type="button" class="filter-pill filter-pill--clear" (click)="clearTagFilters()">
+                <mat-icon>filter_alt_off</mat-icon>
+                <span>Tags löschen</span>
+              </button>
+            }
+
+            @if (
+              !searchControl.value &&
+              filters().status === 'all' &&
+              filters().assignment === 'all' &&
+              filters().dueDate === 'all' &&
+              filters().tags.length === 0
+            ) {
+              <span class="filter-pill filter-pill--empty">
+                <mat-icon>radio_button_unchecked</mat-icon>
+                Keine Filter aktiv
+              </span>
+            }
+          </div>
+
+          @if (savedFilterPresets().length) {
+            <div class="saved-presets">
+              <span>Gespeicherte Ansichten</span>
+              <div class="saved-presets__list">
+                @for (preset of savedFilterPresets(); track preset.id) {
+                  <div
+                    class="preset-chip"
+                    [class.preset-chip--active]="activePreset() === preset.id"
+                  >
+                    <button type="button" class="preset-pill" (click)="applyFilterPreset(preset)">
+                      <mat-icon>layers</mat-icon>
+                      <span>{{ preset.name }}</span>
+                      @if (activePreset() === preset.id) {
+                        <span class="preset-active">
+                          <mat-icon>star</mat-icon>
+                          Aktiv
+                        </span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-action"
+                      matTooltip="Duplizieren"
+                      (click)="duplicateFilterPreset(preset)"
+                      aria-label="Filteransicht duplizieren"
+                    >
+                      <mat-icon>content_copy</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-action"
+                      matTooltip="Umbenennen"
+                      (click)="renameFilterPreset(preset)"
+                      aria-label="Filteransicht umbenennen"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="preset-remove"
+                      (click)="removeFilterPreset(preset.id)"
+                      aria-label="Filteransicht entfernen"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="filter-tags">
+          <span>Tags</span>
+          <div class="filter-tags__chips">
+            @if (!availableTags().length) {
+              <span class="filter-tags__empty">Noch keine Tags</span>
+            } @else {
+              @for (tag of availableTags(); track tag) {
+                <button
+                  type="button"
+                  class="tag-filter-chip"
+                  [ngClass]="[
+                    'tag-filter-chip--' + tagTone(tag),
+                    isTagSelected(tag) ? 'tag-filter-chip--active' : ''
+                  ]"
+                  (click)="toggleTagFilter(tag)"
+                  [matTooltip]="tagCount(tag) + ' Geschäft(e)'"
+                >
+                  <mat-icon>{{ isTagSelected(tag) ? 'check' : 'sell' }}</mat-icon>
+                  {{ formatTagLabel(tag) }}
+                  <span class="tag-filter-chip__count">{{ tagCount(tag) }}</span>
+                </button>
+              }
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <app-business-create-from-template />
+
+  <div class="business-main manager-body">
+    @if (!businesses().length) {
+      <div class="business-main__empty">
+        <mat-card appearance="outlined" class="empty-state">
+          <mat-card-content>
+            <mat-icon>work_outline</mat-icon>
+            <div>
+              <h3>Keine Geschäfte gefunden</h3>
+              <p>
+                Passe deine Filter an oder erstelle ein neues Geschäft, um loszulegen.
+              </p>
+              <button mat-stroked-button color="primary" (click)="openCreateDialog()">
+                <mat-icon>add</mat-icon>
+                Neues Geschäft erstellen
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    } @else {
+      @if (hasBulkSelection()) {
+        <div class="bulk-toolbar">
+          <div class="bulk-toolbar__info">
+            <mat-icon>inventory</mat-icon>
+            {{ bulkSelectionCount() }} ausgewählt
+          </div>
+          <div class="bulk-toolbar__actions">
+            <button mat-flat-button color="primary" type="button" (click)="bulkUpdateStatus('in_arbeit')">
+              <mat-icon>play_arrow</mat-icon>
+              Status: In Arbeit
+            </button>
+            <button mat-flat-button color="accent" type="button" (click)="bulkUpdateStatus('pausiert')">
+              <mat-icon>pause</mat-icon>
+              Status: Pausiert
+            </button>
+            <button mat-flat-button color="accent" type="button" (click)="bulkUpdateStatus('erledigt')">
+              <mat-icon>check_circle</mat-icon>
+              Status: Erledigt
+            </button>
+            <button mat-stroked-button type="button" (click)="selectAllVisible()">
+              <mat-icon>select_all</mat-icon>
+              Alle sichtbaren
+            </button>
+            <button mat-stroked-button type="button" color="warn" (click)="clearBulkSelection()">
+              <mat-icon>close</mat-icon>
+              Auswahl löschen
+            </button>
+          </div>
+        </div>
+      }
+      <div class="business-content">
+        <section class="business-grid" [class.business-grid--loading]="isViewTransitioning()">
+          @if (isViewTransitioning()) {
+            @for (skeleton of skeletonPlaceholders; track skeleton) {
+              <article class="business-card business-card--skeleton">
+                <div class="skeleton-line skeleton-line--short"></div>
+                <div class="skeleton-line skeleton-line--long"></div>
+                <div class="skeleton-pill-row">
+                  <span class="skeleton-pill"></span>
+                  <span class="skeleton-pill"></span>
+                </div>
+                <div class="skeleton-block"></div>
+              </article>
+            }
+          } @else {
+            @for (business of businesses(); track trackByBusinessId($index, business)) {
+              @let health = healthBadge(business);
+              <mat-card
+                class="business-card"
+                appearance="outlined"
+                [attr.id]="businessElementId(business.id)"
+                [class.business-card--selected]="isBusinessSelected(business)"
+                [class.business-card--bulk-selected]="isInBulkSelection(business.id)"
+                (click)="selectBusiness(business)"
+              >
+                <mat-card-header class="business-card-header">
+                  <mat-checkbox
+                    class="card-select"
+                    [checked]="isInBulkSelection(business.id)"
+                    (click)="$event.stopPropagation()"
+                    (change)="toggleBulkSelection(business.id, $event.checked)"
+                    aria-label="Geschäft auswählen"
+                  ></mat-checkbox>
+                  <div class="card-header-body">
+                    <mat-card-title>{{ business.title }}</mat-card-title>
+                    <div class="card-meta-row">
+                      <span class="health-badge" [attr.data-tone]="health.tone">
+                        <mat-icon>monitor_heart</mat-icon>
+                        {{ health.label }}
+                      </span>
+                      <span class="card-meta-id">#{{ business.id }}</span>
+                    </div>
+                    <div class="card-timeline" *ngIf="businessTimeline(business) as timeline">
+                      @for (entry of timeline; track entry.label) {
+                        <div class="card-timeline__item" [attr.data-state]="entry.state">
+                          <span class="card-timeline__dot"></span>
+                          <div>
+                            <strong>{{ entry.label }}</strong>
+                            <span>{{ entry.description }}</span>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                    <div class="card-highlight-row">
+                      @for (highlight of businessHighlights(business); track highlight.label) {
+                        <button
+                          type="button"
+                          class="info-pill"
+                          [class.info-pill--filter]="highlight.filter"
+                          (click)="applyHighlightFilter($event, highlight)"
+                        >
+                          <mat-icon>{{ highlight.icon }}</mat-icon>
+                          <span>{{ highlight.label }}</span>
+                        </button>
+                      }
+                    </div>
+                    @if (business.tags?.length) {
+                      <div class="card-tag-row">
+                        <mat-chip-set>
+                          @for (tag of business.tags; track tag) {
+                            <mat-chip [ngClass]="'tag-chip tag-chip--' + tagTone(tag)">
+                              {{ formatTagLabel(tag) }}
+                            </mat-chip>
+                          }
+                        </mat-chip-set>
+                      </div>
+                    }
+                  </div>
+                </mat-card-header>
+
+                <mat-card-content>
+                  <mat-tab-group dynamicHeight>
+                    <mat-tab label="Details">
+                      <ng-template matTabContent>
+                        <p class="description">{{ business.description }}</p>
+                        <div class="status-control">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Status aktualisieren</mat-label>
+                            <mat-select
+                              [value]="business.status"
+                              (valueChange)="onStatusChange(business.id, $event)"
+                            >
+                              @for (option of statusOptions; track option.value) {
+                                @if (option.value !== 'all') {
+                                  <mat-option [value]="option.value">
+                                    {{ option.label }}
+                                  </mat-option>
+                                }
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+
+                        <div class="metric-pills">
+                          @for (metric of businessMetrics(business); track metric.label) {
+                            <div class="metric-pill" [matTooltip]="metric.hint">
+                              <mat-icon>{{ metric.icon }}</mat-icon>
+                              <div>
+                                <span class="metric-pill__label">{{ metric.label }}</span>
+                                <strong>{{ metric.value }}</strong>
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      </ng-template>
+                    </mat-tab>
+                <mat-tab label="Positionen">
+                  <ng-template matTabContent>
+                    <div class="linked-items">
+                      @let linkedCount = business.linkedOrderItemIds?.length ?? 0;
+                      <div class="linked-items__header">
+                        <div>
+                          <h4>Auftragspositionen</h4>
+                          <p>
+                            @if (linkedCount) {
+                              {{ linkedCount }} verknüpfte Positionen
+                            } @else {
+                              Noch keine Zuordnung
+                            }
+                          </p>
+                        </div>
+                        <div class="linked-items__actions">
+                          <button mat-stroked-button color="primary" type="button" (click)="$event.stopPropagation(); openOrderItemPicker(business)">
+                            <mat-icon>playlist_add</mat-icon>
+                            Positionen zuordnen
+                          </button>
+                          <button
+                            mat-button
+                            type="button"
+                            [disabled]="!linkedCount"
+                            (click)="$event.stopPropagation(); openOrderOverview(business)"
+                          >
+                            <mat-icon>open_in_new</mat-icon>
+                            Auftragsübersicht
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="linked-items__panel linked-items__panel--always">
+                        @if (!linkedCount) {
+                          <div class="linked-items__empty">
+                            <mat-icon>link_off</mat-icon>
+                            <span>Keine Auftragspositionen zugeordnet.</span>
+                          </div>
+                        } @else {
+                          <div class="linked-item-grid">
+                            @for (itemId of business.linkedOrderItemIds; track itemId) {
+                              @let meta = orderItemMeta(itemId);
+                              @let range = orderItemRange(itemId);
+                              <article class="linked-item-card">
+                                <header>
+                                  <div>
+                                    <div class="linked-item-card__title">
+                                      {{ meta?.itemName || itemId }}
+                                    </div>
+                                    <div class="linked-item-card__subtitle">
+                                      {{ meta?.orderName || 'Unbekannter Auftrag' }}
+                                    </div>
+                                  </div>
+                                  @if (meta) {
+                                    <mat-chip appearance="outlined">{{ meta.type }}</mat-chip>
+                                  }
+                                </header>
+                                @if (meta?.serviceType || range) {
+                                  <div class="linked-item-card__meta">
+                                    @if (meta?.serviceType; as serviceType) {
+                                      <span>
+                                        <mat-icon inline>build</mat-icon>
+                                        {{ serviceType }}
+                                      </span>
+                                    }
+                                    @if (range) {
+                                      <span>
+                                        <mat-icon inline>schedule</mat-icon>
+                                        {{ range }}
+                                      </span>
+                                    }
+                                  </div>
+                                }
+                                <div class="linked-item-card__actions">
+                                  <button
+                                    mat-stroked-button
+                                    color="primary"
+                                    type="button"
+                                    (click)="$event.stopPropagation(); goToOrderItem(business, itemId)"
+                                  >
+                                    <mat-icon>open_in_new</mat-icon>
+                                    Öffnen
+                                  </button>
+                                  <button
+                                    mat-icon-button
+                                    type="button"
+                                    color="warn"
+                                    (click)="$event.stopPropagation(); removeLinkedItem(business.id, itemId)"
+                                  >
+                                    <mat-icon>link_off</mat-icon>
+                                  </button>
+                                </div>
+                              </article>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </ng-template>
+                </mat-tab>
+                <mat-tab label="Dokumente">
+                  <ng-template matTabContent>
+                    @if (business.documents?.length) {
+                      <div class="documents">
+                        <span class="documents__title">
+                          <mat-icon>attach_file</mat-icon> Dokumente
+                        </span>
+                        <div class="documents__list">
+                          @for (doc of business.documents; track doc.id) {
+                            <a
+                              mat-stroked-button
+                              [href]="doc.url || '#'"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <mat-icon>insert_drive_file</mat-icon>
+                              {{ doc.name }}
+                            </a>
+                          }
+                        </div>
+                      </div>
+                    } @else {
+                      <div class="documents documents--empty">
+                        <mat-icon>inbox</mat-icon>
+                        <p>Keine Dokumente hinterlegt.</p>
+                      </div>
+                    }
+                  </ng-template>
+                </mat-tab>
+              </mat-tab-group>
+            </mat-card-content>
+          </mat-card>
+            }
+          }
+        </section>
+        <aside class="business-detail-pane" *ngIf="selectedBusiness() as detail">
+        <header>
+          <h3>{{ detail.title }}</h3>
+          <mat-chip color="primary" appearance="outlined">
+            {{ statusLabel(detail.status) }}
+          </mat-chip>
+        </header>
+        <p>{{ detail.description }}</p>
+        <div class="detail-progress">
+          <div class="progress-ring progress-ring--large" [style.--progress]="dueProgress(detail) + '%'"><span>{{ dueProgress(detail) }}%</span></div>
+          <div class="detail-progress__meta">
+            <strong>
+              @if (daysUntilDue(detail) !== null) {
+                {{ daysUntilDue(detail) }} Tage verbleibend
+              } @else {
+                Keine Fälligkeit
+              }
+            </strong>
+            <span>Fällig am {{ detail.dueDate ? (detail.dueDate | date: 'fullDate') : '—' }}</span>
+            <span>Erstellt {{ detail.createdAt | date: 'short' }}</span>
+          </div>
+        </div>
+        <div class="detail-info">
+          <span>
+            <mat-icon>{{ assignmentIcon(detail) }}</mat-icon>
+            {{ assignmentLabel(detail) }}
+          </span>
+          <span>
+            <mat-icon>flag</mat-icon>
+            {{ statusLabel(detail.status) }}
+          </span>
+        </div>
+        <div class="detail-tags">
+          <div class="detail-tags__header">
+            <h4>Tags</h4>
+            <button mat-stroked-button type="button" (click)="clearTagFilters()">
+              <mat-icon>sell</mat-icon>
+              Tag-Filter löschen
+            </button>
+          </div>
+          <div class="detail-tags__chips">
+            @if (detail.tags?.length) {
+              <mat-chip-set>
+                @for (tag of detail.tags; track tag) {
+                  <mat-chip
+                    removable
+                    (removed)="removeTagFromBusiness(detail, tag)"
+                    [ngClass]="'tag-chip tag-chip--' + tagTone(tag)"
+                  >
+                    {{ formatTagLabel(tag) }}
+                    <button mat-icon-button matChipRemove>
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </mat-chip>
+                }
+              </mat-chip-set>
+            } @else {
+              <span class="detail-tags__empty">Noch keine Tags gepflegt.</span>
+            }
+          </div>
+        <div class="detail-tags__input">
+          <mat-form-field appearance="outline">
+            <mat-label>Neuen Tag hinzufügen</mat-label>
+            <input
+              matInput
+              #detailTagInput
+              placeholder="z. B. DE-Nord"
+              (keydown.enter)="addTagToBusiness(detail, detailTagInput.value); detailTagInput.value = ''"
+            />
+          </mat-form-field>
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="addTagToBusiness(detail, detailTagInput.value); detailTagInput.value = ''"
+          >
+            <mat-icon>add</mat-icon>
+            Tag
+          </button>
+        </div>
+        @if (suggestedTagsForBusiness(detail).length) {
+          <div class="detail-tags__suggestions">
+            <span>Vorschläge</span>
+            <div>
+              @for (tag of suggestedTagsForBusiness(detail); track tag) {
+                <button type="button" (click)="addTagToBusiness(detail, tag)">
+                  <mat-icon>sell</mat-icon>
+                  {{ formatTagLabel(tag) }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+        </div>
+        <div class="detail-metrics">
+          @for (metric of businessMetrics(detail); track metric.label) {
+            <div class="detail-metric-card" [matTooltip]="metric.hint">
+              <mat-icon>{{ metric.icon }}</mat-icon>
+              <div>
+                <span class="metric-label">{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
+              </div>
+            </div>
+          }
+        </div>
+        <div class="detail-actions">
+          <button mat-flat-button color="primary" (click)="openOrderItemPicker(detail)">
+            <mat-icon>playlist_add</mat-icon>
+            Positionen pflegen
+          </button>
+          <button mat-stroked-button (click)="openOrderOverview(detail)">
+            <mat-icon>open_in_new</mat-icon>
+            Auftragsübersicht
+          </button>
+          <button mat-stroked-button color="warn" (click)="deleteBusiness(detail)">
+            <mat-icon>delete</mat-icon>
+            Geschäft löschen
+          </button>
+        </div>
+        <div class="detail-activity">
+          <h4>Aktivität</h4>
+          <ul>
+            @for (item of businessActivityFeed(detail); track item.title) {
+              <li>
+                <mat-icon>{{ item.icon }}</mat-icon>
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.subtitle }}</span>
+                </div>
+              </li>
+            }
+          </ul>
+        </div>
+        <div class="detail-list" *ngIf="detail.linkedOrderItemIds?.length">
+          <h4>Verknüpfte Positionen</h4>
+          <ul>
+            @for (itemId of detail.linkedOrderItemIds; track itemId) {
+              @let meta = orderItemMeta(itemId);
+              <li>
+                <span>{{ meta?.itemName || itemId }}</span>
+                <button mat-button (click)="goToOrderItem(detail, itemId)">Öffnen</button>
+              </li>
+            }
+          </ul>
+        </div>
+        </aside>
+      </div>
+    }
+  </div>
+</div>

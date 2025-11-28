@@ -1,0 +1,96 @@
+<h2 mat-dialog-title>Neues Geschäft</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="create-form">
+    <mat-form-field appearance="outline">
+      <mat-label>Titel</mat-label>
+      <input matInput formControlName="title" maxlength="80" />
+      <mat-hint align="end">{{ form.value.title?.length || 0 }}/80</mat-hint>
+      @if (form.controls.title.invalid && form.controls.title.touched) {
+        <mat-error>Bitte einen Titel erfassen.</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Beschreibung</mat-label>
+      <textarea
+        matInput
+        formControlName="description"
+        rows="4"
+        maxlength="600"
+      ></textarea>
+      <mat-hint align="end"
+        >{{ form.value.description?.length || 0 }}/600</mat-hint
+      >
+      @if (
+        form.controls.description.invalid && form.controls.description.touched
+      ) {
+        <mat-error>Bitte beschreibe das Geschäft kurz.</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="row">
+      <mat-form-field appearance="outline">
+        <mat-label>Fälligkeit</mat-label>
+        <input
+          matInput
+          [matDatepicker]="duePicker"
+          formControlName="dueDate"
+          placeholder="Optional"
+        />
+        <mat-datepicker-toggle matIconSuffix [for]="duePicker" />
+        <mat-datepicker #duePicker></mat-datepicker>
+      </mat-form-field>
+
+      <div class="assignment">
+        <span class="assignment-label">Zuständig</span>
+        <mat-button-toggle-group formControlName="assignmentType">
+          @for (option of assignmentOptions; track option.value) {
+            <mat-button-toggle [value]="option.value">
+              {{ option.label }}
+            </mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+        <mat-form-field appearance="outline">
+          <mat-label>Name</mat-label>
+          <input
+            matInput
+            formControlName="assignmentName"
+            placeholder="z. B. Planung"
+          />
+          @if (
+            form.controls.assignmentName.invalid &&
+            form.controls.assignmentName.touched
+          ) {
+            <mat-error>Bitte einen Namen angeben.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    </div>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Dokumente (optional, je Zeile eines)</mat-label>
+      <textarea matInput formControlName="documentNames" rows="2"></textarea>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Auftragspositionen verknüpfen</mat-label>
+      <mat-select formControlName="linkedOrderItemIds" multiple>
+        @if (!orderItemOptions.length) {
+          <mat-option disabled>Keine Auftragspositionen verfügbar</mat-option>
+        } @else {
+          @for (option of orderItemOptions; track option.itemId) {
+            <mat-option [value]="option.itemId">
+              {{ option.orderName }} · {{ option.itemName }}
+            </mat-option>
+          }
+        }
+      </mat-select>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" (click)="save()">Erstellen</button>
+</mat-dialog-actions>

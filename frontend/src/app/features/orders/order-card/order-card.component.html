@@ -1,0 +1,378 @@
+<mat-card appearance="outlined" class="order-card">
+  <div class="order-header" (click)="toggleExpanded()" tabindex="0">
+    <div class="left">
+      <div class="title">
+        <span class="id-pill">
+          <mat-icon inline class="id-icon">assignment</mat-icon>
+          {{ order.id }}
+        </span>
+        <span class="name">{{ order.name }}</span>
+      </div>
+      @let health = orderHealth();
+      @if (order.customer || order.tags?.length || order.timetableYearLabel) {
+        <div class="meta">
+          @if (order.customer) {
+            <span class="meta-pill">
+              <mat-icon inline>business</mat-icon>
+              {{ order.customer }}
+            </span>
+          }
+          @if (order.timetableYearLabel) {
+            <span class="meta-pill meta-pill--year">
+              <mat-icon inline>event</mat-icon>
+              Fahrplanjahr {{ order.timetableYearLabel }}
+            </span>
+          }
+          @if (order.tags?.length) {
+            <mat-chip-set aria-label="Tags">
+              @for (t of order.tags; track t) {
+                <mat-chip class="tag-chip" appearance="outlined">
+                  <mat-icon>label</mat-icon>
+                  {{ t }}
+                </mat-chip>
+              }
+            </mat-chip-set>
+          }
+          @if (timetableYearSummaries().length) {
+            <mat-chip-set aria-label="Fahrplanjahre" class="year-chip-set">
+              @for (year of timetableYearSummaries(); track year.label) {
+                <mat-chip class="year-chip" appearance="outlined">
+                  <mat-icon inline>event</mat-icon>
+                  {{ year.label }} · {{ year.count }}
+                </mat-chip>
+              }
+            </mat-chip-set>
+          }
+        </div>
+      }
+
+      <div class="order-health">
+        <div class="order-health__summary">
+          <span class="signal-badge" [ngClass]="'signal-badge--' + health.tone">
+            <mat-icon>{{ health.icon }}</mat-icon>
+            {{ health.label }}
+          </span>
+          <span class="order-health__caption">{{ health.caption }}</span>
+        </div>
+        @if (order.processStatus) {
+          <button
+            type="button"
+            class="order-health__process-status"
+            matTooltip="SOB-Prozessschritt des Auftrags · Klick zum Fortschalten"
+            (click)="advanceProcessStatus($event)"
+          >
+            <mat-icon inline>timeline</mat-icon>
+            <span>Prozess: {{ orderProcessStatusLabels[order.processStatus] }}</span>
+          </button>
+        }
+        <div class="order-health__mini-stats">
+          <div class="mini-stat" matTooltip="Positionen starten in den nächsten 7 Tagen">
+            <span class="mini-stat__value">{{ health.upcoming }}</span>
+            <span class="mini-stat__label">Demnächst</span>
+          </div>
+          <div class="mini-stat" matTooltip="Positionen mit Abweichung">
+            <span class="mini-stat__value">{{ health.attention }}</span>
+            <span class="mini-stat__label">Abweichungen</span>
+          </div>
+          <div class="mini-stat" matTooltip="Positionen im Filter">
+            <span class="mini-stat__value">{{ health.total }}</span>
+            <span class="mini-stat__label">Positionen</span>
+          </div>
+        </div>
+        <div class="order-health__timeline" aria-label="Zeitlinie">
+          <div class="timeline-track">
+            @if (health.pastPercent > 0) {
+              <span
+                class="timeline-track__segment timeline-track__segment--past"
+                [style.flex]="'0 0 ' + health.pastPercent + '%'"
+                matTooltip="{{ health.active }} aktiv"
+                matTooltipPosition="above"
+              ></span>
+            }
+            @if (health.upcomingPercent > 0) {
+              <span
+                class="timeline-track__segment timeline-track__segment--upcoming"
+                [style.flex]="'0 0 ' + health.upcomingPercent + '%'"
+                matTooltip="{{ health.upcoming }} bevorstehend"
+                matTooltipPosition="above"
+              ></span>
+            }
+            @if (health.idlePercent > 0) {
+              <span
+                class="timeline-track__segment timeline-track__segment--idle"
+                [style.flex]="'0 0 ' + health.idlePercent + '%'"
+                matTooltip="{{ health.idle }} offen"
+                matTooltipPosition="above"
+              ></span>
+            }
+          </div>
+          <div class="timeline-legend">
+            <span><span class="dot dot--past"></span> Aktiv</span>
+            <span><span class="dot dot--upcoming"></span> Bevorstehend</span>
+            <span><span class="dot dot--idle"></span> Offen</span>
+          </div>
+        </div>
+      </div>
+
+      @if (customerDetails(); as customer) {
+        <div class="customer-panel">
+          <div class="customer-panel__keyfacts">
+            <span class="fact" matTooltip="Kundennummer">
+              <mat-icon inline>confirmation_number</mat-icon>
+              {{ customer.customerNumber }}
+            </span>
+            @if (customer.projectNumber) {
+              <span class="fact" matTooltip="Projektnummer">
+                <mat-icon inline>description</mat-icon>
+                {{ customer.projectNumber }}
+              </span>
+            }
+          </div>
+          @if (customer.contacts.length) {
+            <div class="customer-panel__contacts">
+              @for (contact of customer.contacts; track contact.id) {
+                <div class="contact-chip">
+                  <div class="avatar">
+                    <mat-icon>person</mat-icon>
+                  </div>
+                  <div class="contact-chip__details">
+                    <span class="name">{{ contact.name }}</span>
+                    @if (contact.role) {
+                      <span class="role">{{ contact.role }}</span>
+                    }
+                    <div class="contact-chip__meta">
+                      @if (contact.email) {
+                        <span>
+                          <mat-icon inline>mail</mat-icon>
+                          {{ contact.email }}
+                        </span>
+                      }
+                      @if (contact.phone) {
+                        <span>
+                          <mat-icon inline>call</mat-icon>
+                          {{ contact.phone }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+          @if (
+            timetablePhaseSummaries().length ||
+            businessStatusSummaries().length ||
+            variantSummaries().length ||
+            ttrPhaseSummaries().length
+          ) {
+            <div class="status-aggregates">
+              @if (timetablePhaseSummaries().length) {
+                <div class="status-group status-group--phase">
+                  <span class="group-label">
+                    <mat-icon inline>timeline</mat-icon>
+                    TTT Phasen
+                  </span>
+                  <mat-chip-set aria-label="TTT-Phasen der Fahrpläne">
+                <mat-chip
+                  class="status-chip status-chip--phase"
+                  [class.status-chip--active]="isPhaseActive('all')"
+                  (click)="clearPhaseFilter($event)"
+                >
+                  Alle
+                </mat-chip>
+                @for (summary of timetablePhaseSummaries(); track summary.key) {
+                  <mat-chip
+                    class="status-chip status-chip--phase"
+                    [ngClass]="summary.key"
+                    [class.status-chip--active]="isPhaseActive(summary.value)"
+                    (click)="togglePhaseFilter(summary.value, $event)"
+                  >
+                    {{ summary.label }} · {{ summary.count }}
+                  </mat-chip>
+                }
+                  </mat-chip-set>
+                </div>
+              }
+              @if (ttrPhaseSummaries().length) {
+                <div class="status-group status-group--ttr">
+                  <span class="group-label">
+                    <mat-icon inline>schedule</mat-icon>
+                    TTR Phasen
+                  </span>
+                  <mat-chip-set aria-label="TTR-Phase pro Position">
+                    <mat-chip
+                      class="status-chip status-chip--ttr"
+                      [class.status-chip--active]="isTtrPhaseActive('all')"
+                      (click)="clearTtrPhaseFilter($event)"
+                    >
+                      Alle
+                    </mat-chip>
+                    @for (summary of ttrPhaseSummaries(); track summary.key) {
+                      <mat-chip
+                        class="status-chip status-chip--ttr"
+                        [ngClass]="ttrPhaseChipClasses(summary.value)"
+                        [class.status-chip--active]="isTtrPhaseActive(summary.value)"
+                        (click)="toggleTtrPhaseFilter(summary.value, $event)"
+                        matTooltip="{{ ttrPhaseTooltip(summary.value) }}"
+                        matTooltipShowDelay="250"
+                      >
+                        {{ summary.label }} · {{ summary.count }}
+                      </mat-chip>
+                    }
+                  </mat-chip-set>
+                </div>
+              }
+              @if (internalStatusSummaries().length) {
+                <div class="status-group status-group--internal">
+                  <span class="group-label">
+                    <mat-icon inline>task_alt</mat-icon>
+                    Bearbeitungsstatus
+                  </span>
+                  <mat-chip-set aria-label="Interne Bearbeitungsstatus">
+                    <mat-chip
+                      class="status-chip status-chip--internal"
+                      [class.status-chip--active]="isInternalStatusActive('all')"
+                      (click)="clearInternalStatus($event)"
+                    >
+                      Alle
+                    </mat-chip>
+                    @for (summary of internalStatusSummaries(); track summary.key) {
+                      <mat-chip
+                        class="status-chip status-chip--internal"
+                        [ngClass]="summary.key"
+                        [class.status-chip--active]="isInternalStatusActive(summary.value)"
+                        (click)="toggleInternalStatus(summary.value, $event)"
+                      >
+                        {{ summary.label }} · {{ summary.count }}
+                      </mat-chip>
+                    }
+                  </mat-chip-set>
+                </div>
+              }
+              @if (businessStatusSummaries().length) {
+                <div class="status-group status-group--business">
+                  <span class="group-label">
+                    <mat-icon inline>work</mat-icon>
+                    Geschäfte
+              </span>
+              <mat-chip-set aria-label="Status der Geschäfte">
+                <mat-chip
+                  class="status-chip status-chip--business"
+                  [class.status-chip--active]="isBusinessStatusActive('all')"
+                  (click)="clearBusinessStatus($event)"
+                >
+                  Alle
+                </mat-chip>
+                @for (summary of businessStatusSummaries(); track summary.key) {
+                  <mat-chip
+                    class="status-chip status-chip--business"
+                    [ngClass]="summary.key"
+                    [class.status-chip--active]="isBusinessStatusActive(summary.value)"
+                    (click)="toggleBusinessStatus(summary.value, $event)"
+                  >
+                    {{ summary.label }} · {{ summary.count }}
+                  </mat-chip>
+                }
+              </mat-chip-set>
+            </div>
+          }
+          @if (variantSummaries().length) {
+            <div class="status-group status-group--variant">
+              <span class="group-label">
+                <mat-icon inline>category</mat-icon>
+                Varianten
+              </span>
+              <mat-chip-set aria-label="Kalendervarianten">
+                @for (summary of variantSummaries(); track summary.key) {
+                  <mat-chip class="status-chip status-chip--variant">
+                    {{ summary.label }} · {{ summary.count }}
+                  </mat-chip>
+                }
+              </mat-chip-set>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="right">
+      <div class="right__primary">
+        <button
+          mat-icon-button
+          [class.active]="selectionMode()"
+          (click)="toggleSelectionMode($event)"
+          matTooltip="Mehrfachauswahl"
+        >
+          <mat-icon>checklist</mat-icon>
+        </button>
+        <button
+          mat-stroked-button
+          color="primary"
+          (click)="openPositionDialog($event)"
+          matTooltip="Auftragsposition hinzufügen"
+        >
+          <mat-icon>add</mat-icon>
+          Position
+        </button>
+        <button mat-icon-button matTooltip="Optionen" (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+      </div>
+      <div class="right__quick-actions">
+        <button mat-button type="button" (click)="openLinkBusinessDialog($event)">
+          <mat-icon>hub</mat-icon>
+          Geschäft verknüpfen
+        </button>
+        <button mat-button type="button" (click)="openStatusUpdateDialog($event)">
+          <mat-icon>flag</mat-icon>
+          Status aktualisieren
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (expanded()) {
+    @if (selectionMode()) {
+      <div class="selection-bar">
+        <div class="selection-bar__info">
+          <mat-icon>check_circle</mat-icon>
+          {{ selectedCount() }} Position(en) ausgewählt
+        </div>
+        <div class="selection-bar__actions">
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="submitSelected($event)"
+            [disabled]="selectedCount() === 0"
+          >
+            <mat-icon>send</mat-icon>
+            Bestellen
+          </button>
+          <button mat-stroked-button type="button" (click)="clearSelection($event)">
+            Abbrechen
+          </button>
+        </div>
+      </div>
+    }
+    <mat-divider></mat-divider>
+    <app-order-item-list
+      [items]="effectiveItems()"
+      [orderId]="order.id"
+      [bulkSelectionEnabled]="selectionMode()"
+      [selectedIds]="selectedIds()"
+      [highlightItemId]="highlightItemId"
+      (bulkSelectionChange)="onBulkSelectionChange($event)"
+      (submitRequested)="submitSingle($event)"
+    />
+    @if (order.comment) {
+      <mat-divider></mat-divider>
+      <div class="comment">
+        <mat-icon>info</mat-icon>
+        <span>{{ order.comment }}</span>
+      </div>
+    }
+  }
+</mat-card>

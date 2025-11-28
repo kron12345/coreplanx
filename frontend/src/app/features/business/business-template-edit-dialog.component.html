@@ -1,0 +1,161 @@
+<h2 mat-dialog-title>Vorlage bearbeiten</h2>
+<form [formGroup]="form" (ngSubmit)="save()" mat-dialog-content class="edit-form">
+  <mat-form-field appearance="outline">
+    <mat-label>Titel</mat-label>
+    <input matInput formControlName="title" />
+    <mat-error *ngIf="form.controls['title'].hasError('required')">Pflichtfeld</mat-error>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Beschreibung</mat-label>
+    <textarea matInput rows="3" formControlName="description"></textarea>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Hinweise</mat-label>
+    <textarea matInput rows="2" formControlName="instructions"></textarea>
+  </mat-form-field>
+
+  <div class="form-row">
+    <mat-form-field appearance="outline">
+      <mat-label>Zuweisung</mat-label>
+      <mat-select formControlName="assignmentType">
+        <mat-option value="group">Team</mat-option>
+        <mat-option value="person">Person</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Name</mat-label>
+      <input matInput formControlName="assignmentName" />
+    </mat-form-field>
+  </div>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Tags (kommagetrennt)</mat-label>
+    <input matInput formControlName="tags" />
+  </mat-form-field>
+
+  @if (supportsWindow) {
+    <div class="window-section">
+      <h4>Automationsfenster</h4>
+      <div class="form-row">
+        <mat-form-field appearance="outline">
+          <mat-label>Von</mat-label>
+          <input matInput type="number" formControlName="windowStart" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Bis</mat-label>
+          <input matInput type="number" formControlName="windowEnd" />
+        </mat-form-field>
+      </div>
+      <div class="form-row">
+        <mat-form-field appearance="outline">
+          <mat-label>Einheit</mat-label>
+          <mat-select formControlName="windowUnit">
+            <mat-option value="days">Tage</mat-option>
+            <mat-option value="weeks">Wochen</mat-option>
+            <mat-option value="hours">Stunden</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Bezug</mat-label>
+          <mat-select formControlName="timelineReference">
+            <mat-option value="fpYear">Fahrplanjahr</mat-option>
+            <mat-option value="fpDay">Fahrplantag</mat-option>
+            <mat-option value="operationalDay">Produktionstag</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </div>
+    <div class="condition-section" formArrayName="conditions">
+      <div class="condition-section__header">
+        <div>
+          <h4>Automationslogik</h4>
+          <p>Definiere optionale Bedingungen, wann Positionen automatisch verknüpft werden.</p>
+        </div>
+        <button mat-stroked-button type="button" (click)="addCondition()">
+          <mat-icon>add</mat-icon>
+          Bedingung hinzufügen
+        </button>
+      </div>
+      @if (conditionControls.length) {
+        <div class="condition-list">
+          @for (condition of conditionControls.controls; track trackCondition($index, condition); let i = $index) {
+            <div class="condition-row" [formGroupName]="i">
+              <mat-form-field appearance="outline">
+                <mat-label>Feld</mat-label>
+                <mat-select formControlName="field" (selectionChange)="onConditionFieldChange(i)">
+                  @for (option of fieldOptions; track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Operator</mat-label>
+                <mat-select formControlName="operator">
+                  @for (option of operatorOptions(condition.controls.field.value); track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <ng-container [ngSwitch]="condition.controls.field.value">
+                <mat-form-field appearance="outline" *ngSwitchCase="'itemTag'">
+                  <mat-label>Tag</mat-label>
+                  <input matInput formControlName="value" placeholder="#rolling" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngSwitchCase="'itemType'">
+                  <mat-label>Typ</mat-label>
+                  <mat-select formControlName="value">
+                    @for (option of itemTypeOptions; track option.value) {
+                      <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngSwitchCase="'ttrPhase'">
+                  <mat-label>TTR-Phase</mat-label>
+                  <mat-select formControlName="value">
+                    @for (option of ttrPhaseOptions; track option.value) {
+                      <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngSwitchCase="'timetablePhase'">
+                  <mat-label>Bestellphase</mat-label>
+                  <mat-select formControlName="value">
+                    @for (option of timetablePhaseOptions; track option.value) {
+                      <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </ng-container>
+
+              <button
+                mat-icon-button
+                type="button"
+                color="warn"
+                class="condition-row__remove"
+                (click)="removeCondition(i)"
+                aria-label="Bedingung entfernen"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="condition-section__empty">
+          Aktuell gibt es keine Filter — jede Position in diesem Fenster erzeugt ein Geschäft.
+        </p>
+      }
+    </div>
+  }
+</form>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" [disabled]="form.invalid" (click)="save()">
+    Speichern
+  </button>
+</mat-dialog-actions>

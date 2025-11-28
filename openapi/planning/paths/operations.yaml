@@ -1,0 +1,61 @@
+planning_operations_weeks:
+  get:
+    summary: "Listet Wocheninstanzen f\xFCr die Betriebsplanung."
+    operationId: listWeekInstances
+    parameters:
+    - name: from
+      in: query
+      required: true
+      description: "Wochenstart (ISO-Datum, inkl.) f\xFCr den Ladebereich."
+      schema:
+        type: string
+        format: date
+    - name: to
+      in: query
+      required: true
+      description: "Wochenende (ISO-Datum, inkl.) f\xFCr den Ladebereich."
+      schema:
+        type: string
+        format: date
+    responses:
+      '200':
+        description: Kalenderwochen im angegebenen Bereich.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeekInstanceListResponse'
+planning_operations_weeks_weekInstanceId:
+  parameters:
+  - $ref: '#/components/parameters/WeekInstanceId'
+  get:
+    summary: Liefert die Details einer Wocheninstanz.
+    operationId: getWeekInstance
+    responses:
+      '200':
+        description: Einzelne Wocheninstanz.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeekInstance'
+  put:
+    summary: Legt eine Wocheninstanz an oder aktualisiert sie.
+    operationId: upsertWeekInstance
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WeekInstance'
+    responses:
+      '200':
+        description: Persistierte Wocheninstanz.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeekInstance'
+  delete:
+    summary: Entfernt eine Wocheninstanz.
+    operationId: deleteWeekInstance
+    responses:
+      '204':
+        description: "Wocheninstanz gel\xF6scht."

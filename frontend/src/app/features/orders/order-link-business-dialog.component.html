@@ -1,0 +1,90 @@
+<h2 mat-dialog-title>Geschäft verknüpfen</h2>
+<mat-dialog-content class="dialog-content">
+  <section class="dialog-section">
+    <header>
+      <mat-icon>hub</mat-icon>
+      <div>
+        <h3>Geschäft auswählen</h3>
+        <p>Bestehendes Geschäft auswählen oder per Suche filtern.</p>
+      </div>
+    </header>
+    <mat-form-field appearance="outline">
+      <mat-label>Suchen</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        type="search"
+        matInput
+        placeholder="ID, Titel oder Ansprechpartner"
+        (input)="onSearch($any($event.target).value)"
+      />
+    </mat-form-field>
+
+    <div class="business-list" role="list">
+      @if (!filteredBusinesses().length) {
+        <p class="empty-hint">Keine Geschäfte gefunden.</p>
+      } @else {
+        @for (business of filteredBusinesses(); track trackBusiness($index, business)) {
+          <button
+            type="button"
+            class="business-card"
+            [class.business-card--active]="selectedBusinessId() === business.id"
+            (click)="selectBusiness(business.id)"
+          >
+            <div class="business-card__title">
+              <mat-icon>{{ selectedBusinessId() === business.id ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+              <div>
+                <strong>{{ business.title }}</strong>
+                <span>#{{ business.id }}</span>
+              </div>
+            </div>
+            <div class="business-card__meta">
+              <span><mat-icon>person</mat-icon>{{ business.assignment.name }}</span>
+              @if (business.status) {
+                <span><mat-icon>flag</mat-icon>{{ business.status }}</span>
+              }
+            </div>
+          </button>
+        }
+      }
+    </div>
+  </section>
+
+  <section class="dialog-section">
+    <header>
+      <mat-icon>view_list</mat-icon>
+      <div>
+        <h3>Positionen verknüpfen</h3>
+        <p>Mehrfachauswahl möglich, um mehrere Positionen anzubinden.</p>
+      </div>
+    </header>
+    <div class="item-grid">
+      @for (item of selectableItems(); track item.id) {
+        <button
+          type="button"
+          class="item-chip"
+          [class.item-chip--active]="selectedItemIds().has(item.id)"
+          (click)="toggleItem(item.id)"
+        >
+          <mat-icon>{{ selectedItemIds().has(item.id) ? 'check_circle' : 'add_circle_outline' }}</mat-icon>
+          <div>
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.type }}</small>
+          </div>
+        </button>
+      }
+    </div>
+  </section>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Abbrechen</button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    [disabled]="!selectedBusinessId() || !selectedItemIds().size"
+    (click)="link()"
+  >
+    Verknüpfen
+  </button>
+</mat-dialog-actions>

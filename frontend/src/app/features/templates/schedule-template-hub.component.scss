@@ -1,0 +1,75 @@
+@use '../schedule-templates/schedule-template-list.component.scss' as list;
+
+.schedule-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.hub-hero {
+  padding: clamp(20px, 4vw, 40px);
+  border-radius: 28px;
+  background: linear-gradient(135deg, #0b1120, #1d4ed8);
+  color: #f8fafc;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 24px;
+
+  h1 {
+    margin: 6px 0 12px 0;
+    font-size: clamp(2rem, 4vw, 2.6rem);
+  }
+
+  p {
+    margin: 0;
+    color: rgba(248, 250, 252, 0.8);
+  }
+}
+
+.hub-eyebrow {
+  margin: 0;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.hub-actions {
+  margin-top: 16px;
+  display: inline-flex;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  a,
+  button {
+    text-transform: none;
+  }
+}
+
+.hub-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+
+  div {
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+
+  span {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(248, 250, 252, 0.7);
+  }
+
+  strong {
+    font-size: 1.6rem;
+  }
+}
