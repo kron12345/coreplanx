@@ -11,6 +11,6 @@ export interface ApiConfig {
 export const API_CONFIG = new InjectionToken<ApiConfig>('API_CONFIG', {
   providedIn: 'root',
   factory: () => ({
-    baseUrl: '/api',
+    baseUrl: '/api/v1',
   }),
 });

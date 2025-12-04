@@ -10,6 +10,7 @@ import {
 @Injectable()
 export class TimelineService {
   private readonly logger = new Logger(TimelineService.name);
+  private loggedDbWarning = false;
 
   constructor(private readonly repository: TimelineRepository) {}
 
@@ -19,20 +20,22 @@ export class TimelineService {
     lod: Lod,
     stage: 'base' | 'operations',
   ): Promise<TimelineResponse> {
-    this.ensureDatabase();
+    if (!this.repository.isEnabled) {
+      if (!this.loggedDbWarning) {
+        this.logger.warn(
+          'Timeline requested but database is not configured. Returning empty data.',
+        );
+        this.loggedDbWarning = true;
+      }
+      return lod === 'activity'
+        ? { lod, activities: [] }
+        : { lod, services: [] };
+    }
     if (lod === 'activity') {
       const activities = await this.repository.listActivities(from, to, stage);
       return { lod, activities };
     }
     const services = await this.repository.listAggregatedServices(from, to, stage);
     return { lod, services };
-  }
-
-  private ensureDatabase(): void {
-    if (!this.repository.isEnabled) {
-      throw new ServiceUnavailableException(
-        'Database connection is required for timeline queries.',
-      );
-    }
   }
 }

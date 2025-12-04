@@ -16,7 +16,7 @@ import type {
 } from './template.types';
 import type { Lod, TimelineResponse, ActivityDto } from '../timeline/timeline.types';
 
-@Controller('api/templates')
+@Controller('templates')
 export class TemplateController {
   constructor(private readonly templateService: TemplateService) {}
 

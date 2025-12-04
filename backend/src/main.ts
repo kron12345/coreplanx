@@ -60,8 +60,11 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-  const openApiPath = path.join(
-    process.cwd(),
+  // Resolve from repository root (frontend + backend share the OpenAPI spec).
+  const openApiPath = path.resolve(
+    __dirname,
+    '..',
+    '..',
     'openapi',
     'planning-activities.yaml',
   );

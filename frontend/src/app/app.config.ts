@@ -8,7 +8,7 @@ import { API_CONFIG } from './core/config/api-config';
 
 import { routes } from './app.routes';
 
-const API_PATH = '/api';
+const API_PATH = '/api/v1';
 const LOCAL_API_ORIGIN = 'http://localhost:3000';
 
 function resolveApiBaseUrl(): string {

@@ -10,6 +10,7 @@ import { TemplateTimelineStoreService } from './template-timeline-store.service'
 import { TemplatePeriod } from '../../core/api/timeline-api.types';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
+import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 
 function normalizeDate(value: string | null | undefined): string | null {
   if (!value) {
@@ -41,9 +42,19 @@ export class PlanningPeriodsComponent {
   readonly selectedTemplate = computed(() => this.store.selectedTemplate());
   readonly templates = this.store.templates;
   private readonly defaultYear = this.timetableYearService.defaultYearBounds();
+  readonly selectedYear = signal<TimetableYearBounds>(this.defaultYear);
+  readonly yearOptions = computed(() => {
+    const managed = this.timetableYearService.managedYearBounds();
+    if (managed.length) {
+      return managed;
+    }
+    const center = this.selectedYear().start;
+    return this.timetableYearService.listYearsAround(center, 2, 2);
+  });
 
   readonly periodForm = this.fb.group({
     start: ['', Validators.required],
+    end: [''],
   });
 
   readonly specialDayForm = this.fb.group({
@@ -62,6 +73,17 @@ export class PlanningPeriodsComponent {
 
     effect(
       () => {
+        const year = this.selectedYear();
+        this.periodForm.patchValue(
+          { start: year.startIso, end: year.endIso },
+          { emitEvent: false, onlySelf: true },
+        );
+      },
+      { allowSignalWrites: true },
+    );
+
+    effect(
+      () => {
         const template = this.selectedTemplate();
         if (!template && this.templates().length > 0) {
           this.store.selectTemplate(this.templates()[0].id);
@@ -76,21 +98,11 @@ export class PlanningPeriodsComponent {
   }
 
   periods(): TemplatePeriod[] {
-    const template = this.selectedTemplate();
-    if (template?.periods?.length) {
-      return [...template.periods].sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+    const yearPeriods = this.periodsForYear();
+    if (yearPeriods.length) {
+      return yearPeriods;
     }
-    const year = this.defaultYear;
-    if (!year) {
-      return [];
-    }
-    return [
-      {
-        id: 'default-year',
-        validFrom: year.startIso,
-        validTo: year.endIso,
-      },
-    ];
+    return [this.buildDefaultYearPeriod(this.selectedYear())];
   }
 
   specialDays(): string[] {
@@ -104,24 +116,40 @@ export class PlanningPeriodsComponent {
   addPeriod(): void {
     const value = this.periodForm.getRawValue();
     const startIso = normalizeDate(value.start);
+    const endIso = normalizeDate(value.end);
     if (!startIso) {
       this.periodForm.markAllAsTouched();
       return;
     }
-    const current = this.periods();
+    const year = this.selectedYear();
+    const withinStart = this.timetableYearService.isDateWithinYear(startIso, year);
+    const withinEnd = this.timetableYearService.isDateWithinYear(endIso ?? startIso, year);
+    if (!withinStart || !withinEnd) {
+      console.warn(
+        `[PlanningPeriods] Zeitraum liegt nicht im gewählten Fahrplanjahr ${year.label}`,
+        { startIso, endIso },
+      );
+      this.periodForm.markAllAsTouched();
+      return;
+    }
+    const current = this.periodsForYear();
     const newPeriod: TemplatePeriod = {
       id: `period-${Date.now().toString(36)}`,
       validFrom: startIso,
-      validTo: null,
+      validTo: endIso ?? year.endIso,
     };
     const next = [...current, newPeriod].sort((a, b) => a.validFrom.localeCompare(b.validFrom));
-    this.saveTemplate({ periods: next });
+    this.saveTemplateForYear(next);
     this.periodForm.reset();
+    this.periodForm.patchValue({ start: year.startIso, end: year.endIso });
   }
 
   removePeriod(id: string): void {
-    const next = this.periods().filter((period) => period.id !== id);
-    this.saveTemplate({ periods: next });
+    if (this.isSyntheticDefault(id)) {
+      return;
+    }
+    const next = this.periodsForYear().filter((period) => period.id !== id);
+    this.saveTemplateForYear(next);
   }
 
   addSpecialDay(): void {
@@ -141,6 +169,20 @@ export class PlanningPeriodsComponent {
     this.saveTemplate({ specialDays: next });
   }
 
+  onYearChange(label: string): void {
+    if (!label) {
+      this.selectedYear.set(this.defaultYear);
+      return;
+    }
+    try {
+      const year = this.timetableYearService.getYearByLabel(label);
+      this.selectedYear.set(year);
+    } catch (error) {
+      console.warn('[PlanningPeriods] Unbekanntes Fahrplanjahr', label, error);
+      this.selectedYear.set(this.defaultYear);
+    }
+  }
+
   private saveTemplate(patch: Partial<{ periods: TemplatePeriod[]; specialDays: string[] }>): void {
     const template = this.selectedTemplate();
     if (!template) {
@@ -151,5 +193,41 @@ export class PlanningPeriodsComponent {
       periods: patch.periods ?? template.periods,
       specialDays: patch.specialDays ?? template.specialDays,
     });
+  }
+
+  private periodsForYear(): TemplatePeriod[] {
+    const template = this.selectedTemplate();
+    if (!template?.periods?.length) {
+      return [];
+    }
+    const year = this.selectedYear();
+    return template.periods
+      .filter((period) => this.timetableYearService.isDateWithinYear(period.validFrom, year))
+      .sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+  }
+
+  private buildDefaultYearPeriod(year: TimetableYearBounds): TemplatePeriod {
+    return {
+      id: `default-${year.label}`,
+      validFrom: year.startIso,
+      validTo: year.endIso,
+    };
+  }
+
+  private saveTemplateForYear(updatedYearPeriods: TemplatePeriod[]): void {
+    const template = this.selectedTemplate();
+    if (!template) {
+      return;
+    }
+    const year = this.selectedYear();
+    const remaining = (template.periods ?? []).filter(
+      (period) => !this.timetableYearService.isDateWithinYear(period.validFrom, year),
+    );
+    const next = [...remaining, ...updatedYearPeriods].sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+    this.saveTemplate({ periods: next });
+  }
+
+  private isSyntheticDefault(periodId: string): boolean {
+    return periodId.startsWith('default-');
   }
 }

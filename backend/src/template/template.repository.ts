@@ -17,6 +17,9 @@ interface TemplateSetRow {
   table_name: string;
   created_at: string;
   updated_at: string;
+  periods: any | null;
+  special_days: any | null;
+  attributes: any | null;
 }
 
 interface ActivityRow extends TimelineActivityRow {
@@ -43,7 +46,16 @@ export class TemplateRepository {
     }
     const result = await this.database.query<TemplateSetRow>(
       `
-        SELECT id, name, description, table_name, created_at, updated_at
+        SELECT
+          id,
+          name,
+          description,
+          table_name,
+          created_at,
+          updated_at,
+          periods,
+          special_days,
+          attributes
         FROM activity_template_set
         ORDER BY name
       `,
@@ -57,7 +69,16 @@ export class TemplateRepository {
     }
     const result = await this.database.query<TemplateSetRow>(
       `
-        SELECT id, name, description, table_name, created_at, updated_at
+        SELECT
+          id,
+          name,
+          description,
+          table_name,
+          created_at,
+          updated_at,
+          periods,
+          special_days,
+          attributes
         FROM activity_template_set
         WHERE id = $1
       `,
@@ -77,9 +98,9 @@ export class TemplateRepository {
         await client.query(
           `
             INSERT INTO activity_template_set (
-              id, name, description, table_name, created_at, updated_at
+              id, name, description, table_name, created_at, updated_at, periods, special_days, attributes
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           `,
           [
             set.id,
@@ -88,6 +109,9 @@ export class TemplateRepository {
             set.tableName,
             set.createdAt,
             set.updatedAt,
+            JSON.stringify(set.periods ?? []),
+            JSON.stringify(set.specialDays ?? []),
+            set.attributes ?? null,
           ],
         );
         await client.query('COMMIT');
@@ -108,10 +132,21 @@ export class TemplateRepository {
         UPDATE activity_template_set
         SET name = $2,
             description = $3,
-            updated_at = $4
+            updated_at = $4,
+            periods = $5,
+            special_days = $6,
+            attributes = $7
         WHERE id = $1
       `,
-      [set.id, set.name, set.description ?? null, set.updatedAt],
+      [
+        set.id,
+        set.name,
+        set.description ?? null,
+        set.updatedAt,
+        JSON.stringify(set.periods ?? []),
+        JSON.stringify(set.specialDays ?? []),
+        set.attributes ?? null,
+      ],
     );
   }
 
@@ -382,6 +417,9 @@ export class TemplateRepository {
       tableName: row.table_name,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      periods: Array.isArray(row.periods) ? row.periods : [],
+      specialDays: Array.isArray(row.special_days) ? row.special_days : [],
+      attributes: row.attributes ?? undefined,
     };
   }
 

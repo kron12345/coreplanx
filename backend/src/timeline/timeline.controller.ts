@@ -2,7 +2,7 @@ import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { TimelineService } from './timeline.service';
 import type { Lod, TimelineResponse } from './timeline.types';
 
-@Controller('api/timeline')
+@Controller('timeline')
 export class TimelineController {
   constructor(private readonly timelineService: TimelineService) {}
 

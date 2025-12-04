@@ -68,9 +68,9 @@ export class PlanningRealtimeService {
         }
       };
 
-      const handleError = (_error: Event) => {
-        eventSource.close();
-        observer.complete();
+      // Let EventSource auto-reconnect; just log and keep the stream alive.
+      const handleError = (error: Event) => {
+        console.warn('[PlanningRealtimeService] SSE connection error', error);
       };
 
       eventSource.addEventListener('message', handleMessage as EventListener);

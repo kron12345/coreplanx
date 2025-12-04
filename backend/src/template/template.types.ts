@@ -5,6 +5,9 @@ export interface ActivityTemplateSet {
   tableName: string;
   createdAt: string;
   updatedAt: string;
+  periods?: TemplatePeriod[];
+  specialDays?: string[];
+  attributes?: Record<string, unknown>;
 }
 
 export interface CreateTemplateSetPayload {
@@ -16,4 +19,13 @@ export interface CreateTemplateSetPayload {
 export interface UpdateTemplateSetPayload {
   name?: string;
   description?: string | null;
+  periods?: TemplatePeriod[];
+  specialDays?: string[];
+  attributes?: Record<string, unknown>;
+}
+
+export interface TemplatePeriod {
+  id: string;
+  validFrom: string;
+  validTo: string | null;
 }

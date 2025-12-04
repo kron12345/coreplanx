@@ -12,6 +12,20 @@
         }
       </select>
     </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Fahrplanjahr</mat-label>
+      <select
+        matNativeControl
+        [value]="selectedYear().label"
+        (change)="onYearChange($any($event.target).value)"
+      >
+        @for (year of yearOptions(); track year.label) {
+          <option [value]="year.label">
+            {{ year.label }} · {{ year.startIso }} – {{ year.endIso }}
+          </option>
+        }
+      </select>
+    </mat-form-field>
   </header>
 
   <div class="periods__grid">
@@ -22,6 +36,10 @@
           <mat-form-field appearance="outline">
             <mat-label>Startdatum</mat-label>
             <input matInput type="date" formControlName="start" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Enddatum</mat-label>
+            <input matInput type="date" formControlName="end" />
           </mat-form-field>
           <button mat-flat-button color="primary" type="submit">Hinzufügen</button>
         </form>
@@ -36,7 +54,13 @@
                   <strong>{{ period.validFrom }}</strong>
                   <span>bis {{ period.validTo || 'offen' }}</span>
                 </div>
-                <button mat-icon-button color="warn" (click)="removePeriod(period.id)" matTooltip="Zeitraum entfernen">
+                <button
+                  mat-icon-button
+                  color="warn"
+                  (click)="removePeriod(period.id)"
+                  [disabled]="period.id.startsWith('default-')"
+                  matTooltip="Zeitraum entfernen"
+                >
                   <mat-icon fontIcon="delete"></mat-icon>
                 </button>
               </div>

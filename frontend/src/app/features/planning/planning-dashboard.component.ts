@@ -724,7 +724,8 @@ export class PlanningDashboardComponent {
   );
 
   protected readonly activityCreationTool = computed(() => this.activityCreationToolSignal());
-  protected readonly resourceError = this.data.resourceError;
+  // Bind service methods to preserve `this` when used as callbacks in the template.
+  protected readonly resourceError = this.data.resourceError.bind(this.data);
   protected readonly timelineError = this.data.timelineError.bind(this.data);
   protected readonly templateError = this.templateStore.error;
 
@@ -846,11 +847,11 @@ export class PlanningDashboardComponent {
         templateId = first.id;
       }
     }
-    if (!templateId || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
       return;
     }
     const urlTree = this.router.createUrlTree(['/planning/periods'], {
-      queryParams: { template: templateId },
+      queryParams: templateId ? { template: templateId } : undefined,
     });
     const url = this.router.serializeUrl(urlTree);
     window.open(url, '_blank', 'noopener,noreferrer');
