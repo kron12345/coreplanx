@@ -70,8 +70,9 @@ export class TemplateService {
       tableName,
       createdAt: now,
       updatedAt: now,
-      periods: [],
-      specialDays: [],
+      periods: payload.periods ?? [],
+      specialDays: payload.specialDays ?? [],
+      attributes: payload.attributes,
     };
     await this.repository.createTemplateSet(set);
     return set;

@@ -65,6 +65,23 @@ export class PlanningPeriodsComponent {
     this.store.loadTemplates();
     this.route.queryParamMap.subscribe((params) => {
       const template = params.get('template');
+      const dateParam = normalizeDate(params.get('date'));
+      const specialParam = normalizeDate(params.get('special'));
+      if (dateParam) {
+        try {
+          const year = this.timetableYearService.getYearBounds(dateParam);
+          this.selectedYear.set(year);
+          this.periodForm.patchValue(
+            { start: dateParam, end: dateParam },
+            { emitEvent: false, onlySelf: true },
+          );
+        } catch (error) {
+          console.warn('[PlanningPeriods] Invalid date param', dateParam, error);
+        }
+      }
+      if (specialParam) {
+        this.specialDayForm.patchValue({ date: specialParam }, { emitEvent: false, onlySelf: true });
+      }
       this.templateId.set(template);
       if (template) {
         this.store.selectTemplate(template);
@@ -74,10 +91,14 @@ export class PlanningPeriodsComponent {
     effect(
       () => {
         const year = this.selectedYear();
-        this.periodForm.patchValue(
-          { start: year.startIso, end: year.endIso },
-          { emitEvent: false, onlySelf: true },
-        );
+        const currentStart = this.periodForm.get('start')?.value;
+        const currentEnd = this.periodForm.get('end')?.value;
+        if (!currentStart && !currentEnd) {
+          this.periodForm.patchValue(
+            { start: year.startIso, end: year.endIso },
+            { emitEvent: false, onlySelf: true },
+          );
+        }
       },
       { allowSignalWrites: true },
     );
@@ -177,9 +198,17 @@ export class PlanningPeriodsComponent {
     try {
       const year = this.timetableYearService.getYearByLabel(label);
       this.selectedYear.set(year);
+      this.periodForm.patchValue(
+        { start: year.startIso, end: year.endIso },
+        { emitEvent: false, onlySelf: true },
+      );
     } catch (error) {
       console.warn('[PlanningPeriods] Unbekanntes Fahrplanjahr', label, error);
       this.selectedYear.set(this.defaultYear);
+      this.periodForm.patchValue(
+        { start: this.defaultYear.startIso, end: this.defaultYear.endIso },
+        { emitEvent: false, onlySelf: true },
+      );
     }
   }
 

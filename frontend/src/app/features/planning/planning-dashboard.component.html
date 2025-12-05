@@ -235,6 +235,7 @@
                   [activities]="boardActivities(board)"
                   [pendingActivity]="boardPendingActivity(board)"
                   [timelineRange]="timelineRange()"
+                  [periods]="currentPeriods()"
                   [minTimelineDays]="activeStageId() === 'base' ? 8 : 30"
                   [snapTimelineToMidnight]="activeStageId() !== 'base'"
                   [resourceViewModes]="resourceViewModes()"

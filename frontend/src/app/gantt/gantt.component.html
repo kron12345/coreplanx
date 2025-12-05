@@ -24,14 +24,15 @@
         [appScrollLeft]="scrollX()"
         (appHorizontalScroll)="onTimelineScroll($event)"
         (wheel)="onTimelineWheel($event, headerScroller.element)"
-        (pointerdown)="onTimelinePointerDown($event, headerScroller.element)"
-        (pointermove)="onTimelinePointerMove($event)"
-        (pointerup)="onTimelinePointerUp($event)"
-        (pointercancel)="onTimelinePointerUp($event)"
       >
         <app-gantt-timeline-header
           [ticks]="ticks()"
           [contentWidth]="contentWidth()"
+          [periods]="periodsSignal()"
+          [pixelsPerMs]="timeScale.pixelsPerMs()"
+          [timelineStart]="timeScale.timelineStartDate()"
+          [viewStart]="viewport.viewStart()"
+          [viewEnd]="viewport.viewEnd()"
         />
       </div>
 

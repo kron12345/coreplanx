@@ -270,6 +270,15 @@ export class PlanningDashboardComponent {
   private readonly dialog = inject(MatDialog);
   private readonly activityEditPreviewSignal = signal<ActivityEditPreviewState | null>(null);
   protected readonly selectedTemplateId = computed(() => this.templateStore.selectedTemplateWithFallback()?.id ?? null);
+  private readonly queryFrom = signal<string | null>(null);
+  private readonly queryTo = signal<string | null>(null);
+  protected readonly currentPeriods = computed(() => {
+    const tpl = this.templateStore.selectedTemplateWithFallback();
+    if (!tpl?.periods?.length) {
+      return [];
+    }
+    return [...tpl.periods].sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+  });
 
   protected readonly activityForm = this.fb.group({
     start: ['', Validators.required],
@@ -283,6 +292,8 @@ export class PlanningDashboardComponent {
   constructor() {
     this.templateStore.loadTemplates();
     const initialStage = this.normalizeStageId(this.route.snapshot.queryParamMap.get('stage'));
+    this.queryFrom.set(this.route.snapshot.queryParamMap.get('from'));
+    this.queryTo.set(this.route.snapshot.queryParamMap.get('to'));
     this.setActiveStage(initialStage, false);
     if (this.route.snapshot.queryParamMap.get('stage') !== initialStage) {
       this.updateStageQueryParam(initialStage);
@@ -293,6 +304,8 @@ export class PlanningDashboardComponent {
       .subscribe((params) => {
         const stage = this.normalizeStageId(params.get('stage'));
         this.setActiveStage(stage, false);
+        this.queryFrom.set(params.get('from'));
+        this.queryTo.set(params.get('to'));
       });
 
     effect(
@@ -2921,11 +2934,10 @@ export class PlanningDashboardComponent {
   }
 
   private computeBaseTimelineRange(): PlanningTimelineRange {
-    const fallback = this.baseTimelineFallback();
-    const start = new Date(fallback.start);
-    const end = new Date(start.getTime());
-    end.setUTCDate(end.getUTCDate() + 7);
-    end.setUTCHours(end.getUTCHours() + 20);
+    const fromIso = this.queryFrom() ?? this.timetableYearService.defaultYearBounds().startIso;
+    const toIso = this.queryTo() ?? this.timetableYearService.defaultYearBounds().endIso;
+    const start = new Date(`${fromIso}T00:00:00Z`);
+    const end = new Date(`${toIso}T23:59:59Z`);
     return { start, end };
   }
 

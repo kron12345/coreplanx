@@ -50,6 +50,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { addDays, startOfDay, MS_IN_DAY, MS_IN_HOUR, MS_IN_MINUTE } from '../core/utils/time-math';
 import { ZOOM_RANGE_MS, findNearestZoomConfig } from '../core/constants/time-scale.config';
 import { LayerGroupService } from '../core/services/layer-group.service';
+import { TemplatePeriod } from '../core/api/timeline-api.types';
 
 interface PreparedActivity extends Activity {
   startMs: number;
@@ -229,7 +230,7 @@ const ZOOM_LABELS: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GanttComponent implements AfterViewInit {
-  private readonly timeScale = inject(TimeScaleService);
+  protected readonly timeScale = inject(TimeScaleService);
   private readonly hostElement = inject(ElementRef<HTMLElement>);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
@@ -291,6 +292,7 @@ export class GanttComponent implements AfterViewInit {
   private suppressNextTimelineClick = false;
   private lastOverlapGroupKey: string | null = null;
   private lastOverlapActivityId: string | null = null;
+  protected readonly periodsSignal = signal<TemplatePeriod[]>([]);
 
   constructor() {
     this.destroyRef.onDestroy(() => this.updateDragBadge(null));
@@ -305,7 +307,7 @@ export class GanttComponent implements AfterViewInit {
     return null;
   }
 
-  private viewport!: TimeViewport;
+  protected viewport!: TimeViewport;
   private viewportInitialized = false;
   private lastTimelineRange: { start: number; end: number } | null = null;
   private previousResourceIds: string[] | null = null;
@@ -450,6 +452,11 @@ export class GanttComponent implements AfterViewInit {
       ownerResourceId: getActivityOwnerId(value),
     };
     this.pendingActivitySignal.set(prepared);
+  }
+
+  @Input()
+  set periods(value: TemplatePeriod[] | null) {
+    this.periodsSignal.set(value ?? []);
   }
 
   private applyTimelineRange(): void {

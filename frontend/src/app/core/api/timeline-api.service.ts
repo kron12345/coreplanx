@@ -63,6 +63,10 @@ export class TimelineApiService {
     );
   }
 
+  createTemplate(template: TemplateSetDto): Observable<TemplateSetDto> {
+    return this.http.post<TemplateSetDto>(`${this.baseUrl()}/templates`, template);
+  }
+
   private buildParams(query: TimelineQuery): HttpParams {
     let params = new HttpParams().set('from', query.from).set('to', query.to);
     if (query.stage) {

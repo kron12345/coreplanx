@@ -140,4 +140,12 @@ export class TimeScaleService {
   hasTimelineRange(): boolean {
     return this.timelineEnd().getTime() > this.timelineStart().getTime();
   }
+
+  timelineStartDate(): Date {
+    return this.timelineStart();
+  }
+
+  timelineEndDate(): Date {
+    return this.timelineEnd();
+  }
 }

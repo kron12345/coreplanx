@@ -12,6 +12,17 @@
   </div>
 
   <div class="gantt-header__canvas" [style.width.px]="contentWidth">
+    <div class="gantt-header__periods">
+      @for (period of periodVisuals(); track period.id) {
+        <div
+          class="gantt-header__period"
+          [style.left.px]="period.offsetPx"
+          [style.width.px]="period.widthPx"
+          [style.background]="period.color"
+          [attr.title]="period.label"
+        ></div>
+      }
+    </div>
     @for (tick of ticks; track tick.time.getTime()) {
       <div
         class="gantt-header__tick"

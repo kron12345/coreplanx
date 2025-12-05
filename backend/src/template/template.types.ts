@@ -14,6 +14,9 @@ export interface CreateTemplateSetPayload {
   id: string;
   name: string;
   description?: string | null;
+  periods?: TemplatePeriod[];
+  specialDays?: string[];
+  attributes?: Record<string, unknown>;
 }
 
 export interface UpdateTemplateSetPayload {

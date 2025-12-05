@@ -67,6 +67,11 @@ export const routes: Routes = [
     children: [
       {
         path: '',
+        pathMatch: 'full',
+        redirectTo: 'calendar',
+      },
+      {
+        path: 'board',
         loadComponent: () =>
           import('./features/planning/planning-dashboard.component').then(
             (m) => m.PlanningDashboardComponent,
@@ -81,6 +86,15 @@ export const routes: Routes = [
             (m) => m.PlanningExternalBoardComponent,
           ),
         title: 'Planung',
+        data: { section: 'planning' },
+      },
+      {
+        path: 'calendar',
+        loadComponent: () =>
+          import('./features/planning/planning-calendar.component').then(
+            (m) => m.PlanningCalendarComponent,
+          ),
+        title: 'Planung · Kalender',
         data: { section: 'planning' },
       },
       {

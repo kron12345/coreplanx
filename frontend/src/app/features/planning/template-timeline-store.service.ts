@@ -8,6 +8,7 @@ interface TemplateStoreState {
   selectedTemplateId: string | null;
   loading: boolean;
   error: string | null;
+  syntheticPersisted: boolean;
 }
 
 const INITIAL_STATE: TemplateStoreState = {
@@ -15,6 +16,7 @@ const INITIAL_STATE: TemplateStoreState = {
   selectedTemplateId: null,
   loading: false,
   error: null,
+  syntheticPersisted: false,
 };
 
 @Injectable({ providedIn: 'root' })
@@ -34,6 +36,8 @@ export class TemplateTimelineStoreService {
   });
   readonly isLoading = computed(() => this.state().loading);
   readonly error = computed(() => this.state().error);
+  private syntheticTemplate: TemplateSetDto | null = null;
+  private syntheticPersisted = false;
 
   loadTemplates(force = false): void {
     if (!force && (this.templatesLoaded || this.state().loading)) {
@@ -50,7 +54,12 @@ export class TemplateTimelineStoreService {
             this.state().selectedTemplateId && templates.some((t) => t.id === this.state().selectedTemplateId)
               ? this.state().selectedTemplateId
               : templates[0]?.id ?? null;
-          this.setState({ templates, selectedTemplateId: nextSelected, loading: false });
+          this.setState({
+            templates,
+            selectedTemplateId: nextSelected,
+            loading: false,
+            syntheticPersisted: templates.length > 0 ? true : this.state().syntheticPersisted,
+          });
         }),
         catchError((error) => {
           console.error('[TemplateTimelineStore] Failed to load template sets', error);
@@ -60,6 +69,18 @@ export class TemplateTimelineStoreService {
         }),
       )
       .subscribe();
+  }
+
+  setSyntheticTemplate(template: TemplateSetDto): void {
+    this.syntheticTemplate = template;
+    this.syntheticPersisted = false;
+    const current = this.state();
+    const exists = current.templates.some((t) => t.id === template.id);
+    const templates = exists ? current.templates : [template, ...current.templates];
+    this.setState({
+      templates,
+      selectedTemplateId: template.id,
+    });
   }
 
   selectTemplate(templateId: string | null): void {
@@ -79,6 +100,61 @@ export class TemplateTimelineStoreService {
   }
 
   updateTemplate(template: TemplateSetDto): void {
+    if (this.syntheticTemplate && template.id === this.syntheticTemplate.id) {
+      if (!this.syntheticPersisted) {
+        this.api
+          .createTemplate(template)
+          .pipe(
+            take(1),
+            tap((saved) => {
+              this.syntheticPersisted = true;
+              this.syntheticTemplate = null;
+              const templates = this.state().templates.map((entry) => (entry.id === template.id ? saved : entry));
+              this.setState({
+                templates,
+                selectedTemplateId: saved.id,
+                error: null,
+                syntheticPersisted: true,
+              });
+            }),
+            catchError((error) => {
+              console.error('[TemplateTimelineStore] Failed to create template', error);
+              // Fallback: try update in case the template already exists
+              if (error?.status === 409 || error?.status === 500) {
+                return this.api
+                  .updateTemplate(template)
+                  .pipe(
+                    take(1),
+                    tap((saved) => {
+                      this.syntheticPersisted = true;
+                      this.syntheticTemplate = null;
+                      const templates = this.state().templates.map((entry) =>
+                        entry.id === template.id ? saved : entry,
+                      );
+                      this.setState({
+                        templates,
+                        selectedTemplateId: saved.id,
+                        error: null,
+                        syntheticPersisted: true,
+                      });
+                    }),
+                    catchError((err2) => {
+                      console.error('[TemplateTimelineStore] Fallback update failed', err2);
+                      this.setState({ error: 'Template konnte nicht gespeichert werden.' });
+                      return EMPTY;
+                    }),
+                  );
+              }
+              this.setState({ error: 'Template konnte nicht gespeichert werden (Anlegen fehlgeschlagen).' });
+              return EMPTY;
+            }),
+          )
+          .subscribe();
+        return;
+      }
+      // Already persisted, fall through to update
+    }
+
     this.api
       .updateTemplate(template)
       .pipe(
