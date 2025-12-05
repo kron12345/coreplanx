@@ -12,7 +12,9 @@ export class PlanningResourcesController {
   }
 
   @Put()
-  replaceResources(@Body() payload: ResourceSnapshot): Promise<ResourceSnapshot> {
+  replaceResources(
+    @Body() payload: ResourceSnapshot,
+  ): Promise<ResourceSnapshot> {
     return this.planningService.replaceResourceSnapshot(payload);
   }
 }

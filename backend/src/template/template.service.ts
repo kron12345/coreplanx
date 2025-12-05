@@ -12,7 +12,12 @@ import {
   CreateTemplateSetPayload,
   UpdateTemplateSetPayload,
 } from './template.types';
-import { ActivityDto, Lod, TimelineResponse, TimelineServiceDto } from '../timeline/timeline.types';
+import {
+  ActivityDto,
+  Lod,
+  TimelineResponse,
+  TimelineServiceDto,
+} from '../timeline/timeline.types';
 
 @Injectable()
 export class TemplateService {
@@ -50,7 +55,9 @@ export class TemplateService {
 
   async getTemplateSet(id: string): Promise<ActivityTemplateSet> {
     if (!this.dbEnabled) {
-      throw new NotFoundException(`Template ${id} not found (database disabled).`);
+      throw new NotFoundException(
+        `Template ${id} not found (database disabled).`,
+      );
     }
     const set = await this.repository.getTemplateSet(id);
     if (!set) {
@@ -59,7 +66,9 @@ export class TemplateService {
     return set;
   }
 
-  async createTemplateSet(payload: CreateTemplateSetPayload): Promise<ActivityTemplateSet> {
+  async createTemplateSet(
+    payload: CreateTemplateSetPayload,
+  ): Promise<ActivityTemplateSet> {
     this.ensureDbForWrites();
     const now = new Date().toISOString();
     const tableName = this.tableUtil.sanitize(`template_${payload.id}`);
@@ -74,11 +83,28 @@ export class TemplateService {
       specialDays: payload.specialDays ?? [],
       attributes: payload.attributes,
     };
-    await this.repository.createTemplateSet(set);
-    return set;
+    try {
+      await this.repository.createTemplateSet(set);
+      return set;
+    } catch (error) {
+      const code = error?.code;
+      if (code === '23505') {
+        this.logger.warn(
+          `Template ${set.id} existiert bereits – vorhandenen Datensatz verwenden.`,
+        );
+        const existing = await this.repository.getTemplateSet(set.id);
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 
-  async updateTemplateSet(id: string, payload: UpdateTemplateSetPayload): Promise<ActivityTemplateSet> {
+  async updateTemplateSet(
+    id: string,
+    payload: UpdateTemplateSetPayload,
+  ): Promise<ActivityTemplateSet> {
     this.ensureDbForWrites();
     const existing = await this.getTemplateSet(id);
     const updated: ActivityTemplateSet = {
@@ -108,7 +134,10 @@ export class TemplateService {
     return this.repository.upsertActivity(set.tableName, activity);
   }
 
-  async deleteTemplateActivity(templateId: string, activityId: string): Promise<void> {
+  async deleteTemplateActivity(
+    templateId: string,
+    activityId: string,
+  ): Promise<void> {
     this.ensureDbForWrites();
     const set = await this.getTemplateSet(templateId);
     await this.repository.deleteActivity(set.tableName, activityId);
@@ -134,10 +163,20 @@ export class TemplateService {
     }
     const set = await this.getTemplateSet(templateId);
     if (lod === 'activity') {
-      const activities = await this.repository.listActivities(set.tableName, from, to, stage);
+      const activities = await this.repository.listActivities(
+        set.tableName,
+        from,
+        to,
+        stage,
+      );
       return { lod, activities };
     }
-    const services = await this.repository.listAggregatedServices(set.tableName, from, to, stage);
+    const services = await this.repository.listAggregatedServices(
+      set.tableName,
+      from,
+      to,
+      stage,
+    );
     return { lod, services };
   }
 

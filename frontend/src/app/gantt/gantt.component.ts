@@ -1397,12 +1397,8 @@ export class GanttComponent implements AfterViewInit {
 
   private computeInitialRange(start: Date, end: Date, requested: number): number {
     const duration = Math.max(1, end.getTime() - start.getTime());
-    const shortTimelineThreshold = 12 * MS_IN_DAY;
-    if (duration > shortTimelineThreshold) {
-      return requested;
-    }
-    const desired = Math.min(duration, 5 * MS_IN_DAY);
-    return Math.max(requested, desired);
+    // Always ensure the initial range spans the full timeline so keine Bereiche fehlen.
+    return Math.max(requested, duration);
   }
 
   private setupScrollSyncEffects() {

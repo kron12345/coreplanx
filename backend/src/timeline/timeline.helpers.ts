@@ -81,17 +81,33 @@ export function mapActivityRow(
     currentVersion.data.attributes === undefined
       ? undefined
       : currentVersion.data.attributes;
+  const serviceRole =
+    currentVersion.data.serviceRole ??
+    deriveServiceRoleFromAttributes(
+      (currentVersion.data.attributes ?? undefined) as
+        | Record<string, unknown>
+        | undefined,
+    );
+  const serviceId =
+    currentVersion.data.serviceId ??
+    deriveServiceIdFallback(
+      serviceRole,
+      (currentVersion.data.attributes ?? undefined) as
+        | Record<string, unknown>
+        | undefined,
+      row.id,
+    );
   return {
     id: row.id,
     stage: row.stage,
     type: row.type,
     start: row.start_time,
-    end: row.is_open_ended ? null : row.end_time ?? null,
+    end: row.is_open_ended ? null : (row.end_time ?? null),
     isOpenEnded: row.is_open_ended || !row.end_time,
     status: currentVersion.data.status ?? undefined,
     label: currentVersion.data.label ?? undefined,
-    serviceId: currentVersion.data.serviceId ?? undefined,
-    serviceRole: currentVersion.data.serviceRole ?? undefined,
+    serviceId: serviceId ?? undefined,
+    serviceRole: serviceRole ?? undefined,
     from: currentVersion.data.from ?? undefined,
     to: currentVersion.data.to ?? undefined,
     remark: currentVersion.data.remark ?? undefined,
@@ -101,7 +117,46 @@ export function mapActivityRow(
   };
 }
 
-export function servicesForActivity(activity: ActivityDto): TimelineServiceDto[] {
+function deriveServiceRoleFromAttributes(
+  attrs: Record<string, unknown> | undefined,
+): 'start' | 'end' | 'segment' | undefined {
+  if (!attrs) {
+    return undefined;
+  }
+  const toBool = (val: unknown) =>
+    typeof val === 'boolean'
+      ? val
+      : typeof val === 'string'
+        ? val.toLowerCase() === 'true'
+        : false;
+  if (toBool((attrs as any)['is_service_start'])) {
+    return 'start';
+  }
+  if (toBool((attrs as any)['is_service_end'])) {
+    return 'end';
+  }
+  return undefined;
+}
+
+function deriveServiceIdFallback(
+  role: 'start' | 'end' | 'segment' | undefined,
+  attrs: Record<string, unknown> | undefined,
+  activityId: string,
+): string | undefined {
+  if (!role) {
+    return undefined;
+  }
+  const candidate =
+    (attrs as any)?.['service_id'] &&
+    typeof (attrs as any)['service_id'] === 'string'
+      ? ((attrs as any)['service_id'] as string)
+      : undefined;
+  return candidate ?? activityId;
+}
+
+export function servicesForActivity(
+  activity: ActivityDto,
+): TimelineServiceDto[] {
   const assignments = activity.resourceAssignments ?? [];
   if (!activity.serviceId || !assignments.length) {
     return [];
@@ -129,7 +184,9 @@ export function aggregateServices(
       const key = `${service.stage}:${service.id}:${service.resourceId}`;
       const startMs = Date.parse(service.start);
       const endMs =
-        service.isOpenEnded || !service.end ? undefined : Date.parse(service.end);
+        service.isOpenEnded || !service.end
+          ? undefined
+          : Date.parse(service.end);
       const existing = byServiceResource.get(key);
       if (!existing) {
         byServiceResource.set(key, { ...service });
@@ -151,7 +208,10 @@ export function aggregateServices(
         newEndMs === undefined ? null : new Date(newEndMs).toISOString();
       existing.isOpenEnded =
         existing.isOpenEnded || service.isOpenEnded || newEndMs === undefined;
-      existing.attributes = { ...(existing.attributes ?? {}), activityCount: count };
+      existing.attributes = {
+        ...(existing.attributes ?? {}),
+        activityCount: count,
+      };
       byServiceResource.set(key, existing);
     });
   });

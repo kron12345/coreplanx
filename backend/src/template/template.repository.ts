@@ -161,10 +161,9 @@ export class TemplateRepository {
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
       try {
-        await client.query(
-          `DELETE FROM activity_template_set WHERE id = $1`,
-          [id],
-        );
+        await client.query(`DELETE FROM activity_template_set WHERE id = $1`, [
+          id,
+        ]);
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
@@ -201,9 +200,10 @@ export class TemplateRepository {
       `,
       [stage, from, to],
     );
-    return result.rows
+    const mapped = result.rows
       .map((row) => mapActivityRow(row, this.logger))
       .filter((dto): dto is ActivityDto => dto !== null);
+    return this.markActivitiesWithinService(mapped);
   }
 
   async listAggregatedServices(
@@ -216,71 +216,183 @@ export class TemplateRepository {
     return aggregateServices(activities);
   }
 
-  async upsertActivity(tableName: string, activity: ActivityDto): Promise<ActivityDto> {
+  async upsertActivity(
+    tableName: string,
+    activity: ActivityDto,
+  ): Promise<ActivityDto> {
+    const normalized = this.enrichServiceMetadata(activity);
     const safeTable = this.tableUtil.sanitize(tableName);
-    const isOpenEnded = activity.isOpenEnded || !activity.end;
+    const isOpenEnded = normalized.isOpenEnded || !normalized.end;
     const attributes = {
       versions: [
         {
-          version: activity.version ?? 1,
-          validFrom: activity.start,
+          version: normalized.version ?? 1,
+          validFrom: normalized.start,
           validTo: null,
           data: {
-            label: activity.label ?? null,
-            serviceId: activity.serviceId ?? null,
-            serviceRole: activity.serviceRole ?? null,
-            start: activity.start,
-            end: activity.end ?? null,
-            status: activity.status ?? null,
-            from: activity.from ?? null,
-            to: activity.to ?? null,
-            remark: activity.remark ?? null,
-            resourceAssignments: activity.resourceAssignments ?? [],
-            attributes: activity.attributes ?? null,
+            label: normalized.label ?? null,
+            serviceId: normalized.serviceId ?? null,
+            serviceRole: normalized.serviceRole ?? null,
+            start: normalized.start,
+            end: normalized.end ?? null,
+            status: normalized.status ?? null,
+            from: normalized.from ?? null,
+            to: normalized.to ?? null,
+            remark: normalized.remark ?? null,
+            resourceAssignments: normalized.resourceAssignments ?? [],
+            attributes: normalized.attributes ?? null,
           },
         },
       ],
     };
-    await this.database.query(
-      `
-        INSERT INTO ${safeTable} (
-          id, type, stage, deleted, start_time, end_time, is_open_ended, attributes, audit_trail
-        )
-        VALUES ($1, $2, $3, FALSE, $4, $5, $6, $7::jsonb, '[]'::jsonb)
-        ON CONFLICT (id) DO UPDATE SET
-          type = EXCLUDED.type,
-          stage = EXCLUDED.stage,
-          start_time = EXCLUDED.start_time,
-          end_time = EXCLUDED.end_time,
-          is_open_ended = EXCLUDED.is_open_ended,
-          attributes = EXCLUDED.attributes,
-          updated_at = now()
-      `,
-      [
-        activity.id,
-        activity.type,
-        activity.stage,
-        activity.start,
-        activity.end ?? null,
-        isOpenEnded,
-        JSON.stringify(attributes),
-      ],
-    );
+    const params: any[] = [
+      normalized.id,
+      normalized.type,
+      normalized.stage,
+      normalized.start,
+      normalized.end ?? null,
+      isOpenEnded,
+      JSON.stringify(attributes),
+    ];
+    try {
+      await this.database.query(
+        `
+          INSERT INTO ${safeTable} (
+            id, type, stage, deleted, start_time, end_time, is_open_ended, attributes, audit_trail
+          )
+          VALUES ($1, $2, $3, FALSE, $4, $5, $6, $7::jsonb, '[]'::jsonb)
+          ON CONFLICT (id) DO UPDATE SET
+            type = EXCLUDED.type,
+            stage = EXCLUDED.stage,
+            start_time = EXCLUDED.start_time,
+            end_time = EXCLUDED.end_time,
+            is_open_ended = EXCLUDED.is_open_ended,
+            attributes = EXCLUDED.attributes,
+            updated_at = now()
+        `,
+        params,
+      );
+    } catch (error) {
+      if (error?.code === '22P02' || /uuid/i.test((error as Error).message)) {
+        await this.tableUtil.recreateTemplateTable(safeTable);
+        await this.database.query(
+          `
+            INSERT INTO ${safeTable} (
+              id, type, stage, deleted, start_time, end_time, is_open_ended, attributes, audit_trail
+            )
+            VALUES ($1, $2, $3, FALSE, $4, $5, $6, $7::jsonb, '[]'::jsonb)
+            ON CONFLICT (id) DO UPDATE SET
+              type = EXCLUDED.type,
+              stage = EXCLUDED.stage,
+              start_time = EXCLUDED.start_time,
+              end_time = EXCLUDED.end_time,
+              is_open_ended = EXCLUDED.is_open_ended,
+              attributes = EXCLUDED.attributes,
+              updated_at = now()
+          `,
+          params,
+        );
+      } else {
+        throw error;
+      }
+    }
     return {
       ...activity,
       resourceAssignments: activity.resourceAssignments ?? [],
     };
   }
 
+  private enrichServiceMetadata(activity: ActivityDto): ActivityDto {
+    const role = this.resolveServiceRole(activity);
+    if (!role) {
+      return activity;
+    }
+    const ownerId = this.resolveServiceOwner(activity);
+    if (!ownerId) {
+      return activity;
+    }
+    const serviceId = this.computeServiceId(
+      activity.stage,
+      ownerId,
+      activity.start,
+    );
+    return {
+      ...activity,
+      serviceId,
+      serviceRole: role,
+    };
+  }
+
+  private resolveServiceOwner(activity: ActivityDto): string | null {
+    const assignments = activity.resourceAssignments ?? [];
+    const preferred = new Set(['personnel-service', 'vehicle-service']);
+    const primary =
+      assignments.find(
+        (a) => a?.resourceId && preferred.has((a as any).resourceType ?? ''),
+      ) ?? assignments.find((a) => a?.resourceId);
+    return primary?.resourceId ?? null;
+  }
+
+  private resolveServiceRole(
+    activity: ActivityDto,
+  ): 'start' | 'end' | 'segment' | undefined {
+    if (activity.serviceRole) {
+      return activity.serviceRole;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const toBool = (val: unknown) =>
+      typeof val === 'boolean'
+        ? val
+        : typeof val === 'string'
+          ? val.toLowerCase() === 'true'
+          : false;
+    if (attrs) {
+      if (toBool((attrs as any)['is_service_start'])) {
+        return 'start';
+      }
+      if (toBool((attrs as any)['is_service_end'])) {
+        return 'end';
+      }
+    }
+    return undefined;
+  }
+
+  private computeServiceId(
+    stage: 'base' | 'operations',
+    ownerId: string,
+    startIso: string,
+  ): string {
+    const date = new Date(startIso);
+    const y = date.getUTCFullYear();
+    const m = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getUTCDate()}`.padStart(2, '0');
+    return `svc:${stage}:${ownerId}:${y}-${m}-${d}`;
+  }
+
   async deleteActivity(tableName: string, activityId: string): Promise<void> {
     const safeTable = this.tableUtil.sanitize(tableName);
-    await this.database.query(
-      `
-        DELETE FROM ${safeTable}
-        WHERE id = $1
-      `,
-      [activityId],
-    );
+    try {
+      await this.database.query(
+        `
+          DELETE FROM ${safeTable}
+          WHERE id = $1
+        `,
+        [activityId],
+      );
+    } catch (error) {
+      if (error?.code === '22P02' || /uuid/i.test((error as Error).message)) {
+        await this.tableUtil.recreateTemplateTable(safeTable);
+        await this.database.query(
+          `
+            DELETE FROM ${safeTable}
+            WHERE id = $1
+          `,
+          [activityId],
+        );
+      } else {
+        throw error;
+      }
+    }
   }
 
   async rolloutToPlanning(
@@ -303,7 +415,9 @@ export class TemplateRepository {
     let offsetMs = 0;
     if (anchorStart) {
       const minStart = Math.min(
-        ...activities.map((a) => Date.parse(a.start)).filter((v) => !Number.isNaN(v)),
+        ...activities
+          .map((a) => Date.parse(a.start))
+          .filter((v) => !Number.isNaN(v)),
       );
       const anchorMs = Date.parse(anchorStart);
       if (!Number.isNaN(anchorMs) && !Number.isNaN(minStart)) {
@@ -409,6 +523,75 @@ export class TemplateRepository {
     });
   }
 
+  private markActivitiesWithinService(activities: ActivityDto[]): ActivityDto[] {
+    if (!activities.length) {
+      return activities;
+    }
+    const byOwner = new Map<string, ActivityDto[]>();
+    activities.forEach((activity) => {
+      const owner = this.resolveServiceOwner(activity);
+      if (!owner) {
+        return;
+      }
+      const list = byOwner.get(owner);
+      if (list) {
+        list.push(activity);
+      } else {
+        byOwner.set(owner, [activity]);
+      }
+    });
+
+    const result = activities.map((activity) => ({ ...activity }));
+    const idMap = new Map<string, number>();
+    result.forEach((activity, index) => idMap.set(activity.id, index));
+
+    byOwner.forEach((list) => {
+      const starts = list
+        .filter((a) => a.serviceRole === 'start' && a.serviceId)
+        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .filter((s) => Number.isFinite(s.start));
+      const ends = list
+        .filter((a) => a.serviceRole === 'end' && a.serviceId)
+        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .filter((e) => Number.isFinite(e.start));
+      if (!starts.length) {
+        return;
+      }
+      starts.forEach((startEntry) => {
+        const windowStart = startEntry.start;
+        const endEntry = ends
+          .filter((e) => e.serviceId === startEntry.serviceId && e.start >= windowStart)
+          .sort((a, b) => a.start - b.start)[0];
+        const windowEnd = endEntry ? endEntry.start : windowStart + 36 * 3600 * 1000;
+        list.forEach((activity) => {
+          const begin = Date.parse(activity.start);
+          if (!Number.isFinite(begin)) {
+            return;
+          }
+          if (begin >= windowStart && begin <= windowEnd) {
+            const idx = idMap.get(activity.id);
+            if (idx === undefined) {
+              return;
+            }
+            const attrs = { ...(result[idx].attributes ?? {}) };
+            if (attrs['is_within_service'] !== true) {
+              attrs['is_within_service'] = true;
+              if (activity.serviceRole === 'start') {
+                attrs['is_service_start'] = true;
+              }
+              if (activity.serviceRole === 'end') {
+                attrs['is_service_end'] = true;
+              }
+              result[idx] = { ...result[idx], attributes: attrs };
+            }
+          }
+        });
+      });
+    });
+
+    return result;
+  }
+
   private mapTemplateSet(row: TemplateSetRow): ActivityTemplateSet {
     return {
       id: row.id,
@@ -422,5 +605,4 @@ export class TemplateRepository {
       attributes: row.attributes ?? undefined,
     };
   }
-
 }

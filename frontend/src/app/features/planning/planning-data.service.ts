@@ -1,6 +1,6 @@
 import { DestroyRef, Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { EMPTY, Observable } from 'rxjs';
-import { catchError, take, tap } from 'rxjs/operators';
+import { catchError, finalize, take, tap } from 'rxjs/operators';
 import { Activity, ActivityParticipant, ServiceRole } from '../../models/activity';
 import { Resource } from '../../models/resource';
 import { addDays } from '../../core/utils/time-math';
@@ -181,6 +181,8 @@ export class PlanningDataService {
   });
   private baseTemplatePeriods: TemplatePeriod[] | null = null;
   private baseTemplateSpecialDays: Set<string> = new Set();
+  private baseTimelineLoading = false;
+  private lastBaseTimelineSignature: string | null = null;
 
   private readonly stageDataSignal = signal<Record<PlanningStageId, PlanningStageData>>(
     STAGE_IDS.reduce((record, stage) => {
@@ -434,6 +436,8 @@ export class PlanningDataService {
     this.baseTemplateId = templateId;
     this.baseTemplatePeriods = context?.periods ?? null;
     this.baseTemplateSpecialDays = new Set(context?.specialDays ?? []);
+    this.lastBaseTimelineSignature = null;
+    this.baseTimelineLoading = false;
     if (!templateId) {
       this.stageDataSignal.update((record) => ({
         ...record,
@@ -471,20 +475,33 @@ export class PlanningDataService {
       // Ohne Template kein Ladevorgang auslösen; Bereinigung passiert in setBaseTemplateContext.
       return;
     }
+    if (this.baseTimelineLoading) {
+      return;
+    }
     const range = {
       from: this.baseTimelineRange.start.toISOString(),
       to: this.baseTimelineRange.end.toISOString(),
       lod: 'activity' as const,
       stage: 'base' as const,
     };
+    const signature = `${this.baseTemplateId}|${range.from}|${range.to}`;
+    if (signature === this.lastBaseTimelineSignature) {
+      return;
+    }
+    this.lastBaseTimelineSignature = signature;
+    this.baseTimelineLoading = true;
     this.timelineApi
       .loadTemplateTimeline(this.baseTemplateId, range)
       .pipe(
         take(1),
         tap((response) => this.applyTimelineActivities('base', response.activities ?? [])),
+        finalize(() => {
+          this.baseTimelineLoading = false;
+        }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to load base timeline', error);
           this.timelineErrorSignal.update((state) => ({ ...state, base: 'Basis-Timeline konnte nicht geladen werden.' }));
+          this.baseTimelineLoading = false;
           return EMPTY;
         }),
       )
@@ -497,7 +514,12 @@ export class PlanningDataService {
       .upsertTemplateActivity(templateId, dto)
       .pipe(
         take(1),
-        tap((saved) => this.applyTemplateActivity(saved)),
+        tap((saved) => {
+          this.applyTemplateActivity(saved);
+          // Force a fresh timeline load so the UI immediately reflects the change.
+          this.lastBaseTimelineSignature = null;
+          this.reloadBaseTimeline();
+        }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to upsert template activity', error);
           return EMPTY;
@@ -511,7 +533,27 @@ export class PlanningDataService {
       .deleteTemplateActivity(templateId, activityId)
       .pipe(
         take(1),
-        tap(() => this.removeTemplateActivity(activityId)),
+        tap(() => {
+          this.removeTemplateActivity(activityId);
+          // Auch reflektierte Instanzen (id@datum) entfernen.
+          this.stageDataSignal.update((record) => {
+            const baseStage = record.base;
+            const baseId = activityId.split('@')[0] ?? activityId;
+            const filtered = baseStage.activities.filter((activity) => {
+              const candidateBase = activity.id.split('@')[0] ?? activity.id;
+              return activity.id !== activityId && candidateBase !== baseId;
+            });
+            return {
+              ...record,
+              base: {
+                ...baseStage,
+                activities: filtered,
+              },
+            };
+          });
+          this.lastBaseTimelineSignature = null;
+          this.reloadBaseTimeline();
+        }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to delete template activity', error);
           return EMPTY;

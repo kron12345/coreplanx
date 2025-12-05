@@ -18,7 +18,10 @@ import type {
   ActivityUpdateRequestPayload,
   TimelineServiceDto,
 } from '../timeline/timeline.types';
-import { overlapsRange, servicesForActivity } from '../timeline/timeline.helpers';
+import {
+  overlapsRange,
+  servicesForActivity,
+} from '../timeline/timeline.helpers';
 
 @WebSocketGateway({ namespace: '/templates' })
 @Injectable()
@@ -27,7 +30,10 @@ export class TemplateGateway {
   server!: Server;
 
   private readonly logger = new Logger(TemplateGateway.name);
-  private readonly contexts = new Map<string, ClientContext & { templateId?: string }>();
+  private readonly contexts = new Map<
+    string,
+    ClientContext & { templateId?: string }
+  >();
 
   constructor(private readonly templateService: TemplateService) {}
 
@@ -67,7 +73,10 @@ export class TemplateGateway {
     }
   }
 
-  private handleViewportChanged(clientId: string, payload: ViewportChangedPayload & { templateId?: string }): void {
+  private handleViewportChanged(
+    clientId: string,
+    payload: ViewportChangedPayload & { templateId?: string },
+  ): void {
     const { from, to, lod, stage, templateId } = payload;
     const ctx = this.contexts.get(clientId);
     this.contexts.set(clientId, {
@@ -140,7 +149,10 @@ export class TemplateGateway {
         services.forEach((service) => {
           if (overlapsRange(service.start, service.end, ctx)) {
             const message: GatewayOutboundMessage = {
-              type: service.type === 'ABSENCE' ? 'ABSENCE_UPDATED' : 'SERVICE_UPDATED',
+              type:
+                service.type === 'ABSENCE'
+                  ? 'ABSENCE_UPDATED'
+                  : 'SERVICE_UPDATED',
               payload: service,
             };
             socket.emit('event', message);
@@ -148,7 +160,9 @@ export class TemplateGateway {
         });
         return;
       }
-      if (overlapsRange(activity.start, activity.end, ctx, activity.isOpenEnded)) {
+      if (
+        overlapsRange(activity.start, activity.end, ctx, activity.isOpenEnded)
+      ) {
         const message: GatewayOutboundMessage = {
           type: 'ACTIVITY_UPDATED',
           payload: activity,

@@ -81,6 +81,8 @@ export class TemplateTimelineStoreService {
       templates,
       selectedTemplateId: template.id,
     });
+    // Persist sofort, damit Timeline-/Activity-Endpunkte funktionieren.
+    this.updateTemplate(template);
   }
 
   selectTemplate(templateId: string | null): void {

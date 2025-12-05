@@ -7,7 +7,12 @@ import { ValidationService } from './validation.service';
 
 @Module({
   controllers: [TimelineController],
-  providers: [TimelineService, TimelineRepository, TimelineGateway, ValidationService],
+  providers: [
+    TimelineService,
+    TimelineRepository,
+    TimelineGateway,
+    ValidationService,
+  ],
   exports: [TimelineService, TimelineGateway],
 })
 export class TimelineModule {}

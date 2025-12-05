@@ -12,7 +12,7 @@ export class TemplateTableUtil {
     await this.database.query(
       `
         CREATE TABLE IF NOT EXISTS ${safeName} (
-          id UUID PRIMARY KEY,
+          id TEXT PRIMARY KEY,
           type TEXT NOT NULL,
           stage TEXT NOT NULL DEFAULT 'base',
           deleted BOOLEAN NOT NULL DEFAULT FALSE,
@@ -34,10 +34,21 @@ export class TemplateTableUtil {
     this.logger.log(`Template timeline table ${safeName} created/ensured.`);
   }
 
+  async recreateTemplateTable(tableName: string): Promise<void> {
+    const safeName = this.sanitize(tableName);
+    await this.database.query(`DROP TABLE IF EXISTS ${safeName};`);
+    await this.createTemplateTable(tableName);
+    this.logger.warn(
+      `Template timeline table ${safeName} recreated due to schema mismatch.`,
+    );
+  }
+
   async dropTemplateTable(tableName: string): Promise<void> {
     const safeName = this.sanitize(tableName);
     await this.database.query(`DROP TABLE IF EXISTS ${safeName};`);
-    this.logger.log(`Template timeline table ${safeName} dropped (if existed).`);
+    this.logger.log(
+      `Template timeline table ${safeName} dropped (if existed).`,
+    );
   }
 
   sanitize(raw: string): string {

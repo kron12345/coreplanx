@@ -7,7 +7,12 @@ import { TemplateGateway } from './template.gateway';
 
 @Module({
   controllers: [TemplateController],
-  providers: [TemplateService, TemplateRepository, TemplateTableUtil, TemplateGateway],
+  providers: [
+    TemplateService,
+    TemplateRepository,
+    TemplateTableUtil,
+    TemplateGateway,
+  ],
   exports: [TemplateService, TemplateGateway],
 })
 export class TemplateModule {}

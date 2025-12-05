@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ActivityUpdateRequestPayload, GatewayOutboundMessage } from './timeline.types';
+import {
+  ActivityUpdateRequestPayload,
+  GatewayOutboundMessage,
+} from './timeline.types';
 
 @Injectable()
 export class ValidationService {
@@ -7,7 +10,11 @@ export class ValidationService {
 
   async validateAndUpdate(
     payload: ActivityUpdateRequestPayload,
-    updater: (update: { activityId: string; newStart: string; newEnd?: string | null }) => Promise<void>,
+    updater: (update: {
+      activityId: string;
+      newStart: string;
+      newEnd?: string | null;
+    }) => Promise<void>,
   ): Promise<GatewayOutboundMessage[]> {
     // Placeholder for asynchronous validation/queue integration.
     // Simulate async validation with a short delay.
@@ -30,7 +37,9 @@ export class ValidationService {
       ];
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unbekannter Validierungsfehler';
+        error instanceof Error
+          ? error.message
+          : 'Unbekannter Validierungsfehler';
       this.logger.error(
         `Validation failed for activity ${payload.activityId}: ${message}`,
       );

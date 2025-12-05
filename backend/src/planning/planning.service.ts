@@ -611,7 +611,9 @@ export class PlanningService implements OnModuleInit {
       await Promise.all([
         this.repository.replacePersonnel(this.personnels),
         this.repository.replacePersonnelServices(this.personnelServices),
-        this.repository.replacePersonnelServicePools(this.personnelServicePools),
+        this.repository.replacePersonnelServicePools(
+          this.personnelServicePools,
+        ),
         this.repository.replacePersonnelPools(this.personnelPools),
         this.repository.replaceVehicles(this.vehicles),
         this.repository.replaceVehicleServices(this.vehicleServices),
@@ -1517,7 +1519,9 @@ export class PlanningService implements OnModuleInit {
       this.personnelServices = masterData.personnelServices.map((item) =>
         this.clonePersonnelService(item),
       );
-      this.vehicles = masterData.vehicles.map((item) => this.cloneVehicle(item));
+      this.vehicles = masterData.vehicles.map((item) =>
+        this.cloneVehicle(item),
+      );
       this.vehicleServices = masterData.vehicleServices.map((item) =>
         this.cloneVehicleService(item),
       );
@@ -2206,18 +2210,28 @@ export class PlanningService implements OnModuleInit {
     const allowedSet = new Set<ResourceKind>(allowed);
     const cleaned = (values ?? [])
       .map((entry) => (entry ?? '').trim())
-      .filter((entry) => allowedSet.has(entry as ResourceKind)) as ResourceKind[];
+      .filter((entry) =>
+        allowedSet.has(entry as ResourceKind),
+      ) as ResourceKind[];
     return Array.from(new Set(cleaned));
   }
 
   private normalizeActivityFields(
     values?: (string | ActivityFieldKey)[],
   ): ActivityFieldKey[] {
-    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
+    const allowed: ActivityFieldKey[] = [
+      'start',
+      'end',
+      'from',
+      'to',
+      'remark',
+    ];
     const allowedSet = new Set<ActivityFieldKey>(allowed);
     const cleaned = (values ?? [])
       .map((entry) => (entry ?? '').trim())
-      .filter((entry) => allowedSet.has(entry as ActivityFieldKey)) as ActivityFieldKey[];
+      .filter((entry) =>
+        allowedSet.has(entry as ActivityFieldKey),
+      ) as ActivityFieldKey[];
     return Array.from(new Set(cleaned));
   }
 

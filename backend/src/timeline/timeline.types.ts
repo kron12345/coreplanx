@@ -82,14 +82,32 @@ export interface ActivityUpdateRequestPayload {
 }
 
 export type GatewayInboundMessage =
-  | { type: 'VIEWPORT_CHANGED'; payload: ViewportChangedPayload & { templateId?: string } }
-  | { type: 'ACTIVITY_UPDATE_REQUEST'; payload: ActivityUpdateRequestPayload & { templateId?: string } }
-  | { type: 'ACTIVITY_HOVERED'; payload: { activityId: string; userId?: string; at?: string } }
-  | { type: 'ACTIVITY_HOVER_LEFT'; payload: { activityId: string; userId?: string; at?: string } }
-  | { type: 'ACTIVITY_SELECTED'; payload: { activityId: string; userId?: string; at?: string } };
+  | {
+      type: 'VIEWPORT_CHANGED';
+      payload: ViewportChangedPayload & { templateId?: string };
+    }
+  | {
+      type: 'ACTIVITY_UPDATE_REQUEST';
+      payload: ActivityUpdateRequestPayload & { templateId?: string };
+    }
+  | {
+      type: 'ACTIVITY_HOVERED';
+      payload: { activityId: string; userId?: string; at?: string };
+    }
+  | {
+      type: 'ACTIVITY_HOVER_LEFT';
+      payload: { activityId: string; userId?: string; at?: string };
+    }
+  | {
+      type: 'ACTIVITY_SELECTED';
+      payload: { activityId: string; userId?: string; at?: string };
+    };
 
 export type GatewayOutboundMessage =
-  | { type: 'ACTIVITY_UPDATE_ACCEPTED'; payload: { requestId: string; activityId: string } }
+  | {
+      type: 'ACTIVITY_UPDATE_ACCEPTED';
+      payload: { requestId: string; activityId: string };
+    }
   | {
       type: 'ACTIVITY_UPDATE_VALIDATION_RESULT';
       payload: {

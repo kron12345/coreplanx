@@ -14,7 +14,9 @@ export class TimelineController {
     @Query('stage') stage: 'base' | 'operations' = 'base',
   ): Promise<TimelineResponse> {
     if (!from || !to) {
-      throw new BadRequestException('Query params "from" and "to" are required.');
+      throw new BadRequestException(
+        'Query params "from" and "to" are required.',
+      );
     }
     return this.timelineService.getTimeline(from, to, lod, stage);
   }

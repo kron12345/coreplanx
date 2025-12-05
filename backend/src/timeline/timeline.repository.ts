@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import {
-  ActivityDto,
-  TimelineServiceDto,
-} from './timeline.types';
+import { ActivityDto, TimelineServiceDto } from './timeline.types';
 import {
   aggregateServices,
   mapActivityRow,

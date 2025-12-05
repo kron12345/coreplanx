@@ -51,7 +51,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     options.initialRangeMs ??
     ZOOM_RANGE_MS[options.initialZoom ?? DEFAULT_ZOOM_LEVEL];
   const minRange = Math.min(MIN_RANGE_MS, timelineDuration);
-  const maxRange = Math.min(Math.max(MAX_RANGE_MS, minRange), timelineDuration);
+  const maxRange = Math.max(minRange, timelineDuration);
   const rangeSignal = signal(clampRange(requestedRange, minRange, maxRange));
 
   const initialCenter = options.initialCenter ?? new Date();

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service';
 import {
   Activity,
@@ -446,7 +447,9 @@ export class PlanningRepository {
       },
       version: stageRow.version ? this.toIso(stageRow.version) : null,
       resources: resourcesResult.rows.map((row) => this.mapResource(row)),
-      activities: activitiesResult.rows.map((row) => this.mapActivity(row)),
+      activities: this.markActivitiesWithinService(
+        activitiesResult.rows.map((row) => this.mapActivity(row)),
+      ),
       trainRuns: trainRunsResult.rows.map((row) => ({
         id: row.id,
         trainNumber: row.train_number,
@@ -579,7 +582,11 @@ export class PlanningRepository {
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
       try {
-        if (upserts.length) {
+        const normalizedUpserts: Activity[] = [];
+        for (const activity of upserts) {
+          normalizedUpserts.push(await this.prepareServiceMetadata(client, stageId, activity));
+        }
+        if (normalizedUpserts.length) {
           await client.query(
             `
               WITH payload AS (
@@ -725,7 +732,7 @@ export class PlanningRepository {
                 train_segment_ids = EXCLUDED.train_segment_ids,
                 updated_at = now()
             `,
-            [stageId, JSON.stringify(upserts)],
+            [stageId, JSON.stringify(normalizedUpserts)],
           );
         }
 
@@ -1875,8 +1882,8 @@ export class PlanningRepository {
               COALESCE(attributes, '{}'::jsonb)
             FROM incoming
           `,
-          [JSON.stringify(items)],
-        );
+            [JSON.stringify(items)],
+          );
 
           const entries = this.flattenVehicleCompositionEntries(items);
           if (entries.length) {
@@ -2104,15 +2111,27 @@ export class PlanningRepository {
     const allowedSet = new Set<ResourceKind>(allowed);
     return (values ?? [])
       .map((entry) => entry?.trim())
-      .filter((entry): entry is ResourceKind => Boolean(entry) && allowedSet.has(entry as ResourceKind));
+      .filter(
+        (entry): entry is ResourceKind =>
+          Boolean(entry) && allowedSet.has(entry as ResourceKind),
+      );
   }
 
   private toActivityFields(values?: string[] | null): ActivityFieldKey[] {
-    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
+    const allowed: ActivityFieldKey[] = [
+      'start',
+      'end',
+      'from',
+      'to',
+      'remark',
+    ];
     const allowedSet = new Set<ActivityFieldKey>(allowed);
     return (values ?? [])
       .map((entry) => entry?.trim())
-      .filter((entry): entry is ActivityFieldKey => Boolean(entry) && allowedSet.has(entry as ActivityFieldKey));
+      .filter(
+        (entry): entry is ActivityFieldKey =>
+          Boolean(entry) && allowedSet.has(entry as ActivityFieldKey),
+      );
   }
 
   private mapPersonnel(row: PersonnelRow): Personnel {
@@ -2292,6 +2311,184 @@ export class PlanningRepository {
     };
   }
 
+  private enrichServiceMetadata(
+    stageId: StageId,
+    activity: Activity,
+  ): Activity {
+    const role = this.resolveServiceRole(activity);
+    if (!role) {
+      return activity;
+    }
+    const ownerId = this.resolveServiceOwner(activity);
+    if (!ownerId) {
+      return activity;
+    }
+    const serviceId = this.computeServiceId(stageId, ownerId, activity.start);
+    return {
+      ...activity,
+      serviceId,
+      serviceRole: role,
+    };
+  }
+
+  private async prepareServiceMetadata(
+    client: PoolClient,
+    stageId: StageId,
+    activity: Activity,
+  ): Promise<Activity> {
+    const role = this.resolveServiceRole(activity);
+    if (!role) {
+      return activity;
+    }
+    const ownerId = this.resolveServiceOwner(activity);
+    if (!ownerId) {
+      return activity;
+    }
+    if (role === 'end') {
+      const match = await this.findLatestServiceStart(client, stageId, ownerId, activity.start);
+      const serviceId =
+        match?.serviceId ??
+        this.computeServiceId(stageId, ownerId, match?.start ?? activity.start);
+      await this.ensureNoDuplicate(client, stageId, serviceId, 'end', activity.id);
+      return {
+        ...activity,
+        serviceId,
+        serviceRole: 'end',
+      };
+    }
+    // role === 'start'
+    const serviceId = this.computeServiceId(stageId, ownerId, activity.start);
+    await this.ensureNoDuplicate(client, stageId, serviceId, 'start', activity.id);
+    await this.attachPendingEnd(client, stageId, ownerId, serviceId, activity.start);
+    return {
+      ...activity,
+      serviceId,
+      serviceRole: 'start',
+    };
+  }
+
+  private resolveServiceOwner(activity: Activity): string | null {
+    const participants = activity.participants ?? [];
+    const preferredKinds = new Set(['personnel-service', 'vehicle-service']);
+    const owner =
+      participants.find(
+        (p) =>
+          p?.resourceId &&
+          preferredKinds.has((p as any).kind ?? (p as any).role ?? ''),
+      ) ?? participants.find((p) => p?.resourceId);
+    return owner?.resourceId ?? null;
+  }
+
+  private resolveServiceRole(
+    activity: Activity,
+  ): 'start' | 'end' | 'segment' | null {
+    if (activity.serviceRole) {
+      return activity.serviceRole as 'start' | 'end' | 'segment';
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const toBool = (val: unknown) =>
+      typeof val === 'boolean'
+        ? val
+        : typeof val === 'string'
+          ? val.toLowerCase() === 'true'
+          : false;
+    if (attrs) {
+      if (toBool((attrs as any)['is_service_start'])) {
+        return 'start';
+      }
+      if (toBool((attrs as any)['is_service_end'])) {
+        return 'end';
+      }
+    }
+    return null;
+  }
+
+  private computeServiceId(
+    stageId: StageId,
+    ownerId: string,
+    startIso: string,
+  ): string {
+    const date = new Date(startIso);
+    const y = date.getUTCFullYear();
+    const m = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getUTCDate()}`.padStart(2, '0');
+    return `svc:${stageId}:${ownerId}:${y}-${m}-${d}`;
+  }
+
+  private async findLatestServiceStart(
+    client: PoolClient,
+    stageId: StageId,
+    ownerId: string,
+    beforeIso: string,
+  ): Promise<{ id: string; start: string; serviceId: string | null } | null> {
+    const result = await client.query<{
+      id: string;
+      start: string;
+      service_id: string | null;
+    }>(
+      `
+        SELECT id, start, service_id
+        FROM planning_activity
+        WHERE stage_id = $1
+          AND service_role = 'start'
+          AND start <= $2
+          AND participants @> $3::jsonb
+        ORDER BY start DESC
+        LIMIT 1
+      `,
+      [stageId, beforeIso, JSON.stringify([{ resourceId: ownerId }])],
+    );
+    const row = result.rows[0];
+    return row ? { id: row.id, start: row.start, serviceId: row.service_id } : null;
+  }
+
+  private async ensureNoDuplicate(
+    client: PoolClient,
+    stageId: StageId,
+    serviceId: string,
+    role: 'start' | 'end',
+    selfId: string,
+  ): Promise<void> {
+    const result = await client.query<{ id: string }>(
+      `
+        SELECT id
+        FROM planning_activity
+        WHERE stage_id = $1
+          AND service_id = $2
+          AND service_role = $3
+          AND id <> $4
+        LIMIT 1
+      `,
+      [stageId, serviceId, role, selfId],
+    );
+    if (result.rows.length) {
+      throw new ConflictException(`Service ${serviceId} hat bereits ein ${role}.`);
+    }
+  }
+
+  private async attachPendingEnd(
+    client: PoolClient,
+    stageId: StageId,
+    ownerId: string,
+    serviceId: string,
+    startIso: string,
+  ): Promise<void> {
+    await client.query(
+      `
+        UPDATE planning_activity
+        SET service_id = $3
+        WHERE stage_id = $1
+          AND service_role = 'end'
+          AND service_id IS NULL
+          AND start >= $2
+          AND participants @> $4::jsonb
+        ORDER BY start
+        LIMIT 1
+      `,
+      [stageId, startIso, serviceId, JSON.stringify([{ resourceId: ownerId }])],
+    );
+  }
+
   private toIso(value: string | Date): string {
     return value instanceof Date
       ? value.toISOString()
@@ -2312,6 +2509,75 @@ export class PlanningRepository {
     return Number.isNaN(parsed.getTime())
       ? undefined
       : parsed.toISOString().substring(0, 10);
+  }
+
+  private markActivitiesWithinService(activities: Activity[]): Activity[] {
+    if (!activities.length) {
+      return activities;
+    }
+    const byOwner = new Map<string, Activity[]>();
+    activities.forEach((activity) => {
+      const owner = this.resolveServiceOwner(activity);
+      if (!owner) {
+        return;
+      }
+      const list = byOwner.get(owner);
+      if (list) {
+        list.push(activity);
+      } else {
+        byOwner.set(owner, [activity]);
+      }
+    });
+
+    const result = activities.map((activity) => ({ ...activity }));
+    const idMap = new Map<string, number>();
+    result.forEach((activity, index) => idMap.set(activity.id, index));
+
+    byOwner.forEach((list) => {
+      const starts = list
+        .filter((a) => a.serviceRole === 'start' && a.serviceId)
+        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .filter((s) => Number.isFinite(s.start));
+      const ends = list
+        .filter((a) => a.serviceRole === 'end' && a.serviceId)
+        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .filter((e) => Number.isFinite(e.start));
+      if (!starts.length) {
+        return;
+      }
+      starts.forEach((startEntry) => {
+        const windowStart = startEntry.start;
+        const endEntry = ends
+          .filter((e) => e.serviceId === startEntry.serviceId && e.start >= windowStart)
+          .sort((a, b) => a.start - b.start)[0];
+        const windowEnd = endEntry ? endEntry.start : windowStart + 36 * 3600 * 1000;
+        list.forEach((activity) => {
+          const begin = Date.parse(activity.start);
+          if (!Number.isFinite(begin)) {
+            return;
+          }
+          if (begin >= windowStart && begin <= windowEnd) {
+            const idx = idMap.get(activity.id);
+            if (idx === undefined) {
+              return;
+            }
+            const attrs = { ...(result[idx].attributes ?? {}) };
+            if (attrs['is_within_service'] !== true) {
+              attrs['is_within_service'] = true;
+              if (activity.serviceRole === 'start') {
+                attrs['is_service_start'] = true;
+              }
+              if (activity.serviceRole === 'end') {
+                attrs['is_service_end'] = true;
+              }
+              result[idx] = { ...result[idx], attributes: attrs };
+            }
+          }
+        });
+      });
+    });
+
+    return result;
   }
 
   private mapPersonnelServicePool(

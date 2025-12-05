@@ -1067,8 +1067,7 @@ export class PlanningDashboardComponent {
       return;
     }
     const draft = this.createActivityDraft(event, definition, selectedOption ?? null);
-    const mappedDraft = stage === 'base' ? this.mapActivityToReferenceWeek(draft) : draft;
-    const normalized = this.applyActivityTypeConstraints(mappedDraft);
+    const normalized = this.applyActivityTypeConstraints(draft);
     this.pendingActivityOriginal.set(normalized);
     this.startPendingActivity(stage, event.resource, normalized);
   }
@@ -1476,7 +1475,8 @@ export class PlanningDashboardComponent {
     if (stage === 'base') {
       const templateId = this.templateStore.selectedTemplate()?.id;
       if (templateId) {
-        this.data.deleteTemplateActivity(templateId, selection.activity.id);
+        const baseId = selection.activity.id.split('@')[0] ?? selection.activity.id;
+        this.data.deleteTemplateActivity(templateId, baseId);
       }
       this.selectedActivityState.set(null);
       return;
@@ -2226,7 +2226,7 @@ export class PlanningDashboardComponent {
     }
     const option = this.activityCatalogOptionMap().get(candidateKey) ?? null;
     let changed = false;
-    const nextAttrs: Record<string, unknown> = { ...attrs };
+    let nextAttrs: Record<string, unknown> = { ...attrs };
     if (!existingKey) {
       nextAttrs['activityKey'] = candidateKey;
       changed = true;
@@ -2254,10 +2254,14 @@ export class PlanningDashboardComponent {
         changed = true;
       }
     }
+    const role = this.resolveServiceRole(option);
+    if (role && activity.serviceRole !== role) {
+      changed = true;
+    }
     if (!changed) {
       return activity;
     }
-    return { ...activity, attributes: nextAttrs };
+    return { ...activity, attributes: nextAttrs, serviceRole: role ?? activity.serviceRole };
   }
 
   private activityOwnerId(activity: Activity): string | null {
@@ -3126,6 +3130,7 @@ export class PlanningDashboardComponent {
       end: endDate ? endDate.toISOString() : null,
       type: definition.id,
       serviceCategory: this.resolveServiceCategory(event.resource),
+      serviceRole: this.resolveServiceRole(option),
       attributes: this.buildAttributesFromCatalog(option),
     };
     if (this.definitionHasField(definition, 'from')) {
@@ -3168,6 +3173,30 @@ export class PlanningDashboardComponent {
       }
     }
     return attrs;
+  }
+
+  private resolveServiceRole(option: ActivityCatalogOption | null): ServiceRole | null {
+    if (!option) {
+      return null;
+    }
+    const flag = (key: string) => {
+      const attr = option.attributes.find((entry) => entry.key === key);
+      const val = attr?.meta?.['value'];
+      if (typeof val === 'boolean') {
+        return val;
+      }
+      if (typeof val === 'string') {
+        return val.toLowerCase() === 'true';
+      }
+      return false;
+    };
+    if (flag('is_service_start')) {
+      return 'start';
+    }
+    if (flag('is_service_end')) {
+      return 'end';
+    }
+    return null;
   }
 
   private defaultColorForType(typeId: string | null, category?: ActivityCategory | null): string | null {
@@ -3228,7 +3257,28 @@ export class PlanningDashboardComponent {
           })
       : base;
     const normalized = this.applyActivityTypeConstraints(updated);
-    this.saveTemplateActivity(normalized);
+    // Sofort lokal die angeklickte Instanz ersetzen; andere Reflektionen bleiben bis zur nächsten Reload unverändert.
+    const baseId = event.activity.id.split('@')[0] ?? event.activity.id;
+    this.updateStageActivities('base', (activities) =>
+      activities.map((activity) =>
+        activity.id === event.activity.id
+          ? {
+              ...activity,
+              start: normalized.start,
+              end: normalized.end,
+              participants: normalized.participants,
+              attributes: normalized.attributes,
+              type: normalized.type,
+              title: normalized.title,
+              from: normalized.from,
+              to: normalized.to,
+              remark: normalized.remark,
+            }
+          : activity,
+      ),
+    );
+    // Persistenz gegen Template erfolgt mit Basis-ID (ohne Reflektions-Suffix) und der aktuellen Zeitlage.
+    this.saveTemplateActivity({ ...normalized, id: baseId });
     const resource = targetResource ?? this.selectedActivityState()?.resource ?? null;
     const currentSelection = this.selectedActivityState();
     if (resource && currentSelection?.activity.id === event.activity.id) {

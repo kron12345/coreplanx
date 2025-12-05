@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { TimelineRepository } from './timeline.repository';
 import {
   ActivityDto,
@@ -35,7 +39,11 @@ export class TimelineService {
       const activities = await this.repository.listActivities(from, to, stage);
       return { lod, activities };
     }
-    const services = await this.repository.listAggregatedServices(from, to, stage);
+    const services = await this.repository.listAggregatedServices(
+      from,
+      to,
+      stage,
+    );
     return { lod, services };
   }
 }

@@ -31,8 +31,8 @@
           [periods]="periodsSignal()"
           [pixelsPerMs]="timeScale.pixelsPerMs()"
           [timelineStart]="timeScale.timelineStartDate()"
-          [viewStart]="viewport.viewStart()"
-          [viewEnd]="viewport.viewEnd()"
+          [viewStart]="timeScale.timelineStartDate()"
+          [viewEnd]="timeScale.timelineEndDate()"
         />
       </div>
 

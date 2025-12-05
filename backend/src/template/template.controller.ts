@@ -14,7 +14,11 @@ import type {
   CreateTemplateSetPayload,
   UpdateTemplateSetPayload,
 } from './template.types';
-import type { Lod, TimelineResponse, ActivityDto } from '../timeline/timeline.types';
+import type {
+  Lod,
+  TimelineResponse,
+  ActivityDto,
+} from '../timeline/timeline.types';
 
 @Controller('templates')
 export class TemplateController {
@@ -26,12 +30,16 @@ export class TemplateController {
   }
 
   @Post()
-  createTemplateSet(@Body() payload: CreateTemplateSetPayload): Promise<ActivityTemplateSet> {
+  createTemplateSet(
+    @Body() payload: CreateTemplateSetPayload,
+  ): Promise<ActivityTemplateSet> {
     return this.templateService.createTemplateSet(payload);
   }
 
   @Get(':templateId')
-  getTemplateSet(@Param('templateId') templateId: string): Promise<ActivityTemplateSet> {
+  getTemplateSet(
+    @Param('templateId') templateId: string,
+  ): Promise<ActivityTemplateSet> {
     return this.templateService.getTemplateSet(templateId);
   }
 
@@ -59,7 +67,13 @@ export class TemplateController {
     if (!from || !to) {
       throw new Error('Query params "from" and "to" are required.');
     }
-    return this.templateService.getTemplateTimeline(templateId, from, to, lod, stage);
+    return this.templateService.getTemplateTimeline(
+      templateId,
+      from,
+      to,
+      lod,
+      stage,
+    );
   }
 
   @Put(':templateId/activities/:activityId')
