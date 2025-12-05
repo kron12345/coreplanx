@@ -2337,11 +2337,14 @@ export class PlanningRepository {
     activity: Activity,
   ): Promise<Activity> {
     const role = this.resolveServiceRole(activity);
-    if (!role) {
-      return activity;
-    }
     const ownerId = this.resolveServiceOwner(activity);
     if (!ownerId) {
+      return activity;
+    }
+    const withinPref = this.resolveWithinPreference(activity);
+    if (!role) {
+      // Nicht start/end: ggf. Pflicht außerhalb/innerhalb prüfen.
+      await this.enforceWithinPreference(client, stageId, ownerId, activity, withinPref);
       return activity;
     }
     if (role === 'end') {
@@ -2350,6 +2353,7 @@ export class PlanningRepository {
         match?.serviceId ??
         this.computeServiceId(stageId, ownerId, match?.start ?? activity.start);
       await this.ensureNoDuplicate(client, stageId, serviceId, 'end', activity.id);
+      await this.enforceWithinPreference(client, stageId, ownerId, activity, withinPref, serviceId);
       return {
         ...activity,
         serviceId,
@@ -2360,6 +2364,7 @@ export class PlanningRepository {
     const serviceId = this.computeServiceId(stageId, ownerId, activity.start);
     await this.ensureNoDuplicate(client, stageId, serviceId, 'start', activity.id);
     await this.attachPendingEnd(client, stageId, ownerId, serviceId, activity.start);
+    await this.enforceWithinPreference(client, stageId, ownerId, activity, withinPref, serviceId);
     return {
       ...activity,
       serviceId,
@@ -2374,8 +2379,8 @@ export class PlanningRepository {
       participants.find(
         (p) =>
           p?.resourceId &&
-          preferredKinds.has((p as any).kind ?? (p as any).role ?? ''),
-      ) ?? participants.find((p) => p?.resourceId);
+          preferredKinds.has(((p as any).kind ?? (p as any).role ?? '') as string),
+      ) ?? null;
     return owner?.resourceId ?? null;
   }
 
@@ -2403,6 +2408,30 @@ export class PlanningRepository {
     return null;
   }
 
+  private resolveWithinPreference(activity: Activity): 'within' | 'outside' | 'both' {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const meta = activity.meta as Record<string, unknown> | undefined;
+    const raw = (attrs && attrs['is_within_service'] !== undefined)
+      ? attrs['is_within_service']
+      : meta?.['is_within_service'];
+    if (typeof raw === 'boolean') {
+      return raw ? 'within' : 'outside';
+    }
+    if (typeof raw === 'string') {
+      const val = raw.trim().toLowerCase();
+      if (val === 'yes' || val === 'true' || val === 'inside' || val === 'in') {
+        return 'within';
+      }
+      if (val === 'no' || val === 'false' || val === 'outside' || val === 'out') {
+        return 'outside';
+      }
+      if (val === 'both') {
+        return 'both';
+      }
+    }
+    return 'both';
+  }
+
   private computeServiceId(
     stageId: StageId,
     ownerId: string,
@@ -2420,24 +2449,26 @@ export class PlanningRepository {
     stageId: StageId,
     ownerId: string,
     beforeIso: string,
+    serviceId?: string,
   ): Promise<{ id: string; start: string; serviceId: string | null } | null> {
-    const result = await client.query<{
-      id: string;
-      start: string;
-      service_id: string | null;
-    }>(
-      `
-        SELECT id, start, service_id
-        FROM planning_activity
-        WHERE stage_id = $1
-          AND service_role = 'start'
-          AND start <= $2
-          AND participants @> $3::jsonb
-        ORDER BY start DESC
-        LIMIT 1
-      `,
-      [stageId, beforeIso, JSON.stringify([{ resourceId: ownerId }])],
-    );
+    const params: any[] = [stageId, beforeIso, JSON.stringify([{ resourceId: ownerId }])];
+    let serviceFilter = '';
+    if (serviceId) {
+      params.push(serviceId);
+      serviceFilter = 'AND service_id = $4';
+    }
+    const sql = `
+      SELECT id, start, service_id
+      FROM planning_activity
+      WHERE stage_id = $1
+        AND service_role = 'start'
+        AND start <= $2
+        AND participants @> $3::jsonb
+        ${serviceFilter}
+      ORDER BY start DESC
+      LIMIT 1
+    `;
+    const result = await client.query<{ id: string; start: string; service_id: string | null }>(sql, params);
     const row = result.rows[0];
     return row ? { id: row.id, start: row.start, serviceId: row.service_id } : null;
   }
@@ -2489,6 +2520,95 @@ export class PlanningRepository {
     );
   }
 
+  private async enforceWithinPreference(
+    client: PoolClient,
+    stageId: StageId,
+    ownerId: string,
+    activity: Activity,
+    pref: 'within' | 'outside' | 'both',
+    predefinedServiceId?: string,
+  ): Promise<void> {
+    if (pref === 'both') {
+      return;
+    }
+    // Bestimme dienstfenster über letzten Dienstbeginn derselben Ressource.
+    const latestStart = await this.findLatestServiceStart(client, stageId, ownerId, activity.start);
+    const serviceId =
+      predefinedServiceId ??
+      latestStart?.serviceId ??
+      this.computeServiceId(stageId, ownerId, latestStart?.start ?? activity.start);
+    const window = await this.findServiceWindow(
+      client,
+      stageId,
+      ownerId,
+      serviceId,
+      latestStart?.start ?? activity.start,
+    );
+    const inWindow = window ? this.isWithinWindow(activity.start, window) : false;
+    if (pref === 'within' && !inWindow) {
+      throw new ConflictException(
+        'Aktivität muss innerhalb eines Dienstes liegen, aber kein Dienstfenster gefunden.',
+      );
+    }
+    if (pref === 'outside' && inWindow) {
+      throw new ConflictException(
+        'Aktivität muss außerhalb eines Dienstes liegen, liegt aber in einem Dienstfenster.',
+      );
+    }
+  }
+
+  private async findServiceWindow(
+    client: PoolClient,
+    stageId: StageId,
+    ownerId: string,
+    serviceId: string,
+    referenceIso: string,
+  ): Promise<{ startMs: number; endMs: number } | null> {
+    const startRow =
+      (await this.findLatestServiceStart(client, stageId, ownerId, referenceIso, serviceId)) ??
+      (await this.findLatestServiceStart(client, stageId, ownerId, referenceIso));
+    if (!startRow) {
+      return null;
+    }
+    const effectiveServiceId = startRow.serviceId ?? serviceId;
+    const endRow = await this.findFirstServiceEnd(client, stageId, ownerId, effectiveServiceId, startRow.start);
+    const startMs = Date.parse(startRow.start);
+    const endMs = endRow ? Date.parse(endRow.start) : startMs + 36 * 3600 * 1000;
+    return { startMs, endMs };
+  }
+
+  private async findFirstServiceEnd(
+    client: PoolClient,
+    stageId: StageId,
+    ownerId: string,
+    serviceId: string,
+    afterIso: string,
+  ): Promise<{ id: string; start: string } | null> {
+    const result = await client.query<{ id: string; start: string }>(
+      `
+        SELECT id, start
+        FROM planning_activity
+        WHERE stage_id = $1
+          AND service_role = 'end'
+          AND service_id = $2
+          AND start >= $3
+          AND participants @> $4::jsonb
+        ORDER BY start ASC
+        LIMIT 1
+      `,
+      [stageId, serviceId, afterIso, JSON.stringify([{ resourceId: ownerId }])],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  private isWithinWindow(startIso: string, window: { startMs: number; endMs: number }): boolean {
+    const ts = Date.parse(startIso);
+    if (!Number.isFinite(ts)) {
+      return false;
+    }
+    return ts >= window.startMs && ts <= window.endMs;
+  }
+
   private toIso(value: string | Date): string {
     return value instanceof Date
       ? value.toISOString()
@@ -2509,75 +2629,6 @@ export class PlanningRepository {
     return Number.isNaN(parsed.getTime())
       ? undefined
       : parsed.toISOString().substring(0, 10);
-  }
-
-  private markActivitiesWithinService(activities: Activity[]): Activity[] {
-    if (!activities.length) {
-      return activities;
-    }
-    const byOwner = new Map<string, Activity[]>();
-    activities.forEach((activity) => {
-      const owner = this.resolveServiceOwner(activity);
-      if (!owner) {
-        return;
-      }
-      const list = byOwner.get(owner);
-      if (list) {
-        list.push(activity);
-      } else {
-        byOwner.set(owner, [activity]);
-      }
-    });
-
-    const result = activities.map((activity) => ({ ...activity }));
-    const idMap = new Map<string, number>();
-    result.forEach((activity, index) => idMap.set(activity.id, index));
-
-    byOwner.forEach((list) => {
-      const starts = list
-        .filter((a) => a.serviceRole === 'start' && a.serviceId)
-        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
-        .filter((s) => Number.isFinite(s.start));
-      const ends = list
-        .filter((a) => a.serviceRole === 'end' && a.serviceId)
-        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
-        .filter((e) => Number.isFinite(e.start));
-      if (!starts.length) {
-        return;
-      }
-      starts.forEach((startEntry) => {
-        const windowStart = startEntry.start;
-        const endEntry = ends
-          .filter((e) => e.serviceId === startEntry.serviceId && e.start >= windowStart)
-          .sort((a, b) => a.start - b.start)[0];
-        const windowEnd = endEntry ? endEntry.start : windowStart + 36 * 3600 * 1000;
-        list.forEach((activity) => {
-          const begin = Date.parse(activity.start);
-          if (!Number.isFinite(begin)) {
-            return;
-          }
-          if (begin >= windowStart && begin <= windowEnd) {
-            const idx = idMap.get(activity.id);
-            if (idx === undefined) {
-              return;
-            }
-            const attrs = { ...(result[idx].attributes ?? {}) };
-            if (attrs['is_within_service'] !== true) {
-              attrs['is_within_service'] = true;
-              if (activity.serviceRole === 'start') {
-                attrs['is_service_start'] = true;
-              }
-              if (activity.serviceRole === 'end') {
-                attrs['is_service_end'] = true;
-              }
-              result[idx] = { ...result[idx], attributes: attrs };
-            }
-          }
-        });
-      });
-    });
-
-    return result;
   }
 
   private mapPersonnelServicePool(
@@ -2891,5 +2942,64 @@ export class PlanningRepository {
     }
     this.missingTopologyTables.add(tableName);
     this.logger.warn(`Topologie-Tabelle ${tableName} ${message}`);
+  }
+
+  private markActivitiesWithinService(activities: Activity[]): Activity[] {
+    if (!activities.length) {
+      return activities;
+    }
+    const byOwner = new Map<string, Activity[]>();
+    activities.forEach((activity) => {
+      const owner = this.resolveServiceOwner(activity);
+      if (!owner) {
+        return;
+      }
+      const list = byOwner.get(owner);
+      if (list) {
+        list.push(activity);
+      } else {
+        byOwner.set(owner, [activity]);
+      }
+    });
+
+    const result = activities.map((activity) => ({ ...activity }));
+    const idMap = new Map<string, number>();
+    result.forEach((activity, index) => idMap.set(activity.id, index));
+
+    byOwner.forEach((list) => {
+      const starts = list
+        .filter((a) => a.serviceRole === 'start' && a.serviceId)
+        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .filter((s) => Number.isFinite(s.start));
+      const ends = list
+        .filter((a) => a.serviceRole === 'end' && a.serviceId)
+        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .filter((e) => Number.isFinite(e.start));
+      if (!starts.length) {
+        return;
+      }
+      starts.forEach((startEntry) => {
+        const windowStart = startEntry.start;
+        const endEntry = ends
+          .filter((e) => e.serviceId === startEntry.serviceId && e.start >= windowStart)
+          .sort((a, b) => a.start - b.start)[0];
+        const windowEnd = endEntry ? endEntry.start : windowStart + 36 * 3600 * 1000;
+        list.forEach((activity) => {
+          const begin = Date.parse(activity.start);
+          if (!Number.isFinite(begin)) {
+            return;
+          }
+          if (begin >= windowStart && begin <= windowEnd) {
+            const idx = idMap.get(activity.id);
+            if (idx === undefined) {
+              return;
+            }
+            // Keine Persistenz nötig; Kennzeichnung bleibt optional.
+          }
+        });
+      });
+    });
+
+    return result;
   }
 }

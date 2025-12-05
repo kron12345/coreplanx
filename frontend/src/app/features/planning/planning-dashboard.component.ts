@@ -3166,7 +3166,9 @@ export class PlanningDashboardComponent {
         attrs[key] = val;
       }
     });
-    if (!attrs['color']) {
+    const colorKeys = ['color', 'bar_color', 'display_color', 'main_color'];
+    const hasColor = colorKeys.some((key) => typeof attrs[key] === 'string' && (attrs[key] as string).trim().length > 0);
+    if (!hasColor) {
       const fallback = this.defaultColorForType(option.activityTypeId, option.typeDefinition.category);
       if (fallback) {
         attrs['color'] = fallback;

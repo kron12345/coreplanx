@@ -69,6 +69,33 @@ paths:
     $ref: './planning/paths/topology.yaml#/planning_topology_transfer_edges'
   /planning/topology/import:
     $ref: './planning/paths/topology.yaml#/planning_topology_import'
+  /activity-catalog:
+    get:
+      summary: List activity catalog entries
+      tags: [activity-catalog]
+      responses:
+        '200':
+          description: Catalog entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivityCatalogEntry'
+    put:
+      summary: Replace the entire activity catalog
+      tags: [activity-catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ActivityCatalogEntry'
+      responses:
+        '204':
+          description: Catalog replaced
   /planning/topology/import/events:
     $ref: './planning/paths/topology.yaml#/planning_topology_import_events'
   # Catalog (Activity Types, Templates, Definitions, Layers, Translations)

@@ -2231,3 +2231,40 @@ schemas:
           format: date-time
       required:
       - timestamp
+  ActivityCatalogEntry:
+    type: object
+    properties:
+      id:
+        type: string
+      label:
+        type: string
+      description:
+        type: string
+      appliesTo:
+        type: array
+        items:
+          type: string
+      relevantFor:
+        type: array
+        items:
+          type: string
+      category:
+        type: string
+      timeMode:
+        type: string
+        enum:
+        - duration
+        - range
+        - point
+      fields:
+        type: array
+        items:
+          type: string
+      defaultDurationMinutes:
+        type: integer
+      attributes:
+        type: object
+        additionalProperties: true
+      meta:
+        type: object
+        additionalProperties: true

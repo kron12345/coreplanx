@@ -300,9 +300,12 @@ export class GanttComponent implements AfterViewInit {
 
   private extractActivityColor(activity: Activity): string | null {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const color = attrs?.['color'];
-    if (typeof color === 'string' && color.trim().length > 0) {
-      return color.trim();
+    const keys = ['color', 'bar_color', 'display_color', 'main_color'];
+    for (const key of keys) {
+      const val = attrs?.[key];
+      if (typeof val === 'string' && val.trim().length > 0) {
+        return val.trim();
+      }
     }
     return null;
   }

@@ -573,17 +573,7 @@ export class TemplateRepository {
             if (idx === undefined) {
               return;
             }
-            const attrs = { ...(result[idx].attributes ?? {}) };
-            if (attrs['is_within_service'] !== true) {
-              attrs['is_within_service'] = true;
-              if (activity.serviceRole === 'start') {
-                attrs['is_service_start'] = true;
-              }
-              if (activity.serviceRole === 'end') {
-                attrs['is_service_end'] = true;
-              }
-              result[idx] = { ...result[idx], attributes: attrs };
-            }
+            // Keine Attribut-Persistenz hier erforderlich.
           }
         });
       });

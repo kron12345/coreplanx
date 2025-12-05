@@ -137,6 +137,13 @@ export class ActivityCatalogSettingsComponent {
       is_break: { datatype: 'boolean', value: 'true' },
       is_service_start: { datatype: 'boolean', value: 'true' },
       is_service_end: { datatype: 'boolean', value: 'true' },
+      is_within_service: {
+        datatype: 'enum',
+        options: 'yes,no,both',
+        value: 'both',
+        oncreate: 'edit',
+        onupdate: 'edit',
+      },
       is_absence: { datatype: 'boolean', value: 'true' },
       is_reserve: { datatype: 'boolean', value: 'true' },
       draw_as: {

@@ -1,5 +1,6 @@
 import { Injectable, Signal, computed, signal } from '@angular/core';
 import { ResourceKind } from '../../models/resource';
+import { ActivityCatalogApiService } from '../api/activity-catalog-api.service';
 
 export type ActivityFieldKey = 'start' | 'end' | 'from' | 'to' | 'remark';
 export type ActivityCategory = 'rest' | 'movement' | 'service' | 'other';
@@ -245,16 +246,22 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
 
 @Injectable({ providedIn: 'root' })
 export class ActivityTypeService {
-  private readonly definitionsSignal = signal<ActivityTypeDefinition[]>(this.load());
+  private readonly api = new ActivityCatalogApiService();
+  private readonly definitionsSignal = signal<ActivityTypeDefinition[]>(DEFAULT_TYPES);
+  private loadingPromise: Promise<void> | null = null;
 
   readonly definitions: Signal<ActivityTypeDefinition[]> = computed(
     () => this.definitionsSignal(),
   );
 
+  constructor() {
+    void this.init();
+  }
+
   add(input: ActivityTypeInput): void {
     const normalized = this.normalizeDefinition(input);
     this.definitionsSignal.set([...this.definitionsSignal(), normalized]);
-    this.persist();
+    void this.persist();
   }
 
   update(id: string, patch: Partial<ActivityTypeInput>): void {
@@ -266,17 +273,17 @@ export class ActivityTypeService {
         return this.normalizeDefinition({ ...definition, ...patch });
       }),
     );
-    this.persist();
+    void this.persist();
   }
 
   remove(id: string): void {
     this.definitionsSignal.set(this.definitionsSignal().filter((definition) => definition.id !== id));
-    this.persist();
+    void this.persist();
   }
 
   reset(): void {
     this.definitionsSignal.set(DEFAULT_TYPES);
-    this.persist();
+    void this.persist();
   }
 
   private normalizeDefinition(input: ActivityTypeInput): ActivityTypeDefinition {
@@ -320,33 +327,37 @@ export class ActivityTypeService {
     }
   }
 
-  private load(): ActivityTypeDefinition[] {
-    if (typeof window === 'undefined') {
-      return DEFAULT_TYPES;
-    }
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        return DEFAULT_TYPES;
-      }
-      const parsed = JSON.parse(raw) as ActivityTypeDefinition[];
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        return DEFAULT_TYPES;
-      }
-      return parsed.map((entry) => this.normalizeDefinition(entry));
-    } catch {
-      return DEFAULT_TYPES;
-    }
+  async init(): Promise<void> {
+    await this.loadFromApi();
   }
 
-  private persist(): void {
-    if (typeof window === 'undefined') {
-      return;
+  private async loadFromApi(): Promise<void> {
+    if (this.loadingPromise) {
+      return this.loadingPromise;
     }
+    this.loadingPromise = (async () => {
+      try {
+        const list = await this.api.list();
+        if (Array.isArray(list) && list.length) {
+          this.definitionsSignal.set(list.map((entry) => this.normalizeDefinition(entry)));
+          return;
+        }
+        this.definitionsSignal.set(DEFAULT_TYPES);
+        await this.persist();
+      } catch {
+        this.definitionsSignal.set(DEFAULT_TYPES);
+      } finally {
+        this.loadingPromise = null;
+      }
+    })();
+    await this.loadingPromise;
+  }
+
+  private async persist(): Promise<void> {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.definitionsSignal()));
+      await this.api.replaceAll(this.definitionsSignal());
     } catch {
-      // ignore storage errors
+      // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }
   }
 
