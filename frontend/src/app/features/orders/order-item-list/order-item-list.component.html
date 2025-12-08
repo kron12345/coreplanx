@@ -273,6 +273,7 @@
           <button
             mat-icon-button
             matTooltip="Position bestellen"
+            [disabled]="!canSubmit(it)"
             aria-label="Auftragsposition bestellen"
             (click)="submitRequested.emit(it.id); $event.stopPropagation()"
           >

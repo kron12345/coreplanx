@@ -551,8 +551,12 @@
       align-items: center;
       gap: 8px;
 
-      button[mat-icon-button] {
+      button[mat-icon-button]:not(:disabled) {
         color: #1a73e8;
+      }
+
+      button[mat-icon-button]:disabled {
+        color: rgba(0, 0, 0, 0.26);
       }
 
       .deviation {

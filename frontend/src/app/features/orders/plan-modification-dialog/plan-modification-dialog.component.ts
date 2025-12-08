@@ -31,6 +31,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TrafficPeriod } from '../../../core/models/traffic-period.model';
 import { ScheduleTemplate } from '../../../core/models/schedule-template.model';
 import { ScheduleTemplateService } from '../../../core/services/schedule-template.service';
+import { TimetableYearService } from '../../../core/services/timetable-year.service';
+import { TimetableYearBounds } from '../../../core/models/timetable-year.model';
 import {
   PlanAssemblyDialogComponent,
   PlanAssemblyDialogData,
@@ -103,6 +105,7 @@ export class PlanModificationDialogComponent {
   private readonly fb = inject(FormBuilder);
   private readonly trainPlanService = inject(TrainPlanService);
   private readonly trafficPeriodService = inject(TrafficPeriodService);
+  private readonly timetableYearService = inject(TimetableYearService);
   private readonly orderService = inject(OrderService);
   private readonly templateService = inject(ScheduleTemplateService);
   private readonly dialogService = inject(MatDialog);
@@ -133,8 +136,14 @@ export class PlanModificationDialogComponent {
     .sort((a, b) => a.sequence - b.sequence)
     .map((stop) => ({ label: `#${stop.sequence} · ${stop.locationName}`, value: stop.sequence }));
   readonly compositionPresets: VehicleComposition[] = DEMO_MASTER_DATA.vehicleCompositions;
+  private readonly timetableYearBounds: TimetableYearBounds | null;
+  readonly allowedCalendarDates: string[] | null;
 
   constructor() {
+    this.timetableYearBounds = this.resolveTimetableYearBounds();
+    this.allowedCalendarDates = this.timetableYearBounds
+      ? this.expandDatesInRange(this.timetableYearBounds.startIso, this.timetableYearBounds.endIso)
+      : null;
     const initialTrafficPeriod = this.plan.trafficPeriodId ?? '';
     const initialValidFrom = this.plan.calendar.validFrom;
     const initialValidTo = this.plan.calendar.validTo ?? this.plan.calendar.validFrom;
@@ -144,7 +153,8 @@ export class PlanModificationDialogComponent {
         : '1111111';
 
     const initialYear = this.calendarLocked
-      ? this.deriveYearFromLabel(this.item.timetableYearLabel) ??
+      ? this.timetableYearBounds?.startYear ??
+        this.deriveYearFromLabel(this.item.timetableYearLabel) ??
         this.deriveInitialCustomYear(initialValidFrom)
       : this.deriveInitialCustomYear(initialValidFrom);
 
@@ -227,8 +237,9 @@ export class PlanModificationDialogComponent {
           this.updateCustomCalendarFields([]);
           return;
         }
-        const filtered = this.customSelectedDates().filter((date) =>
-          date.startsWith(String(year)),
+        const filtered = this.filterDatesToTimetableYear(
+          this.customSelectedDates(),
+          year,
         );
         this.customSelectedDates.set(filtered);
         this.updateCustomCalendarFields(filtered);
@@ -253,7 +264,9 @@ export class PlanModificationDialogComponent {
 
   customYearValue(): number {
     if (this.calendarLocked) {
-      const lockedYear = this.deriveYearFromLabel(this.item.timetableYearLabel);
+      const lockedYear =
+        this.timetableYearBounds?.startYear ??
+        this.deriveYearFromLabel(this.item.timetableYearLabel);
       if (lockedYear) {
         return lockedYear;
       }
@@ -265,8 +278,8 @@ export class PlanModificationDialogComponent {
   }
 
   onCustomDatesChange(dates: string[]) {
-    const year = this.calendarLocked ? this.customYearValue() : this.customYearValue();
-    const filtered = dates.filter((date) => date.startsWith(String(year)));
+    const year = this.customYearValue();
+    const filtered = this.filterDatesToTimetableYear(dates, year);
     this.customSelectedDates.set(filtered);
     this.updateCustomCalendarFields(filtered);
   }
@@ -502,11 +515,14 @@ export class PlanModificationDialogComponent {
     });
 
     if (this.calendarLocked) {
-      const lockedYear = this.deriveYearFromLabel(this.item.timetableYearLabel);
+      const lockedYear =
+        this.timetableYearBounds?.startYear ??
+        this.deriveYearFromLabel(this.item.timetableYearLabel);
       if (lockedYear) {
         this.form.controls.customYear.setValue(lockedYear, { emitEvent: false });
-        const presetDates = this.customSelectedDates().filter((date) =>
-          date.startsWith(String(lockedYear)),
+        const presetDates = this.filterDatesToTimetableYear(
+          this.customSelectedDates(),
+          lockedYear,
         );
         this.customSelectedDates.set(presetDates);
         this.updateCustomCalendarFields(presetDates);
@@ -524,6 +540,69 @@ export class PlanModificationDialogComponent {
       return Number.isNaN(year) ? null : year;
     }
     return null;
+  }
+
+  private resolveTimetableYearBounds(): TimetableYearBounds | null {
+    const label = this.item.timetableYearLabel;
+    if (label) {
+      try {
+        return this.timetableYearService.getYearByLabel(label);
+      } catch {
+        // ignore and try fallbacks
+      }
+    }
+
+    if (this.item.trafficPeriodId) {
+      const period = this.trafficPeriodService.getById(this.item.trafficPeriodId);
+      if (period?.timetableYearLabel) {
+        try {
+          return this.timetableYearService.getYearByLabel(period.timetableYearLabel);
+        } catch {
+          // ignore and try sample dates
+        }
+      }
+      const sample =
+        period?.rules?.find((rule) => rule.includesDates?.length)?.includesDates?.[0] ??
+        period?.rules?.[0]?.validityStart;
+      if (sample) {
+        try {
+          return this.timetableYearService.getYearBounds(sample);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const sampleDate =
+      this.plan.calendar.validFrom ??
+      this.plan.calendar.validTo ??
+      this.item.start ??
+      undefined;
+    if (sampleDate) {
+      try {
+        return this.timetableYearService.getYearBounds(sampleDate);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  calendarRange():
+    | {
+        startIso: string;
+        endIso: string;
+        label?: string;
+      }
+    | null {
+    if (!this.timetableYearBounds) {
+      return null;
+    }
+    return {
+      startIso: this.timetableYearBounds.startIso,
+      endIso: this.timetableYearBounds.endIso,
+      label: this.timetableYearBounds.label,
+    };
   }
 
   private applyTrafficPeriod(periodId: string) {
@@ -656,7 +735,7 @@ export class PlanModificationDialogComponent {
 
   private initializeCustomCalendarState(targetYear: number) {
     const calendarDates = this.deriveDatesFromCalendar(this.plan.calendar);
-    const filtered = calendarDates.filter((date) => date.startsWith(String(targetYear)));
+    const filtered = this.filterDatesToTimetableYear(calendarDates, targetYear);
     this.customSelectedDates.set(filtered);
     this.updateCustomCalendarFields(filtered);
   }
@@ -736,6 +815,38 @@ export class PlanModificationDialogComponent {
       cursor.setDate(cursor.getDate() + 1);
     }
     return result;
+  }
+
+  private filterDatesToTimetableYear(
+    dates: string[],
+    fallbackYear?: number,
+  ): string[] {
+    if (this.timetableYearBounds) {
+      const bounds = this.timetableYearBounds;
+      return dates.filter((date) =>
+        this.timetableYearService.isDateWithinYear(date, bounds),
+      );
+    }
+    if (fallbackYear) {
+      const prefix = String(fallbackYear);
+      return dates.filter((date) => date.startsWith(prefix));
+    }
+    return dates;
+  }
+
+  private expandDatesInRange(startIso: string, endIso: string): string[] {
+    const start = new Date(`${startIso}T00:00:00`);
+    const end = new Date(`${endIso}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      return [];
+    }
+    const dates: string[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end && dates.length <= 1460) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return dates;
   }
 
   private bitmapFromDates(dates: string[]): string {

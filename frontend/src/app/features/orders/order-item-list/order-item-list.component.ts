@@ -180,6 +180,11 @@ export class OrderItemListComponent {
     return `phase-${phase}`;
   }
 
+  canSubmit(item: OrderItem): boolean {
+    const phase = item.timetablePhase ?? 'bedarf';
+    return item.type === 'Fahrplan' && phase === 'bedarf';
+  }
+
   ttrPhaseLabel(item: OrderItem): string | undefined {
     const phase = this.orderService.getTtrPhaseForItem(item);
     if (phase === 'unknown') {

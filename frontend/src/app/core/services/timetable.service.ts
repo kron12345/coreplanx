@@ -172,6 +172,40 @@ export class TimetableService {
     return this.timetableIndex().get(refTrainId);
   }
 
+  updateStatus(refTrainId: string, status: TimetablePhase): void {
+    this._timetables.update((current) =>
+      current.map((tt) =>
+        tt.refTrainId === refTrainId
+          ? { ...tt, status, updatedAt: new Date().toISOString() }
+          : tt,
+      ),
+    );
+  }
+
+  updateCalendar(refTrainId: string, calendar: TrainPlanCalendar): Timetable {
+    const existing = this.getByRefTrainId(refTrainId);
+    if (!existing) {
+      throw new Error('Fahrplan nicht gefunden.');
+    }
+    const normalized: TrainPlanCalendar = {
+      validFrom: calendar.validFrom,
+      validTo: calendar.validTo ?? calendar.validFrom,
+      daysBitmap:
+        calendar.daysBitmap && /^[01]{7}$/.test(calendar.daysBitmap)
+          ? calendar.daysBitmap
+          : '1111111',
+    };
+    const updated: Timetable = {
+      ...existing,
+      calendar: normalized,
+      updatedAt: new Date().toISOString(),
+    };
+    this._timetables.update((current) =>
+      current.map((tt) => (tt.refTrainId === refTrainId ? updated : tt)),
+    );
+    return updated;
+  }
+
   createTimetable(payload: CreateTimetablePayload): Timetable {
     if (this.getByRefTrainId(payload.refTrainId)) {
       throw new Error(

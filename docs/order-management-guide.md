@@ -1031,6 +1031,28 @@ Wenn Sie einen Kalender bearbeiten (z. B. über einen separaten Editor):
 
 ---
 
+### 8.3 Modifikationen gesperrter Fahrpläne (Unterkalender)
+
+Wann ist ein Plan gesperrt?  
+- Sobald die Auftragsposition einen Fahrplanstatus ungleich „Draft/Bedarf“ hat (z. B. Path Request, Offer, Booked).  
+- In diesem Fall wird der Kalender der Position nicht direkt geändert, sondern es wird ein Unterkalender erzeugt.
+
+Bedienlogik im Dialog „Fahrplan bearbeiten“:  
+- Der Toggle „Referenzkalender/Individuell“ ist deaktiviert; der Modus „Individuell“ mit Unterkalender ist erzwungen.  
+- Der Kalender zeigt das komplette Fahrplanjahr der Position (Start/Ende laut Fahrplanjahr); Tage außerhalb des Fahrplanjahrs sind ausgegraut und nicht wählbar.  
+- Für die Auswahl der Verkehrstage werden nur Tage zugelassen, die im Fahrplanjahr liegen.
+
+Was passiert beim Speichern einer Modifikation?  
+1. Die gewählten Tage werden aus der gesperrten Haupt-Position herausgesplittet. Dadurch entsteht eine neue Child-Auftragsposition für die Modifikation; die Haupt-Position bleibt bestehen.  
+2. Für die Modifikation wird ein neuer Fahrplan (Modifikations-Plan) erzeugt und mit der Child-Position verknüpft.  
+3. Wenn ein Referenzkalender hinterlegt ist, wird dort eine Variante „Unterkalender“ mit den gewählten Tagen angelegt und dieselben Tage werden als Ausschlüsse im Hauptkalender markiert. So kollidieren Haupt- und Unterkalender nicht.  
+4. Alle betroffenen Fahrplan- und Kalenderdaten werden unter derselben RefTrainID im Archiv/Fahrplanmanager aktualisiert.
+
+Wichtig für Validierung:  
+- Die gewählten Modifikationstage müssen im Fahrplanjahr der Position liegen.  
+- Wenn die Position bereits eine explizite Gültigkeit hat, werden die Modifikations-Tage dagegen geprüft; liegt nichts vor, wird das Fahrplanjahr als zulässiger Rahmen verwendet.  
+- Überlappungen mit bestehenden Unterkalendern werden verhindert (Fehlermeldung, wenn ein Tag bereits von einem anderen Child belegt ist).
+
 ## 9. Suchvorschläge und Team-Insights im Auftragsbereich
 
 ### 9.1 Suchvorschläge (Autocomplete)

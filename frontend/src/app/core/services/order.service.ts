@@ -29,6 +29,7 @@ import {
 import { TrafficPeriodService } from './traffic-period.service';
 import { TrafficPeriod, TrafficPeriodVariantType } from '../models/traffic-period.model';
 import { TimetableYearService } from './timetable-year.service';
+import { TimetableYearBounds } from '../models/timetable-year.model';
 import {
   TimetableHubService,
   TimetableHubSectionKey,
@@ -831,14 +832,27 @@ export class OrderService {
         }
 
         const target = this.ensureItemDefaults(order.items[targetIndex]);
-        const validity = target.validity ?? [];
+        let validity = this.resolveEffectiveValidity(target);
+        const timetableYearBounds = this.resolveTimetableYearBoundsForItem(target);
 
-    const customSegments = payload.segments?.length
-      ? this.prepareCustomSegments(payload.segments)
-      : null;
+        const customSegments = payload.segments?.length
+          ? this.prepareCustomSegments(payload.segments)
+          : null;
 
     if (customSegments) {
-      this.ensureSegmentsWithinValidity(validity, customSegments);
+      const withinValidity = this.segmentsWithinRanges(validity, customSegments);
+      if (!withinValidity) {
+        if (
+          timetableYearBounds &&
+          this.segmentsWithinYearBounds(customSegments, timetableYearBounds)
+        ) {
+          validity = [
+            { startDate: timetableYearBounds.startIso, endDate: timetableYearBounds.endIso },
+          ];
+        } else {
+          this.ensureSegmentsWithinValidity(validity, customSegments);
+        }
+      }
     }
 
     const { retained, extracted } = customSegments
@@ -1494,6 +1508,53 @@ export class OrderService {
     }
   }
 
+  private resolveTimetableYearBoundsForItem(item: OrderItem): TimetableYearBounds | null {
+    const label = this.getItemTimetableYear(item);
+    if (label) {
+      try {
+        return this.timetableYearService.getYearByLabel(label);
+      } catch {
+        // ignore and try fallbacks
+      }
+    }
+
+    if (item.trafficPeriodId) {
+      const period = this.trafficPeriodService.getById(item.trafficPeriodId);
+      if (period?.timetableYearLabel) {
+        try {
+          return this.timetableYearService.getYearByLabel(period.timetableYearLabel);
+        } catch {
+          // ignore and try sample dates
+        }
+      }
+      const sample =
+        period?.rules?.find((rule) => rule.includesDates?.length)?.includesDates?.[0] ??
+        period?.rules?.[0]?.validityStart;
+      if (sample) {
+        try {
+          return this.timetableYearService.getYearBounds(sample);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const sampleDate =
+      item.validity?.[0]?.startDate ??
+      item.start ??
+      item.end ??
+      item.originalTimetable?.calendar?.validFrom ??
+      undefined;
+    if (sampleDate) {
+      try {
+        return this.timetableYearService.getYearBounds(sampleDate);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
   private extractReferenceSampleDate(item: OrderItem): Date | null {
     const candidate =
       item.validity?.[0]?.startDate ??
@@ -1709,7 +1770,12 @@ export class OrderService {
     this.trainPlanService.linkOrderItem(planId, itemId);
 
     if (plan && updatedItem) {
-      const timetable = this.ensureTimetableForPlan(plan, updatedItem);
+      const draftItem: OrderItem = updatedItem;
+      const refOverride =
+        draftItem.timetablePhase === 'bedarf'
+          ? draftItem.generatedTimetableRefId
+          : undefined;
+      const timetable = this.ensureTimetableForPlan(plan, draftItem, refOverride);
       if (timetable) {
         this.updateItemTimetableMetadata(itemId, timetable);
         this.syncTimetableCalendarArtifacts(timetable.refTrainId);
@@ -1742,6 +1808,9 @@ export class OrderService {
         const items = order.items.map((item) => {
           if (!targetIds.has(item.id)) {
             return item;
+          }
+          if (item.generatedTimetableRefId) {
+            this.timetableService.updateStatus(item.generatedTimetableRefId, 'path_request');
           }
           return {
             ...item,
@@ -2460,12 +2529,29 @@ export class OrderService {
     return this.trainPlanService.assignTrafficPeriod(plan.id, periodId) ?? plan;
   }
 
-  private ensureTimetableForPlan(plan: TrainPlan, item: OrderItem): Timetable | null {
-    const refTrainId = this.generateTimetableRefId(plan);
+  private ensureTimetableForPlan(
+    plan: TrainPlan,
+    item: OrderItem,
+    refTrainIdOverride?: string,
+  ): Timetable | null {
+    const refTrainId = refTrainIdOverride ?? this.generateTimetableRefId(plan);
     const existing = this.timetableService.getByRefTrainId(refTrainId);
     if (existing) {
+      const stops = this.toTimetableStops(plan.stops);
+      let updated = existing;
+      if (stops.length >= 2) {
+        updated = this.timetableService.replaceStops(refTrainId, stops);
+      }
+      const calendar = plan.calendar
+        ? { ...plan.calendar }
+        : {
+            validFrom:
+              this.extractPlanStart(plan)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+            daysBitmap: '1111111',
+          };
+      updated = this.timetableService.updateCalendar(refTrainId, calendar);
       this.publishPlanToHub(plan, item, 'commercial');
-      return existing;
+      return updated;
     }
     const stops = this.toTimetableStops(plan.stops);
     if (stops.length < 2) {
@@ -2689,6 +2775,61 @@ export class OrderService {
       return item.validity;
     }
     return this.deriveDefaultValidity(item);
+  }
+
+  private resolveEffectiveValidity(item: OrderItem): OrderItemValiditySegment[] {
+    if (item.validity?.length) {
+      return this.normalizeSegments(item.validity);
+    }
+
+    if (item.trafficPeriodId) {
+      const period = this.trafficPeriodService.getById(item.trafficPeriodId);
+      if (period?.rules?.length) {
+        let minStart: string | null = null;
+        let maxEnd: string | null = null;
+        period.rules.forEach((rule) => {
+          const start =
+            rule.validityStart ??
+            rule.includesDates?.[0] ??
+            rule.excludesDates?.[0] ??
+            null;
+          const end =
+            rule.validityEnd ??
+            rule.includesDates?.[rule.includesDates.length - 1] ??
+            rule.excludesDates?.[rule.excludesDates.length - 1] ??
+            start;
+          if (start) {
+            minStart = minStart ? (start < minStart ? start : minStart) : start;
+          }
+          if (end) {
+            maxEnd = maxEnd ? (end > maxEnd ? end : maxEnd) : end;
+          }
+        });
+        if (minStart && maxEnd) {
+          return this.normalizeSegments([{ startDate: minStart, endDate: maxEnd }]);
+        }
+      }
+      if (period?.timetableYearLabel) {
+        try {
+          const bounds = this.timetableYearService.getYearByLabel(period.timetableYearLabel);
+          return [{ startDate: bounds.startIso, endDate: bounds.endIso }];
+        } catch {
+          // ignore and fall through
+        }
+      }
+    }
+
+    if (item.timetableYearLabel) {
+      try {
+        const bounds = this.timetableYearService.getYearByLabel(item.timetableYearLabel);
+        return [{ startDate: bounds.startIso, endDate: bounds.endIso }];
+      } catch {
+        // ignore and fall through
+      }
+    }
+
+    const derived = this.deriveDefaultValidity(item);
+    return derived.length ? derived : [];
   }
 
   private daysFromBitmap(bitmap?: string): string[] | undefined {
@@ -3114,6 +3255,28 @@ export class OrderService {
         );
       }
     });
+  }
+
+  private segmentsWithinRanges(
+    validity: OrderItemValiditySegment[],
+    segments: OrderItemValiditySegment[],
+  ): boolean {
+    return segments.every((segment) =>
+      validity.some(
+        (range) => segment.startDate >= range.startDate && segment.endDate <= range.endDate,
+      ),
+    );
+  }
+
+  private segmentsWithinYearBounds(
+    segments: OrderItemValiditySegment[],
+    bounds: TimetableYearBounds,
+  ): boolean {
+    return segments.every(
+      (segment) =>
+        this.timetableYearService.isDateWithinYear(segment.startDate, bounds) &&
+        this.timetableYearService.isDateWithinYear(segment.endDate, bounds),
+    );
   }
 
   private subtractSegments(

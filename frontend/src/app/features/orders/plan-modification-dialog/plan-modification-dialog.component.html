@@ -57,6 +57,10 @@
             [title]="'Unterkalender'"
             [year]="customYearValue()"
             [selectedDates]="customSelectedDates()"
+            [rangeStartIso]="calendarRange()?.startIso ?? null"
+            [rangeEndIso]="calendarRange()?.endIso ?? null"
+            [rangeLabel]="calendarRange()?.label ?? null"
+            [allowedDates]="allowedCalendarDates"
             (selectedDatesChange)="onCustomDatesChange($event)"
           ></app-annual-calendar-selector>
         </div>
@@ -93,6 +97,10 @@
               [title]="'Kalender'"
               [year]="customYearValue()"
               [selectedDates]="customSelectedDates()"
+              [rangeStartIso]="calendarRange()?.startIso ?? null"
+              [rangeEndIso]="calendarRange()?.endIso ?? null"
+              [rangeLabel]="calendarRange()?.label ?? null"
+              [allowedDates]="allowedCalendarDates"
               (selectedDatesChange)="onCustomDatesChange($event)"
             ></app-annual-calendar-selector>
           </div>
