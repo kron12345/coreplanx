@@ -11,11 +11,12 @@ import {
   MatDialogRef,
 } from '@angular/material/dialog';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
-import {
-  CreateBusinessPayload,
-} from '../../core/services/business.service';
+import { CreateBusinessPayload } from '../../core/services/business.service';
 import { OrderItemOption } from '../../core/services/order.service';
 import { BusinessDocument } from '../../core/models/business.model';
+import { OrderItemPickerComponent } from './order-item-picker.component';
+import { BusinessTemplateService } from '../../core/services/business-template.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 export interface BusinessCreateDialogData {
   orderItemOptions: OrderItemOption[];
@@ -24,7 +25,7 @@ export interface BusinessCreateDialogData {
 @Component({
   selector: 'app-business-create-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+  imports: [CommonModule, ReactiveFormsModule, OrderItemPickerComponent, ...MATERIAL_IMPORTS],
   templateUrl: './business-create-dialog.component.html',
   styleUrl: './business-create-dialog.component.scss',
 })
@@ -34,7 +35,11 @@ export class BusinessCreateDialogComponent {
   >(MatDialogRef);
   private readonly data = inject<BusinessCreateDialogData>(MAT_DIALOG_DATA);
   private readonly fb = inject(FormBuilder);
+  private readonly templateService = inject(BusinessTemplateService);
+  private readonly snackBar = inject(MatSnackBar);
+  readonly templates = this.templateService.templates;
 
+  readonly mode = new FormControl<'manual' | 'template'>('manual', { nonNullable: true });
   readonly form = this.fb.nonNullable.group({
     title: ['', Validators.required],
     description: ['', Validators.required],
@@ -47,6 +52,12 @@ export class BusinessCreateDialogComponent {
     documentNames: [''],
     linkedOrderItemIds: this.fb.nonNullable.control<string[]>([]),
   });
+  readonly templateForm = this.fb.group({
+    templateId: ['', Validators.required],
+    targetDate: [''],
+    linkedOrderItemId: [''],
+    note: ['', Validators.maxLength(280)],
+  });
 
   readonly assignmentOptions = [
     { value: 'group' as const, label: 'Gruppe' },
@@ -57,11 +68,31 @@ export class BusinessCreateDialogComponent {
     return this.data.orderItemOptions;
   }
 
+  modeIndex(): number {
+    return this.mode.value === 'template' ? 1 : 0;
+  }
+
+  onTabChange(index: number) {
+    const next = index === 1 ? 'template' : 'manual';
+    if (this.mode.value !== next) {
+      this.mode.setValue(next);
+    }
+  }
+
+  onLinkedItemsChange(ids: string[]): void {
+    this.form.controls.linkedOrderItemIds.setValue(ids);
+  }
+
   cancel(): void {
     this.dialogRef.close();
   }
 
   save(): void {
+    if (this.mode.value === 'template') {
+      this.saveFromTemplate();
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -82,6 +113,28 @@ export class BusinessCreateDialogComponent {
     };
 
     this.dialogRef.close(payload);
+  }
+
+  private saveFromTemplate() {
+    if (this.templateForm.invalid) {
+      this.templateForm.markAllAsTouched();
+      return;
+    }
+    const value = this.templateForm.getRawValue();
+    const targetDate = value.targetDate ? new Date(value.targetDate) : undefined;
+    const note = value.note?.trim() || undefined;
+    const linked = value.linkedOrderItemId ? [value.linkedOrderItemId] : undefined;
+    try {
+      this.templateService.instantiateTemplate(value.templateId!, {
+        targetDate,
+        note,
+        linkedOrderItemIds: linked,
+      });
+      this.snackBar.open('Geschäft aus Vorlage erstellt.', 'OK', { duration: 2500 });
+      this.dialogRef.close();
+    } catch (error) {
+      this.snackBar.open((error as Error).message, 'Schließen', { duration: 3500 });
+    }
   }
 
   private parseDocuments(value: string | null | undefined):

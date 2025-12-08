@@ -100,10 +100,21 @@
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 
+  &--linked {
+    border-color: rgba(67, 56, 202, 0.35);
+  }
+
   &--active {
     border-style: solid;
     border-color: #0f766e;
     background: rgba(16, 185, 129, 0.12);
+  }
+
+  &__labels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
   }
 
   strong {
@@ -112,6 +123,17 @@
 
   small {
     color: rgba(15, 23, 42, 0.6);
+  }
+
+  &__links {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  &__status {
+    color: #4338ca;
+    font-weight: 600;
   }
 }
 

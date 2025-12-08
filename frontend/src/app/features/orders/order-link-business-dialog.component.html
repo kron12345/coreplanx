@@ -54,7 +54,7 @@
       <mat-icon>view_list</mat-icon>
       <div>
         <h3>Positionen verknüpfen</h3>
-        <p>Mehrfachauswahl möglich, um mehrere Positionen anzubinden.</p>
+        <p>Mehrfachauswahl möglich, um mehrere Positionen anzubinden. Bereits verknüpfte Positionen werden beim Geschäft vorausgewählt – Abwählen trennt die Verknüpfung.</p>
       </div>
     </header>
     <div class="item-grid">
@@ -63,12 +63,19 @@
           type="button"
           class="item-chip"
           [class.item-chip--active]="selectedItemIds().has(item.id)"
+          [class.item-chip--linked]="isLinkedToSelectedBusiness(item)"
           (click)="toggleItem(item.id)"
         >
           <mat-icon>{{ selectedItemIds().has(item.id) ? 'check_circle' : 'add_circle_outline' }}</mat-icon>
-          <div>
+          <div class="item-chip__labels">
             <strong>{{ item.name }}</strong>
             <small>{{ item.type }}</small>
+            @if (item.linkedBusinessIds?.length) {
+              <small class="item-chip__links">Verknüpft: {{ item.linkedBusinessIds?.join(', ') ?? '' }}</small>
+            }
+            @if (isLinkedToSelectedBusiness(item)) {
+              <small class="item-chip__status">Aktuell mit {{ selectedBusinessId() }} verbunden</small>
+            }
           </div>
         </button>
       }
@@ -82,7 +89,7 @@
     mat-flat-button
     color="primary"
     type="button"
-    [disabled]="!selectedBusinessId() || !selectedItemIds().size"
+    [disabled]="!selectedBusinessId()"
     (click)="link()"
   >
     Verknüpfen

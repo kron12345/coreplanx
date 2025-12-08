@@ -286,7 +286,7 @@
   </section>
 
   <section class="business-controller manager-filter">
-    <div class="filter-shelf">
+    <div class="filter-shelf" #filterShelf>
       <div class="filter-shelf__row filter-shelf__row--primary">
         <mat-form-field appearance="outline" class="filter-shelf__search">
           <mat-label>Suchen</mat-label>
@@ -296,6 +296,7 @@
             [formControl]="searchControl"
             placeholder="Titel, Beschreibung, Tags"
             [matAutocomplete]="searchAutocomplete"
+            #searchInput
           />
           <mat-autocomplete
             #searchAutocomplete="matAutocomplete"
@@ -408,13 +409,19 @@
               <span>Aktive Filter</span>
               <span class="filter-count">
                 <mat-icon>list_alt</mat-icon>
-                {{ businesses().length }} Ergebnisse
+                {{ businesses().length }} von {{ totalBusinesses() }} Ergebnisse
               </span>
             </div>
-            <button type="button" class="filter-save" (click)="saveCurrentFilterPreset()">
-              <mat-icon>bookmark_add</mat-icon>
-              Speichern
-            </button>
+            <div class="filter-shelf__active-actions">
+              <button mat-stroked-button type="button" (click)="resetFilters()">
+                <mat-icon>filter_alt_off</mat-icon>
+                Reset
+              </button>
+              <button type="button" class="filter-save" (click)="saveCurrentFilterPreset()">
+                <mat-icon>bookmark_add</mat-icon>
+                Speichern
+              </button>
+            </div>
           </div>
 
           <div class="filter-pills">
@@ -564,10 +571,8 @@
     </div>
   </section>
 
-  <app-business-create-from-template />
-
   <div class="business-main manager-body">
-    @if (!businesses().length) {
+    <ng-template #emptyState>
       <div class="business-main__empty">
         <mat-card appearance="outlined" class="empty-state">
           <mat-card-content>
@@ -585,294 +590,303 @@
           </mat-card-content>
         </mat-card>
       </div>
-    } @else {
-      @if (hasBulkSelection()) {
-        <div class="bulk-toolbar">
-          <div class="bulk-toolbar__info">
-            <mat-icon>inventory</mat-icon>
-            {{ bulkSelectionCount() }} ausgewählt
-          </div>
-          <div class="bulk-toolbar__actions">
-            <button mat-flat-button color="primary" type="button" (click)="bulkUpdateStatus('in_arbeit')">
-              <mat-icon>play_arrow</mat-icon>
-              Status: In Arbeit
-            </button>
-            <button mat-flat-button color="accent" type="button" (click)="bulkUpdateStatus('pausiert')">
-              <mat-icon>pause</mat-icon>
-              Status: Pausiert
-            </button>
-            <button mat-flat-button color="accent" type="button" (click)="bulkUpdateStatus('erledigt')">
-              <mat-icon>check_circle</mat-icon>
-              Status: Erledigt
-            </button>
-            <button mat-stroked-button type="button" (click)="selectAllVisible()">
-              <mat-icon>select_all</mat-icon>
-              Alle sichtbaren
-            </button>
-            <button mat-stroked-button type="button" color="warn" (click)="clearBulkSelection()">
-              <mat-icon>close</mat-icon>
-              Auswahl löschen
-            </button>
-          </div>
-        </div>
-      }
-      <div class="business-content">
-        <section class="business-grid" [class.business-grid--loading]="isViewTransitioning()">
-          @if (isViewTransitioning()) {
-            @for (skeleton of skeletonPlaceholders; track skeleton) {
-              <article class="business-card business-card--skeleton">
-                <div class="skeleton-line skeleton-line--short"></div>
-                <div class="skeleton-line skeleton-line--long"></div>
-                <div class="skeleton-pill-row">
-                  <span class="skeleton-pill"></span>
-                  <span class="skeleton-pill"></span>
-                </div>
-                <div class="skeleton-block"></div>
-              </article>
-            }
-          } @else {
-            @for (business of businesses(); track trackByBusinessId($index, business)) {
-              @let health = healthBadge(business);
-              <mat-card
-                class="business-card"
-                appearance="outlined"
-                [attr.id]="businessElementId(business.id)"
-                [class.business-card--selected]="isBusinessSelected(business)"
-                [class.business-card--bulk-selected]="isInBulkSelection(business.id)"
-                (click)="selectBusiness(business)"
-              >
-                <mat-card-header class="business-card-header">
-                  <mat-checkbox
-                    class="card-select"
-                    [checked]="isInBulkSelection(business.id)"
-                    (click)="$event.stopPropagation()"
-                    (change)="toggleBulkSelection(business.id, $event.checked)"
-                    aria-label="Geschäft auswählen"
-                  ></mat-checkbox>
-                  <div class="card-header-body">
-                    <mat-card-title>{{ business.title }}</mat-card-title>
-                    <div class="card-meta-row">
-                      <span class="health-badge" [attr.data-tone]="health.tone">
-                        <mat-icon>monitor_heart</mat-icon>
-                        {{ health.label }}
-                      </span>
-                      <span class="card-meta-id">#{{ business.id }}</span>
-                    </div>
-                    <div class="card-timeline" *ngIf="businessTimeline(business) as timeline">
-                      @for (entry of timeline; track entry.label) {
-                        <div class="card-timeline__item" [attr.data-state]="entry.state">
-                          <span class="card-timeline__dot"></span>
-                          <div>
-                            <strong>{{ entry.label }}</strong>
-                            <span>{{ entry.description }}</span>
-                          </div>
-                        </div>
-                      }
-                    </div>
-                    <div class="card-highlight-row">
-                      @for (highlight of businessHighlights(business); track highlight.label) {
-                        <button
-                          type="button"
-                          class="info-pill"
-                          [class.info-pill--filter]="highlight.filter"
-                          (click)="applyHighlightFilter($event, highlight)"
-                        >
-                          <mat-icon>{{ highlight.icon }}</mat-icon>
-                          <span>{{ highlight.label }}</span>
-                        </button>
-                      }
-                    </div>
-                    @if (business.tags?.length) {
-                      <div class="card-tag-row">
-                        <mat-chip-set>
-                          @for (tag of business.tags; track tag) {
-                            <mat-chip [ngClass]="'tag-chip tag-chip--' + tagTone(tag)">
-                              {{ formatTagLabel(tag) }}
-                            </mat-chip>
-                          }
-                        </mat-chip-set>
-                      </div>
-                    }
+    </ng-template>
+    <div class="business-main__layout" *ngIf="businesses().length; else emptyState">
+        <div class="business-content">
+          @if (hasBulkSelection()) {
+            <div class="bulk-toolbar">
+              <div class="bulk-toolbar__info">
+                <mat-icon>inventory</mat-icon>
+                {{ bulkSelectionCount() }} ausgewählt
+              </div>
+              <div class="bulk-toolbar__actions">
+                <button mat-flat-button color="primary" type="button" (click)="bulkUpdateStatus('in_arbeit')">
+                  <mat-icon>play_arrow</mat-icon>
+                  Status: In Arbeit
+                </button>
+                <button mat-flat-button color="accent" type="button" (click)="bulkUpdateStatus('pausiert')">
+                  <mat-icon>pause</mat-icon>
+                  Status: Pausiert
+                </button>
+                <button mat-flat-button color="accent" type="button" (click)="bulkUpdateStatus('erledigt')">
+                  <mat-icon>check_circle</mat-icon>
+                  Status: Erledigt
+                </button>
+                <button mat-stroked-button type="button" (click)="selectAllVisible()">
+                  <mat-icon>select_all</mat-icon>
+                  Alle sichtbaren
+                </button>
+                <button mat-stroked-button type="button" color="warn" (click)="clearBulkSelection()">
+                  <mat-icon>close</mat-icon>
+                  Auswahl löschen
+                </button>
+              </div>
+            </div>
+          }
+          <section class="business-grid" [class.business-grid--loading]="isViewTransitioning()">
+            @if (isViewTransitioning()) {
+              @for (skeleton of skeletonPlaceholders; track skeleton) {
+                <article class="business-card business-card--skeleton">
+                  <div class="skeleton-line skeleton-line--short"></div>
+                  <div class="skeleton-line skeleton-line--long"></div>
+                  <div class="skeleton-pill-row">
+                    <span class="skeleton-pill"></span>
+                    <span class="skeleton-pill"></span>
                   </div>
-                </mat-card-header>
-
-                <mat-card-content>
-                  <mat-tab-group dynamicHeight>
-                    <mat-tab label="Details">
-                      <ng-template matTabContent>
-                        <p class="description">{{ business.description }}</p>
-                        <div class="status-control">
-                          <mat-form-field appearance="outline">
-                            <mat-label>Status aktualisieren</mat-label>
-                            <mat-select
-                              [value]="business.status"
-                              (valueChange)="onStatusChange(business.id, $event)"
-                            >
-                              @for (option of statusOptions; track option.value) {
-                                @if (option.value !== 'all') {
-                                  <mat-option [value]="option.value">
-                                    {{ option.label }}
-                                  </mat-option>
-                                }
-                              }
-                            </mat-select>
-                          </mat-form-field>
-                        </div>
-
-                        <div class="metric-pills">
-                          @for (metric of businessMetrics(business); track metric.label) {
-                            <div class="metric-pill" [matTooltip]="metric.hint">
-                              <mat-icon>{{ metric.icon }}</mat-icon>
-                              <div>
-                                <span class="metric-pill__label">{{ metric.label }}</span>
-                                <strong>{{ metric.value }}</strong>
-                              </div>
-                            </div>
-                          }
-                        </div>
-                      </ng-template>
-                    </mat-tab>
-                <mat-tab label="Positionen">
-                  <ng-template matTabContent>
-                    <div class="linked-items">
-                      @let linkedCount = business.linkedOrderItemIds?.length ?? 0;
-                      <div class="linked-items__header">
-                        <div>
-                          <h4>Auftragspositionen</h4>
-                          <p>
-                            @if (linkedCount) {
-                              {{ linkedCount }} verknüpfte Positionen
-                            } @else {
-                              Noch keine Zuordnung
-                            }
-                          </p>
-                        </div>
-                        <div class="linked-items__actions">
-                          <button mat-stroked-button color="primary" type="button" (click)="$event.stopPropagation(); openOrderItemPicker(business)">
-                            <mat-icon>playlist_add</mat-icon>
-                            Positionen zuordnen
-                          </button>
-                          <button
-                            mat-button
-                            type="button"
-                            [disabled]="!linkedCount"
-                            (click)="$event.stopPropagation(); openOrderOverview(business)"
-                          >
-                            <mat-icon>open_in_new</mat-icon>
-                            Auftragsübersicht
-                          </button>
-                        </div>
+                  <div class="skeleton-block"></div>
+                </article>
+              }
+            } @else {
+              @for (business of visibleBusinesses(); track trackByBusinessId($index, business)) {
+                @let health = healthBadge(business);
+                <mat-card
+                  class="business-card"
+                  appearance="outlined"
+                  [attr.id]="businessElementId(business.id)"
+                  [class.business-card--selected]="isBusinessSelected(business)"
+                  [class.business-card--bulk-selected]="isInBulkSelection(business.id)"
+                  (click)="selectBusiness(business)"
+                >
+                  <mat-card-header class="business-card-header">
+                    <mat-checkbox
+                      class="card-select"
+                      [checked]="isInBulkSelection(business.id)"
+                      (click)="$event.stopPropagation()"
+                      (change)="toggleBulkSelection(business.id, $event.checked)"
+                      aria-label="Geschäft auswählen"
+                    ></mat-checkbox>
+                    <div class="card-header-body">
+                      <mat-card-title>{{ business.title }}</mat-card-title>
+                      <div class="card-meta-row">
+                        <span class="health-badge" [attr.data-tone]="health.tone">
+                          <mat-icon>monitor_heart</mat-icon>
+                          {{ health.label }}
+                        </span>
+                        <span class="card-meta-id">#{{ business.id }}</span>
                       </div>
-
-                      <div class="linked-items__panel linked-items__panel--always">
-                        @if (!linkedCount) {
-                          <div class="linked-items__empty">
-                            <mat-icon>link_off</mat-icon>
-                            <span>Keine Auftragspositionen zugeordnet.</span>
-                          </div>
-                        } @else {
-                          <div class="linked-item-grid">
-                            @for (itemId of business.linkedOrderItemIds; track itemId) {
-                              @let meta = orderItemMeta(itemId);
-                              @let range = orderItemRange(itemId);
-                              <article class="linked-item-card">
-                                <header>
-                                  <div>
-                                    <div class="linked-item-card__title">
-                                      {{ meta?.itemName || itemId }}
-                                    </div>
-                                    <div class="linked-item-card__subtitle">
-                                      {{ meta?.orderName || 'Unbekannter Auftrag' }}
-                                    </div>
-                                  </div>
-                                  @if (meta) {
-                                    <mat-chip appearance="outlined">{{ meta.type }}</mat-chip>
-                                  }
-                                </header>
-                                @if (meta?.serviceType || range) {
-                                  <div class="linked-item-card__meta">
-                                    @if (meta?.serviceType; as serviceType) {
-                                      <span>
-                                        <mat-icon inline>build</mat-icon>
-                                        {{ serviceType }}
-                                      </span>
-                                    }
-                                    @if (range) {
-                                      <span>
-                                        <mat-icon inline>schedule</mat-icon>
-                                        {{ range }}
-                                      </span>
-                                    }
-                                  </div>
-                                }
-                                <div class="linked-item-card__actions">
-                                  <button
-                                    mat-stroked-button
-                                    color="primary"
-                                    type="button"
-                                    (click)="$event.stopPropagation(); goToOrderItem(business, itemId)"
-                                  >
-                                    <mat-icon>open_in_new</mat-icon>
-                                    Öffnen
-                                  </button>
-                                  <button
-                                    mat-icon-button
-                                    type="button"
-                                    color="warn"
-                                    (click)="$event.stopPropagation(); removeLinkedItem(business.id, itemId)"
-                                  >
-                                    <mat-icon>link_off</mat-icon>
-                                  </button>
-                                </div>
-                              </article>
-                            }
+                      <div class="card-timeline" *ngIf="businessTimeline(business) as timeline">
+                        @for (entry of timeline; track entry.label) {
+                          <div class="card-timeline__item" [attr.data-state]="entry.state">
+                            <span class="card-timeline__dot"></span>
+                            <div>
+                              <strong>{{ entry.label }}</strong>
+                              <span>{{ entry.description }}</span>
+                            </div>
                           </div>
                         }
                       </div>
+                      <div class="card-highlight-row">
+                        @for (highlight of businessHighlights(business); track highlight.label) {
+                          <button
+                            type="button"
+                            class="info-pill"
+                            [class.info-pill--filter]="highlight.filter"
+                            (click)="applyHighlightFilter($event, highlight)"
+                          >
+                            <mat-icon>{{ highlight.icon }}</mat-icon>
+                            <span>{{ highlight.label }}</span>
+                          </button>
+                        }
+                      </div>
+                      @if (business.tags?.length) {
+                        <div class="card-tag-row">
+                          <mat-chip-set>
+                            @for (tag of business.tags; track tag) {
+                              <mat-chip [ngClass]="'tag-chip tag-chip--' + tagTone(tag)">
+                                {{ formatTagLabel(tag) }}
+                              </mat-chip>
+                            }
+                          </mat-chip-set>
+                        </div>
+                      }
                     </div>
-                  </ng-template>
-                </mat-tab>
-                <mat-tab label="Dokumente">
-                  <ng-template matTabContent>
-                    @if (business.documents?.length) {
-                      <div class="documents">
-                        <span class="documents__title">
-                          <mat-icon>attach_file</mat-icon> Dokumente
-                        </span>
-                        <div class="documents__list">
-                          @for (doc of business.documents; track doc.id) {
-                            <a
-                              mat-stroked-button
-                              [href]="doc.url || '#'"
-                              target="_blank"
-                              rel="noopener noreferrer"
+                  </mat-card-header>
+
+                  <mat-card-content>
+                    <mat-tab-group dynamicHeight>
+                      <mat-tab label="Details">
+                        <ng-template matTabContent>
+                          <p class="description">{{ business.description }}</p>
+                          <div class="status-control">
+                            <mat-form-field appearance="outline">
+                              <mat-label>Status aktualisieren</mat-label>
+                              <mat-select
+                                [value]="business.status"
+                                (valueChange)="onStatusChange(business.id, $event)"
+                              >
+                                @for (option of statusOptions; track option.value) {
+                                  @if (option.value !== 'all') {
+                                    <mat-option [value]="option.value">
+                                      {{ option.label }}
+                                    </mat-option>
+                                  }
+                                }
+                              </mat-select>
+                            </mat-form-field>
+                          </div>
+
+                          <div class="metric-pills">
+                            @for (metric of businessMetrics(business); track metric.label) {
+                              <div class="metric-pill" [matTooltip]="metric.hint">
+                                <mat-icon>{{ metric.icon }}</mat-icon>
+                                <div>
+                                  <span class="metric-pill__label">{{ metric.label }}</span>
+                                  <strong>{{ metric.value }}</strong>
+                                </div>
+                              </div>
+                            }
+                          </div>
+                        </ng-template>
+                      </mat-tab>
+                  <mat-tab label="Positionen">
+                    <ng-template matTabContent>
+                      <div class="linked-items">
+                        @let linkedCount = business.linkedOrderItemIds?.length ?? 0;
+                        <div class="linked-items__header">
+                          <div>
+                            <h4>Auftragspositionen</h4>
+                            <p>
+                              @if (linkedCount) {
+                                {{ linkedCount }} verknüpfte Positionen
+                              } @else {
+                                Noch keine Zuordnung
+                              }
+                            </p>
+                          </div>
+                          <div class="linked-items__actions">
+                            <button mat-stroked-button color="primary" type="button" (click)="$event.stopPropagation(); openOrderItemPicker(business)">
+                              <mat-icon>playlist_add</mat-icon>
+                              Positionen zuordnen
+                            </button>
+                            <button
+                              mat-button
+                              type="button"
+                              [disabled]="!linkedCount"
+                              (click)="$event.stopPropagation(); openOrderOverview(business)"
                             >
-                              <mat-icon>insert_drive_file</mat-icon>
-                              {{ doc.name }}
-                            </a>
+                              <mat-icon>open_in_new</mat-icon>
+                              Auftragsübersicht
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="linked-items__panel linked-items__panel--always">
+                          @if (!linkedCount) {
+                            <div class="linked-items__empty">
+                              <mat-icon>link_off</mat-icon>
+                              <span>Keine Auftragspositionen zugeordnet.</span>
+                            </div>
+                          } @else {
+                            <div class="linked-item-grid">
+                              @for (itemId of business.linkedOrderItemIds; track itemId) {
+                                @let meta = orderItemMeta(itemId);
+                                @let range = orderItemRange(itemId);
+                                <article class="linked-item-card">
+                                  <header>
+                                    <div>
+                                      <div class="linked-item-card__title">
+                                        {{ meta?.itemName || itemId }}
+                                      </div>
+                                      <div class="linked-item-card__subtitle">
+                                        {{ meta?.orderName || 'Unbekannter Auftrag' }}
+                                      </div>
+                                    </div>
+                                    @if (meta) {
+                                      <mat-chip appearance="outlined">{{ meta.type }}</mat-chip>
+                                    }
+                                  </header>
+                                  @if (meta?.serviceType || range) {
+                                    <div class="linked-item-card__meta">
+                                      @if (meta?.serviceType; as serviceType) {
+                                        <span>
+                                          <mat-icon inline>build</mat-icon>
+                                          {{ serviceType }}
+                                        </span>
+                                      }
+                                      @if (range) {
+                                        <span>
+                                          <mat-icon inline>schedule</mat-icon>
+                                          {{ range }}
+                                        </span>
+                                      }
+                                    </div>
+                                  }
+                                  <div class="linked-item-card__actions">
+                                    <button
+                                      mat-stroked-button
+                                      color="primary"
+                                      type="button"
+                                      (click)="$event.stopPropagation(); goToOrderItem(business, itemId)"
+                                    >
+                                      <mat-icon>open_in_new</mat-icon>
+                                      Öffnen
+                                    </button>
+                                    <button
+                                      mat-icon-button
+                                      type="button"
+                                      color="warn"
+                                      (click)="$event.stopPropagation(); removeLinkedItem(business.id, itemId)"
+                                    >
+                                      <mat-icon>link_off</mat-icon>
+                                    </button>
+                                  </div>
+                                </article>
+                              }
+                            </div>
                           }
                         </div>
                       </div>
-                    } @else {
-                      <div class="documents documents--empty">
-                        <mat-icon>inbox</mat-icon>
-                        <p>Keine Dokumente hinterlegt.</p>
-                      </div>
-                    }
-                  </ng-template>
-                </mat-tab>
-              </mat-tab-group>
-            </mat-card-content>
-          </mat-card>
+                    </ng-template>
+                  </mat-tab>
+                  <mat-tab label="Dokumente">
+                    <ng-template matTabContent>
+                      @if (business.documents?.length) {
+                        <div class="documents">
+                          <span class="documents__title">
+                            <mat-icon>attach_file</mat-icon> Dokumente
+                          </span>
+                          <div class="documents__list">
+                            @for (doc of business.documents; track doc.id) {
+                              <a
+                                mat-stroked-button
+                                [href]="doc.url || '#'"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <mat-icon>insert_drive_file</mat-icon>
+                                {{ doc.name }}
+                              </a>
+                            }
+                          </div>
+                        </div>
+                      } @else {
+                        <div class="documents documents--empty">
+                          <mat-icon>inbox</mat-icon>
+                          <p>Keine Dokumente hinterlegt.</p>
+                        </div>
+                      }
+                    </ng-template>
+                  </mat-tab>
+                </mat-tab-group>
+              </mat-card-content>
+            </mat-card>
+              }
             }
+          </section>
+          @if (!isViewTransitioning() && hasMoreBusinesses()) {
+            <div class="load-more">
+              <button mat-stroked-button color="primary" type="button" (click)="loadMoreBusinesses()">
+                Mehr laden ({{ visibleBusinesses().length }}/{{ businesses().length }})
+              </button>
+            </div>
           }
-        </section>
+        </div>
         <aside class="business-detail-pane" *ngIf="selectedBusiness() as detail">
-        <header>
-          <h3>{{ detail.title }}</h3>
-          <mat-chip color="primary" appearance="outlined">
-            {{ statusLabel(detail.status) }}
-          </mat-chip>
+          <header>
+            <h3>{{ detail.title }}</h3>
+            <mat-chip color="primary" appearance="outlined">
+              {{ statusLabel(detail.status) }}
+            </mat-chip>
         </header>
         <p>{{ detail.description }}</p>
         <div class="detail-progress">
@@ -1013,7 +1027,17 @@
           </ul>
         </div>
         </aside>
-      </div>
-    }
+    </div>
   </div>
+  <button
+    class="detail-jump"
+    mat-fab
+    color="primary"
+    type="button"
+    *ngIf="detailJumpVisible() && selectedBusiness()"
+    (click)="scrollToBusinessCard(selectedBusiness()!.id)"
+    aria-label="Zum ausgewählten Geschäft scrollen"
+  >
+    <mat-icon>arrow_upward</mat-icon>
+  </button>
 </div>

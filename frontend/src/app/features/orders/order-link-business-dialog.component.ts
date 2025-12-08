@@ -30,9 +30,7 @@ export class OrderLinkBusinessDialogComponent {
 
   readonly searchTerm = signal('');
   readonly selectedBusinessId = signal<string | null>(null);
-  readonly selectedItemIds = signal<Set<string>>(
-    new Set(this.data.items.filter((item) => !(item.linkedBusinessIds?.length)).map((item) => item.id)),
-  );
+  readonly selectedItemIds = signal<Set<string>>(new Set());
 
   readonly businesses = computed(() => this.businessService.businesses());
   readonly filteredBusinesses = computed(() => {
@@ -63,6 +61,7 @@ export class OrderLinkBusinessDialogComponent {
 
   selectBusiness(id: string): void {
     this.selectedBusinessId.set(id);
+    this.selectedItemIds.set(this.linkedItemsForBusiness(id));
   }
 
   toggleItem(itemId: string): void {
@@ -79,20 +78,51 @@ export class OrderLinkBusinessDialogComponent {
 
   link(): void {
     const businessId = this.selectedBusinessId();
-    const items = Array.from(this.selectedItemIds());
-    if (!businessId || !items.length) {
+    if (!businessId) {
       return;
     }
-    items.forEach((itemId) => this.orderService.linkBusinessToItem(businessId, itemId));
-    this.snackBar.open(
-      `${items.length} Position${items.length === 1 ? '' : 'en'} mit Geschäft ${businessId} verknüpft.`,
-      'OK',
-      { duration: 2500 },
-    );
+
+    const desired = new Set(this.selectedItemIds());
+    const currentlyLinked = this.linkedItemsForBusiness(businessId);
+    const toLink = Array.from(desired).filter((id) => !currentlyLinked.has(id));
+    const toUnlink = Array.from(currentlyLinked).filter((id) => !desired.has(id));
+
+    toLink.forEach((itemId) => this.orderService.linkBusinessToItem(businessId, itemId));
+    toUnlink.forEach((itemId) => this.orderService.unlinkBusinessFromItem(businessId, itemId));
+
+    if (!toLink.length && !toUnlink.length) {
+      this.snackBar.open('Keine Änderungen vorgenommen.', 'OK', { duration: 2000 });
+      return;
+    }
+
+    const parts: string[] = [];
+    if (toLink.length) {
+      parts.push(`${toLink.length} Position${toLink.length === 1 ? '' : 'en'} verknüpft`);
+    }
+    if (toUnlink.length) {
+      parts.push(`${toUnlink.length} Position${toUnlink.length === 1 ? '' : 'en'} gelöst`);
+    }
+    this.snackBar.open(`${parts.join(' · ')} (${businessId})`, 'OK', { duration: 2500 });
     this.dialogRef.close();
   }
 
   close(): void {
     this.dialogRef.close();
+  }
+
+  isLinkedToSelectedBusiness(item: OrderItem): boolean {
+    const businessId = this.selectedBusinessId();
+    if (!businessId) {
+      return false;
+    }
+    return item.linkedBusinessIds?.includes(businessId) ?? false;
+  }
+
+  private linkedItemsForBusiness(id: string): Set<string> {
+    return new Set(
+      this.data.items
+        .filter((item) => item.linkedBusinessIds?.includes(id))
+        .map((item) => item.id),
+    );
   }
 }

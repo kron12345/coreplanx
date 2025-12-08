@@ -35,7 +35,11 @@ import { TimetableYearService } from '../../core/services/timetable-year.service
 import { ScheduleTemplate, ScheduleTemplateStop } from '../../core/models/schedule-template.model';
 import { BusinessTemplateService } from '../../core/services/business-template.service';
 import { BusinessService } from '../../core/services/business.service';
-import { ScheduleTemplateCreateDialogComponent } from '../schedule-templates/schedule-template-create-dialog.component';
+import {
+  ScheduleTemplateCreateDialogComponent,
+  ScheduleTemplateCreateDialogData,
+  ScheduleTemplateDialogResult,
+} from '../schedule-templates/schedule-template-create-dialog.component';
 import {
   OrderItemGeneralFieldsComponent,
   OrderItemGeneralLabels,
@@ -491,17 +495,30 @@ export class OrderPositionDialogComponent {
   }
 
   openTemplateCreateDialog() {
-    const dialogRef = this.dialog.open(ScheduleTemplateCreateDialogComponent, {
+    const dialogRef = this.dialog.open<
+      ScheduleTemplateCreateDialogComponent,
+      ScheduleTemplateCreateDialogData,
+      ScheduleTemplateDialogResult | undefined
+    >(ScheduleTemplateCreateDialogComponent, {
       width: '95vw',
       maxWidth: '1200px',
     });
 
-    dialogRef.afterClosed().subscribe((payload) => {
-      if (!payload) {
+    dialogRef.afterClosed().subscribe((result) => {
+      if (!result) {
         return;
       }
 
-      const template = this.templateService.createTemplate(payload);
+      let template: ScheduleTemplate | undefined;
+      if (result.mode === 'edit') {
+        this.templateService.updateTemplateFromPayload(result.templateId, result.payload);
+        template = this.templateService.getById(result.templateId);
+      } else {
+        template = this.templateService.createTemplate(result.payload);
+      }
+      if (!template) {
+        return;
+      }
 
       this.planForm.controls.templateId.setValue(template.id);
       if (!this.planForm.controls.namePrefix.value) {

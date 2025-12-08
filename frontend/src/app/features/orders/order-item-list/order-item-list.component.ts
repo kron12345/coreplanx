@@ -40,34 +40,73 @@ export class OrderItemListComponent {
   @Output() submitRequested = new EventEmitter<string>();
 
   get orderedItems(): OrderItem[] {
-    if (!this.items) {
+    const items = this.items ?? [];
+    if (!items.length) {
       return [];
     }
-    return [...this.items].sort((a, b) => {
-      const aPath = a.versionPath;
-      const bPath = b.versionPath;
-      if (!aPath?.length && !bPath?.length) {
-        return this.items.indexOf(a) - this.items.indexOf(b);
+
+    const byId = new Map(items.map((item) => [item.id, item]));
+    const originalIndex = new Map(items.map((item, idx) => [item.id, idx]));
+    const childrenMap = new Map<string, OrderItem[]>();
+
+    items.forEach((item) => {
+      const parentId = item.parentItemId;
+      if (parentId && byId.has(parentId)) {
+        const list = childrenMap.get(parentId) ?? [];
+        list.push(item);
+        childrenMap.set(parentId, list);
       }
-      if (!aPath?.length) {
-        return 1;
-      }
-      if (!bPath?.length) {
-        return -1;
-      }
-      const minLength = Math.min(aPath.length, bPath.length);
-      for (let i = 0; i < minLength; i++) {
-        const aValue = aPath[i];
-        const bValue = bPath[i];
-        if (aValue !== bValue) {
-          return aValue - bValue;
-        }
-      }
-      if (aPath.length !== bPath.length) {
-        return aPath.length - bPath.length;
-      }
-      return this.items.indexOf(a) - this.items.indexOf(b);
     });
+
+    const sorted: OrderItem[] = [];
+    const visited = new Set<string>();
+
+    const orderChildren = (parent: OrderItem): OrderItem[] => {
+      const children = childrenMap.get(parent.id) ?? [];
+      const withHint = parent.childItemIds ?? [];
+      return [...children].sort((a, b) => {
+        const aHint = withHint.indexOf(a.id);
+        const bHint = withHint.indexOf(b.id);
+        if (aHint !== -1 || bHint !== -1) {
+          if (aHint === -1) {
+            return 1;
+          }
+          if (bHint === -1) {
+            return -1;
+          }
+          if (aHint !== bHint) {
+            return aHint - bHint;
+          }
+        }
+        return (originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0);
+      });
+    };
+
+    const addWithDescendants = (item: OrderItem) => {
+      if (visited.has(item.id)) {
+        return;
+      }
+      visited.add(item.id);
+      sorted.push(item);
+      orderChildren(item).forEach(addWithDescendants);
+    };
+
+    items
+      .filter((item) => !item.parentItemId || !byId.has(item.parentItemId))
+      .sort(
+        (a, b) =>
+          (originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0),
+      )
+      .forEach(addWithDescendants);
+
+    // Fallback: catch any items that reference missing parents or cycles.
+    items.forEach((item) => {
+      if (!visited.has(item.id)) {
+        addWithDescendants(item);
+      }
+    });
+
+    return sorted;
   }
 
   private readonly statusLabels: Record<BusinessStatus, string> = {

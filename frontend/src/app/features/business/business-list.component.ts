@@ -1,5 +1,5 @@
 import { CommonModule, DOCUMENT, DatePipe } from '@angular/common';
-import { Component, HostListener, computed, effect, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import {
   FormControl,
   ReactiveFormsModule,
@@ -36,7 +36,8 @@ import {
   BusinessCommandDefinition,
   BusinessCommandPaletteDialogComponent,
 } from './business-command-palette-dialog.component';
-import { BusinessCreateFromTemplateComponent } from './business-create-from-template.component';
+
+const BUSINESS_PAGE_SIZE = 20;
 
 interface SortOption {
   value: string;
@@ -120,7 +121,7 @@ const BUSINESS_INSIGHTS_STORAGE_KEY = 'business.insightsCollapsed.v1';
 @Component({
   selector: 'app-business-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS, BusinessCreateFromTemplateComponent],
+  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
   templateUrl: './business-list.component.html',
   styleUrl: './business-list.component.scss',
   providers: [DatePipe],
@@ -133,6 +134,8 @@ export class BusinessListComponent {
   private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
   private readonly datePipe = inject(DatePipe);
+  @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('filterShelf') filterShelf?: ElementRef<HTMLElement>;
 
   readonly searchControl = new FormControl('', {
     nonNullable: true,
@@ -183,6 +186,15 @@ export class BusinessListComponent {
   readonly filters = computed(() => this.businessService.filters());
   readonly sort = computed(() => this.businessService.sort());
   readonly businesses = computed(() => this.businessService.filteredBusinesses());
+  readonly totalBusinesses = computed(() => this.businessService.businesses().length);
+  private readonly visibleCount = signal(BUSINESS_PAGE_SIZE);
+  readonly visibleBusinesses = computed(() =>
+    this.businesses().slice(0, this.visibleCount()),
+  );
+  readonly hasMoreBusinesses = computed(
+    () => this.visibleCount() < this.businesses().length,
+  );
+  readonly detailJumpVisible = signal(false);
   readonly orderItemOptions = computed<OrderItemOption[]>(() =>
     this.orderService.orderItemOptions(),
   );
@@ -417,6 +429,16 @@ export class BusinessListComponent {
       { allowSignalWrites: true },
     );
 
+    effect(
+      () => {
+        // Reset sichtbare Ergebnisse bei Filter-/Sort-Änderungen
+        this.businesses();
+        this.sort();
+        this.visibleCount.set(BUSINESS_PAGE_SIZE);
+      },
+      { allowSignalWrites: true },
+    );
+
     effect(() => {
       this.persistPresets(this.savedPresets());
     });
@@ -442,7 +464,8 @@ export class BusinessListComponent {
       { orderItemOptions: OrderItemOption[] },
       CreateBusinessPayload | undefined
     >(BusinessCreateDialogComponent, {
-      width: '560px',
+      width: '900px',
+      maxWidth: '95vw',
       data: {
         orderItemOptions: this.orderItemOptions(),
       },
@@ -512,6 +535,17 @@ export class BusinessListComponent {
         this.onDueDatePresetChange('all');
         break;
     }
+  }
+
+  loadMoreBusinesses(): void {
+    if (!this.hasMoreBusinesses()) {
+      return;
+    }
+    const next = Math.min(
+      this.visibleCount() + BUSINESS_PAGE_SIZE,
+      this.businesses().length,
+    );
+    this.visibleCount.set(next);
   }
 
   saveCurrentFilterPreset(): void {
@@ -871,6 +905,73 @@ export class BusinessListComponent {
     if (event.shiftKey && key === 'n') {
       event.preventDefault();
       this.openCreateDialog();
+      return;
+    }
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (key === '/') {
+        event.preventDefault();
+        this.focusSearch();
+        return;
+      }
+      if (key === 'g') {
+        event.preventDefault();
+        this.scrollToFilters();
+        return;
+      }
+      if (key === 'j') {
+        event.preventDefault();
+        this.selectRelativeBusiness(1);
+        return;
+      }
+      if (key === 'k') {
+        event.preventDefault();
+        this.selectRelativeBusiness(-1);
+        return;
+      }
+    }
+  }
+
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    const y = this.document.defaultView?.scrollY ?? 0;
+    this.detailJumpVisible.set(y > 240);
+  }
+
+  private focusSearch(): void {
+    if (this.searchInput?.nativeElement) {
+      this.searchInput.nativeElement.focus();
+      setTimeout(() => this.searchInput?.nativeElement.select(), 0);
+    }
+  }
+
+  private scrollToFilters(): void {
+    if (this.filterShelf?.nativeElement) {
+      this.filterShelf.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    this.focusSearch();
+  }
+
+  private selectRelativeBusiness(offset: number): void {
+    const list = this.visibleBusinesses();
+    if (!list.length) {
+      return;
+    }
+    const currentId = this.selectedBusinessId();
+    let index = currentId ? list.findIndex((b) => b.id === currentId) : 0;
+    if (index === -1) {
+      index = 0;
+    }
+    const next = list[Math.min(Math.max(0, index + offset), list.length - 1)];
+    if (next) {
+      this.selectedBusinessId.set(next.id);
+      this.scrollToBusinessCard(next.id);
+    }
+  }
+
+  scrollToBusinessCard(id: string): void {
+    const element = this.document.getElementById(this.businessElementId(id));
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 

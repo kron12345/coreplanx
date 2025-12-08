@@ -1,0 +1,130 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.picker-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.picker-summary__chips {
+  display: flex;
+  align-items: center;
+}
+
+.picker-summary__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.picker-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  span {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.7);
+  }
+}
+
+.picker-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.picker-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.picker-option {
+  position: relative;
+  text-align: left;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    border-color: rgba(67, 56, 202, 0.45);
+    box-shadow: 0 4px 12px rgba(67, 56, 202, 0.12);
+  }
+
+  &.selected {
+    border-color: #0f766e;
+    box-shadow: 0 6px 14px rgba(16, 185, 129, 0.2);
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 0.95rem;
+  }
+
+  &__meta {
+    margin-top: 6px;
+    display: inline-flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+
+    span {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      color: rgba(0, 0, 0, 0.7);
+      font-size: 0.9rem;
+    }
+  }
+
+  &__state {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+}
+
+.picker-empty {
+  padding: 24px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: rgba(0, 0, 0, 0.6);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+
+  mat-icon {
+    color: rgba(0, 0, 0, 0.4);
+  }
+}

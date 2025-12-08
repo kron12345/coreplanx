@@ -508,6 +508,7 @@ export class OrderService {
       comment: payload.comment,
       items: [],
       timetableYearLabel,
+      processStatus: 'auftrag',
     };
 
     this._orders.update((orders) => [order, ...orders]);

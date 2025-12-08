@@ -80,6 +80,9 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: min(100%, var(--business-page-max-width, 1600px));
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .insights-header {
@@ -547,6 +550,12 @@
   align-items: center;
 }
 
+.filter-shelf__active-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .filter-shelf__active-title {
   display: inline-flex;
   gap: 12px;
@@ -924,7 +933,7 @@
 .business-grid {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   padding-right: 8px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
@@ -933,6 +942,19 @@
   &--loading {
     opacity: 0.8;
   }
+}
+
+.load-more {
+  margin: 12px 0 4px;
+  text-align: center;
+}
+
+.detail-jump {
+  position: fixed;
+  right: clamp(16px, 4vw, 32px);
+  bottom: clamp(16px, 4vw, 32px);
+  z-index: 20;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.24);
 }
 
 .business-card {
@@ -1426,15 +1448,31 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
 
-  @media (min-width: 1500px) {
-    flex-direction: row;
-    align-items: stretch;
+.business-main__layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (min-width: 1200px) {
+  .business-main__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 20px;
+    align-items: start;
+  }
+}
+
+@media (min-width: 1500px) {
+  .business-main__layout {
+    grid-template-columns: minmax(0, 1fr) 460px;
   }
 }
 
 .business-detail-pane {
-  flex: 0 0 360px;
+  flex: 0 0 420px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1442,7 +1480,7 @@
   border-radius: 16px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: #fff;
-  max-height: 100%;
+  max-height: calc(100vh - clamp(120px, 12vh, 160px));
   overflow: auto;
   position: sticky;
   top: clamp(90px, 6vw, 140px);

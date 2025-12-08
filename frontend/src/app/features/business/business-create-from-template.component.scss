@@ -1,5 +1,14 @@
+:host {
+  display: block;
+  width: min(100%, var(--business-page-max-width, 1200px));
+  margin: clamp(8px, 2vw, 20px) auto 0;
+  padding: 0 clamp(24px, 4vw, 56px);
+  box-sizing: border-box;
+}
+
 .create-from-template {
   border-radius: 24px;
+  width: 100%;
 
   .template-form {
     display: grid;
