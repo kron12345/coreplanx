@@ -15,6 +15,14 @@
         <mat-icon inline>event</mat-icon>
         Fahrplanjahr {{ timetableYearLabel() }}
       </mat-chip>
+      <mat-chip [ngClass]="variantChip().type === 'simulation' ? 'variant-simulation' : 'variant-productive'">
+        <mat-icon inline>category</mat-icon>
+        {{ variantChip().label }}
+      </mat-chip>
+      <mat-chip *ngIf="simulationLabel()" class="simulation-chip">
+        <mat-icon inline>science</mat-icon>
+        {{ simulationLabel() }}
+      </mat-chip>
     </mat-chip-set>
     <p class="summary__validity">
       <mat-icon inline>calendar_month</mat-icon>
@@ -138,6 +146,19 @@
                     <mat-icon>person</mat-icon>
                     {{ plan.responsibleRu }}
                   </span>
+                  <span>
+                    <mat-icon>category</mat-icon>
+                    {{ plan.planVariantType === 'simulation' ? 'Simulation' : 'Produktiv' }}
+                    @if (plan.variantLabel) {
+                      · {{ plan.variantLabel }}
+                    }
+                  </span>
+                  @if (plan.simulationLabel) {
+                    <span>
+                      <mat-icon>science</mat-icon>
+                      {{ plan.simulationLabel }}
+                    </span>
+                  }
                 </div>
                 <div class="plan-details__route">
                   <mat-icon>alt_route</mat-icon>

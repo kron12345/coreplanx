@@ -309,6 +309,15 @@
               </button>
             }
 
+            @if (filters().variantType !== 'all') {
+              <button type="button" class="filter-pill" (click)="setVariantFilter('all')">
+                <mat-icon>science</mat-icon>
+                <span>Variante</span>
+                <strong>{{ filters().variantType === 'simulation' ? 'Simulation' : 'Produktiv' }}</strong>
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+
             @if (
               !searchControl.value.trim() &&
               filters().tag === 'all' &&
@@ -320,6 +329,7 @@
               filters().businessStatus === 'all' &&
               filters().trainNumber.trim() === '' &&
               filters().timetableYearLabel === 'all' &&
+              filters().variantType === 'all' &&
               filters().linkedBusinessId === null
             ) {
               <span class="filter-pill filter-pill--empty">
@@ -365,6 +375,19 @@
           <mat-icon>workspace_premium</mat-icon>
           Vorlagen-Empfehlungen
         </button>
+
+        <div class="variant-filter">
+          <span class="orders-filters__label">Variante</span>
+          <mat-button-toggle-group
+            [value]="filters().variantType"
+            (change)="setVariantFilter($event.value)"
+            aria-label="Variante auswählen"
+          >
+            <mat-button-toggle value="all">Alle</mat-button-toggle>
+            <mat-button-toggle value="productive">Produktiv</mat-button-toggle>
+            <mat-button-toggle value="simulation">Simulation</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
 
         <div class="orders-filter-stack">
           <app-filter-bar

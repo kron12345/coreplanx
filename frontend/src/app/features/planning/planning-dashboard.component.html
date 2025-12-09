@@ -18,7 +18,7 @@
         </div>
         <span class="planning-toolbar__summary">
           {{ boards().length }} Plantafel(n) · {{ resources().length }} Ressourcen ·
-          {{ selectionSize() }} ausgewählt
+          {{ selectionSize() }} ausgewählt · {{ selectedSimulationLabel() }}
         </span>
         <button
           *ngIf="activeStageId() === 'base'"
@@ -80,6 +80,33 @@
                 >
                   {{ year.label }} · {{ year.startIso }} – {{ year.endIso }}
                 </mat-checkbox>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="planning-filter" tabindex="0">
+          <button type="button" class="planning-filter__trigger">
+            <mat-icon fontIcon="science"></mat-icon>
+            <span>{{ selectedSimulationLabel() }}</span>
+          </button>
+          <div class="planning-filter__panel">
+            <div class="planning-filter__panel-title">Planungsvariante</div>
+            <div class="planning-filter__panel-list">
+              @if (simulationOptions().length) {
+                @for (sim of simulationOptions(); track sim.id) {
+                  <button
+                    type="button"
+                    class="planning-filter__option"
+                    [class.is-active]="sim.id === selectedSimulationId()"
+                    (click)="onSimulationSelect(sim.id)"
+                  >
+                    <strong>{{ sim.label }}</strong>
+                    <span>{{ sim.productive ? 'Produktiv' : 'Simulation' }} · {{ sim.timetableYearLabel }}</span>
+                  </button>
+                }
+              } @else {
+                <p class="planning-filter__empty">Keine Varianten für die gewählten Fahrplanjahre.</p>
               }
             </div>
           </div>

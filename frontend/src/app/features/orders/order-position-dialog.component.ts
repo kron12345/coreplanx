@@ -61,10 +61,23 @@ import { OrderImportFiltersComponent } from './order-import-filters/order-import
 import { ReferenceCalendarInlineFormComponent } from './reference-calendar-inline-form/reference-calendar-inline-form.component';
 import { OrderItem } from '../../core/models/order-item.model';
 import { BusinessTemplateAutomation } from '../../core/models/business-template.model';
+import {
+  CompositionBaseVehicleForm,
+  CompositionChangeEntryForm,
+  VehicleCompositionFormComponent,
+} from './shared/vehicle-composition-form/vehicle-composition-form.component';
+import { SimulationService } from '../../core/services/simulation.service';
+import {
+  SimulationAssignDialogComponent,
+  SimulationAssignDialogResult,
+} from './shared/simulation-assign-dialog/simulation-assign-dialog.component';
+import { SimulationRecord } from '../../core/models/simulation.model';
 
 interface OrderPositionDialogData {
   order: Order;
 }
+
+type SimulationMode = 'plan' | 'manual' | 'import';
 
 function nonEmptyDates(control: AbstractControl<string[] | null>): ValidationErrors | null {
   const value = control.value;
@@ -86,6 +99,7 @@ function nonEmptyDates(control: AbstractControl<string[] | null>): ValidationErr
     OrderPlanPreviewComponent,
     OrderImportFiltersComponent,
     ReferenceCalendarInlineFormComponent,
+    VehicleCompositionFormComponent,
   ],
   templateUrl: './order-position-dialog.component.html',
   styleUrl: './order-position-dialog.component.scss',
@@ -106,14 +120,17 @@ export class OrderPositionDialogComponent {
   private readonly timetableYearService = inject(TimetableYearService);
   private readonly businessTemplateService = inject(BusinessTemplateService);
   private readonly businessService = inject(BusinessService);
+  private readonly simulationService = inject(SimulationService);
   private readonly dialog = inject(MatDialog);
+  readonly orderYearLabel =
+    this.data.order.timetableYearLabel ?? this.timetableYearService.defaultYearBounds().label;
 
   readonly modeControl = new FormControl<'service' | 'plan' | 'manualPlan' | 'import'>(
     'service',
     { nonNullable: true },
   );
   private readonly defaultTimetableYear = this.timetableYearService.defaultYearBounds();
-  readonly defaultTimetableYearLabel = this.defaultTimetableYear.label;
+  readonly defaultTimetableYearLabel = this.orderYearLabel || this.defaultTimetableYear.label;
 
   readonly serviceForm = this.fb.group({
     serviceType: ['', Validators.required],
@@ -142,6 +159,10 @@ export class OrderPositionDialogComponent {
     responsible: [''],
     otn: [''],
     otnInterval: [1, [Validators.min(1)]],
+    variantType: this.fb.nonNullable.control<'productive' | 'simulation'>('productive'),
+    variantLabel: [''],
+    simulationId: [''],
+    simulationLabel: [''],
     calendarYear: this.fb.nonNullable.control(this.defaultTimetableYearLabel, {
       validators: [Validators.required],
     }),
@@ -157,6 +178,10 @@ export class OrderPositionDialogComponent {
     name: [''],
     responsible: [''],
     tags: [''],
+    variantType: this.fb.nonNullable.control<'productive' | 'simulation'>('productive'),
+    variantLabel: [''],
+    simulationId: [''],
+    simulationLabel: [''],
     calendarYear: this.fb.nonNullable.control(this.defaultTimetableYearLabel, {
       validators: [Validators.required],
     }),
@@ -180,6 +205,13 @@ export class OrderPositionDialogComponent {
     namePrefix: [''],
     responsible: [''],
     tags: [''],
+    variantType: this.fb.nonNullable.control<'productive' | 'simulation'>('productive'),
+    variantLabel: [''],
+    simulationId: [''],
+    simulationLabel: [''],
+    calendarYear: this.fb.nonNullable.control(this.defaultTimetableYearLabel, {
+      validators: [Validators.required],
+    }),
   });
 
   readonly businessForm = this.fb.group({
@@ -257,6 +289,20 @@ export class OrderPositionDialogComponent {
     deviation: 'Hinweise oder Abweichungen für den manuellen Fahrplan.',
     tags: 'Kommagetrennte Stichwörter für Filter & Automationen.',
   } as const;
+  readonly compositionBaseVehicles = this.fb.array<CompositionBaseVehicleForm>([]);
+  readonly compositionChangeEntries = this.fb.array<CompositionChangeEntryForm>([]);
+  planStopOptions: { value: number; label: string }[] = [];
+  manualStopOptions: { value: number; label: string }[] = [];
+  readonly compositionBaseFactory = (
+    seed?: { vehicleType?: string; count?: number; note?: string | null },
+  ) => this.createCompositionBaseVehicleGroup(seed);
+  readonly compositionChangeFactory = (seed?: {
+    stopIndex?: number | null;
+    action?: 'attach' | 'detach';
+    vehicleType?: string;
+    count?: number;
+    note?: string | null;
+  }) => this.createCompositionChangeEntryGroup(seed);
   readonly planFieldDescriptions = {
     templateId: 'Vorlage mit Strecke und Zeiten, die für die Serie genutzt wird.',
     startTime: 'Erste Abfahrt am Tag der Serie (HH:MM).',
@@ -333,6 +379,9 @@ export class OrderPositionDialogComponent {
   errorMessage = signal<string | null>(null);
 
   readonly order = this.data.order;
+  get requiresRollingStock(): boolean {
+    return this.isTttOrder();
+  }
 
   get serviceCalendarYearControl(): FormControl<string> {
     return this.serviceForm.controls['calendarYear'] as FormControl<string>;
@@ -377,6 +426,371 @@ export class OrderPositionDialogComponent {
     ).length;
   }
 
+  managedTimetableYears() {
+    return this.timetableYearService.managedYearBounds();
+  }
+
+  private isTttOrder(): boolean {
+    const tags = this.order?.tags ?? [];
+    return tags.some((tag) => tag?.toLowerCase() === 'ttt');
+  }
+
+  createCompositionBaseVehicleGroup(
+    seed?: { vehicleType?: string; count?: number; note?: string | null },
+  ): CompositionBaseVehicleForm {
+    return this.fb.group({
+      vehicleType: this.fb.nonNullable.control(seed?.vehicleType ?? '', {
+        validators: [Validators.required],
+      }),
+      count: this.fb.nonNullable.control(seed?.count ?? 1, {
+        validators: [Validators.required, Validators.min(1)],
+      }),
+      note: this.fb.nonNullable.control(seed?.note ?? ''),
+    });
+  }
+
+  createCompositionChangeEntryGroup(
+    seed?: {
+      stopIndex?: number | null;
+    action?: 'attach' | 'detach';
+    vehicleType?: string;
+    count?: number;
+    note?: string | null;
+  },
+  ): CompositionChangeEntryForm {
+    return this.fb.group({
+      stopIndex: this.fb.control(seed?.stopIndex ?? null),
+      action: this.fb.nonNullable.control<'attach' | 'detach'>(seed?.action ?? 'attach'),
+      vehicleType: this.fb.nonNullable.control(seed?.vehicleType ?? '', {
+        validators: [Validators.required],
+      }),
+      count: this.fb.nonNullable.control(seed?.count ?? 1, {
+        validators: [Validators.required, Validators.min(1)],
+      }),
+      note: this.fb.nonNullable.control(seed?.note ?? ''),
+    });
+  }
+
+  private resetCompositionForms(): void {
+    this.compositionBaseVehicles.clear();
+    this.compositionChangeEntries.clear();
+  }
+
+  private hydrateCompositionFromTemplate(template: ScheduleTemplate | undefined | null) {
+    this.resetCompositionForms();
+    if (template?.composition?.base?.length) {
+      template.composition.base.forEach((vehicle) =>
+        this.compositionBaseVehicles.push(
+          this.createCompositionBaseVehicleGroup({
+            vehicleType: vehicle.type,
+            count: vehicle.count,
+            note: vehicle.note ?? vehicle.label ?? null,
+          }),
+        ),
+      );
+    }
+    template?.composition?.changes?.forEach((change) =>
+      change.vehicles.forEach((vehicle) =>
+        this.compositionChangeEntries.push(
+          this.createCompositionChangeEntryGroup({
+            stopIndex: change.stopIndex,
+            action: change.action,
+            vehicleType: vehicle.type,
+            count: vehicle.count,
+            note: change.note ?? vehicle.note ?? null,
+          }),
+        ),
+      ),
+    );
+    if (!template?.composition?.base?.length && this.requiresRollingStock) {
+      this.ensureCompositionSeed();
+    }
+    this.planStopOptions = this.stopOptionsFromTemplate(template);
+  }
+
+  private ensureCompositionSeed(): void {
+    if (!this.compositionBaseVehicles.length) {
+      this.compositionBaseVehicles.push(this.createCompositionBaseVehicleGroup());
+    }
+  }
+
+  private stopOptionsFromTemplate(
+    template: ScheduleTemplate | undefined | null,
+  ): { value: number; label: string }[] {
+    if (!template) {
+      return [];
+    }
+    return template.stops
+      .slice()
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((stop) => ({ value: stop.sequence, label: `#${stop.sequence} · ${stop.locationName}` }));
+  }
+
+  private stopOptionsFromManual(
+    stops: PlanModificationStopInput[] | null,
+  ): { value: number; label: string }[] {
+    if (!stops?.length) {
+      return [];
+    }
+    return stops
+      .slice()
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((stop) => ({ value: stop.sequence, label: `#${stop.sequence} · ${stop.locationName}` }));
+  }
+
+  private parseCompositionForms(): {
+    base: NonNullable<ScheduleTemplate['composition']>['base'];
+    changes: NonNullable<ScheduleTemplate['composition']>['changes'];
+  } {
+    const base =
+      this.compositionBaseVehicles.controls.map((group) => ({
+        type: group.controls.vehicleType.value.trim(),
+        count: group.controls.count.value ?? 0,
+        note: group.controls.note.value?.trim() || undefined,
+      })) ?? [];
+
+    const changes =
+      this.compositionChangeEntries.controls.map((group) => ({
+        stopIndex: group.controls.stopIndex.value ?? 0,
+        action: group.controls.action.value,
+        vehicles: [
+          {
+            type: group.controls.vehicleType.value.trim(),
+            count: group.controls.count.value ?? 0,
+            note: group.controls.note.value?.trim() || undefined,
+          },
+        ],
+        note: group.controls.note.value?.trim() || undefined,
+      })) ?? [];
+
+    return { base, changes };
+  }
+
+  private validateComposition(required: boolean): boolean {
+    const { base, changes } = this.parseCompositionForms();
+    const hasBase = base.some((entry) => entry.type && entry.count > 0);
+    const baseInvalid = base.some((entry) => {
+      if (!entry.type && entry.count <= 0) {
+        return false;
+      }
+      return !entry.type || entry.count <= 0;
+    });
+    if (baseInvalid || (required && !hasBase)) {
+      this.compositionBaseVehicles.controls.forEach((group) => group.markAllAsTouched());
+      this.errorMessage.set(
+        required
+          ? 'Bitte mindestens ein Fahrzeug mit Typ und Anzahl erfassen.'
+          : 'Bitte Typ und Anzahl für jedes Fahrzeug angeben.',
+      );
+      return false;
+    }
+
+    const changeInvalid = this.compositionChangeEntries.controls.some((group) => {
+      const stopIndex = group.controls.stopIndex.value;
+      const type = group.controls.vehicleType.value.trim();
+      const count = group.controls.count.value ?? 0;
+      const isEmpty =
+        (stopIndex === null || stopIndex === undefined) && !type && (!count || count <= 1);
+      if (isEmpty) {
+        return false;
+      }
+      return stopIndex === null || stopIndex === undefined || !type || count <= 0;
+    });
+    if (changeInvalid) {
+      this.compositionChangeEntries.controls.forEach((group) => group.markAllAsTouched());
+      this.errorMessage.set('Bitte Halt, Aktion und Fahrzeuge für Kopplungen angeben.');
+      return false;
+    }
+    return true;
+  }
+
+  private buildCompositionPayload(): ScheduleTemplate['composition'] | undefined {
+    const { base, changes } = this.parseCompositionForms();
+    const normalizedBase = base.filter((entry) => entry.type && entry.count > 0);
+    const normalizedChanges = changes.filter(
+      (entry) =>
+        entry.stopIndex > 0 &&
+        entry.vehicles.every((vehicle) => vehicle.type && vehicle.count > 0),
+    );
+    if (!normalizedBase.length && !normalizedChanges.length) {
+      return undefined;
+    }
+    return {
+      base: normalizedBase,
+      changes: normalizedChanges,
+    };
+  }
+
+  private resolveVariantGroupId(): string {
+    return `${this.order.id}:var`;
+  }
+
+  private simulationControls(mode: SimulationMode) {
+    if (mode === 'plan') {
+      return {
+        variant: this.planForm.controls.variantType,
+        variantLabel: this.planForm.controls.variantLabel,
+        simulationId: this.planForm.controls.simulationId,
+        simulationLabel: this.planForm.controls.simulationLabel,
+        calendarYear: this.planForm.controls.calendarYear,
+      };
+    }
+    if (mode === 'manual') {
+      return {
+        variant: this.manualPlanForm.controls.variantType,
+        variantLabel: this.manualPlanForm.controls.variantLabel,
+        simulationId: this.manualPlanForm.controls.simulationId,
+        simulationLabel: this.manualPlanForm.controls.simulationLabel,
+        calendarYear: this.manualPlanForm.controls.calendarYear,
+      };
+    }
+    return {
+      variant: this.importOptionsForm.controls.variantType,
+      variantLabel: this.importOptionsForm.controls.variantLabel,
+      simulationId: this.importOptionsForm.controls.simulationId,
+      simulationLabel: this.importOptionsForm.controls.simulationLabel,
+      calendarYear: this.importOptionsForm.controls.calendarYear,
+    };
+  }
+
+  private resolveSimulationYear(mode: SimulationMode): string {
+    const controls = this.simulationControls(mode);
+    const year = controls.calendarYear?.value?.trim();
+    return year || this.order.timetableYearLabel || this.defaultTimetableYearLabel;
+  }
+
+  private findSimulation(id: string | null | undefined): SimulationRecord | undefined {
+    if (!id) {
+      return undefined;
+    }
+    return this.simulationService.list().find((record) => record.id === id);
+  }
+
+  private simulationMatchesYear(record: SimulationRecord | undefined, year: string): boolean {
+    if (!record || !year) {
+      return false;
+    }
+    return (record.timetableYearLabel ?? '').toLowerCase() === year.trim().toLowerCase();
+  }
+
+  private applySimulationRecord(mode: SimulationMode, record: SimulationRecord) {
+    const controls = this.simulationControls(mode);
+    controls.simulationId.setValue(record.id, { emitEvent: false });
+    controls.simulationLabel.setValue(record.label, { emitEvent: false });
+    const type: 'productive' | 'simulation' = record.productive ? 'productive' : 'simulation';
+    if (controls.variant.value !== type) {
+      controls.variant.setValue(type, { emitEvent: false });
+    }
+    if (!controls.variantLabel.value?.trim() || controls.variantLabel.value === 'Produktiv') {
+      const label = record.productive ? 'Produktiv' : record.label;
+      controls.variantLabel.setValue(label, { emitEvent: false });
+    }
+  }
+
+  private assignProductiveSimulation(mode: SimulationMode) {
+    const year = this.resolveSimulationYear(mode);
+    const candidates = this.simulationService.byTimetableYear(year);
+    const record =
+      candidates.find((sim) => sim.productive) ??
+      candidates[0] ??
+      this.simulationService.list().find((sim) => sim.productive);
+    if (record) {
+      this.applySimulationRecord(mode, record);
+    }
+  }
+
+  private ensureSimulationForYear(mode: SimulationMode) {
+    const controls = this.simulationControls(mode);
+    const year = this.resolveSimulationYear(mode);
+    const current = this.findSimulation(controls.simulationId.value);
+    const type = controls.variant.value;
+
+    if (type === 'productive') {
+      if (!current || !current.productive || !this.simulationMatchesYear(current, year)) {
+        this.assignProductiveSimulation(mode);
+      }
+      return;
+    }
+
+    if (current && !current.productive && this.simulationMatchesYear(current, year)) {
+      return;
+    }
+    this.openSimulationAssignment(mode);
+  }
+
+  simulationSelectionLabel(mode: SimulationMode): string | null {
+    const controls = this.simulationControls(mode);
+    const label = controls.simulationLabel.value ?? '';
+    if (label.trim()) {
+      return label.trim();
+    }
+    const record = this.findSimulation(controls.simulationId.value);
+    return record?.label ?? null;
+  }
+
+  openSimulationAssignment(mode: SimulationMode) {
+    const year = this.resolveSimulationYear(mode);
+    const controls = this.simulationControls(mode);
+    const dialogRef = this.dialog.open<
+      SimulationAssignDialogComponent,
+      { timetableYearLabel: string; selectedId?: string | null },
+      SimulationAssignDialogResult | undefined
+    >(SimulationAssignDialogComponent, {
+      width: '520px',
+      data: { timetableYearLabel: year, selectedId: controls.simulationId.value },
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (!result) {
+        if (!controls.simulationId.value) {
+          this.assignProductiveSimulation(mode);
+        }
+        return;
+      }
+      controls.simulationId.setValue(result.simulationId, { emitEvent: false });
+      controls.simulationLabel.setValue(result.simulationLabel, { emitEvent: false });
+      if (controls.variant.value !== result.variantType) {
+        controls.variant.setValue(result.variantType, { emitEvent: false });
+      }
+      if (!controls.variantLabel.value?.trim()) {
+        controls.variantLabel.setValue(result.simulationLabel, { emitEvent: false });
+      }
+    });
+  }
+
+  private ensureSimulationSelected(mode: SimulationMode): boolean {
+    const controls = this.simulationControls(mode);
+    const type = controls.variant.value;
+    if (type === 'productive') {
+      if (!controls.simulationId.value) {
+        this.assignProductiveSimulation(mode);
+      }
+      return true;
+    }
+    const year = this.resolveSimulationYear(mode);
+    const current = this.findSimulation(controls.simulationId.value);
+    if (current && !current.productive && this.simulationMatchesYear(current, year)) {
+      return true;
+    }
+    this.errorMessage.set('Bitte eine Simulation für dieses Fahrplanjahr auswählen.');
+    this.openSimulationAssignment(mode);
+    return false;
+  }
+
+  private setupSimulationReactions(mode: SimulationMode) {
+    const controls = this.simulationControls(mode);
+    controls.variant.valueChanges.pipe(takeUntilDestroyed()).subscribe((type) => {
+      if (type === 'productive') {
+        this.assignProductiveSimulation(mode);
+      } else {
+        this.ensureSimulationForYear(mode);
+      }
+    });
+    controls.calendarYear.valueChanges
+      ?.pipe(takeUntilDestroyed())
+      .subscribe(() => this.ensureSimulationForYear(mode));
+  }
+
   constructor() {
     const templateList = this.templateService.templates();
 
@@ -385,6 +799,9 @@ export class OrderPositionDialogComponent {
     if (firstTemplate) {
       this.planForm.controls.templateId.setValue(firstTemplate.id);
       this.planForm.controls.namePrefix.setValue(firstTemplate.title);
+      this.hydrateCompositionFromTemplate(firstTemplate);
+    } else if (this.requiresRollingStock) {
+      this.ensureCompositionSeed();
     }
 
     this.importFilterValues.set({
@@ -404,6 +821,18 @@ export class OrderPositionDialogComponent {
         this.importError.set(null);
       }
     });
+
+    this.planForm.controls.templateId.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((templateId) => {
+        const template = templateId ? this.templateService.getById(templateId) : undefined;
+        this.hydrateCompositionFromTemplate(template);
+      });
+    // lock Fahrplanjahr auf Auftrag
+    this.serviceForm.controls.calendarYear.disable({ emitEvent: false });
+    this.planForm.controls.calendarYear.disable({ emitEvent: false });
+    this.manualPlanForm.controls.calendarYear.disable({ emitEvent: false });
+    this.importOptionsForm.controls.calendarYear.disable({ emitEvent: false });
 
     this.importFilters.valueChanges
       .pipe(takeUntilDestroyed())
@@ -459,6 +888,11 @@ export class OrderPositionDialogComponent {
         this.businessForm.controls.automationRuleIds.setValue([], { emitEvent: false });
         this.errorMessage.set(null);
       });
+
+    (['plan', 'manual', 'import'] as SimulationMode[]).forEach((mode) => {
+      this.setupSimulationReactions(mode);
+      this.assignProductiveSimulation(mode);
+    });
   }
 
   onImportFiltersReset() {
@@ -553,6 +987,10 @@ export class OrderPositionDialogComponent {
     dialogRef.afterClosed().subscribe((result) => {
       if (result?.stops?.length) {
         this.manualTemplate.set(result.stops);
+        this.manualStopOptions = this.stopOptionsFromManual(result.stops);
+        if (this.requiresRollingStock) {
+          this.ensureCompositionSeed();
+        }
         this.errorMessage.set(null);
       }
     });
@@ -560,6 +998,7 @@ export class OrderPositionDialogComponent {
 
   clearManualTemplate() {
     this.manualTemplate.set(null);
+    this.manualStopOptions = [];
   }
 
   cancel() {
@@ -580,6 +1019,9 @@ export class OrderPositionDialogComponent {
         this.planForm.markAllAsTouched();
         return;
       }
+      if (!this.validateComposition(this.requiresRollingStock)) {
+        return;
+      }
       this.createPlanItems();
     } else if (this.mode() === 'manualPlan') {
       const stops = this.manualTemplate();
@@ -591,8 +1033,14 @@ export class OrderPositionDialogComponent {
         this.manualPlanForm.markAllAsTouched();
         return;
       }
+      if (!this.validateComposition(this.requiresRollingStock)) {
+        return;
+      }
       this.createManualPlanItem();
     } else {
+      if (!this.validateComposition(this.requiresRollingStock)) {
+        return;
+      }
       this.createImportedPlanItems();
     }
   }
@@ -721,7 +1169,12 @@ export class OrderPositionDialogComponent {
       return;
     }
 
+    if (!this.ensureSimulationSelected('manual')) {
+      return;
+    }
+
     try {
+      const composition = this.buildCompositionPayload();
       const sortedDates = [...selectedDates].sort();
       const departure = new Date(`${sortedDates[0]}T00:00:00`);
       if (Number.isNaN(departure.getTime())) {
@@ -760,6 +1213,12 @@ export class OrderPositionDialogComponent {
         daysBitmap: this.buildDaysBitmapFromDates(sortedDates),
         timetableYearLabel: yearInfo.label,
         tags: itemTags,
+        composition,
+        variantType: value.variantType,
+        variantLabel: value.variantLabel?.trim() || undefined,
+        variantGroupId: this.resolveVariantGroupId(),
+        simulationId: this.manualPlanForm.controls.simulationId.value || undefined,
+        simulationLabel: this.manualPlanForm.controls.simulationLabel.value || undefined,
       };
       const item = this.orderService.addManualPlanOrderItem(payload);
       if (!this.applyBusinessLink([item])) {
@@ -789,11 +1248,21 @@ export class OrderPositionDialogComponent {
       return;
     }
 
+    if (!this.ensureSimulationSelected('import')) {
+      return;
+    }
+
     const options = this.importOptionsForm.getRawValue();
     const namePrefix = options.namePrefix?.trim();
     const responsible = options.responsible?.trim() || undefined;
     const overridePeriodId = options.trafficPeriodId?.trim() || undefined;
     const itemTags = this.parseTagsInput(options.tags);
+    const composition = this.buildCompositionPayload();
+    const variantType = options.variantType;
+    const variantLabel = options.variantLabel?.trim() || undefined;
+    const variantGroupId = this.resolveVariantGroupId();
+    const simulationId = options.simulationId?.trim() || undefined;
+    const simulationLabel = options.simulationLabel?.trim() || undefined;
 
     try {
       const periodAssignments =
@@ -853,8 +1322,14 @@ export class OrderPositionDialogComponent {
           responsible,
           namePrefix,
           parentItemId,
-          timetableYearLabel: train.timetableYearLabel,
+          timetableYearLabel: train.timetableYearLabel ?? options.calendarYear ?? undefined,
           tags: itemTags,
+          composition,
+          variantType,
+          variantLabel,
+          variantGroupId,
+          simulationId,
+          simulationLabel,
         });
         createdItemIds.set(train.id, item.id);
         if (!train.variantOf) {
@@ -941,6 +1416,11 @@ export class OrderPositionDialogComponent {
       return;
     }
 
+    if (!this.ensureSimulationSelected('plan')) {
+      return;
+    }
+
+    const composition = this.buildCompositionPayload();
     const planPayload: CreatePlanOrderItemsPayload = {
       orderId: this.order.id,
       templateId: value.templateId!,
@@ -953,6 +1433,12 @@ export class OrderPositionDialogComponent {
       responsibleRu: value.responsible?.trim() || undefined,
       timetableYearLabel: value.calendarYear ?? undefined,
       tags: this.parseTagsInput(value.tags),
+      composition,
+      variantType: value.variantType,
+      variantLabel: value.variantLabel?.trim() || undefined,
+      variantGroupId: this.resolveVariantGroupId(),
+      simulationId: this.planForm.controls.simulationId.value || undefined,
+      simulationLabel: this.planForm.controls.simulationLabel.value || undefined,
     };
 
     if (trainNumberStart !== undefined) {
@@ -1740,9 +2226,20 @@ export class OrderPositionDialogComponent {
       deviationSort: 'none',
     });
     this.importOptionsForm.patchValue(
-      { namePrefix: '', responsible: '', trafficPeriodId: '' },
+      {
+        namePrefix: '',
+        responsible: '',
+        trafficPeriodId: '',
+        tags: '',
+        variantType: 'productive',
+        variantLabel: '',
+        simulationId: '',
+        simulationLabel: '',
+        calendarYear: this.defaultTimetableYearLabel,
+      },
       { emitEvent: false },
     );
+    this.assignProductiveSimulation('import');
   }
 
   isTrainSelected(id: string): boolean {

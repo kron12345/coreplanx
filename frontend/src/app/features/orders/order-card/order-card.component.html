@@ -282,11 +282,26 @@
             <div class="status-group status-group--variant">
               <span class="group-label">
                 <mat-icon inline>category</mat-icon>
-                Varianten
+                Simulationen / Produktiv
               </span>
-              <mat-chip-set aria-label="Kalendervarianten">
+              <mat-chip-set aria-label="Simulationsanteil">
+                <mat-chip
+                  class="status-chip status-chip--variant"
+                  [class.status-chip--active]="isVariantActive('all')"
+                  (click)="clearVariantFilter($event)"
+                >
+                  Alle
+                </mat-chip>
                 @for (summary of variantSummaries(); track summary.key) {
-                  <mat-chip class="status-chip status-chip--variant">
+                  <mat-chip
+                    class="status-chip status-chip--variant"
+                    [ngClass]="{
+                      'variant-productive': summary.value === 'productive',
+                      'variant-simulation': summary.value === 'simulation'
+                    }"
+                    [class.status-chip--active]="isVariantActive(summary.value)"
+                    (click)="toggleVariantFilter(summary.value, $event)"
+                  >
                     {{ summary.label }} · {{ summary.count }}
                   </mat-chip>
                 }
@@ -341,6 +356,29 @@
           {{ selectedCount() }} Position(en) ausgewählt
         </div>
         <div class="selection-bar__actions">
+          <button mat-button type="button" (click)="selectAllVisible($event)">
+            <mat-icon>select_all</mat-icon>
+            Alle auswählen
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="bulkCopyToSimulation($event)"
+            [disabled]="!hasProductiveSelection()"
+          >
+            <mat-icon>content_copy</mat-icon>
+            In Simulation kopieren
+          </button>
+          <button
+            mat-stroked-button
+            color="accent"
+            type="button"
+            (click)="bulkMergeSimulations($event)"
+            [disabled]="!hasSimulationSelection()"
+          >
+            <mat-icon>merge_type</mat-icon>
+            Simulation mergen
+          </button>
           <button
             mat-flat-button
             color="primary"

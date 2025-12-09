@@ -609,6 +609,14 @@ Damit Sie bei vielen importierten Zügen den Überblick behalten, gibt es eine e
 
 Ein Klick auf „Filter zurücksetzen“ stellt alle Filter auf den Ursprungszustand zurück.
 
+#### 5.5.2 Fahrzeuge & Komposition (alle Fahrplan-Tabs)
+
+- **Wo erfassen?** In den Tabs „Fahrplan (Serie)“, „Fahrplan (Manuell)“ und „Fahrplan (Import)“ gibt es ein eigenes Formular „Fahrzeuge & Komposition“.  
+- **Was wird erfasst?** Basisfahrzeuge (Typ + Anzahl) und optional Kopplungen/Entkopplungen an bestimmten Halten (bei Import ohne Halt-Auswahl, daher nur Basis).  
+- **Wann Pflicht?** Bei Aufträgen mit dem Tag **„TTT“** ist mindestens ein Fahrzeug Pflicht. Die Eingabe wird dann validiert.  
+- **Wohin werden die Daten gespeichert?** Direkt im erzeugten Fahrplan-Datensatz als `rollingStock` und über `linkedTrainPlanId` an der Auftragsposition. Demo-Daten mit Beispielkompositionen liegen in `frontend/src/app/core/mock/mock-train-plans.mock.ts`.  
+- **Hinweis Mock/Import:** RailML-Import übernimmt aktuell keine Fahrzeuglisten aus der Datei; Kompositionen werden manuell im Dialog erfasst.
+
 ### 5.6 Positionen nachträglich bearbeiten
 
 Wenn Sie auf das Stift-Icon einer Position klicken, öffnet sich der Dialog **„Auftragsposition bearbeiten“**:
@@ -694,6 +702,59 @@ Für das Review ist vor allem wichtig:
 - Wirkt die Bedienlogik „Halte hinzufügen/verschieben/ändern“ nachvollziehbar?  
 - Reichen die Informationen im Dialog, um einen komplexeren Fahrplan zu überblicken?  
 - Würden Sie bestimmte zusätzliche Prüfungen oder Hilfen erwarten (z. B. Mindestwendezeiten, Fahrzeit-Checks)?
+
+### 5.9 Simulationen & Varianten (Produktiv vs. Simulation)
+
+Dieser Abschnitt fasst die Simulationslogik zusammen – vom Anlegen über die Bedienung bis zum Merge zurück in die Produktion.
+
+#### 5.9.1 Stammdaten „Simulationen“
+
+- Unter **Stammdaten → Simulationen** können Sie pro **Fahrplanjahr** Simulationen anlegen.  
+- Jedes Fahrplanjahr besitzt **automatisch eine Produktiv-Variante** (kann nicht gelöscht werden).  
+- Eine Simulation gehört immer genau zu einem Fahrplanjahr; daher bietet der Simulator-Dialog nur Simulationen aus dem Jahr des Auftrags an.
+
+#### 5.9.2 Anlegen und Zuordnen im Positions-Dialog
+
+- Das **Fahrplanjahr der Position** wird aus dem Auftrag übernommen und ist nicht änderbar.  
+- Im Dialog sehen Sie den Button **„Simulation/Produktiv zuordnen“**:
+  - Sie wählen dort, ob die Position **Produktiv** oder eine **Simulation** sein soll.  
+  - Bei Simulation wählen Sie eine Simulation des Auftragsjahrs aus. Produktiv erscheint nicht als Option, weil das die Basiskopie im gleichen Auftrag wäre.
+- Beim **Anlegen per Simulation** wird die Position als Variante angelegt (`variantType = simulation`, `simulationLabel` sichtbar in der Liste).  
+- Beim **Anlegen per Produktiv** bleibt die Position produktiv (`variantType = productive`) und kann später in Simulationen kopiert werden.
+
+#### 5.9.3 Arbeiten mit Varianten in der Auftragsliste
+
+- In der Positionsliste erkennen Sie Varianten über einen Chip (Produktiv vs. Simulation).  
+- Neue **Filter-Chips** in der Auftragskarte erlauben das **Eingrenzen auf Simulationen oder Produktiv**; „Alle“ setzt den Filter zurück.  
+- Die Filterleiste oben enthält ebenfalls eine Filteroption **Simulation/Produktiv**; Filter wirken auf alle Aufträge.
+
+#### 5.9.4 Simulationen erstellen und mergen
+
+- **Simulation aus Produktiv kopieren:**  
+  - In der Positionszeile (oder per Mehrfachauswahl) „In Simulation kopieren“ wählen → Dialog zur Auswahl der Simulation (nur Auftrag-Fahrplanjahr).  
+  - Die Simulation erhält einen Verweis auf die produktive Basis (`variantOfItemId`/`variantGroupId`) und startet im Status Draft.
+- **Simulation zurück in Produktion mergen:**  
+  - Öffnen Sie die Simulation und wählen „Simulation mergen“ (oder Mehrfachauswahl).  
+  - Fachlogik:
+    - **Basis fehlt** → produktive Kopie wird angelegt.  
+    - **Basis ist Draft** → Basis wird direkt überschrieben/aktualisiert.  
+    - **Basis ist weiter fortgeschritten** → es entsteht eine **Modifikation** (Änderungsvorschlag); die Simulation bleibt als Kind markiert, die Modifikation liegt produktiv.  
+  - Ein Merge-Dialog zeigt die Unterschiede Simulation vs. Produktiv; Sie entscheiden, ob die Änderungen übernommen werden.
+- **Simulation promoten (Draft-only):** Eine Simulation im Draft kann produktiv gesetzt werden (rollt die Rollen in der Variantengruppe um).
+
+#### 5.9.5 Mehrfachauswahl & Massenaktionen
+
+- Über die **Mehrfachauswahl** in der Auftragskarte können Sie:
+  - **Alle sichtbaren Positionen** markieren („Alle auswählen“).  
+  - **Mehrere Produktiv-Positionen in eine Simulation kopieren** (gleiche Logik wie oben, Jahrgebunden).  
+  - **Mehrere Simulationen auf einmal mergen**; Rückmeldung nennt, wie viele Positionen aktualisiert, neu angelegt oder als Modifikation erstellt wurden.  
+  - **Bestellen** (nur produktive Positionen werden dabei weitergeschaltet).
+
+#### 5.9.6 Anzeige & Timeline-Logik
+
+- Simulationen und Produktivvarianten werden in den Karten-Chips unterschiedlich eingefärbt; Tooltips zeigen das gewählte Label der Simulation.  
+- Im Planungsbereich (Gantt) lassen sich Simulationen **getrennt von der Produktivvariante** auswählen, damit Kalender/Timeline auf dem richtigen Jahr und der gewählten Simulation stehen.  
+- Eine Bestellung (TTT) ist nur möglich, wenn die Position **produktiv** ist; Simulationen bleiben im Draft-Bereich, bis sie promotet oder gemergt werden.
 
 ---
 

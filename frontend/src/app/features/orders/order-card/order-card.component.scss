@@ -333,9 +333,21 @@
         }
 
         .status-chip--variant {
-          --mdc-chip-container-color: rgba(100, 181, 246, 0.2);
-          --mdc-chip-outline-color: rgba(66, 165, 245, 0.9);
-          --mdc-chip-label-text-color: #0d47a1;
+          --mdc-chip-container-color: rgba(255, 255, 255, 0.16);
+          --mdc-chip-outline-color: rgba(255, 255, 255, 0.35);
+          --mdc-chip-label-text-color: #f8fbff;
+
+          &.variant-productive {
+            --mdc-chip-container-color: rgba(46, 125, 50, 0.28);
+            --mdc-chip-outline-color: rgba(200, 230, 201, 0.9);
+            --mdc-chip-label-text-color: #f1fff0;
+          }
+
+          &.variant-simulation {
+            --mdc-chip-container-color: rgba(3, 155, 229, 0.3);
+            --mdc-chip-outline-color: rgba(144, 202, 249, 0.9);
+            --mdc-chip-label-text-color: #e3f2fd;
+          }
         }
 
         .status-chip--train.status-requested {

@@ -23,6 +23,24 @@
   }
 }
 
+.variant-productive {
+  background: rgba(46, 125, 50, 0.08);
+  color: #2e7d32;
+  border-color: rgba(46, 125, 50, 0.4);
+}
+
+.variant-simulation {
+  background: rgba(38, 50, 56, 0.05);
+  color: #37474f;
+  border-color: rgba(38, 50, 56, 0.4);
+}
+
+.simulation-chip {
+  background: rgba(3, 169, 244, 0.08);
+  color: #01579b;
+  border-color: rgba(3, 169, 244, 0.4);
+}
+
 .quick-actions {
   display: flex;
   justify-content: space-between;

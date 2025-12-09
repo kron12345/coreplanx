@@ -11,7 +11,10 @@ import {
 import { MOCK_TRAIN_PLANS } from '../mock/mock-train-plans.mock';
 import { ScheduleTemplateService, CreateScheduleTemplateStopPayload } from './schedule-template.service';
 import { ScheduleTemplate, ScheduleTemplateStop } from '../models/schedule-template.model';
-import type { TimetableRollingStock } from '../models/timetable.model';
+import type {
+  TimetableRollingStock,
+  TimetableRollingStockOperation,
+} from '../models/timetable.model';
 import { TrafficPeriodService } from './traffic-period.service';
 
 export interface TrainPlanFilters {
@@ -36,6 +39,12 @@ export interface CreatePlansFromTemplatePayload {
   responsibleRu?: string;
   trainNumberStart?: number;
   trainNumberInterval?: number;
+  composition?: ScheduleTemplate['composition'];
+  planVariantType?: 'productive' | 'simulation';
+  variantOfPlanId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }
 
 export interface CreateManualPlanPayload {
@@ -51,6 +60,12 @@ export interface CreateManualPlanPayload {
   validFrom?: string;
   validTo?: string;
   daysBitmap?: string;
+  composition?: ScheduleTemplate['composition'];
+  planVariantType?: 'productive' | 'simulation';
+  variantOfPlanId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }
 
 export interface CreatePlanModificationPayload {
@@ -65,6 +80,11 @@ export interface CreatePlanModificationPayload {
   rollingStock?: TimetableRollingStock;
   technical?: TrainPlanTechnicalData;
   routeMetadata?: TrainPlanRouteMetadata;
+  planVariantType?: 'productive' | 'simulation';
+  variantOfPlanId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }
 
 export interface PlanModificationStopInput {
@@ -230,6 +250,14 @@ export class TrainPlanService {
     const baseDate = dates[0];
     const nowIso = new Date().toISOString();
     const planOffsets: number[] = [];
+    const composition = payload.composition ?? template.composition;
+    const variantInfo = {
+      planVariantType: payload.planVariantType ?? 'productive',
+      variantOfPlanId: payload.variantOfPlanId,
+      variantLabel: payload.variantLabel,
+      simulationId: payload.simulationId,
+      simulationLabel: payload.simulationLabel,
+    };
 
     let minutesWithinDay = startMinutes;
     for (let i = 0; i < departuresPerDay; i++) {
@@ -261,6 +289,8 @@ export class TrainPlanService {
         nowIso,
         trainNumberOverride,
         calendarRange,
+        composition,
+        variantInfo,
       );
     });
 
@@ -291,6 +321,12 @@ export class TrainPlanService {
     if (!planStops.length) {
       throw new Error('Die Haltestellen enthalten keine gültigen Zeiten.');
     }
+
+    const rollingStock = this.buildRollingStockFromComposition(
+      payload.composition,
+      planStops,
+      `${payload.title} – Fahrzeuge`,
+    );
 
     const planId = this.generatePlanId();
     const timestamp = new Date().toISOString();
@@ -330,6 +366,12 @@ export class TrainPlanService {
       },
       linkedOrderItemId: undefined,
       notes: payload.notes,
+      rollingStock,
+      planVariantType: payload.planVariantType ?? 'productive',
+      variantOfPlanId: payload.variantOfPlanId,
+      variantLabel: payload.variantLabel,
+      simulationId: payload.simulationId,
+      simulationLabel: payload.simulationLabel,
     } satisfies TrainPlan;
 
     this._plans.update((plans) => [plan, ...plans]);
@@ -404,7 +446,44 @@ export class TrainPlanService {
       linkedOrderItemId: undefined,
       notes: payload.notes ?? original.notes,
       rollingStock: payload.rollingStock ?? original.rollingStock,
+      planVariantType: payload.planVariantType ?? original.planVariantType ?? 'productive',
+      variantOfPlanId: payload.variantOfPlanId ?? original.variantOfPlanId,
+      variantLabel: payload.variantLabel ?? original.variantLabel,
+      simulationId: payload.simulationId ?? original.simulationId,
+      simulationLabel: payload.simulationLabel ?? original.simulationLabel,
     } satisfies TrainPlan;
+
+    this._plans.update((plans) => [plan, ...plans]);
+    return plan;
+  }
+
+  createPlanVariant(originalPlanId: string, type: 'productive' | 'simulation', label?: string): TrainPlan {
+    const original = this.getById(originalPlanId);
+    if (!original) {
+      throw new Error('Originalfahrplan nicht gefunden.');
+    }
+    const timestamp = new Date().toISOString();
+    const newPlanId = this.generatePlanId();
+    const clonedStops = original.stops.map((stop, index) => ({
+      ...stop,
+      id: `${newPlanId}-STOP-${String(index + 1).padStart(3, '0')}`,
+    }));
+
+    const plan: TrainPlan = {
+      ...original,
+      id: newPlanId,
+      pathRequestId: `PR-${newPlanId}`,
+      status: 'not_ordered',
+      linkedOrderItemId: undefined,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      stops: clonedStops,
+      planVariantType: type,
+      variantOfPlanId: original.id,
+      variantLabel: label ?? (type === 'simulation' ? 'Simulation' : 'Produktiv'),
+      simulationId: original.simulationId,
+      simulationLabel: original.simulationLabel,
+    };
 
     this._plans.update((plans) => [plan, ...plans]);
     return plan;
@@ -458,12 +537,24 @@ export class TrainPlanService {
     timestamp: string,
     trainNumberOverride?: string,
     calendarRange?: { start: string; end: string },
+    compositionOverride?: ScheduleTemplate['composition'],
+    variant?: {
+      planVariantType?: 'productive' | 'simulation';
+      variantOfPlanId?: string;
+      variantLabel?: string;
+      simulationId?: string;
+      simulationLabel?: string;
+    },
   ): TrainPlan {
     const planId = this.generatePlanId();
     const trainNumber =
       trainNumberOverride ?? this.generateTrainNumber(template.trainNumber, sequence);
     const stops = this.buildStops(template.stops, departureDate);
-    const rollingStock = this.buildRollingStockFromTemplate(template, stops);
+    const rollingStock = this.buildRollingStockFromComposition(
+      compositionOverride ?? template.composition,
+      stops,
+      `${template.title} – Fahrzeuge`,
+    );
     const calendarStart = calendarRange?.start ?? departureDate.toISOString().slice(0, 10);
     const calendarEnd = calendarRange?.end ?? calendarStart;
 
@@ -496,14 +587,19 @@ export class TrainPlanService {
       linkedOrderItemId: undefined,
       notes: undefined,
       rollingStock,
+      planVariantType: variant?.planVariantType ?? 'productive',
+      variantOfPlanId: variant?.variantOfPlanId,
+      variantLabel: variant?.variantLabel,
+      simulationId: variant?.simulationId,
+      simulationLabel: variant?.simulationLabel,
     } satisfies TrainPlan;
   }
 
-  private buildRollingStockFromTemplate(
-    template: ScheduleTemplate,
+  private buildRollingStockFromComposition(
+    composition: ScheduleTemplate['composition'] | undefined,
     stops: TrainPlanStop[],
+    designation?: string,
   ): TimetableRollingStock | undefined {
-    const composition = template.composition;
     if (!composition?.base?.length) {
       return undefined;
     }
@@ -512,10 +608,31 @@ export class TrainPlanService {
       position: index + 1,
       vehicleTypeId: unit.type,
       count: unit.count,
-      setId: `${template.id}-SEG-${index + 1}`,
+      setId: `SET-${index + 1}`,
       setLabel: unit.label ?? unit.type,
       remarks: unit.note ?? undefined,
     }));
+
+    const operations =
+      composition.changes?.map<TimetableRollingStockOperation | null>((change, opIndex) => {
+        const stop = stops.find((entry) => entry.sequence === change.stopIndex);
+        const stopId = stop?.id;
+        if (!stopId) {
+          return null;
+        }
+        const vehicleLabel = change.vehicles
+          .map((vehicle) => `${vehicle.count}× ${vehicle.type}`)
+          .join(', ');
+        return {
+          stopId,
+          type: change.action === 'attach' ? 'join' : 'split',
+          setIds: [`SET-${opIndex + 1}`],
+          remarks: change.note ?? vehicleLabel,
+        };
+      }) ?? [];
+    const normalizedOperations = operations.filter(
+      (entry): entry is TimetableRollingStockOperation => !!entry,
+    );
 
     const remarks =
       composition.changes?.length
@@ -526,9 +643,10 @@ export class TrainPlanService {
         : undefined;
 
     return {
-      designation: `${template.title} – Fahrzeuge`,
+      designation: designation ?? 'Fahrzeuge',
       remarks,
       segments,
+      operations: normalizedOperations.length ? normalizedOperations : undefined,
     };
   }
 

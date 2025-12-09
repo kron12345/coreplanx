@@ -37,6 +37,7 @@ import {
   TimetableHubTechnicalSummary,
   TimetableHubRouteMetadata,
 } from './timetable-hub.service';
+import { ScheduleTemplate } from '../models/schedule-template.model';
 
 export type OrderTimelineReference = 'fpDay' | 'operationalDay' | 'fpYear';
 
@@ -72,9 +73,10 @@ export interface OrderFilters {
   timeRange: 'all' | 'next4h' | 'next12h' | 'today' | 'thisWeek';
   trainStatus: TimetablePhase | 'all';
   businessStatus: BusinessStatus | 'all';
-   internalStatus: InternalProcessingStatus | 'all';
+  internalStatus: InternalProcessingStatus | 'all';
   trainNumber: string;
   timetableYearLabel: string | 'all';
+  variantType: 'all' | 'productive' | 'simulation';
   linkedBusinessId: string | null;
   fpRangeStart: string | null;
   fpRangeEnd: string | null;
@@ -92,6 +94,7 @@ const DEFAULT_ORDER_FILTERS: OrderFilters = {
   internalStatus: 'all',
   trainNumber: '',
   timetableYearLabel: 'all',
+  variantType: 'all',
   linkedBusinessId: null,
   fpRangeStart: null,
   fpRangeEnd: null,
@@ -202,6 +205,12 @@ export interface CreatePlanOrderItemsPayload
   responsible?: string;
   timetableYearLabel?: string;
   tags?: string[];
+  composition?: ScheduleTemplate['composition'];
+  variantType?: 'productive' | 'simulation';
+  variantGroupId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }
 
 export interface ImportedRailMlStop extends CreateScheduleTemplateStopPayload {}
@@ -284,6 +293,12 @@ export interface CreateManualPlanOrderItemPayload {
   daysBitmap?: string;
   timetableYearLabel?: string;
   tags?: string[];
+  composition?: ScheduleTemplate['composition'];
+  variantType?: 'productive' | 'simulation';
+  variantGroupId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }
 
 export interface CreateImportedPlanOrderItemPayload {
@@ -295,6 +310,12 @@ export interface CreateImportedPlanOrderItemPayload {
   parentItemId?: string;
   timetableYearLabel?: string;
   tags?: string[];
+  composition?: ScheduleTemplate['composition'];
+  variantType?: 'productive' | 'simulation';
+  variantGroupId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }
 
 type EditableOrderItemKeys =
@@ -439,6 +460,7 @@ export class OrderService {
       snapshot.internalStatus !== DEFAULT_ORDER_FILTERS.internalStatus ||
       snapshot.trainNumber.trim().length > 0 ||
       snapshot.timetableYearLabel !== DEFAULT_ORDER_FILTERS.timetableYearLabel ||
+      snapshot.variantType !== DEFAULT_ORDER_FILTERS.variantType ||
       snapshot.linkedBusinessId !== DEFAULT_ORDER_FILTERS.linkedBusinessId ||
       snapshot.fpRangeStart !== DEFAULT_ORDER_FILTERS.fpRangeStart ||
       snapshot.fpRangeEnd !== DEFAULT_ORDER_FILTERS.fpRangeEnd ||
@@ -574,6 +596,11 @@ export class OrderService {
       responsible,
       timetableYearLabel,
       tags,
+      variantType,
+      variantLabel,
+      variantGroupId,
+      simulationId,
+      simulationLabel,
       ...planConfig
     } = payload;
     const normalizedTags = this.normalizeTags(tags);
@@ -595,6 +622,10 @@ export class OrderService {
       ...planConfig,
       calendarDates: effectiveCalendarDates ?? planConfig.calendarDates,
       trafficPeriodId: planTrafficPeriodId,
+      planVariantType: variantType ?? 'productive',
+      variantLabel,
+      simulationId,
+      simulationLabel,
     });
     if (!plans.length) {
       return [];
@@ -626,6 +657,11 @@ export class OrderService {
         linkedTemplateId: planConfig.templateId,
         linkedTrainPlanId: plan.id,
         timetableYearLabel: normalizedYearLabel,
+        variantType: variantType ?? 'productive',
+        variantGroupId: variantGroupId ?? undefined,
+        variantLabel: variantLabel ?? undefined,
+        simulationId,
+        simulationLabel,
       } satisfies OrderItem;
 
       const enriched = this.applyPlanDetailsToItem(base, plan);
@@ -671,6 +707,11 @@ export class OrderService {
       validFrom: payload.validFrom,
       validTo: payload.validTo,
       daysBitmap: payload.daysBitmap,
+      composition: payload.composition,
+      simulationId: payload.simulationId,
+      simulationLabel: payload.simulationLabel,
+      planVariantType: payload.variantType ?? 'productive',
+      variantLabel: payload.variantLabel,
     });
     const timetableYearLabel =
       this.normalizeTimetableYearLabel(payload.timetableYearLabel) ??
@@ -689,6 +730,11 @@ export class OrderService {
       responsible,
       linkedTrainPlanId: plan.id,
       timetableYearLabel,
+      variantType: payload.variantType ?? 'productive',
+      variantGroupId: payload.variantGroupId,
+      variantLabel: payload.variantLabel,
+      simulationId: payload.simulationId,
+      simulationLabel: payload.simulationLabel,
     } satisfies OrderItem;
     const item = this.applyPlanDetailsToItem(base, plan);
     const timetable = this.ensureTimetableForPlan(plan, item);
@@ -717,6 +763,11 @@ export class OrderService {
       notes: undefined,
       templateId: undefined,
       trafficPeriodId: payload.trafficPeriodId,
+      composition: payload.composition,
+      planVariantType: payload.variantType ?? 'productive',
+      variantLabel: payload.variantLabel,
+      simulationId: payload.simulationId,
+      simulationLabel: payload.simulationLabel,
     });
     const timetableYearLabel =
       this.normalizeTimetableYearLabel(payload.timetableYearLabel) ??
@@ -743,6 +794,11 @@ export class OrderService {
       linkedTrainPlanId: plan.id,
       parentItemId: payload.parentItemId,
       timetableYearLabel,
+      variantType: payload.variantType ?? 'productive',
+      variantGroupId: payload.variantGroupId,
+      variantLabel: payload.variantLabel,
+      simulationId: payload.simulationId,
+      simulationLabel: payload.simulationLabel,
     } satisfies OrderItem;
 
     const item = this.applyPlanDetailsToItem(
@@ -1342,6 +1398,13 @@ export class OrderService {
       }
     }
 
+    if (filters.variantType !== 'all') {
+      const variant = item.variantType ?? 'productive';
+      if (variant !== filters.variantType) {
+        return false;
+      }
+    }
+
     let referenceDateCache: Date | null | undefined;
     const resolveReferenceDate = () => {
       if (referenceDateCache === undefined) {
@@ -1795,6 +1858,116 @@ export class OrderService {
     this.trainPlanService.unlinkOrderItem(planId);
   }
 
+  createSimulationVariant(orderId: string, itemId: string, label?: string): OrderItem | null {
+    const order = this.getOrderById(orderId);
+    if (!order) {
+      throw new Error('Auftrag nicht gefunden.');
+    }
+    const baseItem = order.items.find((it) => it.id === itemId);
+    if (!baseItem) {
+      throw new Error('Auftragsposition nicht gefunden.');
+    }
+    if (baseItem.variantType === 'simulation') {
+      throw new Error('Simulationen können nicht weiter verzweigt werden.');
+    }
+    const variantGroupId = baseItem.variantGroupId ?? baseItem.id;
+    const variantLabel = label ?? 'Simulation';
+
+    let clonedPlanId: string | undefined;
+    if (baseItem.linkedTrainPlanId) {
+      const clone = this.trainPlanService.createPlanVariant(
+        baseItem.linkedTrainPlanId,
+        'simulation',
+        variantLabel,
+      );
+      clonedPlanId = clone.id;
+    }
+
+    const newItem: OrderItem = {
+      ...baseItem,
+      id: this.generateItemId(orderId),
+      name: `${baseItem.name} · ${variantLabel}`,
+      variantType: 'simulation',
+      variantOfItemId: baseItem.id,
+      variantGroupId,
+      variantLabel,
+      linkedTrainPlanId: clonedPlanId ?? baseItem.linkedTrainPlanId,
+      timetablePhase: 'bedarf',
+      linkedBusinessIds: baseItem.linkedBusinessIds ? [...baseItem.linkedBusinessIds] : undefined,
+      mergeStatus: 'open',
+    };
+    delete (newItem as Partial<OrderItem>).generatedTimetableRefId;
+
+    this.appendItems(orderId, [newItem]);
+    return newItem;
+  }
+
+  promoteSimulationToProductive(orderId: string, variantItemId: string): OrderItem | null {
+    const order = this.getOrderById(orderId);
+    if (!order) {
+      throw new Error('Auftrag nicht gefunden.');
+    }
+    const candidate = order.items.find((it) => it.id === variantItemId);
+    if (!candidate || candidate.variantType !== 'simulation') {
+      throw new Error('Nur Simulationen können promotet werden.');
+    }
+    const groupId = candidate.variantGroupId ?? candidate.variantOfItemId ?? candidate.id;
+    const phase = candidate.timetablePhase ?? 'bedarf';
+    if (phase !== 'bedarf') {
+      throw new Error('Promote ist nur im Draft möglich.');
+    }
+
+    const updatedItems: OrderItem[] = order.items.map((item) => {
+      if (item.variantGroupId === groupId && (item.variantType ?? 'productive') === 'productive') {
+        return { ...item, variantType: 'simulation' as const, variantOfItemId: candidate.id };
+      }
+      if (item.id === candidate.id) {
+        return {
+          ...item,
+          variantType: 'productive' as const,
+          variantOfItemId: undefined,
+          variantLabel: candidate.variantLabel ?? 'Produktiv',
+        };
+      }
+      return item;
+    });
+
+    this._orders.update((orders) =>
+      orders.map((ord) => (ord.id === orderId ? { ...ord, items: updatedItems } : ord)),
+    );
+
+    return updatedItems.find((it) => it.id === candidate.id) ?? null;
+  }
+
+  mergeSimulationIntoProductive(orderId: string, simulationItemId: string): { type: 'updated'; target: OrderItem } | { type: 'created'; target: OrderItem } | { type: 'modification'; target: OrderItem } {
+    const order = this.getOrderById(orderId);
+    if (!order) {
+      throw new Error('Auftrag nicht gefunden.');
+    }
+    const sim = order.items.find((it) => it.id === simulationItemId);
+    if (!sim || sim.variantType !== 'simulation') {
+      throw new Error('Nur Simulationen können abgeglichen werden.');
+    }
+
+    const base = this.findProductiveBase(order, sim);
+    if (!base) {
+      const created = this.copySimulationAsProductive(orderId, sim);
+      this.markSimulationMerged(orderId, sim.id, created.id, 'applied');
+      return { type: 'created', target: created };
+    }
+
+    const phase = base.timetablePhase ?? 'bedarf';
+    if (phase === 'bedarf') {
+      const updated = this.updateProductiveFromSimulation(orderId, base, sim);
+      this.markSimulationMerged(orderId, sim.id, updated.id, 'applied');
+      return { type: 'updated', target: updated };
+    }
+
+    const modification = this.createModificationFromSimulation(orderId, base, sim);
+    this.markSimulationMerged(orderId, sim.id, modification.id, 'proposed');
+    return { type: 'modification', target: modification };
+  }
+
   submitOrderItems(orderId: string, itemIds: string[]): void {
     if (!itemIds.length) {
       return;
@@ -1807,6 +1980,9 @@ export class OrderService {
         }
         const items = order.items.map((item) => {
           if (!targetIds.has(item.id)) {
+            return item;
+          }
+          if (item.variantType === 'simulation') {
             return item;
           }
           if (item.generatedTimetableRefId) {
@@ -2418,6 +2594,8 @@ export class OrderService {
       responsible: plan.responsibleRu,
       fromLocation: firstStop?.locationName ?? item.fromLocation,
       toLocation: lastStop?.locationName ?? item.toLocation,
+      simulationId: plan.simulationId ?? item.simulationId,
+      simulationLabel: plan.simulationLabel ?? item.simulationLabel,
     };
 
     if (start) {
@@ -3289,6 +3467,173 @@ export class OrderService {
       retained = result.retained;
     });
     return retained;
+  }
+
+  private findProductiveBase(order: Order, simulation: OrderItem): OrderItem | null {
+    const groupId = simulation.variantGroupId ?? simulation.variantOfItemId ?? null;
+    const candidates = order.items.filter((it) => (it.variantType ?? 'productive') === 'productive');
+    if (groupId) {
+      const match = candidates.find((it) => it.variantGroupId === groupId || it.id === simulation.variantOfItemId);
+      if (match) {
+        return match;
+      }
+    }
+    return null;
+  }
+
+  private markSimulationMerged(orderId: string, simId: string, targetId: string, status: 'applied' | 'proposed') {
+    this.updateItem(simId, (item) => ({
+      ...item,
+      mergeStatus: status,
+      mergeTargetId: targetId,
+    }));
+  }
+
+  private mergeItemFields(target: OrderItem, source: OrderItem): OrderItem {
+    const merged: OrderItem = {
+      ...target,
+      name: source.name ?? target.name,
+      responsible: source.responsible ?? target.responsible,
+      deviation: source.deviation ?? target.deviation,
+      fromLocation: source.fromLocation ?? target.fromLocation,
+      toLocation: source.toLocation ?? target.toLocation,
+      tags: source.tags ? [...source.tags] : target.tags,
+      timetableYearLabel: target.timetableYearLabel ?? source.timetableYearLabel,
+      variantType: 'productive',
+      variantLabel: target.variantLabel ?? 'Produktiv',
+      simulationId: undefined,
+      simulationLabel: undefined,
+    };
+    if (source.trafficPeriodId) {
+      merged.trafficPeriodId = source.trafficPeriodId;
+    }
+    if (source.validity) {
+      merged.validity = source.validity;
+    }
+    return merged;
+  }
+
+  private updateProductiveFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): OrderItem {
+    let updatedItem: OrderItem | null = null;
+    let clonedPlan: TrainPlan | null = null;
+    if (simulation.linkedTrainPlanId) {
+      const clone = this.trainPlanService.createPlanVariant(
+        simulation.linkedTrainPlanId,
+        'productive',
+        base.variantLabel ?? 'Produktiv',
+      );
+      clonedPlan = clone;
+      this.linkTrainPlanToItem(clone.id, base.id);
+    }
+    this._orders.update((orders) =>
+      orders.map((ord) => {
+        if (ord.id !== orderId) {
+          return ord;
+        }
+        const items = ord.items.map((item) => {
+          if (item.id !== base.id) {
+            return item;
+          }
+          const merged = this.mergeItemFields(item, simulation);
+          const enriched = clonedPlan ? this.applyPlanDetailsToItem(merged, clonedPlan) : merged;
+          updatedItem = enriched;
+          return enriched;
+        });
+        return { ...ord, items };
+      }),
+    );
+    if (!updatedItem) {
+      throw new Error('Merge fehlgeschlagen.');
+    }
+    return updatedItem;
+  }
+
+  private createModificationFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): OrderItem {
+    const plan = base.linkedTrainPlanId ? this.trainPlanService.getById(base.linkedTrainPlanId) : null;
+    const simPlan = simulation.linkedTrainPlanId
+      ? this.trainPlanService.getById(simulation.linkedTrainPlanId)
+      : null;
+    let modificationPlanId: string | undefined;
+    if (plan && simPlan) {
+      const mod = this.trainPlanService.createPlanModification({
+        originalPlanId: plan.id,
+        title: simPlan.title,
+        trainNumber: simPlan.trainNumber,
+        responsibleRu: simPlan.responsibleRu,
+        calendar: simPlan.calendar,
+        trafficPeriodId: simPlan.trafficPeriodId,
+        notes: simPlan.notes,
+        stops: simPlan.stops.map((stop, index) => ({
+          sequence: stop.sequence ?? index + 1,
+          type: stop.type,
+          locationCode: stop.locationCode,
+          locationName: stop.locationName,
+          countryCode: stop.countryCode,
+          arrivalTime: stop.arrivalTime,
+          departureTime: stop.departureTime,
+          arrivalOffsetDays: stop.arrivalOffsetDays,
+          departureOffsetDays: stop.departureOffsetDays,
+          dwellMinutes: stop.dwellMinutes,
+          activities: stop.activities,
+          platform: stop.platform,
+          notes: stop.notes,
+        })),
+        planVariantType: 'productive',
+        variantLabel: 'Modification',
+        simulationId: simPlan.simulationId,
+        simulationLabel: simPlan.simulationLabel,
+      });
+      modificationPlanId = mod.id;
+    }
+
+    const newItem: OrderItem = {
+      ...simulation,
+      id: this.generateItemId(orderId),
+      variantType: 'productive',
+      variantLabel: base.variantLabel ?? 'Produktiv',
+      variantOfItemId: base.id,
+      variantGroupId: base.variantGroupId ?? base.id,
+      parentItemId: base.id,
+      childItemIds: [],
+      timetablePhase: 'bedarf',
+      linkedTrainPlanId: modificationPlanId ?? base.linkedTrainPlanId,
+      mergeStatus: undefined,
+      mergeTargetId: undefined,
+      simulationId: undefined,
+      simulationLabel: undefined,
+    };
+    delete (newItem as Partial<OrderItem>).generatedTimetableRefId;
+
+    this.appendItems(orderId, [newItem]);
+    return newItem;
+  }
+
+  private copySimulationAsProductive(orderId: string, simulation: OrderItem): OrderItem {
+    let clonedPlanId: string | undefined;
+    if (simulation.linkedTrainPlanId) {
+      const clone = this.trainPlanService.createPlanVariant(
+        simulation.linkedTrainPlanId,
+        'productive',
+        simulation.variantLabel ?? 'Produktiv',
+      );
+      clonedPlanId = clone.id;
+    }
+    const newItem: OrderItem = {
+      ...simulation,
+      id: this.generateItemId(orderId),
+      variantType: 'productive',
+      variantLabel: 'Produktiv',
+      variantGroupId: simulation.variantGroupId ?? simulation.id,
+      variantOfItemId: undefined,
+      mergeStatus: undefined,
+      mergeTargetId: undefined,
+      linkedTrainPlanId: clonedPlanId ?? simulation.linkedTrainPlanId,
+      timetablePhase: 'bedarf',
+      simulationId: undefined,
+      simulationLabel: undefined,
+    };
+    this.appendItems(orderId, [newItem]);
+    return newItem;
   }
 
 }

@@ -99,4 +99,9 @@ export interface TrainPlan {
   linkedOrderItemId?: string;
   notes?: string;
   rollingStock?: TimetableRollingStock;
+  planVariantType?: 'productive' | 'simulation';
+  variantOfPlanId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
 }

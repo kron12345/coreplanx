@@ -6,6 +6,7 @@ import { PlanningMasterComponent } from '../../planning/planning-master.componen
 import { PersonnelMasterEditorComponent } from './components/personnel-master-editor/personnel-master-editor.component';
 import { VehicleMasterEditorComponent } from './components/vehicle-master-editor/vehicle-master-editor.component';
 import { TimetableYearMasterEditorComponent } from './components/timetable-year-master-editor/timetable-year-master-editor.component';
+import { SimulationMasterEditorComponent } from './components/simulation-master-editor/simulation-master-editor.component';
 
 @Component({
   selector: 'app-master-data-landing',
@@ -56,6 +57,23 @@ export class MasterDataLandingComponent {
             description:
               'Start- und Enddatum sind inklusive. Über die Beschreibung kannst du z. B. Quelle oder Besonderheiten dokumentieren.',
             component: TimetableYearMasterEditorComponent,
+          },
+        ],
+      },
+      {
+        id: 'simulations',
+        icon: 'category',
+        title: 'Simulationen',
+        description:
+          'Erzeuge und verwalte Simulationen pro Fahrplanjahr. Diese Varianten kannst du später mit Auftragspositionen und Basisplanungen verknüpfen.',
+        sections: [
+          {
+            type: 'component',
+            id: 'simulation-editor',
+            title: 'Simulationen',
+            description:
+              'Simulationstitel und Fahrplanjahr pflegen. Dient als Auswahlquelle für Varianten in der Planung.',
+            component: SimulationMasterEditorComponent,
           },
         ],
       },

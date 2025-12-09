@@ -1,0 +1,110 @@
+<section class="composition">
+  <div class="composition__header">
+    <div>
+      <h3>{{ title }}</h3>
+      <p class="composition__hint">{{ hint }}</p>
+      @if (required) {
+        <p class="composition__required">Pflichtangabe für TTT-Bestellungen.</p>
+      }
+    </div>
+    <div class="composition__actions">
+      <button mat-stroked-button type="button" (click)="addBaseVehicle()">
+        <mat-icon>add</mat-icon>
+        Fahrzeug hinzufügen
+      </button>
+      @if (showChangeEntries) {
+        <button mat-stroked-button type="button" (click)="addChangeEntry()">
+          <mat-icon>published_with_changes</mat-icon>
+          Änderung hinzufügen
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="composition__base">
+    @if (baseVehicles.length) {
+      <div class="composition-grid">
+        @for (group of baseVehicles.controls; track group; let i = $index) {
+          <div class="composition-row" [formGroup]="group">
+            <mat-form-field appearance="outline">
+              <mat-label>Fahrzeugtyp</mat-label>
+              <input matInput formControlName="vehicleType" placeholder="z. B. BR 411 / FLIRT" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Anzahl</mat-label>
+              <input matInput type="number" min="1" formControlName="count" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Hinweis</mat-label>
+              <input matInput formControlName="note" placeholder="optional" />
+            </mat-form-field>
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Fahrzeug entfernen"
+              (click)="removeBaseVehicle(i)"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="hint">Noch keine Fahrzeuge erfasst.</p>
+    }
+  </div>
+
+  @if (showChangeEntries) {
+    <div class="composition__changes">
+      <div class="composition-changes__header">
+        <h4>Änderungen an Halten</h4>
+      </div>
+
+      @if (!changeEntries.length) {
+        <p class="hint">Keine Kopplungen/Entkopplungen hinterlegt.</p>
+      } @else {
+        <div class="composition-grid">
+          @for (group of changeEntries.controls; track group; let i = $index) {
+            <div class="composition-change-row" [formGroup]="group">
+              <mat-form-field appearance="outline">
+                <mat-label>Halt</mat-label>
+                <mat-select formControlName="stopIndex">
+                  @for (option of stopOptions; track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Aktion</mat-label>
+                <mat-select formControlName="action">
+                  <mat-option value="attach">Ankuppeln</mat-option>
+                  <mat-option value="detach">Abkuppeln</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Fahrzeugtyp</mat-label>
+                <input matInput formControlName="vehicleType" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Anzahl</mat-label>
+                <input matInput type="number" min="1" formControlName="count" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Hinweis</mat-label>
+                <input matInput formControlName="note" placeholder="optional" />
+              </mat-form-field>
+              <button
+                mat-icon-button
+                type="button"
+                aria-label="Änderung entfernen"
+                (click)="removeChangeEntry(i)"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

@@ -23,6 +23,13 @@ import { TemplatePeriod, TimelineActivityDto } from '../../core/api/timeline-api
 import { PlanningResourceApiService, ResourceSnapshotDto } from '../../core/api/planning-resource-api.service';
 import { TemporalValue } from '../../models/master-data';
 
+export interface PlanningVariantContext {
+  id: string;
+  label: string;
+  type: 'productive' | 'simulation';
+  timetableYearLabel?: string;
+}
+
 export interface PlanningTimelineRange {
   start: Date;
   end: Date;
@@ -183,6 +190,7 @@ export class PlanningDataService {
   private baseTemplateSpecialDays: Set<string> = new Set();
   private baseTimelineLoading = false;
   private lastBaseTimelineSignature: string | null = null;
+  private readonly planningVariantContext = signal<PlanningVariantContext | null>(null);
 
   private readonly stageDataSignal = signal<Record<PlanningStageId, PlanningStageData>>(
     STAGE_IDS.reduce((record, stage) => {
@@ -422,6 +430,24 @@ export class PlanningDataService {
     });
   }
 
+  planningVariant(): Signal<PlanningVariantContext | null> {
+    return computed(() => this.planningVariantContext());
+  }
+
+  setPlanningVariant(context: PlanningVariantContext | null): void {
+    this.planningVariantContext.set(context);
+    if (context?.timetableYearLabel) {
+      try {
+        const bounds = this.timetableYear.getYearByLabel(context.timetableYearLabel);
+        const range: PlanningTimelineRange = { start: bounds.start, end: bounds.end };
+        this.setStageTimelineRange('base', range);
+        this.setStageTimelineRange('operations', range);
+      } catch {
+        // ignore invalid labels in mock
+      }
+    }
+  }
+
   setBaseTemplateContext(
     templateId: string | null,
     context?: { periods?: TemplatePeriod[] | null; specialDays?: string[] | null },
@@ -468,6 +494,17 @@ export class PlanningDataService {
         timelineRange: next,
       },
     }));
+  }
+
+  setStageTimelineRange(stage: PlanningStageId, range: PlanningTimelineRange): void {
+    const normalized = normalizeTimelineRange(cloneTimelineRange(range));
+    this.stageDataSignal.update((record) => ({
+      ...record,
+      [stage]: { ...record[stage], timelineRange: normalized },
+    }));
+    if (stage === 'base') {
+      this.baseTimelineRange = normalized;
+    }
   }
 
   reloadBaseTimeline(): void {

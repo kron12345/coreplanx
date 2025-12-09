@@ -1,0 +1,13 @@
+<section class="simulation-editor">
+  <app-attribute-entity-editor
+    [title]="'Simulationen'"
+    [entities]="records()"
+    [attributeDefinitions]="definitions"
+    [defaultFallbackValues]="defaults"
+    [requiredKeys]="requiredKeys"
+    [detailError]="error()"
+    [createDefaultsFactory]="createDefaultsFactory"
+    (saveEntity)="handleSave($event)"
+    (deleteEntities)="handleDelete($event)"
+  />
+</section>

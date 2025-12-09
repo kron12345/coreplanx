@@ -119,6 +119,26 @@
           color: #e3f2fd;
           border-color: rgba(144, 202, 249, 0.8);
         }
+        .variant-chip {
+          font-size: 0.7rem;
+          height: 22px;
+          border-radius: 999px;
+          mat-icon {
+            font-size: 16px;
+            height: 16px;
+            width: 16px;
+          }
+          &.variant-productive {
+            background: rgba(46, 125, 50, 0.08);
+            border-color: rgba(46, 125, 50, 0.4);
+            color: #2e7d32;
+          }
+          &.variant-simulation {
+            background: rgba(3, 169, 244, 0.08);
+            border-color: rgba(3, 169, 244, 0.4);
+            color: #01579b;
+          }
+        }
         .ttr-final-offer {
           background: rgba(173, 20, 87, 0.15);
           color: #fce4ec;
@@ -234,6 +254,26 @@
           letter-spacing: 0.08em;
           color: rgba(0, 0, 0, 0.65);
         }
+      }
+
+      .rolling-stock {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #37474f;
+        margin-top: 4px;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+
+      .rolling-stock__ops {
+        margin-left: 28px;
+        color: #546e7a;
+        font-size: 12px;
       }
 
       .item-tags {

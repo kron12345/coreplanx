@@ -1,0 +1,38 @@
+<h2 mat-dialog-title>Simulation abgleichen</h2>
+
+<mat-dialog-content>
+  <p class="hint">
+    Simulation: <strong>{{ simulation.name }}</strong>
+    @if (productive) {
+      · produktive Basis: <strong>{{ productive.name }}</strong>
+    } @else {
+      · keine produktive Basis vorhanden
+    }
+  </p>
+
+  @if (diffs().length) {
+    <div class="diff-table">
+      <div class="diff-row diff-row--head">
+        <span>Feld</span>
+        <span>Simulation</span>
+        <span>Produktiv</span>
+      </div>
+      @for (entry of diffs(); track entry.field) {
+        <div class="diff-row">
+          <span class="diff-field">{{ entry.field }}</span>
+          <span>{{ entry.simulation }}</span>
+          <span>{{ entry.productive }}</span>
+        </div>
+      }
+    </div>
+  } @else {
+    <p class="hint">Keine Unterschiede gefunden. Es wird trotzdem eine Variante erzeugt.</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="merge()">
+    Abgleich starten
+  </button>
+</mat-dialog-actions>

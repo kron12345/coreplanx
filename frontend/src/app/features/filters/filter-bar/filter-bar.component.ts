@@ -121,6 +121,7 @@ export class FilterBarComponent {
       internalStatus: 'all',
       trainNumber: '',
       timetableYearLabel: 'all',
+      variantType: 'all',
       linkedBusinessId: null,
       fpRangeStart: null,
       fpRangeEnd: null,

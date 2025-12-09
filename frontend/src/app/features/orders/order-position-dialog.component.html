@@ -186,9 +186,29 @@
               </mat-form-field>
             </div>
 
+            <div class="variant-assignment">
+              <button mat-stroked-button type="button" (click)="openSimulationAssignment('plan')">
+                <mat-icon>hub</mat-icon>
+                Simulation / Produktiv zuordnen
+              </button>
+              <span class="variant-assignment__label" *ngIf="simulationSelectionLabel('plan') as selection">
+                Aktuell: {{ selection }}
+              </span>
+            </div>
+
             <p class="calendar-hint">
               Referenzkalender und Vorschau findest du im Abschnitt darunter.
             </p>
+
+            <app-vehicle-composition-form
+              [baseVehicles]="compositionBaseVehicles"
+              [changeEntries]="compositionChangeEntries"
+              [stopOptions]="planStopOptions"
+              [required]="requiresRollingStock"
+              [baseVehicleFactory]="compositionBaseFactory"
+              [changeEntryFactory]="compositionChangeFactory"
+              [hint]="'Basisfahrzeuge und Kopplungen/Entkopplungen entlang der Strecke.'"
+            ></app-vehicle-composition-form>
           </form>
         </div>
       </mat-tab>
@@ -267,9 +287,29 @@
               [hints]="{ tags: 'Kommagetrennte Schlagwörter für Auswertung & Automationen.' }"
             ></app-order-item-general-fields>
 
+            <div class="variant-assignment">
+              <button mat-stroked-button type="button" (click)="openSimulationAssignment('manual')">
+                <mat-icon>hub</mat-icon>
+                Simulation / Produktiv zuordnen
+              </button>
+              <span class="variant-assignment__label" *ngIf="simulationSelectionLabel('manual') as selection">
+                Aktuell: {{ selection }}
+              </span>
+            </div>
+
             <p class="calendar-hint">
               Fahrtage wählst du im Referenzkalender weiter unten.
             </p>
+
+            <app-vehicle-composition-form
+              [baseVehicles]="compositionBaseVehicles"
+              [changeEntries]="compositionChangeEntries"
+              [stopOptions]="manualStopOptions"
+              [required]="requiresRollingStock"
+              [baseVehicleFactory]="compositionBaseFactory"
+              [changeEntryFactory]="compositionChangeFactory"
+              [hint]="'Fahrzeuge für diese Fahrt festlegen. Halte für Kopplungen aus dem manuellen Fahrplan.'"
+            ></app-vehicle-composition-form>
           </form>
         </div>
       </mat-tab>
@@ -299,11 +339,11 @@
               <div class="grid">
                 <mat-form-field appearance="outline">
                   <mat-label>Referenzkalender</mat-label>
-                  <mat-select formControlName="trafficPeriodId">
-                    @for (period of trafficPeriods(); track period.id) {
-                      <mat-option [value]="period.id">{{ period.name }}</mat-option>
-                    }
-                  </mat-select>
+                <mat-select formControlName="trafficPeriodId">
+                  @for (period of trafficPeriods(); track period.id) {
+                    <mat-option [value]="period.id">{{ period.name }}</mat-option>
+                  }
+                </mat-select>
                   <button
                     mat-icon-button
                     matSuffix
@@ -314,6 +354,15 @@
                   >
                     <mat-icon>help_outline</mat-icon>
                   </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Fahrplanjahr</mat-label>
+                  <mat-select formControlName="calendarYear" [disabled]="true">
+                    @for (year of managedTimetableYears(); track year.label) {
+                      <mat-option [value]="year.label">{{ year.label }}</mat-option>
+                    }
+                  </mat-select>
+                  <mat-hint>Vom Auftrag vorgegeben</mat-hint>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Namenspräfix</mat-label>
@@ -344,11 +393,11 @@
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Tags (optional)</mat-label>
-                  <input matInput formControlName="tags" placeholder="#rolling, #priority" />
-                  <button
-                    mat-icon-button
-                    matSuffix
+                <mat-label>Tags (optional)</mat-label>
+                <input matInput formControlName="tags" placeholder="#rolling, #priority" />
+                <button
+                  mat-icon-button
+                  matSuffix
                     type="button"
                     class="help-icon"
                     [matTooltip]="importOptionsDescriptions.tags"
@@ -358,7 +407,32 @@
                   </button>
                 </mat-form-field>
               </div>
+
+              <div class="variant-assignment">
+                <button mat-stroked-button type="button" (click)="openSimulationAssignment('import')">
+                  <mat-icon>hub</mat-icon>
+                  Simulation / Produktiv zuordnen
+                </button>
+                <span class="variant-assignment__label" *ngIf="simulationSelectionLabel('import') as selection">
+                  Aktuell: {{ selection }}
+                </span>
+              </div>
             </form>
+
+            <app-vehicle-composition-form
+              [title]="'Fahrzeuge'"
+              [hint]="
+                requiresRollingStock
+                  ? 'Fahrzeuge sind für TTT-Importe Pflicht.'
+                  : 'Optional: Fahrzeuge für importierte Züge hinterlegen.'
+              "
+              [baseVehicles]="compositionBaseVehicles"
+              [changeEntries]="compositionChangeEntries"
+              [stopOptions]="[]"
+              [required]="requiresRollingStock"
+              [showChangeEntries]="false"
+              [baseVehicleFactory]="compositionBaseFactory"
+            ></app-vehicle-composition-form>
 
             <app-order-import-filters
               [form]="importFilters"
@@ -632,6 +706,7 @@
           [excludedDatesControl]="serviceCalendarExclusionsControl"
           title="Kalender für Leistungen"
           description="Wähle alle Tage, an denen die Leistung stattfinden soll."
+          [fixedYearLabel]="orderYearLabel"
         ></app-reference-calendar-inline-form>
 
         <app-reference-calendar-inline-form
@@ -641,6 +716,7 @@
           [excludedDatesControl]="planCalendarExclusionsControl"
           title="Kalender für Serienfahrten"
           description="Die Auswahl wird beim Rollout als Referenzkalender hinterlegt."
+          [fixedYearLabel]="orderYearLabel"
         ></app-reference-calendar-inline-form>
 
         <app-reference-calendar-inline-form
@@ -650,6 +726,7 @@
           [excludedDatesControl]="manualCalendarExclusionsControl"
           title="Kalender für manuelle Fahrten"
           description="Füge einzelne Fahrtage für den manuellen Fahrplan hinzu."
+          [fixedYearLabel]="orderYearLabel"
         ></app-reference-calendar-inline-form>
 
         <div class="calendar-placeholder" *ngSwitchCase="'import'">

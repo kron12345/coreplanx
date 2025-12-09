@@ -30,6 +30,10 @@ import {
   ConfirmDialogComponent,
   ConfirmDialogData,
 } from '../../../shared/confirm-dialog/confirm-dialog.component';
+import {
+  SimulationAssignDialogComponent,
+  SimulationAssignDialogResult,
+} from '../shared/simulation-assign-dialog/simulation-assign-dialog.component';
 
 @Component({
   selector: 'app-order-card',
@@ -211,6 +215,12 @@ export class OrderCardComponent {
     this.selectionMode.set(false);
   }
 
+  selectAllVisible(event?: MouseEvent) {
+    event?.stopPropagation();
+    const allIds = this.effectiveItems().map((item) => item.id);
+    this.selectedIds.set(new Set(allIds));
+  }
+
   openLinkBusinessDialog(event: MouseEvent): void {
     event.stopPropagation();
     const data: OrderLinkBusinessDialogData = {
@@ -263,6 +273,95 @@ export class OrderCardComponent {
       duration: 3000,
     });
     this.clearSelection();
+  }
+
+  bulkCopyToSimulation(event?: MouseEvent): void {
+    event?.stopPropagation();
+    const candidates = this.selectedProductiveItems();
+    if (!candidates.length) {
+      this.snackBar.open('Keine produktiven Positionen für eine Simulation ausgewählt.', 'OK', {
+        duration: 2500,
+      });
+      return;
+    }
+    const dialogRef = this.dialog.open<
+      SimulationAssignDialogComponent,
+      { timetableYearLabel: string; selectedId?: string | null; allowProductive?: boolean },
+      SimulationAssignDialogResult | undefined
+    >(SimulationAssignDialogComponent, {
+      width: '520px',
+      data: {
+        timetableYearLabel: this.order.timetableYearLabel ?? '',
+        selectedId: null,
+        allowProductive: false,
+      },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (!result) {
+        return;
+      }
+      let created = 0;
+      candidates.forEach((item) => {
+        try {
+          const variant = this.orderService.createSimulationVariant(
+            this.order.id,
+            item.id,
+            result.simulationLabel,
+          );
+          if (variant) {
+            created += 1;
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      });
+      this.snackBar.open(
+        `${created} Position(en) in die Simulation „${result.simulationLabel}“ kopiert.`,
+        'OK',
+        { duration: 3200 },
+      );
+    });
+  }
+
+  bulkMergeSimulations(event?: MouseEvent): void {
+    event?.stopPropagation();
+    const sims = this.selectedSimulationItems();
+    if (!sims.length) {
+      this.snackBar.open('Keine Simulations-Varianten zum Mergen ausgewählt.', 'OK', {
+        duration: 2500,
+      });
+      return;
+    }
+    let updated = 0;
+    let created = 0;
+    let modifications = 0;
+    sims.forEach((sim) => {
+      try {
+        const result = this.orderService.mergeSimulationIntoProductive(this.order.id, sim.id);
+        if (result.type === 'updated') {
+          updated += 1;
+        } else if (result.type === 'created') {
+          created += 1;
+        } else {
+          modifications += 1;
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    });
+    this.snackBar.open(
+      `Abgleich abgeschlossen: ${updated} aktualisiert, ${created} neu, ${modifications} als Modifikation.`,
+      'OK',
+      { duration: 3600 },
+    );
+  }
+
+  hasSimulationSelection(): boolean {
+    return this.selectedSimulationItems().length > 0;
+  }
+
+  hasProductiveSelection(): boolean {
+    return this.selectedProductiveItems().length > 0;
   }
 
   submitSingle(itemId: string) {
@@ -341,7 +440,26 @@ export class OrderCardComponent {
     }
   }
 
-  private computeBusinessStatusSummaries(items: OrderItem[]): StatusSummary[] {
+  private selectedItems(): OrderItem[] {
+    const ids = this.selectedIds();
+    if (!ids.size) {
+      return [];
+    }
+    const set = ids;
+    return this.effectiveItems().filter((item) => set.has(item.id));
+  }
+
+  private selectedProductiveItems(): OrderItem[] {
+    return this.selectedItems().filter(
+      (item) => (item.variantType ?? 'productive') === 'productive',
+    );
+  }
+
+  private selectedSimulationItems(): OrderItem[] {
+    return this.selectedItems().filter((item) => item.variantType === 'simulation');
+  }
+
+  private computeBusinessStatusSummaries(items: OrderItem[]): StatusSummary<BusinessStatus>[] {
     const ids = new Set<string>();
     items.forEach((item) =>
       (item.linkedBusinessIds ?? []).forEach((id) => ids.add(id)),
@@ -353,7 +471,7 @@ export class OrderCardComponent {
 
     const counts = new Map<string, number>();
     const labels = new Map<string, string>();
-    const values = new Map<string, string>();
+    const values = new Map<string, BusinessStatus>();
 
     const businesses = this.businessService.getByIds(Array.from(ids));
     businesses.forEach((business) => {
@@ -367,19 +485,19 @@ export class OrderCardComponent {
       values.set(className, status);
     });
 
-    return this.sortSummaries(
+    return this.sortSummaries<BusinessStatus>(
       Array.from(counts.entries()).map(([className, count]) => ({
         key: className,
         label:
           labels.get(className) ??
           this.fallbackStatusLabel(this.stripStatusPrefix(className)),
         count,
-        value: values.get(className) ?? this.stripStatusPrefix(className),
+        value: values.get(className) ?? (this.stripStatusPrefix(className) as BusinessStatus),
       })),
     );
   }
 
-  private computeTimetablePhaseSummaries(items: OrderItem[]): StatusSummary[] {
+  private computeTimetablePhaseSummaries(items: OrderItem[]): StatusSummary<TimetablePhase>[] {
     const counts = new Map<string, number>();
     const labels = new Map<string, string>();
     const values = new Map<string, TimetablePhase>();
@@ -395,17 +513,17 @@ export class OrderCardComponent {
       values.set(key, phase);
     });
 
-    return this.sortSummaries(
+    return this.sortSummaries<TimetablePhase>(
       Array.from(counts.entries()).map(([key, count]) => ({
         key,
         label: labels.get(key) ?? this.fallbackStatusLabel(this.stripStatusPrefix(key)),
         count,
-        value: values.get(key) ?? this.stripStatusPrefix(key),
+        value: values.get(key) ?? (this.stripStatusPrefix(key) as TimetablePhase),
       })),
     );
   }
 
-  private computeTtrPhaseSummaries(items: OrderItem[]): StatusSummary[] {
+  private computeTtrPhaseSummaries(items: OrderItem[]): StatusSummary<OrderTtrPhase>[] {
     const counts = new Map<OrderTtrPhase, number>();
     items.forEach((item) => {
       const phase = this.orderService.getTtrPhaseForItem(item);
@@ -427,36 +545,37 @@ export class OrderCardComponent {
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }));
   }
 
-  private computeVariantSummaries(items: OrderItem[]): StatusSummary[] {
+  private computeVariantSummaries(items: OrderItem[]): StatusSummary<'productive' | 'simulation'>[] {
     const counts = new Map<string, number>();
     const labels = new Map<string, string>();
+    const values = new Map<string, 'productive' | 'simulation'>();
     items.forEach((item) => {
-      const variants = item.originalTimetable?.variants;
-      if (!variants?.length) {
-        return;
-      }
-      variants.forEach((variant) => {
-        const number = variant.variantNumber ?? variant.id;
-        const key = `variant-${number}`;
+      const type = item.variantType ?? 'productive';
+      if (type === 'simulation') {
+        const label = item.simulationLabel ?? item.variantLabel ?? 'Simulation';
+        const key = `sim-${label}`;
         counts.set(key, (counts.get(key) ?? 0) + 1);
-        const label = variant.description
-          ? `${number} · ${variant.description}`
-          : number;
         labels.set(key, label);
-      });
+        values.set(key, 'simulation');
+      } else {
+        const key = 'productive';
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+        labels.set(key, 'Produktiv');
+        values.set(key, 'productive');
+      }
     });
 
-    return this.sortSummaries(
+    return this.sortSummaries<'productive' | 'simulation'>(
       Array.from(counts.entries()).map(([key, count]) => ({
         key,
         label: labels.get(key) ?? key,
         count,
-        value: key,
+        value: values.get(key) ?? 'productive',
       })),
     );
   }
 
-  private computeInternalStatusSummaries(items: OrderItem[]): StatusSummary[] {
+  private computeInternalStatusSummaries(items: OrderItem[]): StatusSummary<InternalProcessingStatus>[] {
     const counts = new Map<string, number>();
     const labels = new Map<string, string>();
     const values = new Map<string, InternalProcessingStatus>();
@@ -471,14 +590,33 @@ export class OrderCardComponent {
       values.set(key, item.internalStatus);
     });
 
-    return this.sortSummaries(
+    return this.sortSummaries<InternalProcessingStatus>(
       Array.from(counts.entries()).map(([key, count]) => ({
         key,
         label: labels.get(key) ?? this.stripStatusPrefix(key),
         count,
-        value: values.get(key) ?? this.stripStatusPrefix(key),
+        value: values.get(key) ?? (this.stripStatusPrefix(key) as InternalProcessingStatus),
       })),
     );
+  }
+
+  isVariantActive(type: 'all' | 'productive' | 'simulation'): boolean {
+    const current = this.filters().variantType ?? 'all';
+    return current === type;
+  }
+
+  clearVariantFilter(event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.orderService.setFilter({ variantType: 'all' });
+    this.autoExpandedByFilter.set(true);
+  }
+
+  toggleVariantFilter(type: 'productive' | 'simulation', event?: MouseEvent): void {
+    event?.stopPropagation();
+    const current = this.filters().variantType ?? 'all';
+    const next = current === type ? 'all' : type;
+    this.orderService.setFilter({ variantType: next });
+    this.autoExpandedByFilter.set(true);
   }
 
   private fallbackStatusLabel(value: string): string {
@@ -523,7 +661,7 @@ export class OrderCardComponent {
     return `${meta.window} · ${meta.hint} (${referenceLabel})`;
   }
 
-  private sortSummaries(summaries: StatusSummary[]): StatusSummary[] {
+  private sortSummaries<T>(summaries: StatusSummary<T>[]): StatusSummary<T>[] {
     return summaries.sort((a, b) => {
       if (b.count !== a.count) {
         return b.count - a.count;
@@ -738,11 +876,11 @@ export class OrderCardComponent {
   }
 }
 
-interface StatusSummary {
+interface StatusSummary<T = string> {
   key: string;
   label: string;
   count: number;
-  value: string;
+  value: T;
 }
 
 interface OrderHealthSnapshot {

@@ -46,6 +46,11 @@ import {
   TimetableRollingStockOperation,
   TimetableRollingStockSegment,
 } from '../../../core/models/timetable.model';
+import { VehicleCompositionFormComponent } from '../shared/vehicle-composition-form/vehicle-composition-form.component';
+import {
+  CompositionBaseVehicleForm,
+  CompositionChangeEntryForm,
+} from '../shared/vehicle-composition-form/vehicle-composition-form.component';
 
 interface PlanModificationDialogData {
   orderId: string;
@@ -78,24 +83,16 @@ interface PlanModificationFormModel {
   borderNotes: FormControl<string>;
 }
 
-type BaseVehicleForm = FormGroup<{
-  vehicleType: FormControl<string>;
-  count: FormControl<number>;
-  note: FormControl<string>;
-}>;
-
-type ChangeEntryForm = FormGroup<{
-  stopIndex: FormControl<number | null>;
-  action: FormControl<'attach' | 'detach'>;
-  vehicleType: FormControl<string>;
-  count: FormControl<number>;
-  note: FormControl<string>;
-}>;
-
 @Component({
   selector: 'app-plan-modification-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS, AnnualCalendarSelectorComponent],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    ...MATERIAL_IMPORTS,
+    AnnualCalendarSelectorComponent,
+    VehicleCompositionFormComponent,
+  ],
   templateUrl: './plan-modification-dialog.component.html',
   styleUrl: './plan-modification-dialog.component.scss',
 })
@@ -129,13 +126,27 @@ export class PlanModificationDialogComponent {
   readonly errorMessage = signal<string | null>(null);
   readonly assembledStops = signal<PlanModificationStopInput[] | null>(null);
   readonly customSelectedDates = signal<string[]>([]);
-  readonly baseVehicles = this.fb.array<BaseVehicleForm>([]);
-  readonly changeEntries = this.fb.array<ChangeEntryForm>([]);
+  readonly baseVehicles = this.fb.array<CompositionBaseVehicleForm>([]);
+  readonly changeEntries = this.fb.array<CompositionChangeEntryForm>([]);
   readonly stopOptions = this.plan.stops
     .slice()
     .sort((a, b) => a.sequence - b.sequence)
     .map((stop) => ({ label: `#${stop.sequence} · ${stop.locationName}`, value: stop.sequence }));
   readonly compositionPresets: VehicleComposition[] = DEMO_MASTER_DATA.vehicleCompositions;
+  readonly requiresRollingStock = this.isTttOrder();
+  readonly baseVehicleFactory = (seed?: {
+    vehicleType?: string;
+    count?: number;
+    note?: string | null;
+  }) =>
+    this.createBaseVehicleGroup(seed);
+  readonly changeEntryFactory = (seed?: {
+    stopIndex?: number | null;
+    action?: 'attach' | 'detach';
+    vehicleType?: string;
+    count?: number;
+    note?: string | null;
+  }) => this.createChangeEntryGroup(seed);
   private readonly timetableYearBounds: TimetableYearBounds | null;
   readonly allowedCalendarDates: string[] | null;
 
@@ -284,11 +295,11 @@ export class PlanModificationDialogComponent {
     this.updateCustomCalendarFields(filtered);
   }
 
-  get baseVehicleForms(): BaseVehicleForm[] {
+  get baseVehicleForms(): CompositionBaseVehicleForm[] {
     return this.baseVehicles.controls;
   }
 
-  get changeEntryForms(): ChangeEntryForm[] {
+  get changeEntryForms(): CompositionChangeEntryForm[] {
     return this.changeEntries.controls;
   }
 
@@ -586,6 +597,12 @@ export class PlanModificationDialogComponent {
       }
     }
     return null;
+  }
+
+  private isTttOrder(): boolean {
+    const order = this.orderService.getOrderById(this.orderId);
+    const tags = [...(order?.tags ?? []), ...(this.item.tags ?? [])];
+    return tags.some((tag) => tag?.toLowerCase() === 'ttt');
   }
 
   calendarRange():
@@ -1026,11 +1043,11 @@ export class PlanModificationDialogComponent {
     });
   }
 
-  private createBaseVehicleGroup(seed?: {
+  createBaseVehicleGroup(seed?: {
     vehicleType?: string;
     count?: number;
-    note?: string;
-  }): BaseVehicleForm {
+    note?: string | null;
+  }): CompositionBaseVehicleForm {
     return this.fb.group({
       vehicleType: this.fb.nonNullable.control(seed?.vehicleType ?? '', {
         validators: [Validators.maxLength(80)],
@@ -1044,13 +1061,13 @@ export class PlanModificationDialogComponent {
     });
   }
 
-  private createChangeEntryGroup(seed?: {
+  createChangeEntryGroup(seed?: {
     stopIndex?: number | null;
     action?: 'attach' | 'detach';
     vehicleType?: string;
     count?: number;
-    note?: string;
-  }): ChangeEntryForm {
+    note?: string | null;
+  }): CompositionChangeEntryForm {
     return this.fb.group({
       stopIndex: this.fb.control(seed?.stopIndex ?? null),
       action: this.fb.nonNullable.control(seed?.action ?? 'attach'),
@@ -1067,17 +1084,24 @@ export class PlanModificationDialogComponent {
   }
 
   private validateCompositionForms(): boolean {
-    const baseInvalid = this.baseVehicles.controls.some((group) => {
-      const type = group.controls.vehicleType.value.trim();
-      const count = group.controls.count.value ?? 0;
-      if (!type && (!count || count <= 0)) {
+    const baseEntries = this.baseVehicles.controls.map((group) => ({
+      type: group.controls.vehicleType.value.trim(),
+      count: group.controls.count.value ?? 0,
+    }));
+    const hasBase = baseEntries.some((entry) => entry.type && entry.count > 0);
+    const baseInvalid = baseEntries.some((entry) => {
+      if (!entry.type && entry.count <= 0) {
         return false;
       }
-      return !type || count <= 0;
+      return !entry.type || entry.count <= 0;
     });
-    if (baseInvalid) {
+    if (baseInvalid || (this.requiresRollingStock && !hasBase)) {
       this.baseVehicles.controls.forEach((group) => group.markAllAsTouched());
-      this.errorMessage.set('Bitte Typ und Anzahl für jedes Fahrzeug angeben.');
+      this.errorMessage.set(
+        this.requiresRollingStock
+          ? 'Bitte mindestens ein Fahrzeug mit Typ und Anzahl erfassen.'
+          : 'Bitte Typ und Anzahl für jedes Fahrzeug angeben.',
+      );
       return false;
     }
 

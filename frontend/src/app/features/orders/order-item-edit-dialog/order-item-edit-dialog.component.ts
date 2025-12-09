@@ -113,6 +113,12 @@ export class OrderItemEditDialogComponent implements OnInit {
       this.orderService.getItemTimetableYear(this.item) ??
       '—',
   );
+  readonly variantChip = computed(() => {
+    const type = this.item.variantType ?? 'productive';
+    const label = this.item.variantLabel ?? (type === 'simulation' ? 'Simulation' : 'Produktiv');
+    return { type, label };
+  });
+  readonly simulationLabel = computed(() => this.item.simulationLabel ?? this.item.simulationId ?? null);
   readonly planLocked = computed(
     () => this.isPlanItem && this.requiresPlanVersion,
   );

@@ -322,6 +322,16 @@ export class OrderListComponent {
     this.store.setFilter({ fpRangeStart: null, fpRangeEnd: null });
   }
 
+  clearVariantFilter(): void {
+    this.clearActivePreset();
+    this.store.setFilter({ variantType: 'all' });
+  }
+
+  setVariantFilter(value: OrderFilters['variantType']) {
+    this.clearActivePreset();
+    this.store.setFilter({ variantType: value });
+  }
+
   resetTimelineReference(): void {
     this.clearActivePreset();
     this.store.setFilter({ timelineReference: 'fpDay' });
@@ -782,6 +792,7 @@ export class OrderListComponent {
       internalStatus: filters?.internalStatus ?? 'all',
       trainNumber: filters?.trainNumber ?? '',
       timetableYearLabel: filters?.timetableYearLabel ?? 'all',
+      variantType: filters?.variantType ?? 'all',
       linkedBusinessId: filters?.linkedBusinessId ?? null,
       fpRangeStart: filters?.fpRangeStart ?? null,
       fpRangeEnd: filters?.fpRangeEnd ?? null,
@@ -800,6 +811,7 @@ export class OrderListComponent {
       a.internalStatus === b.internalStatus &&
       a.trainNumber === b.trainNumber &&
       a.timetableYearLabel === b.timetableYearLabel &&
+      a.variantType === b.variantType &&
       (a.linkedBusinessId ?? null) === (b.linkedBusinessId ?? null) &&
       (a.fpRangeStart ?? null) === (b.fpRangeStart ?? null) &&
       (a.fpRangeEnd ?? null) === (b.fpRangeEnd ?? null) &&

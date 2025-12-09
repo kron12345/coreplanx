@@ -19,8 +19,18 @@ import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { OrderItemEditDialogComponent } from '../order-item-edit-dialog/order-item-edit-dialog.component';
 import { TimetablePhase } from '../../../core/models/timetable.model';
+import { TrainPlan } from '../../../core/models/train-plan.model';
+import { TimetableRollingStockOperation } from '../../../core/models/timetable.model';
 import { TimetableService } from '../../../core/services/timetable.service';
 import { OrderService } from '../../../core/services/order.service';
+import {
+  SimulationMergeDialogComponent,
+  SimulationMergeDialogResult,
+} from '../shared/simulation-merge-dialog/simulation-merge-dialog.component';
+import {
+  SimulationAssignDialogComponent,
+  SimulationAssignDialogResult,
+} from '../shared/simulation-assign-dialog/simulation-assign-dialog.component';
 
 @Component({
   selector: 'app-order-item-list',
@@ -153,6 +163,58 @@ export class OrderItemListComponent {
     return this.businessService.getByIds(item.linkedBusinessIds ?? []);
   }
 
+  canCreateVariant(item: OrderItem): boolean {
+    return (item.variantType ?? 'productive') === 'productive';
+  }
+
+  canPromoteVariant(item: OrderItem): boolean {
+    const phase = item.timetablePhase ?? 'bedarf';
+    return (item.variantType ?? 'productive') === 'simulation' && phase === 'bedarf';
+  }
+
+  createSimulationVariant(item: OrderItem) {
+    const order = this.orderService.getOrderById?.(this.orderId);
+    const yearLabel = order?.timetableYearLabel;
+    const dialogRef = this.dialog.open<
+      SimulationAssignDialogComponent,
+      { timetableYearLabel: string; selectedId?: string | null; allowProductive?: boolean },
+      SimulationAssignDialogResult | undefined
+    >(SimulationAssignDialogComponent, {
+      width: '520px',
+      data: { timetableYearLabel: yearLabel ?? '', selectedId: null, allowProductive: false },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (!result) {
+        return;
+      }
+      try {
+        this.orderService.createSimulationVariant(this.orderId, item.id, result.simulationLabel);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
+  promoteSimulation(item: OrderItem) {
+    try {
+      this.orderService.promoteSimulationToProductive(this.orderId, item.id);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  openSimulationMerge(item: OrderItem) {
+    const dialogRef = this.dialog.open<
+      SimulationMergeDialogComponent,
+      { orderId: string; simulationItem: OrderItem },
+      SimulationMergeDialogResult | undefined
+    >(SimulationMergeDialogComponent, {
+      width: '720px',
+      data: { orderId: this.orderId, simulationItem: item },
+    });
+    dialogRef.afterClosed().subscribe(() => {});
+  }
+
   navigateToTrainPlan(event: MouseEvent, trainPlanId: string) {
     event.stopPropagation();
     this.router.navigate(['/plans'], {
@@ -182,7 +244,8 @@ export class OrderItemListComponent {
 
   canSubmit(item: OrderItem): boolean {
     const phase = item.timetablePhase ?? 'bedarf';
-    return item.type === 'Fahrplan' && phase === 'bedarf';
+    const variant = item.variantType ?? 'productive';
+    return item.type === 'Fahrplan' && phase === 'bedarf' && variant === 'productive';
   }
 
   ttrPhaseLabel(item: OrderItem): string | undefined {
@@ -302,6 +365,72 @@ export class OrderItemListComponent {
     }
     const plan = this.trainPlanService.getById(id);
     return plan ? `${plan.trainNumber} · ${plan.calendar.validFrom}` : undefined;
+  }
+
+  rollingStockSummary(item: OrderItem): string | null {
+    const plan = item.linkedTrainPlanId ? this.trainPlanService.getById(item.linkedTrainPlanId) : null;
+    const rolling = plan?.rollingStock;
+    if (!rolling?.segments?.length) {
+      return null;
+    }
+    const total =
+      rolling.segments?.reduce((sum, segment) => sum + (segment.count ?? 0), 0) ?? 0;
+    const types = Array.from(
+      new Set(rolling.segments?.map((segment) => segment.vehicleTypeId) ?? []),
+    );
+    const typeLabel = types.length ? types.join(', ') : 'ohne Typangabe';
+    const baseLabel = total > 0 ? `${total} Einheiten · ${typeLabel}` : typeLabel;
+    const changeLabel =
+      rolling.operations?.length && rolling.operations.length > 0
+        ? ` · ${rolling.operations.length} Änderung${rolling.operations.length > 1 ? 'en' : ''}`
+        : '';
+    return `${baseLabel}${changeLabel}`;
+  }
+
+  rollingStockOperations(item: OrderItem): string | null {
+    const plan = item.linkedTrainPlanId ? this.trainPlanService.getById(item.linkedTrainPlanId) : null;
+    if (!plan?.rollingStock?.operations?.length) {
+      return null;
+    }
+    return plan.rollingStock.operations
+      .map((operation) => this.rollingStockOperationSummary(plan, operation))
+      .join(' | ');
+  }
+
+  private rollingStockOperationSummary(
+    plan: TrainPlan,
+    operation: TimetableRollingStockOperation,
+  ): string {
+    const stopLabel = this.planStopName(plan, operation.stopId);
+    const base = `${this.rollingStockOperationLabel(operation.type)} @ ${stopLabel}`;
+    const remarks = operation.remarks ? ` – ${operation.remarks}` : '';
+    return `${base}${remarks}`;
+  }
+
+  private planStopName(plan: TrainPlan, stopId: string): string {
+    return plan.stops.find((stop: TrainPlan['stops'][number]) => stop.id === stopId)?.locationName ?? stopId;
+  }
+
+  private rollingStockOperationLabel(type: TimetableRollingStockOperation['type']): string {
+    switch (type) {
+      case 'join':
+        return 'Ankuppeln';
+      case 'split':
+        return 'Abkuppeln';
+      case 'reconfigure':
+        return 'Rekonfiguration';
+      default:
+        return type;
+    }
+  }
+
+  variantChip(item: OrderItem): { label: string; class: string } | null {
+    const type = item.variantType ?? 'productive';
+    const label =
+      type === 'simulation'
+        ? item.simulationLabel ?? item.variantLabel ?? 'Simulation'
+        : item.variantLabel ?? 'Produktiv';
+    return { label, class: type === 'simulation' ? 'variant-simulation' : 'variant-productive' };
   }
 
   private resolveTimetablePhase(item: OrderItem): TimetablePhase | undefined {

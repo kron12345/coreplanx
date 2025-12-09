@@ -805,3 +805,15 @@
   font-size: 0.85rem;
   color: rgba(0, 0, 0, 0.6);
 }
+
+.variant-assignment {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 12px;
+}
+
+.variant-assignment__label {
+  color: rgba(0, 0, 0, 0.75);
+  font-size: 0.85rem;
+}

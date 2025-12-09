@@ -1,0 +1,54 @@
+.hint {
+  color: #555;
+  margin: 0 0 12px;
+}
+
+.sim-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sim-row {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  align-items: flex-start;
+}
+
+.sim-row__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sim-row__title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.sim-row__year {
+  font-size: 12px;
+  color: #666;
+}
+
+.sim-row__description {
+  margin: 8px 0 0;
+  color: #444;
+  font-size: 13px;
+}
+
+.sim-row__pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #e8def8;
+  color: #4a148c;
+}
+
+.sim-row__pill--productive {
+  background: #e0f2f1;
+  color: #00695c;
+}

@@ -25,6 +25,7 @@ export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
     'Tipp: Shift + Klick für Bereichsauswahl, Strg/Cmd + Klick um bestehende Auswahl zu erweitern.';
   @Input() exclusionHint =
     'Wähle Tage aus, die trotz Markierung nicht gefahren werden sollen.';
+  @Input() fixedYearLabel: string | null = null;
 
   private yearChangesSub?: Subscription;
   mode: 'include' | 'exclude' = 'include';
@@ -40,6 +41,13 @@ export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
   }
 
   get timetableYearOptions(): TimetableYearBounds[] {
+    if (this.fixedYearLabel) {
+      try {
+        return [this.timetableYearService.getYearByLabel(this.fixedYearLabel)];
+      } catch {
+        return [];
+      }
+    }
     const base = this.timetableYearService.listYearsAround(new Date(), 3, 3);
     const current = this.coerceYearLabel(this.yearControl.value);
     if (current && !base.some((option) => option.label === current)) {
@@ -77,6 +85,10 @@ export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.ensureYearControl();
+    if (this.fixedYearLabel) {
+      this.yearControl.setValue(this.fixedYearLabel, { emitEvent: false });
+      this.yearControl.disable({ emitEvent: false });
+    }
     this.onYearChanged();
     this.yearChangesSub = this.yearControl.valueChanges.subscribe(() => this.onYearChanged());
   }

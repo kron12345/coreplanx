@@ -1,0 +1,41 @@
+<h2 mat-dialog-title>{{ title }}</h2>
+
+<mat-dialog-content>
+  <p class="hint">
+    Fahrplanjahr: <strong>{{ yearLabel }}</strong>. Wähle eine Simulation oder die produktive Variante aus.
+  </p>
+
+  @if (records().length) {
+    <mat-radio-group
+      class="sim-list"
+      [value]="selectedId()"
+      (change)="select($event)"
+    >
+      @for (sim of records(); track sim.id) {
+        <mat-radio-button [value]="sim.id" class="sim-row">
+          <div class="sim-row__header">
+            <div>
+              <div class="sim-row__title">{{ sim.label }}</div>
+              <div class="sim-row__year">Fahrplanjahr {{ sim.timetableYearLabel }}</div>
+            </div>
+            <span class="sim-row__pill" [class.sim-row__pill--productive]="sim.productive">
+              {{ sim.productive ? 'Produktiv' : 'Simulation' }}
+            </span>
+          </div>
+          @if (sim.description) {
+            <p class="sim-row__description">{{ sim.description }}</p>
+          }
+        </mat-radio-button>
+      }
+    </mat-radio-group>
+  } @else {
+    <p class="hint">Keine Simulationen für dieses Fahrplanjahr vorhanden.</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" [disabled]="!selectedId()" (click)="confirm()">
+    Übernehmen
+  </button>
+</mat-dialog-actions>

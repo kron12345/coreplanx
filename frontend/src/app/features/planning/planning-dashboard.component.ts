@@ -47,6 +47,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';
+import { SimulationService } from '../../core/services/simulation.service';
+import { SimulationRecord } from '../../core/models/simulation.model';
 import { DurationPipe } from '../../shared/pipes/duration.pipe';
 import {
   ActivityLinkRole,
@@ -194,6 +196,7 @@ export class PlanningDashboardComponent {
   private readonly managedTimetableYearBounds = this.timetableYearService.managedYearBoundsSignal();
   private readonly templateStore = inject(TemplateTimelineStoreService);
   private readonly templateMetaLoad = signal(false);
+  private readonly simulationService = inject(SimulationService);
 
   readonly stages = PLANNING_STAGE_METAS;
   private readonly stageMetaMap: Record<PlanningStageId, PlanningStageMeta> = this.stages.reduce(
@@ -272,6 +275,8 @@ export class PlanningDashboardComponent {
   protected readonly selectedTemplateId = computed(() => this.templateStore.selectedTemplateWithFallback()?.id ?? null);
   private readonly queryFrom = signal<string | null>(null);
   private readonly queryTo = signal<string | null>(null);
+  private readonly selectedSimulationSignal = signal<SimulationRecord | null>(null);
+  protected readonly planningVariant = this.data.planningVariant();
   protected readonly currentPeriods = computed(() => {
     const tpl = this.templateStore.selectedTemplateWithFallback();
     if (!tpl?.periods?.length) {
@@ -377,6 +382,29 @@ export class PlanningDashboardComponent {
       this.updatePendingActivityFromForm();
       this.updateEditingPreviewFromForm();
     });
+
+    effect(
+      () => {
+        const options = this.simulationOptions();
+        if (!options.length) {
+          this.selectedSimulationSignal.set(null);
+          this.data.setPlanningVariant(null);
+          return;
+        }
+        const current = this.selectedSimulationSignal();
+        const next =
+          (current && options.find((sim) => sim.id === current.id)) ??
+          options.find((sim) => sim.productive) ??
+          options[0];
+        if (!current || current.id !== next.id) {
+          this.selectedSimulationSignal.set(next);
+          this.applySimulationSelection(next);
+        } else {
+          this.applySimulationSelection(current);
+        }
+      },
+      { allowSignalWrites: true },
+    );
 
     effect(
       () => {
@@ -561,6 +589,35 @@ export class PlanningDashboardComponent {
   protected readonly resourceGroups = computed(() =>
     this.computeResourceGroups(this.activeStageSignal()),
   );
+
+  protected readonly simulationOptions = computed<SimulationRecord[]>(() => {
+    const years = Array.from(this.stageYearSelectionState()[this.activeStageSignal()] ?? []);
+    const fallbackYear = this.preferredYearLabel(this.timetableYearOptions());
+    const targetYears = years.length ? years : [fallbackYear];
+    const entries: SimulationRecord[] = [];
+    targetYears.forEach((label) => {
+      this.simulationService.byTimetableYear(label).forEach((sim) => entries.push(sim));
+    });
+    return entries.sort((a, b) => {
+      if (!!a.productive !== !!b.productive) {
+        return a.productive ? -1 : 1;
+      }
+      return a.label.localeCompare(b.label, 'de', { sensitivity: 'base' });
+    });
+  });
+
+  protected readonly selectedSimulationId = computed(
+    () => this.selectedSimulationSignal()?.id ?? null,
+  );
+
+  protected readonly selectedSimulationLabel = computed(() => {
+    const sim = this.selectedSimulationSignal();
+    if (!sim) {
+      return 'Variante wählen';
+    }
+    const prefix = sim.productive ? 'Produktiv' : 'Simulation';
+    return `${prefix}: ${sim.label}`;
+  });
 
   protected readonly timetableYearOptions = computed<TimetableYearBounds[]>(() => {
     const managed = this.managedTimetableYearBounds();
@@ -2630,6 +2687,15 @@ export class PlanningDashboardComponent {
     });
   }
 
+  protected onSimulationSelect(simulationId: string): void {
+    const sim = this.simulationOptions().find((entry) => entry.id === simulationId);
+    if (!sim) {
+      return;
+    }
+    this.selectedSimulationSignal.set(sim);
+    this.applySimulationSelection(sim);
+  }
+
   private computeResourceGroups(stage: PlanningStageId): ResourceGroupView[] {
     const resources = this.filterResourcesForStage(stage, this.stageResourceSignals[stage]());
     const configs = STAGE_RESOURCE_GROUPS[stage];
@@ -2938,8 +3004,12 @@ export class PlanningDashboardComponent {
   }
 
   private computeBaseTimelineRange(): PlanningTimelineRange {
-    const fromIso = this.queryFrom() ?? this.timetableYearService.defaultYearBounds().startIso;
-    const toIso = this.queryTo() ?? this.timetableYearService.defaultYearBounds().endIso;
+    const variant = this.planningVariant();
+    const bounds = variant?.timetableYearLabel
+      ? this.timetableYearService.getYearByLabel(variant.timetableYearLabel)
+      : this.timetableYearService.defaultYearBounds();
+    const fromIso = this.queryFrom() ?? bounds.startIso;
+    const toIso = this.queryTo() ?? bounds.endIso;
     const start = new Date(`${fromIso}T00:00:00Z`);
     const end = new Date(`${toIso}T23:59:59Z`);
     return { start, end };
@@ -3039,6 +3109,19 @@ export class PlanningDashboardComponent {
     const active =
       options.find((year) => today >= year.start && today <= year.end) ?? options[0];
     return active.label;
+  }
+
+  private applySimulationSelection(sim: SimulationRecord | null): void {
+    if (!sim) {
+      this.data.setPlanningVariant(null);
+      return;
+    }
+    this.data.setPlanningVariant({
+      id: sim.id,
+      label: sim.label,
+      type: sim.productive ? 'productive' : 'simulation',
+      timetableYearLabel: sim.timetableYearLabel,
+    });
   }
 
   private areSetsEqual(a: Set<string>, b: Set<string>): boolean {

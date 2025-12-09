@@ -78,6 +78,17 @@ export interface OrderItem {
   versionPath?: number[];
   generatedTimetableRefId?: string;
   timetablePhase?: TimetablePhase;
+  /**
+   * Variantenmodell: produktiv oder Simulation. Produktiv ist bestellbar; Simulation nur im Draft.
+   */
+  variantType?: 'productive' | 'simulation';
+  variantOfItemId?: string;
+  variantGroupId?: string;
+  variantLabel?: string;
+  simulationId?: string;
+  simulationLabel?: string;
+  mergeStatus?: 'open' | 'applied' | 'proposed';
+  mergeTargetId?: string;
   originalTimetable?: OrderItemTimetableSnapshot;
   /**
    * SOB-interner Bearbeitungsstatus der Position (optional im Mock).

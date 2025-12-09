@@ -1,0 +1,36 @@
+.hint {
+  margin: 0 0 12px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.diff-table {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.diff-row {
+  display: contents;
+}
+
+.diff-row span {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 0.9rem;
+}
+
+.diff-row span:last-child {
+  border-right: none;
+}
+
+.diff-row--head span {
+  background: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
+.diff-field {
+  font-weight: 600;
+}

@@ -35,6 +35,13 @@
           }
           <div class="meta">
             <span class="type">{{ typeLabel(it) }}</span>
+            @if (variantChip(it); as chip) {
+              <mat-chip class="variant-chip" [ngClass]="chip.class" appearance="outlined">
+                <mat-icon *ngIf="chip.class === 'variant-simulation'">science</mat-icon>
+                <mat-icon *ngIf="chip.class === 'variant-productive'">category</mat-icon>
+                {{ chip.label }}
+              </mat-chip>
+            }
             @if (hasSchedule(it)) {
               <span class="sep">•</span>
               <span class="time"
@@ -89,6 +96,15 @@
                 <span class="tag">{{ it.serviceType }}</span>
               }
             </div>
+          }
+          @if (rollingStockSummary(it); as rolling) {
+            <div class="rolling-stock">
+              <mat-icon inline>directions_railway</mat-icon>
+              <span>{{ rolling }}</span>
+            </div>
+            @if (rollingStockOperations(it); as ops) {
+              <div class="rolling-stock__ops">{{ ops }}</div>
+            }
           }
           @if (it.tags?.length) {
             <mat-chip-set class="item-tags" aria-label="Tags der Position">
@@ -270,6 +286,26 @@
           >
             <mat-icon>edit</mat-icon>
           </button>
+          @if (canCreateVariant(it)) {
+            <button
+              mat-icon-button
+              matTooltip="Simulation anlegen"
+              aria-label="Simulation anlegen"
+              (click)="createSimulationVariant(it); $event.stopPropagation()"
+            >
+              <mat-icon>science</mat-icon>
+            </button>
+          }
+          @if (it.variantType === 'simulation') {
+            <button
+              mat-icon-button
+              matTooltip="Simulation mit Produktiv abgleichen"
+              aria-label="Simulation abgleichen"
+              (click)="openSimulationMerge(it); $event.stopPropagation()"
+            >
+              <mat-icon>merge_type</mat-icon>
+            </button>
+          }
           <button
             mat-icon-button
             matTooltip="Position bestellen"
