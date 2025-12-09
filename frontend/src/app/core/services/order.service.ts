@@ -22,144 +22,88 @@ import { TrainPlan } from '../models/train-plan.model';
 import { CreateScheduleTemplateStopPayload } from './schedule-template.service';
 import { BusinessStatus } from '../models/business.model';
 import { CustomerService } from './customer.service';
-import {
-  TimetableService,
-  TimetableStopInput,
-} from './timetable.service';
+import { TimetableService } from './timetable.service';
 import { TrafficPeriodService } from './traffic-period.service';
 import { TrafficPeriod, TrafficPeriodVariantType } from '../models/traffic-period.model';
 import { TimetableYearService } from './timetable-year.service';
-import { TimetableYearBounds } from '../models/timetable-year.model';
-import {
-  TimetableHubService,
-  TimetableHubSectionKey,
-  TimetableHubStopSummary,
-  TimetableHubTechnicalSummary,
-  TimetableHubRouteMetadata,
-} from './timetable-hub.service';
+import { TimetableHubService, TimetableHubSectionKey } from './timetable-hub.service';
 import { ScheduleTemplate } from '../models/schedule-template.model';
+import {
+  DEFAULT_ORDER_FILTERS,
+  ORDER_FILTERS_STORAGE_KEY,
+  OrderFilters,
+  OrderSearchTokens,
+  OrderTimelineReference,
+  OrderTtrPhase,
+  OrderTtrPhaseFilter,
+  OrderTtrPhaseMeta,
+  TTR_PHASE_META,
+} from './orders/order-filters.model';
+import { parseSearchTokens } from './orders/order-filter.utils';
+import { OrderVariantsManager, OrderVariantMergeResult } from './orders/order-variants.manager';
+import { OrderPlanLinkManager } from './orders/order-plan-link.manager';
+import { OrderPlanHubHelper } from './orders/order-plan-hub.helper';
+import {
+  extractPlanEnd,
+  extractPlanStart,
+  normalizeCalendarDates,
+  normalizeTimetableYearLabel,
+  toTimetableStops,
+} from './orders/order-plan.utils';
+import {
+  deriveOrderTimetableYear,
+  getTrafficPeriodTimetableYear,
+  timetableYearFromPlan,
+  resolveTimetableYearBoundsForItem,
+  resolveTimetableYearStart,
+} from './orders/order-timetable.utils';
+import {
+  buildCalendarModifications,
+  buildCalendarVariants,
+} from './orders/order-timetable-calendar.utils';
+import {
+  deriveDefaultValidity,
+  ensureSegmentsWithinValidity,
+  expandSegmentsToDates,
+  normalizeSegments,
+  normalizeDateInput,
+  prepareCustomSegments,
+  resolveEffectiveValidity,
+  resolveValiditySegments,
+  segmentsWithinRanges,
+  segmentsWithinYearBounds,
+  splitSegments,
+  subtractSegments,
+  toUtcDate,
+  fromUtcDate,
+  buildDaysBitmapFromValidity,
+} from './orders/order-validity.utils';
+import { matchesItem, matchesTimeRange } from './orders/order-match.utils';
+import {
+  addDays,
+  addHours,
+  endOfDay,
+  extractItemStartDate,
+  extractReferenceSampleDate,
+  isSameDay,
+  isSameWeek,
+  parseDateOnly,
+  resolveReferenceDate,
+  startOfDay,
+  startOfWeek,
+} from './orders/order-timeline.utils';
+import {
+  normalizeTags,
+  prepareUpdatePayload,
+  applyUpdatesToItem,
+  ensureNoSiblingConflict,
+} from './orders/order-item.utils';
+import {
+  ensureItemDefaults,
+  normalizeItemsAfterChange,
+} from './orders/order-normalize.utils';
 
-export type OrderTimelineReference = 'fpDay' | 'operationalDay' | 'fpYear';
-
-export type OrderTtrPhase =
-  | 'annual_request'
-  | 'final_offer'
-  | 'rolling_planning'
-  | 'short_term'
-  | 'ad_hoc'
-  | 'operational_delivery'
-  | 'unknown';
-
-export type OrderTtrPhaseFilter =
-  | 'all'
-  | 'annual_request'
-  | 'final_offer'
-  | 'rolling_planning'
-  | 'short_term'
-  | 'ad_hoc'
-  | 'operational_delivery';
-
-export interface OrderTtrPhaseMeta {
-  key: OrderTtrPhase;
-  label: string;
-  window: string;
-  reference: OrderTimelineReference | 'mixed';
-  hint: string;
-}
-
-export interface OrderFilters {
-  search: string;
-  tag: string | 'all';
-  timeRange: 'all' | 'next4h' | 'next12h' | 'today' | 'thisWeek';
-  trainStatus: TimetablePhase | 'all';
-  businessStatus: BusinessStatus | 'all';
-  internalStatus: InternalProcessingStatus | 'all';
-  trainNumber: string;
-  timetableYearLabel: string | 'all';
-  variantType: 'all' | 'productive' | 'simulation';
-  linkedBusinessId: string | null;
-  fpRangeStart: string | null;
-  fpRangeEnd: string | null;
-  timelineReference: OrderTimelineReference;
-  ttrPhase: OrderTtrPhaseFilter;
-}
-
-const ORDER_FILTERS_STORAGE_KEY = 'orders.filters.v2';
-const DEFAULT_ORDER_FILTERS: OrderFilters = {
-  search: '',
-  tag: 'all',
-  timeRange: 'all',
-  trainStatus: 'all',
-  businessStatus: 'all',
-  internalStatus: 'all',
-  trainNumber: '',
-  timetableYearLabel: 'all',
-  variantType: 'all',
-  linkedBusinessId: null,
-  fpRangeStart: null,
-  fpRangeEnd: null,
-  timelineReference: 'fpDay',
-  ttrPhase: 'all',
-};
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const TTR_PHASE_META: Record<OrderTtrPhase, OrderTtrPhaseMeta> = {
-  annual_request: {
-    key: 'annual_request',
-    label: 'Annual TT Request',
-    window: '12–7 Monate vor Fahrplanjahr',
-    reference: 'fpDay',
-    hint: 'Jahresfahrplanbestellungen erstellen und einreichen.',
-  },
-  final_offer: {
-    key: 'final_offer',
-    label: 'Final Offer (ENFP)',
-    window: '7–4 Monate vor Fahrplanjahr',
-    reference: 'fpDay',
-    hint: 'Angebote prüfen, final annehmen oder ablehnen.',
-  },
-  rolling_planning: {
-    key: 'rolling_planning',
-    label: 'Rolling Planning',
-    window: '13–3 Wochen vor Fahrplantag',
-    reference: 'fpDay',
-    hint: 'Mittelfristige Zusatz- und Saisonlagen abstimmen.',
-  },
-  short_term: {
-    key: 'short_term',
-    label: 'Short-Term',
-    window: '30–7 Tage vor Fahrplantag',
-    reference: 'fpDay',
-    hint: 'Kurzfristige Bedarfe mit schnellen Reaktionsfristen bedienen.',
-  },
-  ad_hoc: {
-    key: 'ad_hoc',
-    label: 'Ad-hoc',
-    window: '0–7 Tage vor Produktionstag',
-    reference: 'operationalDay',
-    hint: 'Akute Bedarfe oder Störungen, Reaktion in Minuten/Stunden.',
-  },
-  operational_delivery: {
-    key: 'operational_delivery',
-    label: 'Operative Begleitung',
-    window: 'laufender Betrieb',
-    reference: 'operationalDay',
-    hint: 'Leistung ist im Betrieb / Monitoring & Umsetzung.',
-  },
-  unknown: {
-    key: 'unknown',
-    label: 'Unklassifiziert',
-    window: 'fehlende Daten',
-    reference: 'mixed',
-    hint: 'Es fehlen Fahrplan- oder Datumseigenschaften zur Einordnung.',
-  },
-};
-
-type OrderSearchTokens = {
-  textTerms: string[];
-  tags: string[];
-  responsibles: string[];
-  customers: string[];
-};
+import { DAY_IN_MS } from './orders/order-timeline.utils';
 
 export interface OrderItemOption {
   itemId: string;
@@ -318,22 +262,7 @@ export interface CreateImportedPlanOrderItemPayload {
   simulationLabel?: string;
 }
 
-type EditableOrderItemKeys =
-  | 'name'
-  | 'start'
-  | 'end'
-  | 'responsible'
-  | 'deviation'
-  | 'serviceType'
-  | 'fromLocation'
-  | 'toLocation'
-  | 'trafficPeriodId'
-  | 'linkedBusinessIds'
-  | 'linkedTemplateId'
-  | 'linkedTrainPlanId'
-  | 'tags';
-
-export type OrderItemUpdateData = Pick<OrderItem, EditableOrderItemKeys>;
+import { OrderItemUpdateData } from './orders/order-item.types';
 
 export interface SplitOrderItemPayload {
   orderId: string;
@@ -349,6 +278,9 @@ export class OrderService {
   private readonly _orders = signal<Order[]>(MOCK_ORDERS);
   private readonly _filters = signal<OrderFilters>({ ...DEFAULT_ORDER_FILTERS });
   private readonly browserStorage = this.detectStorage();
+  private readonly variants: OrderVariantsManager;
+  private readonly planLinks: OrderPlanLinkManager;
+  private readonly planHub: OrderPlanHubHelper;
 
   constructor(
     private readonly trainPlanService: TrainPlanService,
@@ -370,6 +302,41 @@ export class OrderService {
     if (restoredFilters) {
       this._filters.set(restoredFilters);
     }
+    this.variants = new OrderVariantsManager({
+      trainPlanService: this.trainPlanService,
+      updateOrder: (orderId, updater) =>
+        this._orders.update((orders) => orders.map((ord) => (ord.id === orderId ? updater(ord) : ord))),
+      appendItems: (orderId, items) => this.appendItems(orderId, items),
+      markSimulationMerged: (orderId, simId, targetId, status) =>
+        this.markSimulationMerged(orderId, simId, targetId, status),
+      generateItemId: (orderId) => this.generateItemId(orderId),
+      applyPlanDetailsToItem: (item, plan) => this.applyPlanDetailsToItem(item, plan),
+      linkTrainPlanToItem: (planId, itemId) => this.linkTrainPlanToItem(planId, itemId),
+      getOrderById: (orderId) => this.getOrderById(orderId),
+    });
+    this.planLinks = new OrderPlanLinkManager({
+      trainPlanService: this.trainPlanService,
+      timetableService: this.timetableService,
+      trafficPeriodService: this.trafficPeriodService,
+      updateItem: (itemId, updater) => this.updateItem(itemId, updater),
+      applyPlanDetailsToItem: (item, plan) => this.applyPlanDetailsToItem(item, plan),
+      ensureTimetableForPlan: (plan, item, refOverride) =>
+        this.ensureTimetableForPlan(plan, item, refOverride),
+      updateItemTimetableMetadata: (itemId, timetable) =>
+        this.updateItemTimetableMetadata(itemId, timetable),
+      ordersProvider: () => this._orders(),
+      buildCalendarVariants: (base, period) => buildCalendarVariants(base, period),
+      buildCalendarModifications: (items, period) =>
+        buildCalendarModifications(items, period),
+      generateTimetableRefId: (plan) => this.generateTimetableRefId(plan),
+      getTrafficPeriod: (id) => this.trafficPeriodService.getById(id),
+    });
+    this.planHub = new OrderPlanHubHelper({
+      timetableHubService: this.timetableHubService,
+      timetableYearService: this.timetableYearService,
+      getItemTimetableYear: (item) => this.getItemTimetableYear(item),
+      generateTimetableRefId: (plan) => this.generateTimetableRefId(plan),
+    });
   }
 
   readonly filters = computed(() => this._filters());
@@ -485,7 +452,16 @@ export class OrderService {
 
   filterItemsForOrder(order: Order): OrderItem[] {
     const filters = this._filters();
-    return order.items.filter((item) => this.matchesItem(item, filters));
+    return order.items.filter((item) =>
+      matchesItem(item, filters, {
+        timetableService: this.timetableService,
+        trainPlanService: this.trainPlanService,
+        getItemTimetableYear: (it) => this.getItemTimetableYear(it),
+        resolveReferenceDate: (it, reference) => this.resolveReferenceDate(it, reference),
+        computeTtrPhase: (it, reference, override) =>
+          this.computeTtrPhase(it, reference, override),
+      }),
+    );
   }
 
   getItemReferenceDate(
@@ -521,13 +497,16 @@ export class OrderService {
     const id = payload.id?.trim().length ? payload.id.trim() : this.generateOrderId();
     const customerId = payload.customerId;
     const customerName = this.resolveCustomerName(customerId, payload.customer);
-    const timetableYearLabel = this.normalizeTimetableYearLabel(payload.timetableYearLabel);
+    const timetableYearLabel = normalizeTimetableYearLabel(
+      payload.timetableYearLabel,
+      this.timetableYearService,
+    );
     const order: Order = {
       id,
       name: payload.name,
       customerId,
       customer: customerName,
-      tags: this.normalizeTags(payload.tags),
+      tags: normalizeTags(payload.tags),
       comment: payload.comment,
       items: [],
       timetableYearLabel,
@@ -564,11 +543,11 @@ export class OrderService {
         ? payload.name.trim()
         : serviceType;
     const timetableYearLabel =
-      this.normalizeTimetableYearLabel(payload.timetableYearLabel) ??
+      normalizeTimetableYearLabel(payload.timetableYearLabel, this.timetableYearService) ??
       this.timetableYearService.getYearBounds(payload.start).label;
     this.ensureOrderTimetableYear(payload.orderId, timetableYearLabel);
 
-    const tags = this.normalizeTags(payload.tags);
+    const tags = normalizeTags(payload.tags);
     const item: OrderItem = {
       id: this.generateItemId(payload.orderId),
       name,
@@ -603,8 +582,8 @@ export class OrderService {
       simulationLabel,
       ...planConfig
     } = payload;
-    const normalizedTags = this.normalizeTags(tags);
-    const normalizedCalendarDates = this.normalizeCalendarDates(planConfig.calendarDates ?? []);
+    const normalizedTags = normalizeTags(tags);
+    const normalizedCalendarDates = normalizeCalendarDates(planConfig.calendarDates ?? []);
     const effectiveCalendarDates = normalizedCalendarDates.length ? normalizedCalendarDates : undefined;
 
     let planTrafficPeriodId = planConfig.trafficPeriodId;
@@ -637,8 +616,8 @@ export class OrderService {
             this.ensurePlanHasTrafficPeriod(plan, namePrefix ?? plan.title),
           );
     const normalizedYearLabel =
-      this.normalizeTimetableYearLabel(timetableYearLabel) ??
-      this.timetableYearFromPlan(enrichedPlans[0] ?? plans[0]);
+      normalizeTimetableYearLabel(timetableYearLabel, this.timetableYearService) ??
+      timetableYearFromPlan(enrichedPlans[0] ?? plans[0], this.timetableYearService);
     if (!normalizedYearLabel) {
       throw new Error('Fahrplanjahr konnte nicht ermittelt werden.');
     }
@@ -714,14 +693,14 @@ export class OrderService {
       variantLabel: payload.variantLabel,
     });
     const timetableYearLabel =
-      this.normalizeTimetableYearLabel(payload.timetableYearLabel) ??
-      this.timetableYearFromPlan(plan);
+      normalizeTimetableYearLabel(payload.timetableYearLabel, this.timetableYearService) ??
+      timetableYearFromPlan(plan, this.timetableYearService);
     if (!timetableYearLabel) {
       throw new Error('Fahrplanjahr konnte nicht bestimmt werden.');
     }
     this.ensureOrderTimetableYear(payload.orderId, timetableYearLabel);
 
-    const tags = this.normalizeTags(payload.tags);
+    const tags = normalizeTags(payload.tags);
     const base: OrderItem = {
       id: this.generateItemId(payload.orderId),
       name: title,
@@ -770,10 +749,14 @@ export class OrderService {
       simulationLabel: payload.simulationLabel,
     });
     const timetableYearLabel =
-      this.normalizeTimetableYearLabel(payload.timetableYearLabel) ??
+      normalizeTimetableYearLabel(payload.timetableYearLabel, this.timetableYearService) ??
       payload.train.timetableYearLabel ??
-      this.getTrafficPeriodTimetableYear(payload.trafficPeriodId) ??
-      this.timetableYearFromPlan(plan);
+      getTrafficPeriodTimetableYear(
+        payload.trafficPeriodId,
+        this.trafficPeriodService,
+        this.timetableYearService,
+      ) ??
+      timetableYearFromPlan(plan, this.timetableYearService);
     if (!timetableYearLabel) {
       throw new Error('Fahrplanjahr konnte nicht bestimmt werden.');
     }
@@ -783,7 +766,7 @@ export class OrderService {
     const lastStop = plan.stops[plan.stops.length - 1];
 
     const namePrefix = payload.namePrefix?.trim();
-    const tags = this.normalizeTags(payload.tags);
+    const tags = normalizeTags(payload.tags);
     const itemName = namePrefix ? `${namePrefix} ${payload.train.name}` : payload.train.name;
     const base: OrderItem = {
       id: this.generateItemId(payload.orderId),
@@ -853,15 +836,15 @@ export class OrderService {
       updatedOrder?.items.find((entry) => entry.id === itemId) ?? null;
     if (updatedItem) {
       const section = this.resolveHubSectionForItem(updatedItem);
-      this.publishPlanToHub(plan, updatedItem, section);
+      this.planHub.publishPlanToHub(plan, updatedItem, section);
     }
   }
 
   splitOrderItem(
     payload: SplitOrderItemPayload,
   ): { created: OrderItem; original: OrderItem } {
-    const rangeStart = this.normalizeDateInput(payload.rangeStart);
-    const rangeEnd = this.normalizeDateInput(payload.rangeEnd);
+    const rangeStart = normalizeDateInput(payload.rangeStart);
+    const rangeEnd = normalizeDateInput(payload.rangeEnd);
     if (!rangeStart || !rangeEnd) {
       throw new Error('Ungültiger Datumsbereich.');
     }
@@ -888,35 +871,44 @@ export class OrderService {
         }
 
         const target = this.ensureItemDefaults(order.items[targetIndex]);
-        let validity = this.resolveEffectiveValidity(target);
-        const timetableYearBounds = this.resolveTimetableYearBoundsForItem(target);
+        let validity = resolveEffectiveValidity(
+          target,
+          this.trafficPeriodService,
+          this.timetableYearService,
+        );
+        const timetableYearBounds = resolveTimetableYearBoundsForItem(
+          target,
+          this.trafficPeriodService,
+          this.timetableYearService,
+          (it) => this.getItemTimetableYear(it),
+        );
 
         const customSegments = payload.segments?.length
-          ? this.prepareCustomSegments(payload.segments)
+          ? prepareCustomSegments(payload.segments)
           : null;
 
     if (customSegments) {
-      const withinValidity = this.segmentsWithinRanges(validity, customSegments);
+      const withinValidity = segmentsWithinRanges(validity, customSegments);
       if (!withinValidity) {
         if (
           timetableYearBounds &&
-          this.segmentsWithinYearBounds(customSegments, timetableYearBounds)
+          segmentsWithinYearBounds(customSegments, timetableYearBounds, this.timetableYearService)
         ) {
           validity = [
             { startDate: timetableYearBounds.startIso, endDate: timetableYearBounds.endIso },
           ];
         } else {
-          this.ensureSegmentsWithinValidity(validity, customSegments);
+          ensureSegmentsWithinValidity(validity, customSegments);
         }
       }
     }
 
     const { retained, extracted } = customSegments
       ? {
-          retained: this.subtractSegments(validity, customSegments),
+          retained: subtractSegments(validity, customSegments),
           extracted: customSegments,
         }
-      : this.splitSegments(validity, rangeStart, rangeEnd);
+      : splitSegments(validity, rangeStart, rangeEnd);
 
         if (!extracted.length) {
           throw new Error(
@@ -924,12 +916,12 @@ export class OrderService {
           );
         }
 
-        this.ensureNoSiblingConflict(order.items, target, extracted);
+        ensureNoSiblingConflict(order.items, target, extracted);
 
         const childId = this.generateItemId(order.id);
-        const preparedUpdates = this.prepareUpdatePayload(payload.updates);
+        const preparedUpdates = prepareUpdatePayload(payload.updates);
 
-        let child: OrderItem = this.applyUpdatesToItem(
+        let child: OrderItem = applyUpdatesToItem(
           {
             ...target,
             id: childId,
@@ -947,8 +939,8 @@ export class OrderService {
             preparedUpdates.linkedTrainPlanId,
           );
           if (linkedPlan) {
-            const planStart = this.extractPlanStart(linkedPlan);
-            const planEnd = this.extractPlanEnd(linkedPlan);
+            const planStart = extractPlanStart(linkedPlan);
+            const planEnd = extractPlanEnd(linkedPlan);
             if (planStart) {
               child.start = planStart;
             }
@@ -1021,7 +1013,7 @@ export class OrderService {
     if (hasUpdates && updates) {
       const { linkedTrainPlanId, ...rest } = updates;
       if (Object.keys(rest).length) {
-        this.updateItem(itemId, (item) => this.applyUpdatesToItem(item, rest));
+    this.updateItem(itemId, (item) => applyUpdatesToItem(item, rest));
       }
 
       updatedItem =
@@ -1223,7 +1215,7 @@ export class OrderService {
     child: OrderItem,
     plan: TrainPlan,
   ): TrainPlan['calendar'] {
-    const segments = this.resolveValiditySegments(child);
+    const segments = resolveValiditySegments(child);
     const firstSegment = segments[0];
     const lastSegment = segments[segments.length - 1] ?? firstSegment;
     const fallbackStart =
@@ -1239,7 +1231,7 @@ export class OrderService {
     const validFrom = firstSegment?.startDate ?? fallbackStart;
     const validTo = lastSegment?.endDate ?? fallbackEnd;
     const daysBitmap =
-      plan.calendar.daysBitmap ?? this.buildDaysBitmapFromValidity(segments, validFrom, validTo);
+      plan.calendar.daysBitmap ?? buildDaysBitmapFromValidity(segments, validFrom, validTo);
 
     return {
       validFrom,
@@ -1248,400 +1240,29 @@ export class OrderService {
     };
   }
 
-  private ensureNoSiblingConflict(
-    items: OrderItem[],
-    parent: OrderItem,
-    extracted: OrderItemValiditySegment[],
-  ): void {
-    const siblings = items.filter((item) => item.parentItemId === parent.id);
-    if (!siblings.length) {
-      return;
-    }
-    siblings.forEach((sibling) => {
-      const segments = this.resolveValiditySegments(sibling);
-      extracted.forEach((candidate) => {
-        segments.forEach((segment) => {
-          if (this.segmentsOverlap(candidate, segment)) {
-            throw new Error(
-              `Für den Zeitraum ${segment.startDate} – ${segment.endDate} existiert bereits eine Modifikation. Bitte einen anderen Tag wählen.`,
-            );
-          }
-        });
-      });
-    });
-  }
-
-  private segmentsOverlap(
-    a: OrderItemValiditySegment,
-    b: OrderItemValiditySegment,
-  ): boolean {
-    return !(a.endDate < b.startDate || a.startDate > b.endDate);
-  }
-
   private applyCalendarExclusions(
     trafficPeriodId: string,
     segments: OrderItemValiditySegment[],
   ) {
-    const dates = this.expandSegmentsToDates(segments);
+    const dates = expandSegmentsToDates(segments);
     if (!dates.length) {
       return;
     }
     this.trafficPeriodService.addExclusionDates(trafficPeriodId, dates);
   }
 
-  private expandSegmentsToDates(segments: OrderItemValiditySegment[]): string[] {
-    const result: string[] = [];
-    segments.forEach((segment) => {
-      const start = this.toUtcDate(segment.startDate);
-      const end = this.toUtcDate(segment.endDate);
-      if (!start || !end) {
-        return;
-      }
-      const cursor = new Date(start.getTime());
-      while (cursor <= end) {
-        result.push(this.fromUtcDate(cursor));
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
-      }
-    });
-    return Array.from(new Set(result)).sort();
-  }
-
-  private buildDaysBitmapFromValidity(
-    segments: OrderItemValiditySegment[],
-    fallbackStart: string,
-    fallbackEnd: string,
-  ): string {
-    if (!segments.length) {
-      return this.deriveBitmapFromRange(fallbackStart, fallbackEnd);
-    }
-    const activeWeekdays = new Set<number>();
-    segments.forEach((segment) => {
-      const cursor = this.toUtcDate(segment.startDate);
-      const end = this.toUtcDate(segment.endDate);
-      if (!cursor || !end) {
-        return;
-      }
-      while (cursor <= end) {
-        const weekday = cursor.getUTCDay();
-        activeWeekdays.add(weekday === 0 ? 6 : weekday - 1);
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
-      }
-    });
-    if (!activeWeekdays.size) {
-      return this.deriveBitmapFromRange(fallbackStart, fallbackEnd);
-    }
-    return Array.from({ length: 7 })
-      .map((_, index) => (activeWeekdays.has(index) ? '1' : '0'))
-      .join('');
-  }
-
-  private deriveBitmapFromRange(startIso: string, endIso: string): string {
-    const start = this.toUtcDate(startIso);
-    const end = this.toUtcDate(endIso);
-    if (!start || !end) {
-      return '1111111';
-    }
-    const activeWeekdays = new Set<number>();
-    const cursor = new Date(start.getTime());
-    while (cursor <= end && activeWeekdays.size < 7) {
-      const weekday = cursor.getUTCDay();
-      activeWeekdays.add(weekday === 0 ? 6 : weekday - 1);
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-    return Array.from({ length: 7 })
-      .map((_, index) => (activeWeekdays.has(index) ? '1' : '0'))
-      .join('');
-  }
-
-  private matchesItem(item: OrderItem, filters: OrderFilters): boolean {
-    if (filters.linkedBusinessId) {
-      const businessIds = item.linkedBusinessIds ?? [];
-      if (!businessIds.includes(filters.linkedBusinessId)) {
-        return false;
-      }
-    }
-
-    if (filters.trainStatus !== 'all' || filters.trainNumber.trim()) {
-      if (item.type !== 'Fahrplan') {
-        if (filters.trainStatus !== 'all' || filters.trainNumber.trim() !== '') {
-          return false;
-        }
-      } else {
-        const timetable = item.generatedTimetableRefId
-          ? this.timetableService.getByRefTrainId(item.generatedTimetableRefId)
-          : undefined;
-        const plan = item.linkedTrainPlanId
-          ? this.trainPlanService.getById(item.linkedTrainPlanId)
-          : undefined;
-
-        if (filters.trainStatus !== 'all') {
-          const currentPhase = timetable?.status ?? item.timetablePhase;
-          if (!currentPhase || currentPhase !== filters.trainStatus) {
-            return false;
-          }
-        }
-        if (filters.trainNumber.trim()) {
-          const search = filters.trainNumber.trim().toLowerCase();
-          const trainNumber =
-            timetable?.trainNumber ?? plan?.trainNumber ?? item.name;
-          if (!trainNumber.toLowerCase().includes(search)) {
-            return false;
-          }
-        }
-      }
-    }
-
-    if (filters.timetableYearLabel !== 'all') {
-      const itemYear = this.getItemTimetableYear(item);
-      if (itemYear !== filters.timetableYearLabel) {
-        return false;
-      }
-    }
-
-    if (filters.variantType !== 'all') {
-      const variant = item.variantType ?? 'productive';
-      if (variant !== filters.variantType) {
-        return false;
-      }
-    }
-
-    let referenceDateCache: Date | null | undefined;
-    const resolveReferenceDate = () => {
-      if (referenceDateCache === undefined) {
-        referenceDateCache = this.resolveReferenceDate(item, filters.timelineReference);
-      }
-      return referenceDateCache;
-    };
-
-    if (filters.fpRangeStart || filters.fpRangeEnd) {
-      const referenceDate = resolveReferenceDate();
-      if (!referenceDate) {
-        return false;
-      }
-      if (filters.fpRangeStart) {
-        const boundaryStart = this.parseDateOnly(filters.fpRangeStart);
-        if (boundaryStart && referenceDate < boundaryStart) {
-          return false;
-        }
-      }
-      if (filters.fpRangeEnd) {
-        const boundaryEnd = this.endOfDay(this.parseDateOnly(filters.fpRangeEnd));
-        if (boundaryEnd && referenceDate > boundaryEnd) {
-          return false;
-        }
-      }
-    }
-
-    if (filters.ttrPhase !== 'all') {
-      const phase = this.computeTtrPhase(item, filters.timelineReference, resolveReferenceDate());
-      if (phase !== filters.ttrPhase) {
-        return false;
-      }
-    }
-
-    if (filters.timeRange !== 'all') {
-      if (!this.matchesTimeRange(item, filters.timeRange)) {
-        return false;
-      }
-    }
-
-    if (filters.internalStatus !== 'all') {
-      if (item.internalStatus !== filters.internalStatus) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  private matchesTimeRange(
-    item: OrderItem,
-    range: OrderFilters['timeRange'],
-  ): boolean {
-    if (range === 'all') {
-      return true;
-    }
-    if (!item.start) {
-      return false;
-    }
-    const start = new Date(item.start);
-    if (Number.isNaN(start.getTime())) {
-      return false;
-    }
-    const now = new Date();
-    switch (range) {
-      case 'next4h':
-        return start >= now && start <= this.addHours(now, 4);
-      case 'next12h':
-        return start >= now && start <= this.addHours(now, 12);
-      case 'today':
-        return this.isSameDay(start, now);
-      case 'thisWeek':
-        return this.isSameWeek(start, now);
-      default:
-        return true;
-    }
-  }
-
-  private addHours(date: Date, hours: number): Date {
-    const result = new Date(date.getTime());
-    result.setHours(result.getHours() + hours);
-    return result;
-  }
-
-  private addDays(date: Date, days: number): Date {
-    const result = new Date(date.getTime());
-    result.setDate(result.getDate() + days);
-    return result;
-  }
-
-  private isSameDay(a: Date, b: Date): boolean {
-    return (
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate()
-    );
-  }
-
-  private isSameWeek(date: Date, reference: Date): boolean {
-    const start = this.startOfWeek(reference);
-    const end = this.addDays(start, 7);
-    return date >= start && date < end;
-  }
-
-  private startOfWeek(date: Date): Date {
-    const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const day = result.getDay();
-    const diff = (day + 6) % 7; // Monday start
-    result.setDate(result.getDate() - diff);
-    result.setHours(0, 0, 0, 0);
-    return result;
-  }
-
-  private startOfDay(date: Date): Date {
-    const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    result.setHours(0, 0, 0, 0);
-    return result;
-  }
-
-  private endOfDay(date: Date | null): Date | null {
-    if (!date) {
-      return null;
-    }
-    const result = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-    return result;
-  }
-
-  private parseDateOnly(value?: string | null): Date | null {
-    if (!value) {
-      return null;
-    }
-    const normalized = value.slice(0, 10);
-    if (!normalized) {
-      return null;
-    }
-    const date = new Date(`${normalized}T00:00:00`);
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-    return date;
-  }
-
-  private extractItemStartDate(item: OrderItem): Date | null {
-    if (!item.start) {
-      return null;
-    }
-    const date = new Date(item.start);
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-    return this.startOfDay(date);
-  }
-
-  private resolveTimetableYearStart(item: OrderItem): Date | null {
-    const label = this.getItemTimetableYear(item);
-    try {
-      if (label) {
-        return this.timetableYearService.getYearByLabel(label).start;
-      }
-      const sample = this.extractReferenceSampleDate(item);
-      return sample ? this.timetableYearService.getYearBounds(sample).start : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private resolveTimetableYearBoundsForItem(item: OrderItem): TimetableYearBounds | null {
-    const label = this.getItemTimetableYear(item);
-    if (label) {
-      try {
-        return this.timetableYearService.getYearByLabel(label);
-      } catch {
-        // ignore and try fallbacks
-      }
-    }
-
-    if (item.trafficPeriodId) {
-      const period = this.trafficPeriodService.getById(item.trafficPeriodId);
-      if (period?.timetableYearLabel) {
-        try {
-          return this.timetableYearService.getYearByLabel(period.timetableYearLabel);
-        } catch {
-          // ignore and try sample dates
-        }
-      }
-      const sample =
-        period?.rules?.find((rule) => rule.includesDates?.length)?.includesDates?.[0] ??
-        period?.rules?.[0]?.validityStart;
-      if (sample) {
-        try {
-          return this.timetableYearService.getYearBounds(sample);
-        } catch {
-          // ignore
-        }
-      }
-    }
-
-    const sampleDate =
-      item.validity?.[0]?.startDate ??
-      item.start ??
-      item.end ??
-      item.originalTimetable?.calendar?.validFrom ??
-      undefined;
-    if (sampleDate) {
-      try {
-        return this.timetableYearService.getYearBounds(sampleDate);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  private extractReferenceSampleDate(item: OrderItem): Date | null {
-    const candidate =
-      item.validity?.[0]?.startDate ??
-      item.start ??
-      item.end ??
-      item.originalTimetable?.calendar?.validFrom ??
-      null;
-    return candidate ? new Date(candidate) : null;
-  }
-
   private resolveReferenceDate(
     item: OrderItem,
     reference: OrderTimelineReference,
   ): Date | null {
-    const validityStart = this.parseDateOnly(item.validity?.[0]?.startDate);
-    const timetableStart = this.parseDateOnly(item.originalTimetable?.calendar?.validFrom);
-    const itemStart = this.extractItemStartDate(item);
-    if (reference === 'fpDay') {
-      return validityStart ?? itemStart ?? timetableStart;
-    }
-    if (reference === 'fpYear') {
-      return this.resolveTimetableYearStart(item);
-    }
-    return itemStart ?? validityStart ?? timetableStart;
+    return resolveReferenceDate(item, reference, (it) =>
+      resolveTimetableYearStart(
+        it,
+        this.timetableYearService,
+        (entity) => this.getItemTimetableYear(entity),
+        (entity) => extractReferenceSampleDate(entity),
+      ),
+    );
   }
 
   private computeTtrPhase(
@@ -1654,7 +1275,7 @@ export class OrderService {
     if (!referenceDate) {
       return 'unknown';
     }
-    const today = this.startOfDay(new Date());
+    const today = startOfDay(new Date());
     const diffDays = Math.floor((referenceDate.getTime() - today.getTime()) / DAY_IN_MS);
     if (Number.isNaN(diffDays)) {
       return 'unknown';
@@ -1802,170 +1423,23 @@ export class OrderService {
   }
 
   linkTrainPlanToItem(planId: string, itemId: string) {
-    const plan = this.trainPlanService.getById(planId);
-    let updatedItem: OrderItem | null = null;
-    this._orders.update((orders) =>
-      orders.map((order) => {
-        let mutated = false;
-        const items = order.items.map((item) => {
-          if (item.id === itemId) {
-            mutated = true;
-            const base: OrderItem = {
-              ...item,
-              linkedTrainPlanId: planId,
-            };
-            const next = plan ? this.applyPlanDetailsToItem(base, plan) : base;
-            updatedItem = next;
-            return next;
-          }
-          if (item.linkedTrainPlanId === planId && item.id !== itemId) {
-            mutated = true;
-            const next = { ...item };
-            delete next.linkedTrainPlanId;
-            return next;
-          }
-          return item;
-        });
-        return mutated ? { ...order, items } : order;
-      }),
-    );
-
-    this.trainPlanService.linkOrderItem(planId, itemId);
-
-    if (plan && updatedItem) {
-      const draftItem: OrderItem = updatedItem;
-      const refOverride =
-        draftItem.timetablePhase === 'bedarf'
-          ? draftItem.generatedTimetableRefId
-          : undefined;
-      const timetable = this.ensureTimetableForPlan(plan, draftItem, refOverride);
-      if (timetable) {
-        this.updateItemTimetableMetadata(itemId, timetable);
-        this.syncTimetableCalendarArtifacts(timetable.refTrainId);
-      }
-    }
+    this.planLinks.linkTrainPlanToItem(planId, itemId);
   }
 
   unlinkTrainPlanFromItem(planId: string, itemId: string) {
-    this.updateItem(itemId, (item) => {
-      if (item.linkedTrainPlanId !== planId) {
-        return item;
-      }
-      const next = { ...item };
-      delete next.linkedTrainPlanId;
-      return next;
-    });
-    this.trainPlanService.unlinkOrderItem(planId);
+    this.planLinks.unlinkTrainPlanFromItem(planId, itemId);
   }
 
   createSimulationVariant(orderId: string, itemId: string, label?: string): OrderItem | null {
-    const order = this.getOrderById(orderId);
-    if (!order) {
-      throw new Error('Auftrag nicht gefunden.');
-    }
-    const baseItem = order.items.find((it) => it.id === itemId);
-    if (!baseItem) {
-      throw new Error('Auftragsposition nicht gefunden.');
-    }
-    if (baseItem.variantType === 'simulation') {
-      throw new Error('Simulationen können nicht weiter verzweigt werden.');
-    }
-    const variantGroupId = baseItem.variantGroupId ?? baseItem.id;
-    const variantLabel = label ?? 'Simulation';
-
-    let clonedPlanId: string | undefined;
-    if (baseItem.linkedTrainPlanId) {
-      const clone = this.trainPlanService.createPlanVariant(
-        baseItem.linkedTrainPlanId,
-        'simulation',
-        variantLabel,
-      );
-      clonedPlanId = clone.id;
-    }
-
-    const newItem: OrderItem = {
-      ...baseItem,
-      id: this.generateItemId(orderId),
-      name: `${baseItem.name} · ${variantLabel}`,
-      variantType: 'simulation',
-      variantOfItemId: baseItem.id,
-      variantGroupId,
-      variantLabel,
-      linkedTrainPlanId: clonedPlanId ?? baseItem.linkedTrainPlanId,
-      timetablePhase: 'bedarf',
-      linkedBusinessIds: baseItem.linkedBusinessIds ? [...baseItem.linkedBusinessIds] : undefined,
-      mergeStatus: 'open',
-    };
-    delete (newItem as Partial<OrderItem>).generatedTimetableRefId;
-
-    this.appendItems(orderId, [newItem]);
-    return newItem;
+    return this.variants.createSimulationVariant(orderId, itemId, label);
   }
 
   promoteSimulationToProductive(orderId: string, variantItemId: string): OrderItem | null {
-    const order = this.getOrderById(orderId);
-    if (!order) {
-      throw new Error('Auftrag nicht gefunden.');
-    }
-    const candidate = order.items.find((it) => it.id === variantItemId);
-    if (!candidate || candidate.variantType !== 'simulation') {
-      throw new Error('Nur Simulationen können promotet werden.');
-    }
-    const groupId = candidate.variantGroupId ?? candidate.variantOfItemId ?? candidate.id;
-    const phase = candidate.timetablePhase ?? 'bedarf';
-    if (phase !== 'bedarf') {
-      throw new Error('Promote ist nur im Draft möglich.');
-    }
-
-    const updatedItems: OrderItem[] = order.items.map((item) => {
-      if (item.variantGroupId === groupId && (item.variantType ?? 'productive') === 'productive') {
-        return { ...item, variantType: 'simulation' as const, variantOfItemId: candidate.id };
-      }
-      if (item.id === candidate.id) {
-        return {
-          ...item,
-          variantType: 'productive' as const,
-          variantOfItemId: undefined,
-          variantLabel: candidate.variantLabel ?? 'Produktiv',
-        };
-      }
-      return item;
-    });
-
-    this._orders.update((orders) =>
-      orders.map((ord) => (ord.id === orderId ? { ...ord, items: updatedItems } : ord)),
-    );
-
-    return updatedItems.find((it) => it.id === candidate.id) ?? null;
+    return this.variants.promoteSimulationToProductive(orderId, variantItemId);
   }
 
-  mergeSimulationIntoProductive(orderId: string, simulationItemId: string): { type: 'updated'; target: OrderItem } | { type: 'created'; target: OrderItem } | { type: 'modification'; target: OrderItem } {
-    const order = this.getOrderById(orderId);
-    if (!order) {
-      throw new Error('Auftrag nicht gefunden.');
-    }
-    const sim = order.items.find((it) => it.id === simulationItemId);
-    if (!sim || sim.variantType !== 'simulation') {
-      throw new Error('Nur Simulationen können abgeglichen werden.');
-    }
-
-    const base = this.findProductiveBase(order, sim);
-    if (!base) {
-      const created = this.copySimulationAsProductive(orderId, sim);
-      this.markSimulationMerged(orderId, sim.id, created.id, 'applied');
-      return { type: 'created', target: created };
-    }
-
-    const phase = base.timetablePhase ?? 'bedarf';
-    if (phase === 'bedarf') {
-      const updated = this.updateProductiveFromSimulation(orderId, base, sim);
-      this.markSimulationMerged(orderId, sim.id, updated.id, 'applied');
-      return { type: 'updated', target: updated };
-    }
-
-    const modification = this.createModificationFromSimulation(orderId, base, sim);
-    this.markSimulationMerged(orderId, sim.id, modification.id, 'proposed');
-    return { type: 'modification', target: modification };
+  mergeSimulationIntoProductive(orderId: string, simulationItemId: string): OrderVariantMergeResult {
+    return this.variants.mergeSimulationIntoProductive(orderId, simulationItemId);
   }
 
   submitOrderItems(orderId: string, itemIds: string[]): void {
@@ -2012,7 +1486,7 @@ export class OrderService {
         const prepared = this.prepareItemsForInsertion(items);
         return {
           ...order,
-          items: this.normalizeItemsAfterChange([...order.items, ...prepared]),
+          items: normalizeItemsAfterChange([...order.items, ...prepared]),
         };
       }),
     );
@@ -2023,14 +1497,16 @@ export class OrderService {
   }
 
   private prepareItemsForInsertion(items: OrderItem[]): OrderItem[] {
-    return items.map((item) => this.ensureItemDefaults(item));
+    return items.map((item) => ensureItemDefaults(item));
   }
 
   private initializeOrder(order: Order): Order {
-    const prepared = order.items.map((item) => this.ensureItemDefaults(item));
+    const prepared = order.items.map((item) => ensureItemDefaults(item));
     const customer = this.resolveCustomerName(order.customerId, order.customer);
     const timetableYearLabel =
-      order.timetableYearLabel ?? this.deriveOrderTimetableYear(prepared) ?? undefined;
+      order.timetableYearLabel ??
+      deriveOrderTimetableYear(prepared, (item) => this.getItemTimetableYear(item)) ??
+      undefined;
     const processStatus: OrderProcessStatus =
       order.processStatus ??
       (prepared.length ? 'planung' : 'auftrag');
@@ -2039,7 +1515,7 @@ export class OrderService {
       customer,
       timetableYearLabel,
       processStatus,
-      items: this.normalizeItemsAfterChange(prepared),
+      items: normalizeItemsAfterChange(prepared),
     };
   }
 
@@ -2091,101 +1567,7 @@ export class OrderService {
   }
 
   private parseSearchTokens(search: string): OrderSearchTokens {
-    const tokens: OrderSearchTokens = {
-      textTerms: [],
-      tags: [],
-      responsibles: [],
-      customers: [],
-    };
-    const trimmed = search.trim();
-    if (!trimmed.length) {
-      return tokens;
-    }
-    const segments = this.tokenizeSearch(trimmed);
-    segments.forEach((segment) => {
-      const lower = segment.toLowerCase();
-      if (lower.startsWith('tag:')) {
-        const value = this.stripQuotes(segment.slice(4).trim());
-        if (value) {
-          tokens.tags.push(value);
-        }
-        return;
-      }
-      if (segment.startsWith('#')) {
-        const value = this.stripQuotes(segment.slice(1).trim());
-        if (value) {
-          tokens.tags.push(value);
-        }
-        return;
-      }
-      if (
-        lower.startsWith('resp:') ||
-        lower.startsWith('responsible:') ||
-        segment.startsWith('@')
-      ) {
-        const suffix = segment.startsWith('@')
-          ? segment.slice(1)
-          : segment.slice(segment.indexOf(':') + 1);
-        const value = this.stripQuotes(suffix.trim()).toLowerCase();
-        if (value) {
-          tokens.responsibles.push(value);
-        }
-        return;
-      }
-      if (lower.startsWith('cust:') || lower.startsWith('kunde:')) {
-        const value = this.stripQuotes(
-          segment.slice(segment.indexOf(':') + 1).trim(),
-        ).toLowerCase();
-        if (value) {
-          tokens.customers.push(value);
-        }
-        return;
-      }
-      tokens.textTerms.push(this.stripQuotes(segment).toLowerCase());
-    });
-
-    if (
-      !tokens.textTerms.length &&
-      !tokens.tags.length &&
-      !tokens.responsibles.length &&
-      !tokens.customers.length
-    ) {
-      tokens.textTerms.push(trimmed.toLowerCase());
-    }
-
-    return tokens;
-  }
-
-  private tokenizeSearch(search: string): string[] {
-    const segments: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < search.length; i += 1) {
-      const char = search[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-        continue;
-      }
-      if (/\s/.test(char) && !inQuotes) {
-        if (current.trim().length) {
-          segments.push(current.trim());
-          current = '';
-        }
-        continue;
-      }
-      current += char;
-    }
-    if (current.trim().length) {
-      segments.push(current.trim());
-    }
-    return segments;
-  }
-
-  private stripQuotes(value: string): string {
-    if (value.startsWith('"') && value.endsWith('"') && value.length > 1) {
-      return value.slice(1, -1);
-    }
-    return value;
+    return parseSearchTokens(search);
   }
 
   private resolveCustomerName(
@@ -2205,8 +1587,8 @@ export class OrderService {
   private ensureItemDefaults(item: OrderItem): OrderItem {
     const validity =
       item.validity && item.validity.length
-        ? this.normalizeSegments(item.validity)
-        : this.deriveDefaultValidity(item);
+        ? normalizeSegments(item.validity)
+        : deriveDefaultValidity(item);
     const originalTimetable = item.originalTimetable
       ? {
           ...item.originalTimetable,
@@ -2323,180 +1705,7 @@ export class OrderService {
     });
   }
 
-  private deriveDefaultValidity(item: OrderItem): OrderItemValiditySegment[] {
-    if (!item.start && !item.end) {
-      return [];
-    }
-    const startDate = item.start ? item.start.slice(0, 10) : item.end?.slice(0, 10);
-    const endDate = item.end ? item.end.slice(0, 10) : startDate;
-    if (!startDate || !endDate) {
-      return [];
-    }
-    if (!this.isValidDate(startDate) || !this.isValidDate(endDate)) {
-      return [];
-    }
-    const normalizedStart =
-      startDate <= endDate ? startDate : endDate;
-    const normalizedEnd =
-      endDate >= startDate ? endDate : startDate;
-    return [{ startDate: normalizedStart, endDate: normalizedEnd }];
-  }
 
-  private splitSegments(
-    segments: OrderItemValiditySegment[],
-    rangeStart: string,
-    rangeEnd: string,
-  ): { retained: OrderItemValiditySegment[]; extracted: OrderItemValiditySegment[] } {
-    const retained: OrderItemValiditySegment[] = [];
-    const extracted: OrderItemValiditySegment[] = [];
-
-    segments.forEach((segment) => {
-      const segStart = segment.startDate;
-      const segEnd = segment.endDate;
-
-      if (rangeEnd < segStart || rangeStart > segEnd) {
-        retained.push(segment);
-        return;
-      }
-
-      const overlapStart = rangeStart > segStart ? rangeStart : segStart;
-      const overlapEnd = rangeEnd < segEnd ? rangeEnd : segEnd;
-
-      if (overlapStart > overlapEnd) {
-        retained.push(segment);
-        return;
-      }
-
-      extracted.push({ startDate: overlapStart, endDate: overlapEnd });
-
-      if (segStart < overlapStart) {
-        retained.push({
-          startDate: segStart,
-          endDate: this.addDaysToDateString(overlapStart, -1),
-        });
-      }
-
-      if (overlapEnd < segEnd) {
-        retained.push({
-          startDate: this.addDaysToDateString(overlapEnd, 1),
-          endDate: segEnd,
-        });
-      }
-    });
-
-    return {
-      retained: this.normalizeSegments(retained),
-      extracted: this.normalizeSegments(extracted),
-    };
-  }
-
-  private normalizeSegments(
-    segments: OrderItemValiditySegment[],
-  ): OrderItemValiditySegment[] {
-    if (!segments.length) {
-      return [];
-    }
-    const sorted = [...segments].sort((a, b) =>
-      a.startDate.localeCompare(b.startDate),
-    );
-    const merged: OrderItemValiditySegment[] = [];
-    let current = { ...sorted[0] };
-    for (let i = 1; i < sorted.length; i++) {
-      const next = sorted[i];
-      const dayAfterCurrentEnd = this.addDaysToDateString(current.endDate, 1);
-      if (dayAfterCurrentEnd >= next.startDate) {
-        const maxEnd =
-          current.endDate > next.endDate ? current.endDate : next.endDate;
-        current = { startDate: current.startDate, endDate: maxEnd };
-      } else {
-        merged.push(current);
-        current = { ...next };
-      }
-    }
-    merged.push(current);
-    return merged;
-  }
-
-  private addDaysToDateString(date: string, days: number): string {
-    const utc = this.toUtcDate(date);
-    if (!utc) {
-      return date;
-    }
-    utc.setUTCDate(utc.getUTCDate() + days);
-    return this.fromUtcDate(utc);
-  }
-
-  private toUtcDate(value: string): Date | null {
-    if (!this.isValidDate(value)) {
-      return null;
-    }
-    const [year, month, day] = value.split('-').map(Number);
-    return new Date(Date.UTC(year, month - 1, day));
-  }
-
-  private fromUtcDate(date: Date): string {
-    return [
-      date.getUTCFullYear().toString().padStart(4, '0'),
-      (date.getUTCMonth() + 1).toString().padStart(2, '0'),
-      date.getUTCDate().toString().padStart(2, '0'),
-    ].join('-');
-  }
-
-  private isValidDate(value: string): boolean {
-    return /^\d{4}-\d{2}-\d{2}$/.test(value);
-  }
-
-  private normalizeDateInput(value: string): string | null {
-    if (!value) {
-      return null;
-    }
-    const trimmed = value.trim();
-    if (!this.isValidDate(trimmed)) {
-      return null;
-    }
-    return trimmed;
-  }
-
-  private requireDateInput(value: string): string {
-    const normalized = this.normalizeDateInput(value);
-    if (!normalized) {
-      throw new Error('Ungültiges Datum.');
-    }
-    return normalized;
-  }
-
-  private prepareUpdatePayload(
-    updates: Partial<OrderItemUpdateData> | undefined,
-  ): Partial<OrderItemUpdateData> {
-    if (!updates) {
-      return {};
-    }
-    const clone: Partial<OrderItemUpdateData> = { ...updates };
-    if (updates.linkedBusinessIds) {
-      clone.linkedBusinessIds = [...updates.linkedBusinessIds];
-    }
-    if ('tags' in updates) {
-      clone.tags = updates.tags ? [...updates.tags] : [];
-    }
-    return clone;
-  }
-
-  private applyUpdatesToItem(
-    item: OrderItem,
-    updates: Partial<OrderItemUpdateData>,
-  ): OrderItem {
-    if (!updates || Object.keys(updates).length === 0) {
-      return item;
-    }
-    const next: OrderItem = { ...item, ...updates };
-    if (updates.linkedBusinessIds) {
-      next.linkedBusinessIds = [...updates.linkedBusinessIds];
-    }
-    if ('tags' in updates) {
-      next.tags = updates.tags ? [...updates.tags] : [];
-    }
-    return next;
-  }
 
   private generateOrderId(): string {
     return `A-${Date.now().toString(36).toUpperCase()}`;
@@ -2534,58 +1743,9 @@ export class OrderService {
     };
   }
 
-  private normalizeTags(tags?: string[]): string[] | undefined {
-    if (!tags?.length) {
-      return undefined;
-    }
-    return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
-  }
-
-  private normalizeCalendarDates(dates: string[]): string[] {
-    if (!dates?.length) {
-      return [];
-    }
-    return Array.from(
-      new Set(
-        dates
-          .map((date) => date?.slice(0, 10))
-          .filter(
-            (date): date is string =>
-              !!date && /^\d{4}-\d{2}-\d{2}$/.test(date),
-          ),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-  }
-
-  private extractPlanStart(plan: { stops: TrainPlan['stops'] }): string | undefined {
-    const sorted = [...plan.stops].sort((a, b) => a.sequence - b.sequence);
-    for (const stop of sorted) {
-      if (stop.departureTime) {
-        return stop.departureTime;
-      }
-      if (stop.arrivalTime) {
-        return stop.arrivalTime;
-      }
-    }
-    return undefined;
-  }
-
-  private extractPlanEnd(plan: { stops: TrainPlan['stops'] }): string | undefined {
-    const sorted = [...plan.stops].sort((a, b) => b.sequence - a.sequence);
-    for (const stop of sorted) {
-      if (stop.arrivalTime) {
-        return stop.arrivalTime;
-      }
-      if (stop.departureTime) {
-        return stop.departureTime;
-      }
-    }
-    return undefined;
-  }
-
   private applyPlanDetailsToItem(item: OrderItem, plan: TrainPlan): OrderItem {
-    const start = this.extractPlanStart(plan);
-    const end = this.extractPlanEnd(plan);
+    const start = extractPlanStart(plan);
+    const end = extractPlanEnd(plan);
     const firstStop = plan.stops[0];
     const lastStop = plan.stops[plan.stops.length - 1];
 
@@ -2632,7 +1792,7 @@ export class OrderService {
     timetableYearLabel?: string,
     responsible?: string,
   ): string {
-    const normalizedDates = this.normalizeCalendarDates(dates);
+    const normalizedDates = normalizeCalendarDates(dates);
     if (!normalizedDates.length) {
       throw new Error('Referenzkalender enthält keine aktiven Tage.');
     }
@@ -2657,7 +1817,10 @@ export class OrderService {
     const baseYear =
       sortedYears[0] ?? Number.parseInt(normalizedDates[0].slice(0, 4), 10);
     const calendarName = this.buildPlanCalendarName(orderId, namePrefix);
-    const normalizedYearLabel = this.normalizeTimetableYearLabel(timetableYearLabel);
+    const normalizedYearLabel = normalizeTimetableYearLabel(
+      timetableYearLabel,
+      this.timetableYearService,
+    );
 
     const rules = sortedYears.map((year, index) => ({
       name: `${calendarName} ${year}`,
@@ -2715,7 +1878,7 @@ export class OrderService {
     const refTrainId = refTrainIdOverride ?? this.generateTimetableRefId(plan);
     const existing = this.timetableService.getByRefTrainId(refTrainId);
     if (existing) {
-      const stops = this.toTimetableStops(plan.stops);
+      const stops = toTimetableStops(plan.stops);
       let updated = existing;
       if (stops.length >= 2) {
         updated = this.timetableService.replaceStops(refTrainId, stops);
@@ -2724,14 +1887,14 @@ export class OrderService {
         ? { ...plan.calendar }
         : {
             validFrom:
-              this.extractPlanStart(plan)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+              extractPlanStart(plan)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
             daysBitmap: '1111111',
           };
       updated = this.timetableService.updateCalendar(refTrainId, calendar);
-      this.publishPlanToHub(plan, item, 'commercial');
+      this.planHub.publishPlanToHub(plan, item, 'commercial');
       return updated;
     }
-    const stops = this.toTimetableStops(plan.stops);
+    const stops = toTimetableStops(plan.stops);
     if (stops.length < 2) {
       return null;
     }
@@ -2739,7 +1902,7 @@ export class OrderService {
       ? { ...plan.calendar }
       : {
           validFrom:
-            this.extractPlanStart(plan)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+            extractPlanStart(plan)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
           daysBitmap: '1111111',
         };
     const payload = {
@@ -2763,7 +1926,7 @@ export class OrderService {
 
     try {
       const created = this.timetableService.createTimetable(payload);
-      this.publishPlanToHub(plan, item, 'commercial');
+      this.planHub.publishPlanToHub(plan, item, 'commercial');
       return created;
     } catch (error) {
       console.error('Timetable creation failed', error);
@@ -2833,25 +1996,7 @@ export class OrderService {
   }
 
   private syncTimetableCalendarArtifacts(refTrainId: string | undefined): void {
-    if (!refTrainId) {
-      return;
-    }
-    const relatedItems = this.collectItemsForTimetable(refTrainId);
-    if (!relatedItems.length) {
-      return;
-    }
-    const baseItem = this.findBaseItem(relatedItems);
-    const period = baseItem?.trafficPeriodId
-      ? this.trafficPeriodService.getById(baseItem.trafficPeriodId)
-      : undefined;
-
-    const variants = this.buildCalendarVariants(baseItem, period);
-    if (variants.length) {
-      this.timetableService.updateCalendarVariants(refTrainId, variants);
-    }
-
-    const modifications = this.buildCalendarModifications(relatedItems, period);
-    this.timetableService.updateCalendarModifications(refTrainId, modifications);
+    this.planLinks.syncTimetableCalendarArtifacts(refTrainId);
   }
 
   private collectItemsForTimetable(refTrainId: string): OrderItem[] {
@@ -2864,330 +2009,14 @@ export class OrderService {
     return items.find((item) => !item.parentItemId) ?? items[0];
   }
 
-  private buildCalendarVariants(
-    baseItem: OrderItem | undefined,
-    period: TrafficPeriod | undefined,
-  ): TimetableCalendarVariant[] {
-    if (period) {
-      return this.buildVariantsFromTrafficPeriod(period);
-    }
-    if (!baseItem) {
-      return [];
-    }
-    const segments = this.resolveValiditySegments(baseItem);
-    if (!segments.length) {
-      return [];
-    }
-    return segments.map((segment, index) => ({
-      id: `${baseItem.id}-segment-${index}`,
-      type: 'series',
-      description: baseItem.name ?? 'Referenzkalender',
-      validFrom: segment.startDate,
-      validTo: segment.endDate,
-      appliesTo: 'both',
-    }));
-  }
-
-  private buildVariantsFromTrafficPeriod(
-    period: TrafficPeriod,
-  ): TimetableCalendarVariant[] {
-    if (!period.rules?.length) {
-      return [];
-    }
-    return period.rules.map((rule, index) => ({
-      id: rule.id ?? `${period.id}-rule-${index}`,
-      type: rule.variantType ?? 'series',
-      description: rule.name ?? period.name,
-      validFrom: rule.validityStart,
-      validTo: rule.validityEnd,
-      daysOfWeek: this.daysFromBitmap(rule.daysBitmap),
-      dates: rule.includesDates?.length ? [...rule.includesDates] : undefined,
-      appliesTo: rule.appliesTo ?? 'both',
-      variantNumber: rule.variantNumber ?? `${index}`.padStart(2, '0'),
-      reason: rule.reason ?? period.description,
-    }));
-  }
-
-  private buildCalendarModifications(
-    items: OrderItem[],
-    period: TrafficPeriod | undefined,
-  ): TimetableCalendarModification[] {
-    const modifications: TimetableCalendarModification[] = [];
-
-    period?.rules?.forEach((rule) => {
-      rule.excludesDates?.forEach((date) => {
-        modifications.push({
-          date,
-          description: `${rule.name ?? period.name} · Ausfall`,
-          type: 'cancelled',
-          notes: period.description,
-        });
-      });
-    });
-
-    items
-      .filter((item) => !!item.parentItemId)
-      .forEach((child) => {
-        this.resolveValiditySegments(child).forEach((segment, idx) => {
-          const range =
-            segment.endDate && segment.endDate !== segment.startDate
-              ? `${segment.startDate} – ${segment.endDate}`
-              : segment.startDate;
-          modifications.push({
-            date: segment.startDate,
-            description: `${child.name ?? 'Sub-Auftragsposition'} (${range})`,
-            type: 'modified_timetable',
-            notes: child.deviation ?? `Child ${child.id}-${idx}`,
-          });
-        });
-      });
-
-    return modifications;
-  }
-
-  private resolveValiditySegments(item: OrderItem | undefined): OrderItemValiditySegment[] {
-    if (!item) {
-      return [];
-    }
-    if (item.validity?.length) {
-      return item.validity;
-    }
-    return this.deriveDefaultValidity(item);
-  }
-
-  private resolveEffectiveValidity(item: OrderItem): OrderItemValiditySegment[] {
-    if (item.validity?.length) {
-      return this.normalizeSegments(item.validity);
-    }
-
-    if (item.trafficPeriodId) {
-      const period = this.trafficPeriodService.getById(item.trafficPeriodId);
-      if (period?.rules?.length) {
-        let minStart: string | null = null;
-        let maxEnd: string | null = null;
-        period.rules.forEach((rule) => {
-          const start =
-            rule.validityStart ??
-            rule.includesDates?.[0] ??
-            rule.excludesDates?.[0] ??
-            null;
-          const end =
-            rule.validityEnd ??
-            rule.includesDates?.[rule.includesDates.length - 1] ??
-            rule.excludesDates?.[rule.excludesDates.length - 1] ??
-            start;
-          if (start) {
-            minStart = minStart ? (start < minStart ? start : minStart) : start;
-          }
-          if (end) {
-            maxEnd = maxEnd ? (end > maxEnd ? end : maxEnd) : end;
-          }
-        });
-        if (minStart && maxEnd) {
-          return this.normalizeSegments([{ startDate: minStart, endDate: maxEnd }]);
-        }
-      }
-      if (period?.timetableYearLabel) {
-        try {
-          const bounds = this.timetableYearService.getYearByLabel(period.timetableYearLabel);
-          return [{ startDate: bounds.startIso, endDate: bounds.endIso }];
-        } catch {
-          // ignore and fall through
-        }
+  private findOrderByItemId(itemId: string): { order: Order; item: OrderItem } | null {
+    for (const order of this._orders()) {
+      const item = order.items.find((it) => it.id === itemId);
+      if (item) {
+        return { order, item };
       }
     }
-
-    if (item.timetableYearLabel) {
-      try {
-        const bounds = this.timetableYearService.getYearByLabel(item.timetableYearLabel);
-        return [{ startDate: bounds.startIso, endDate: bounds.endIso }];
-      } catch {
-        // ignore and fall through
-      }
-    }
-
-    const derived = this.deriveDefaultValidity(item);
-    return derived.length ? derived : [];
-  }
-
-  private daysFromBitmap(bitmap?: string): string[] | undefined {
-    if (!bitmap || bitmap.length !== 7) {
-      return undefined;
-    }
-    const map = ['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'];
-    const result: string[] = [];
-    bitmap.split('').forEach((bit, index) => {
-      if (bit === '1') {
-        result.push(map[index]);
-      }
-    });
-    return result.length ? result : undefined;
-  }
-
-  private toTimetableStops(stops: TrainPlan['stops']): TimetableStopInput[] {
-    return stops.map((stop) => ({
-      sequence: stop.sequence,
-      type: stop.type,
-      locationCode: stop.locationCode ?? `LOC-${stop.sequence}`,
-      locationName: stop.locationName ?? stop.locationCode ?? 'Unbekannter Halt',
-      countryCode: stop.countryCode,
-      arrivalTime: this.formatIsoToTime(stop.arrivalTime),
-      departureTime: this.formatIsoToTime(stop.departureTime),
-      arrivalOffsetDays: stop.arrivalOffsetDays,
-      departureOffsetDays: stop.departureOffsetDays,
-      dwellMinutes: stop.dwellMinutes,
-      activities: stop.activities?.length ? stop.activities : ['0001'],
-      platform: stop.platform,
-      notes: stop.notes,
-    }));
-  }
-
-  private formatIsoToTime(value: string | undefined): string | undefined {
-    if (!value) {
-      return undefined;
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return undefined;
-    }
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  }
-
-  private publishPlanToHub(
-    plan: TrainPlan,
-    item: OrderItem,
-    section: TimetableHubSectionKey,
-  ): void {
-    const calendarDays = this.collectPlanCalendarDays(plan);
-    if (!calendarDays.length) {
-      return;
-    }
-    const timetableYearLabel =
-      item.timetableYearLabel ??
-      this.getItemTimetableYear(item) ??
-      this.timetableYearService.getYearBounds(
-        plan.calendar?.validFrom ?? calendarDays[0],
-      ).label;
-    const stops = this.planStopsToSummaries(plan);
-    this.timetableHubService.registerPlanUpdate({
-      refTrainId: this.generateTimetableRefId(plan),
-      trainNumber: plan.trainNumber,
-      title: plan.title,
-      timetableYearLabel,
-      calendarDays,
-      section,
-      stops,
-      notes: plan.notes,
-      vehicles: plan.rollingStock,
-      technical: this.toHubTechnicalSummary(plan.technical),
-      routeMetadata: this.toHubRouteMetadata(plan.routeMetadata),
-    });
-  }
-
-  private collectPlanCalendarDays(plan: TrainPlan): string[] {
-    const validFrom =
-      plan.calendar?.validFrom ?? this.extractPlanStart(plan)?.slice(0, 10);
-    if (!validFrom) {
-      return [];
-    }
-    const validTo = plan.calendar?.validTo ?? validFrom;
-    const daysBitmap = plan.calendar?.daysBitmap ?? '1111111';
-    return this.expandPlanCalendarDays(validFrom, validTo, daysBitmap);
-  }
-
-  private expandPlanCalendarDays(validFrom: string, validTo: string, bitmap: string): string[] {
-    const start = new Date(validFrom);
-    const end = new Date(validTo);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return [];
-    }
-    const normalized = bitmap.padEnd(7, '1').slice(0, 7);
-    const result: string[] = [];
-    const cursor = new Date(start);
-    while (cursor <= end && result.length <= 1096) {
-      const weekday = cursor.getDay() === 0 ? 6 : cursor.getDay() - 1;
-      if (normalized[weekday] === '1') {
-        result.push(cursor.toISOString().slice(0, 10));
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return result;
-  }
-
-  private planStopsToSummaries(plan: TrainPlan): TimetableHubStopSummary[] {
-    let lastHoldReason = plan.stops[0]?.holdReason?.trim() || 'Planhalt';
-    let lastResponsible = plan.responsibleRu ?? 'TTT';
-    let lastVehicleInfo = plan.rollingStock?.designation ?? 'n/a';
-    return plan.stops.map((stop) => {
-      const holdReason = stop.holdReason?.trim() || lastHoldReason;
-      const responsible = stop.responsibleRu?.trim() || lastResponsible;
-      const vehicleInfo = stop.vehicleInfo?.trim() || lastVehicleInfo;
-      lastHoldReason = holdReason;
-      lastResponsible = responsible;
-      lastVehicleInfo = vehicleInfo;
-      return {
-        sequence: stop.sequence ?? 0,
-        locationName: stop.locationName ?? stop.locationCode ?? 'Unbekannt',
-        type: stop.type,
-        arrivalTime: stop.arrivalTime,
-        departureTime: stop.departureTime,
-        commercialArrivalTime: stop.arrivalTime,
-        commercialDepartureTime: stop.departureTime,
-        operationalArrivalTime: stop.arrivalTime,
-        operationalDepartureTime: stop.departureTime,
-        holdReason,
-        responsibleRu: responsible,
-        vehicleInfo,
-      };
-    });
-  }
-
-  private toHubTechnicalSummary(
-    technical?: TrainPlan['technical'],
-  ): TimetableHubTechnicalSummary | undefined {
-    if (!technical) {
-      return undefined;
-    }
-    const summary: TimetableHubTechnicalSummary = {
-      trainType: technical.trainType,
-      maxSpeed: technical.maxSpeed,
-      lengthMeters: technical.lengthMeters,
-      weightTons: technical.weightTons,
-      traction: technical.traction,
-      energyType: technical.energyType,
-      brakeType: technical.brakeType,
-      etcsLevel: technical.etcsLevel,
-    };
-    const hasValue = Object.values(summary).some((value) => {
-      if (typeof value === 'number') {
-        return !Number.isNaN(value);
-      }
-      return Boolean(value && value.toString().trim().length);
-    });
-    return hasValue ? summary : undefined;
-  }
-
-  private toHubRouteMetadata(
-    metadata?: TrainPlan['routeMetadata'],
-  ): TimetableHubRouteMetadata | undefined {
-    if (!metadata) {
-      return undefined;
-    }
-    const normalized: TimetableHubRouteMetadata = {
-      originBorderPoint: metadata.originBorderPoint?.trim() || undefined,
-      destinationBorderPoint: metadata.destinationBorderPoint?.trim() || undefined,
-      borderNotes: metadata.borderNotes?.trim() || undefined,
-    };
-    if (
-      !normalized.originBorderPoint &&
-      !normalized.destinationBorderPoint &&
-      !normalized.borderNotes
-    ) {
-      return undefined;
-    }
-    return normalized;
+    return null;
   }
 
   private resolveHubSectionForItem(item: OrderItem): TimetableHubSectionKey {
@@ -3215,15 +2044,6 @@ export class OrderService {
       return plan.pathRequestId.replace(/^PR/i, 'OPN');
     }
     return `OPN-${plan.trainNumber}`;
-  }
-
-  private combineDateTime(date: string, time: string): string {
-    const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(time);
-    const [year, month, day] = date.split('-').map(Number);
-    const hours = match ? Number.parseInt(match[1], 10) : 0;
-    const minutes = match ? Number.parseInt(match[2], 10) : 0;
-    const result = new Date(year, month - 1, day, hours, minutes, 0, 0);
-    return result.toISOString();
   }
 
   private updateItem(
@@ -3303,17 +2123,6 @@ export class OrderService {
     }
   }
 
-  private normalizeTimetableYearLabel(label?: string | null): string | undefined {
-    if (!label) {
-      return undefined;
-    }
-    try {
-      return this.timetableYearService.getYearByLabel(label).label;
-    } catch {
-      return undefined;
-    }
-  }
-
   private ensureOrderTimetableYear(orderId: string, label?: string | null) {
     if (!label) {
       return;
@@ -3346,141 +2155,6 @@ export class OrderService {
     }
   }
 
-  private deriveOrderTimetableYear(items: OrderItem[]): string | undefined {
-    let label: string | undefined;
-    for (const item of items) {
-      const current = this.getItemTimetableYear(item) ?? undefined;
-      if (!current) {
-        continue;
-      }
-      if (!label) {
-        label = current;
-        continue;
-      }
-      if (label !== current) {
-        return undefined;
-      }
-    }
-    return label;
-  }
-
-  private getTrafficPeriodTimetableYear(periodId: string): string | null {
-    if (!periodId) {
-      return null;
-    }
-    const period = this.trafficPeriodService.getById(periodId);
-    if (!period) {
-      return null;
-    }
-    if (period.timetableYearLabel) {
-      return period.timetableYearLabel;
-    }
-    const sample =
-      period.rules?.find((rule) => rule.includesDates?.length)?.includesDates?.[0] ??
-      period.rules?.[0]?.validityStart;
-    if (!sample) {
-      return null;
-    }
-    try {
-      return this.timetableYearService.getYearBounds(sample).label;
-    } catch {
-      return null;
-    }
-  }
-
-  private timetableYearFromPlan(plan: TrainPlan): string | null {
-    const sample =
-      plan.calendar?.validFrom ??
-      plan.calendar?.validTo ??
-      this.extractPlanStart(plan) ??
-      this.extractPlanEnd(plan);
-    if (!sample) {
-      return null;
-    }
-    try {
-      return this.timetableYearService.getYearBounds(sample).label;
-    } catch {
-      return null;
-    }
-  }
-
-  private prepareCustomSegments(
-    segments: OrderItemValiditySegment[],
-  ): OrderItemValiditySegment[] {
-    const normalized = segments
-      .map((segment) => {
-        const startDate = this.requireDateInput(segment.startDate);
-        const endDate = this.requireDateInput(segment.endDate);
-        const [start, end] =
-          startDate <= endDate ? [startDate, endDate] : [endDate, startDate];
-        return { startDate: start, endDate: end };
-      })
-      .filter((segment) => segment.startDate && segment.endDate);
-    return this.normalizeSegments(normalized);
-  }
-
-  private ensureSegmentsWithinValidity(
-    validity: OrderItemValiditySegment[],
-    segments: OrderItemValiditySegment[],
-  ): void {
-    segments.forEach((segment) => {
-      const fits = validity.some(
-        (range) => segment.startDate >= range.startDate && segment.endDate <= range.endDate,
-      );
-      if (!fits) {
-        throw new Error(
-          `Der Zeitraum ${segment.startDate} – ${segment.endDate} liegt nicht innerhalb der Gültigkeit der Auftragsposition.`,
-        );
-      }
-    });
-  }
-
-  private segmentsWithinRanges(
-    validity: OrderItemValiditySegment[],
-    segments: OrderItemValiditySegment[],
-  ): boolean {
-    return segments.every((segment) =>
-      validity.some(
-        (range) => segment.startDate >= range.startDate && segment.endDate <= range.endDate,
-      ),
-    );
-  }
-
-  private segmentsWithinYearBounds(
-    segments: OrderItemValiditySegment[],
-    bounds: TimetableYearBounds,
-  ): boolean {
-    return segments.every(
-      (segment) =>
-        this.timetableYearService.isDateWithinYear(segment.startDate, bounds) &&
-        this.timetableYearService.isDateWithinYear(segment.endDate, bounds),
-    );
-  }
-
-  private subtractSegments(
-    validity: OrderItemValiditySegment[],
-    removals: OrderItemValiditySegment[],
-  ): OrderItemValiditySegment[] {
-    let retained = validity;
-    removals.forEach((segment) => {
-      const result = this.splitSegments(retained, segment.startDate, segment.endDate);
-      retained = result.retained;
-    });
-    return retained;
-  }
-
-  private findProductiveBase(order: Order, simulation: OrderItem): OrderItem | null {
-    const groupId = simulation.variantGroupId ?? simulation.variantOfItemId ?? null;
-    const candidates = order.items.filter((it) => (it.variantType ?? 'productive') === 'productive');
-    if (groupId) {
-      const match = candidates.find((it) => it.variantGroupId === groupId || it.id === simulation.variantOfItemId);
-      if (match) {
-        return match;
-      }
-    }
-    return null;
-  }
-
   private markSimulationMerged(orderId: string, simId: string, targetId: string, status: 'applied' | 'proposed') {
     this.updateItem(simId, (item) => ({
       ...item,
@@ -3488,152 +2162,20 @@ export class OrderService {
       mergeTargetId: targetId,
     }));
   }
-
-  private mergeItemFields(target: OrderItem, source: OrderItem): OrderItem {
-    const merged: OrderItem = {
-      ...target,
-      name: source.name ?? target.name,
-      responsible: source.responsible ?? target.responsible,
-      deviation: source.deviation ?? target.deviation,
-      fromLocation: source.fromLocation ?? target.fromLocation,
-      toLocation: source.toLocation ?? target.toLocation,
-      tags: source.tags ? [...source.tags] : target.tags,
-      timetableYearLabel: target.timetableYearLabel ?? source.timetableYearLabel,
-      variantType: 'productive',
-      variantLabel: target.variantLabel ?? 'Produktiv',
-      simulationId: undefined,
-      simulationLabel: undefined,
-    };
-    if (source.trafficPeriodId) {
-      merged.trafficPeriodId = source.trafficPeriodId;
-    }
-    if (source.validity) {
-      merged.validity = source.validity;
-    }
-    return merged;
-  }
-
-  private updateProductiveFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): OrderItem {
-    let updatedItem: OrderItem | null = null;
-    let clonedPlan: TrainPlan | null = null;
-    if (simulation.linkedTrainPlanId) {
-      const clone = this.trainPlanService.createPlanVariant(
-        simulation.linkedTrainPlanId,
-        'productive',
-        base.variantLabel ?? 'Produktiv',
-      );
-      clonedPlan = clone;
-      this.linkTrainPlanToItem(clone.id, base.id);
-    }
-    this._orders.update((orders) =>
-      orders.map((ord) => {
-        if (ord.id !== orderId) {
-          return ord;
-        }
-        const items = ord.items.map((item) => {
-          if (item.id !== base.id) {
-            return item;
-          }
-          const merged = this.mergeItemFields(item, simulation);
-          const enriched = clonedPlan ? this.applyPlanDetailsToItem(merged, clonedPlan) : merged;
-          updatedItem = enriched;
-          return enriched;
-        });
-        return { ...ord, items };
-      }),
-    );
-    if (!updatedItem) {
-      throw new Error('Merge fehlgeschlagen.');
-    }
-    return updatedItem;
-  }
-
-  private createModificationFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): OrderItem {
-    const plan = base.linkedTrainPlanId ? this.trainPlanService.getById(base.linkedTrainPlanId) : null;
-    const simPlan = simulation.linkedTrainPlanId
-      ? this.trainPlanService.getById(simulation.linkedTrainPlanId)
-      : null;
-    let modificationPlanId: string | undefined;
-    if (plan && simPlan) {
-      const mod = this.trainPlanService.createPlanModification({
-        originalPlanId: plan.id,
-        title: simPlan.title,
-        trainNumber: simPlan.trainNumber,
-        responsibleRu: simPlan.responsibleRu,
-        calendar: simPlan.calendar,
-        trafficPeriodId: simPlan.trafficPeriodId,
-        notes: simPlan.notes,
-        stops: simPlan.stops.map((stop, index) => ({
-          sequence: stop.sequence ?? index + 1,
-          type: stop.type,
-          locationCode: stop.locationCode,
-          locationName: stop.locationName,
-          countryCode: stop.countryCode,
-          arrivalTime: stop.arrivalTime,
-          departureTime: stop.departureTime,
-          arrivalOffsetDays: stop.arrivalOffsetDays,
-          departureOffsetDays: stop.departureOffsetDays,
-          dwellMinutes: stop.dwellMinutes,
-          activities: stop.activities,
-          platform: stop.platform,
-          notes: stop.notes,
-        })),
-        planVariantType: 'productive',
-        variantLabel: 'Modification',
-        simulationId: simPlan.simulationId,
-        simulationLabel: simPlan.simulationLabel,
-      });
-      modificationPlanId = mod.id;
-    }
-
-    const newItem: OrderItem = {
-      ...simulation,
-      id: this.generateItemId(orderId),
-      variantType: 'productive',
-      variantLabel: base.variantLabel ?? 'Produktiv',
-      variantOfItemId: base.id,
-      variantGroupId: base.variantGroupId ?? base.id,
-      parentItemId: base.id,
-      childItemIds: [],
-      timetablePhase: 'bedarf',
-      linkedTrainPlanId: modificationPlanId ?? base.linkedTrainPlanId,
-      mergeStatus: undefined,
-      mergeTargetId: undefined,
-      simulationId: undefined,
-      simulationLabel: undefined,
-    };
-    delete (newItem as Partial<OrderItem>).generatedTimetableRefId;
-
-    this.appendItems(orderId, [newItem]);
-    return newItem;
-  }
-
-  private copySimulationAsProductive(orderId: string, simulation: OrderItem): OrderItem {
-    let clonedPlanId: string | undefined;
-    if (simulation.linkedTrainPlanId) {
-      const clone = this.trainPlanService.createPlanVariant(
-        simulation.linkedTrainPlanId,
-        'productive',
-        simulation.variantLabel ?? 'Produktiv',
-      );
-      clonedPlanId = clone.id;
-    }
-    const newItem: OrderItem = {
-      ...simulation,
-      id: this.generateItemId(orderId),
-      variantType: 'productive',
-      variantLabel: 'Produktiv',
-      variantGroupId: simulation.variantGroupId ?? simulation.id,
-      variantOfItemId: undefined,
-      mergeStatus: undefined,
-      mergeTargetId: undefined,
-      linkedTrainPlanId: clonedPlanId ?? simulation.linkedTrainPlanId,
-      timetablePhase: 'bedarf',
-      simulationId: undefined,
-      simulationLabel: undefined,
-    };
-    this.appendItems(orderId, [newItem]);
-    return newItem;
-  }
-
 }
+
+export {
+  DEFAULT_ORDER_FILTERS,
+  ORDER_FILTERS_STORAGE_KEY,
+  TTR_PHASE_META,
+};
+
+export type {
+  OrderFilters,
+  OrderTimelineReference,
+  OrderTtrPhase,
+  OrderTtrPhaseFilter,
+  OrderTtrPhaseMeta,
+  OrderSearchTokens,
+  OrderItemUpdateData,
+};
