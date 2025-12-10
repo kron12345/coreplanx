@@ -1,5 +1,6 @@
 import { TrainPlan, TrainPlanStop } from '../../models/train-plan.model';
 import { TimetableStopInput } from '../timetable.service';
+import { OrderItem } from '../../models/order-item.model';
 
 export interface TimetableYearLookup {
   getYearByLabel(label: string): { label: string };
@@ -102,4 +103,46 @@ export function combineDateTime(date: string, time: string): string {
   const minutes = match ? Number.parseInt(match[2], 10) : 0;
   const result = new Date(year, month - 1, day, hours, minutes, 0, 0);
   return result.toISOString();
+}
+
+export function applyPlanDetailsToItem(item: OrderItem, plan: TrainPlan): OrderItem {
+  const start = extractPlanStart(plan);
+  const end = extractPlanEnd(plan);
+  const firstStop = plan.stops[0];
+  const lastStop = plan.stops[plan.stops.length - 1];
+
+  const updated: OrderItem = {
+    ...item,
+    responsible: plan.responsibleRu,
+    fromLocation: firstStop?.locationName ?? item.fromLocation,
+    toLocation: lastStop?.locationName ?? item.toLocation,
+    simulationId: plan.simulationId ?? item.simulationId,
+    simulationLabel: plan.simulationLabel ?? item.simulationLabel,
+  };
+
+  if (start) {
+    updated.start = start;
+  }
+  if (end) {
+    updated.end = end;
+  }
+
+  if (plan.trafficPeriodId) {
+    updated.trafficPeriodId = plan.trafficPeriodId;
+    updated.validity = undefined;
+  } else if (plan.calendar?.validFrom) {
+    updated.trafficPeriodId = undefined;
+    const endDate = plan.calendar.validTo ?? plan.calendar.validFrom;
+    updated.validity = [
+      {
+        startDate: plan.calendar.validFrom,
+        endDate,
+      },
+    ];
+  } else {
+    updated.trafficPeriodId = undefined;
+    updated.validity = undefined;
+  }
+
+  return updated;
 }
