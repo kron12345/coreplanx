@@ -50,11 +50,7 @@ import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 import { SimulationService } from '../../core/services/simulation.service';
 import { SimulationRecord } from '../../core/models/simulation.model';
 import { DurationPipe } from '../../shared/pipes/duration.pipe';
-import {
-  ActivityLinkRole,
-  ActivityLinkRoleDialogComponent,
-  ActivityLinkRoleDialogResult,
-} from './activity-link-role-dialog.component';
+import { ActivityLinkRole, ActivityLinkRoleDialogComponent, ActivityLinkRoleDialogResult } from './activity-link-role-dialog.component';
 import { TemplateTimelineStoreService } from './template-timeline-store.service';
 import { PlanningBoard, PlanningStageStore, StageRuntimeState } from './stores/planning-stage.store';
 import { PlanningDashboardBoardFacade, StageResourceGroupConfig } from './planning-dashboard-board.facade';
@@ -66,6 +62,10 @@ import {
   isActivityOwnedBy,
   mapLinkRoleToParticipantRole,
   computeAssignmentCandidatesFor,
+  buildActivityTitle,
+  resolveActivityTypeForResource,
+  resolveServiceCategory,
+  resolveServiceRole,
 } from './planning-dashboard-activity.utils';
 import {
   addParticipantToActivity,
@@ -75,8 +75,8 @@ import {
   resourceParticipantCategory,
 } from './planning-dashboard-participant.utils';
 import { PlanningDashboardServiceAssignmentFacade } from './planning-dashboard-service-assignment.facade';
-import { applyActivityCopyWithRoles } from './planning-dashboard-activity-copy.utils';
 import { PlanningDashboardSelectionActionsFacade } from './planning-dashboard-selection-actions.facade';
+import { PlanningDashboardSelectionHandlers } from './planning-dashboard-selection.handlers';
 import { initFormEffects, initSimulationSelectionEffects } from './planning-dashboard-form.effects';
 import {
   initTemplateTimelineEffects,
@@ -90,7 +90,6 @@ import { PlanningDashboardCatalogFacade } from './planning-dashboard-catalog.fac
 import {
   computeTimelineRange,
   computeResourceGroups,
-  computeMoveTargetOptions,
   computeBaseTimelineRange,
   computeStageYearRange,
 } from './planning-dashboard-timeline.utils';
@@ -101,17 +100,23 @@ import { PlanningDashboardPendingFacade } from './planning-dashboard-pending.fac
 import { PlanningDashboardBaseHandlers } from './planning-dashboard-base.handlers';
 import { PlanningDashboardTimelineFacade } from './planning-dashboard-timeline.facade';
 import { PlanningDashboardSelectionFacade } from './planning-dashboard-selection.facade';
-import {
-  applyActivityTypeConstraints as applyActivityTypeConstraintsUtil,
-  ensureActivityCatalogAttributes,
-  normalizeActivityList,
-} from './planning-dashboard-activity-normalize.utils';
-import { resolveServiceRole } from './planning-dashboard-activity.utils';
+import { PlanningDashboardYearFacade } from './planning-dashboard-year.facade';
+import { PlanningDashboardRoutingFacade } from './planning-dashboard-routing.facade';
+import { PlanningDashboardSimulationFacade } from './planning-dashboard-simulation.facade';
+import { PlanningDashboardOperationsHandlers } from './planning-dashboard-operations.handlers';
+import { PlanningDashboardFormFacade } from './planning-dashboard-form.facade';
+import { PlanningDashboardAssignmentFacade } from './planning-dashboard-assignment.facade';
+import { PlanningDashboardActivityOpsFacade } from './planning-dashboard-activity-ops.facade';
+import { PlanningDashboardSelectionState } from './planning-dashboard-selection.state';
+import { PlanningDashboardFilterHandlers } from './planning-dashboard-filter.handlers';
+import { PlanningDashboardCopyHandlers } from './planning-dashboard-copy.handlers';
+import { applyActivityTypeConstraints as applyActivityTypeConstraintsUtil, normalizeActivityList } from './planning-dashboard-activity-normalize.utils';
 import { normalizeStageId, updateStageQueryParam } from './planning-dashboard-stage.utils';
 import { fromLocalDateTime, toLocalDateTime } from './planning-dashboard-time.utils';
 import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facade';
 import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.facade';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
+import { findActivityTypeById, definitionHasField, shouldShowEndField } from './planning-dashboard-activity.helpers';
 
 interface PendingActivityState {
   stage: PlanningStageId;
@@ -264,7 +269,7 @@ export class PlanningDashboardComponent {
     timetableYearService: this.timetableYearService,
     data: this.data,
   });
-  private readonly activityFacade = new PlanningDashboardActivityFacade({
+  private readonly activityFacade: PlanningDashboardActivityFacade = new PlanningDashboardActivityFacade({
     activityOwnerId: (activity) => this.activityOwnerId(activity),
     addParticipantToActivity: (activity, owner, partner, partnerRole, opts) =>
       addParticipantToActivity(activity, owner, partner, partnerRole, opts),
@@ -272,15 +277,15 @@ export class PlanningDashboardComponent {
       moveParticipantToResource(activity, participantId, target),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
     definitionHasField: (definition, field) => this.definitionHasField(definition, field),
-    resolveServiceCategory: (resource) => this.resolveServiceCategory(resource),
+    resolveServiceCategory: (resource) => resolveServiceCategory(resource),
     resourceParticipantCategory: (resource) => resourceParticipantCategory(resource),
-    updateStageActivities: (stage, updater) => this.updateStageActivities(stage, updater),
-    replaceActivity: (activity) => this.replaceActivity(activity),
+    updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
+    replaceActivity: (activity) => this.activityOpsFacade.replaceActivity(activity),
     saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
     buildAttributesFromCatalog: (option) => buildAttributesFromCatalog(option),
     resolveServiceRole: (option) => resolveServiceRole(option),
-    buildActivityTitle: (definition) => this.buildActivityTitle(definition),
-    generateActivityId: (seed) => this.generateActivityId(seed),
+    buildActivityTitle: (definition) => buildActivityTitle(definition),
+    generateActivityId: (seed: string) => this.activityOpsFacade.generateActivityId(seed),
     findActivityType: (typeId) => this.findActivityType(typeId),
   });
   private readonly activitySelection = new PlanningDashboardActivitySelectionFacade();
@@ -331,20 +336,7 @@ export class PlanningDashboardComponent {
     stageResourceSignals: this.stageResourceSignals,
     data: this.data,
     activeStage: () => this.activeStageSignal(),
-    generateActivityId: (prefix) => this.generateActivityId(prefix),
-  });
-  private readonly selectionActionsFacade = new PlanningDashboardSelectionActionsFacade({
-    activitySelection: this.activitySelection,
-    activityFacade: this.activityFacade,
-    stageResourceSignals: this.stageResourceSignals,
-    activeStage: () => this.activeStageSignal(),
-    updateStageActivities: (stage, updater) => this.updateStageActivities(stage, updater),
-    applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
-    isPendingSelection: (id) => this.pendingFacade.isPendingSelection(id),
-    commitPendingActivityUpdate: (activity) => this.pendingFacade.commitPendingActivityUpdate(activity),
-    replaceActivity: (activity) => this.replaceActivity(activity),
-    findActivityType: (typeId) => this.findActivityType(typeId),
-    activityMoveTargetSignal: this.activityMoveTargetSignal,
+    generateActivityId: (prefix) => this.activityOpsFacade.generateActivityId(prefix),
   });
   private readonly timelineFacade = new PlanningDashboardTimelineFacade({
     activeStage: () => this.activeStageSignal(),
@@ -361,19 +353,6 @@ export class PlanningDashboardComponent {
     resourceViewModeState: this.resourceViewModeState,
     setResourceViewModeState: (updater) => this.resourceViewModeState.update((current) => updater(current)),
     stageResourceSignals: this.stageResourceSignals,
-  });
-  private readonly boardActionsFacade = new PlanningDashboardBoardActionsFacade({
-    boardFacade: this.boardFacade,
-    activeStage: () => this.activeStageSignal(),
-    selectedResourceIds: () => this.selectedResourceIds(),
-    stageResourceSignals: this.stageResourceSignals as any,
-    stageStore: this.stageStore,
-    pendingActivityForStage: (stage) => this.pendingFacade.pendingActivityForStage(stage),
-    previewActivityForStage: (stage) => {
-      const preview = this.activityEditPreviewSignal();
-      return preview && preview.stage === stage ? preview.activity : null;
-    },
-    activityOwnerId: (activity) => this.activityOwnerId(activity),
   });
   private readonly stageYearSelectionState = this.filterFacade.stageYearSelectionState;
   private readonly pendingActivitySignal = signal<PendingActivityState | null>(null);
@@ -403,25 +382,66 @@ export class PlanningDashboardComponent {
     to: [''],
     remark: [''],
   });
+  private readonly routingFacade = new PlanningDashboardRoutingFacade({
+    route: this.route,
+    router: this.router,
+    stageMetaMap: this.stageMetaMap,
+    activeStageSignal: this.activeStageSignal,
+    queryFrom: this.queryFrom,
+    queryTo: this.queryTo,
+    onStageChanged: (stage) => this.onStageChange(stage),
+  });
+  private readonly yearFacade = new PlanningDashboardYearFacade({
+    activeStage: () => this.activeStageSignal(),
+    filterFacade: this.filterFacade,
+    timetableYearService: this.timetableYearService,
+    managedYearBounds: this.managedTimetableYearBounds,
+    stageYearSelectionState: this.stageYearSelectionState,
+  });
+  private readonly simulationFacade = new PlanningDashboardSimulationFacade({
+    activeStage: () => this.activeStageSignal(),
+    stageYearSelectionState: this.stageYearSelectionState,
+    filterFacade: this.filterFacade,
+    timetableYearOptions: this.yearFacade.timetableYearOptions,
+    simulationService: this.simulationService,
+    selectedSimulationSignal: this.selectedSimulationSignal,
+  });
+  private readonly operationsHandlers = new PlanningDashboardOperationsHandlers({
+    stageResourceSignal: this.stageResourceSignals.operations,
+    updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
+    applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    activitySelection: this.activitySelection,
+    activityOwnerId: (activity) => this.activityOwnerId(activity),
+  });
+  private readonly assignmentFacade = new PlanningDashboardAssignmentFacade({
+    activeStage: () => this.activeStageSignal(),
+    pendingServiceResourceSignal: this.pendingServiceResourceSignal,
+    serviceAssignmentTargetSignal: this.serviceAssignmentTargetSignal,
+    stageResourceSignals: this.stageResourceSignals,
+    serviceAssignmentFacade: this.serviceAssignmentFacade,
+  });
+  private readonly copyHandlers = new PlanningDashboardCopyHandlers({
+    dialog: this.dialog,
+    activeStage: () => this.activeStageSignal(),
+    activityOwnerId: (activity) => this.activityOwnerId(activity),
+    stageResourceSignals: this.stageResourceSignals,
+    applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    applyBaseCopyWithRoles: (source, sourceResource, targetResource, roles) =>
+      this.baseHandlers.applyCopyWithRoles(source, sourceResource, targetResource, roles),
+    updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
+  });
+  private readonly selectionState = new PlanningDashboardSelectionState({
+    activitySelection: this.activitySelection,
+    normalizedStageActivitySignals: this.normalizedStageActivitySignals,
+    stageResourceSignals: this.stageResourceSignals,
+    activeStage: () => this.activeStageSignal(),
+    activityMoveTargetSignal: this.activityMoveTargetSignal,
+    stageState: (stage) => this.stageStore.stageState(stage),
+  });
 
   constructor() {
     this.templateStore.loadTemplates();
-    const initialStage = normalizeStageId(this.route.snapshot.queryParamMap.get('stage'), this.stageMetaMap);
-    this.queryFrom.set(this.route.snapshot.queryParamMap.get('from'));
-    this.queryTo.set(this.route.snapshot.queryParamMap.get('to'));
-    this.setActiveStage(initialStage, false);
-    if (this.route.snapshot.queryParamMap.get('stage') !== initialStage) {
-      updateStageQueryParam(this.router, this.route, initialStage);
-    }
-
-    this.route.queryParamMap
-      .pipe(takeUntilDestroyed())
-      .subscribe((params) => {
-        const stage = normalizeStageId(params.get('stage'), this.stageMetaMap);
-        this.setActiveStage(stage, false);
-        this.queryFrom.set(params.get('from'));
-        this.queryTo.set(params.get('to'));
-      });
+    this.routingFacade.init();
 
     initTemplateTimelineEffects({
       templateStore: this.templateStore,
@@ -467,8 +487,8 @@ export class PlanningDashboardComponent {
       activitySelection: this.activitySelection,
       isPendingSelection: (id) => this.pendingFacade.isPendingSelection(id),
       clearEditingPreview: () => this.pendingFacade.clearEditingPreview(),
-      updatePendingActivityFromForm: () => this.updatePendingActivityFromForm(),
-      updateEditingPreviewFromForm: () => this.updateEditingPreviewFromForm(),
+      updatePendingActivityFromForm: () => this.formFacade.updatePendingActivityFromForm(),
+      updateEditingPreviewFromForm: () => this.formFacade.updateEditingPreviewFromForm(),
       activityCreationOptions: this.activityCreationOptions,
       activityCreationToolSignal: () => this.activityCreationToolSignal(),
       setActivityCreationTool: (val) => this.setActivityCreationTool(val),
@@ -516,52 +536,16 @@ export class PlanningDashboardComponent {
 
   protected readonly resourceGroups = this.timelineFacade.resourceGroups;
 
-  protected readonly simulationOptions = computed<SimulationRecord[]>(() => {
-    const years = Array.from(this.stageYearSelectionState()[this.activeStageSignal()] ?? []);
-    const fallbackYear = this.filterFacade.preferredYearLabel(this.timetableYearOptions());
-    const targetYears = years.length ? years : [fallbackYear];
-    const entries: SimulationRecord[] = [];
-    targetYears.forEach((label) => {
-      this.simulationService.byTimetableYear(label).forEach((sim) => entries.push(sim));
-    });
-    return entries.sort((a, b) => {
-      if (!!a.productive !== !!b.productive) {
-        return a.productive ? -1 : 1;
-      }
-      return a.label.localeCompare(b.label, 'de', { sensitivity: 'base' });
-    });
-  });
+  protected readonly simulationOptions = this.simulationFacade.simulationOptions;
 
-  protected readonly selectedSimulationId = computed(
-    () => this.selectedSimulationSignal()?.id ?? null,
-  );
+  protected readonly selectedSimulationId = this.simulationFacade.selectedSimulationId;
 
-  protected readonly selectedSimulationLabel = computed(() => {
-    const sim = this.selectedSimulationSignal();
-    if (!sim) {
-      return 'Variante wählen';
-    }
-    const prefix = sim.productive ? 'Produktiv' : 'Simulation';
-    return `${prefix}: ${sim.label}`;
-  });
+  protected readonly selectedSimulationLabel = this.simulationFacade.selectedSimulationLabel;
 
-  protected readonly timetableYearOptions = computed<TimetableYearBounds[]>(() => {
-    const managed = this.managedTimetableYearBounds();
-    if (managed.length) {
-      return managed;
-    }
-    return [this.timetableYearService.defaultYearBounds()];
-  });
+  protected readonly timetableYearOptions = this.yearFacade.timetableYearOptions;
 
-  protected readonly timetableYearSummary = computed(() =>
-    this.filterFacade.formatTimetableYearSummary(this.activeStageSignal()),
-  );
-  protected readonly basePlanningYearRange = computed(() =>
-    computeStageYearRange(
-      this.selectedYearBounds('base'),
-      this.timetableYearService.defaultYearBounds(),
-    ),
-  );
+  protected readonly timetableYearSummary = this.yearFacade.timetableYearSummary;
+  protected readonly basePlanningYearRange = this.yearFacade.basePlanningYearRange;
 
   protected readonly boards = computed(() => this.stageStore.stageState(this.activeStageSignal())().boards);
   protected readonly activityTypeDisplayLabelMap = this.catalogFacade.activityTypeDisplayLabelMap;
@@ -574,7 +558,7 @@ export class PlanningDashboardComponent {
   >;
   protected readonly activityCatalogOptionMap = this.catalogFacade.activityCatalogOptionMap;
   protected readonly selectedCatalogOption = this.catalogFacade.selectedCatalogOption;
-  private readonly pendingFacade = new PlanningDashboardPendingFacade({
+  private readonly pendingFacade: PlanningDashboardPendingFacade = new PlanningDashboardPendingFacade({
     activeStage: () => this.activeStageSignal(),
     activityFacade: this.activityFacade,
     activitySelection: this.activitySelection,
@@ -589,6 +573,48 @@ export class PlanningDashboardComponent {
       addParticipantToActivity(activity, owner, partner, partnerRole, opts),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
   });
+  private readonly activityOpsFacade: PlanningDashboardActivityOpsFacade = new PlanningDashboardActivityOpsFacade({
+    data: this.data,
+    activeStage: () => this.activeStageSignal(),
+    normalizeActivityList: (list) => this.normalizeActivityList(list),
+    applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    activitySelection: this.activitySelection,
+    pendingFacade: this.pendingFacade,
+    activityOwnerId: (activity) => this.activityOwnerId(activity),
+    stageResourceSignals: this.stageResourceSignals,
+  });
+  private readonly boardActionsFacade = new PlanningDashboardBoardActionsFacade({
+    boardFacade: this.boardFacade,
+    activeStage: () => this.activeStageSignal(),
+    selectedResourceIds: () => this.selectedResourceIds(),
+    stageResourceSignals: this.stageResourceSignals as any,
+    stageStore: this.stageStore,
+    pendingActivityForStage: (stage) => this.pendingFacade.pendingActivityForStage(stage),
+    previewActivityForStage: (stage) => {
+      const preview = this.activityEditPreviewSignal();
+      return preview && preview.stage === stage ? preview.activity : null;
+    },
+    activityOwnerId: (activity) => this.activityOwnerId(activity),
+  });
+  private readonly filterHandlers = new PlanningDashboardFilterHandlers({
+    yearFacade: this.yearFacade,
+    simulationFacade: this.simulationFacade,
+  });
+  private readonly formFacade = new PlanningDashboardFormFacade({
+    activityForm: this.activityForm,
+    activityFacade: this.activityFacade,
+    activitySelection: this.activitySelection,
+    pendingFacade: this.pendingFacade,
+    pendingActivitySignal: this.pendingActivitySignal,
+    activeStage: () => this.activeStageSignal(),
+    selectedCatalogOption: this.selectedCatalogOption,
+    findActivityType: (id) => this.findActivityType(id),
+    buildActivityTitle: (definition) => buildActivityTitle(definition),
+    definitionHasField: (definition, field) => this.definitionHasField(definition, field as ActivityFieldKey),
+    applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    setEditPreview: (state) => this.activityEditPreviewSignal.set(state),
+    clearEditPreview: () => this.pendingFacade.clearEditingPreview(),
+  });
   private readonly uiFacade = new PlanningDashboardUiFacade({
     activityCreationOptions: this.catalogFacade.activityCreationOptions,
     activityCatalogOptionMap: () => this.activityCatalogOptionMap(),
@@ -602,7 +628,7 @@ export class PlanningDashboardComponent {
   private readonly baseHandlers = new PlanningDashboardBaseHandlers({
     stageResourceSignal: this.stageResourceSignals.base,
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
-    updateStageActivities: (stage, updater) => this.updateStageActivities(stage, updater),
+    updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
     saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
     activitySelection: this.activitySelection,
     templateId: () => this.templateStore.selectedTemplate()?.id ?? null,
@@ -615,20 +641,21 @@ export class PlanningDashboardComponent {
     selectedTemplateId: () => this.templateStore.selectedTemplate()?.id ?? null,
     activityCreationTool: () => this.activityCreationToolSignal(),
     catalogOptionById: (id) => this.activityCatalogOptionMap().get(id),
-    resolveActivityTypeForResource: (resource, typeId) => this.resolveActivityTypeForResource(resource, typeId),
+    resolveActivityTypeForResource: (resource, typeId) =>
+      resolveActivityTypeForResource(resource, typeId, this.activityTypeDefinitions()),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
     pendingActivityOriginal: this.pendingActivityOriginal,
     pendingActivitySignal: this.pendingActivitySignal,
     startPendingActivity: (stage, resource, activity) => this.pendingFacade.startPendingActivity(stage, resource, activity),
     activityForm: this.activityForm,
     selectedCatalogOption: this.selectedCatalogOption,
-    findActivityType: (typeId) => this.findActivityType(typeId),
-    buildActivityTitle: (definition) => this.buildActivityTitle(definition),
+    findActivityType: (typeId) => findActivityTypeById(this.activityTypeDefinitions, typeId),
+    buildActivityTitle: (definition) => buildActivityTitle(definition),
     definitionHasField: (definition, field) => this.definitionHasField(definition, field),
     isPendingSelection: (id) => this.pendingFacade.isPendingSelection(id),
-    updateStageActivities: (stage, updater) => this.updateStageActivities(stage, updater),
+    updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
     saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
-    replaceActivity: (activity) => this.replaceActivity(activity),
+    replaceActivity: (activity) => this.activityOpsFacade.replaceActivity(activity),
     clearEditingPreview: () => this.pendingFacade.clearEditingPreview(),
     deleteTemplateActivity: (templateId, baseId) => this.data.deleteTemplateActivity(templateId, baseId),
   });
@@ -665,24 +692,12 @@ export class PlanningDashboardComponent {
   protected readonly timelineError = this.data.timelineError.bind(this.data);
   protected readonly templateError = this.templateStore.error;
 
-  protected readonly selectedActivity = computed(() => this.activitySelection.selectedActivityState());
-  protected readonly selectedActivities = computed(() =>
-    this.activitySelection.computeSelectedActivities(
-      this.activitySelection.selectedActivityIds,
-      this.normalizedStageActivitySignals[this.activeStageSignal()],
-      this.stageResourceSignals[this.activeStageSignal()],
-    ),
-  );
-  protected readonly selectedActivityIdsArray = computed<string[]>(() =>
-    Array.from(this.activitySelection.selectedActivityIds()),
-  );
-  protected readonly selectedActivitySlot = computed(() => this.activitySelection.selectedActivitySlot());
-  protected readonly moveTargetOptions = computed(() => {
-    const selected = this.selectedActivities();
-    const stage = this.activeStageSignal();
-    return computeMoveTargetOptions(selected, this.stageResourceSignals[stage]());
-  });
-  protected readonly activityMoveTarget = computed(() => this.activityMoveTargetSignal());
+  protected readonly selectedActivity = this.selectionState.selectedActivity;
+  protected readonly selectedActivities = this.selectionState.selectedActivities;
+  protected readonly selectedActivityIdsArray = this.selectionState.selectedActivityIdsArray;
+  protected readonly selectedActivitySlot = this.selectionState.selectedActivitySlot;
+  protected readonly moveTargetOptions = () => this.selectionState.moveTargetOptions();
+  protected readonly activityMoveTarget = this.selectionState.activityMoveTarget;
 
   protected readonly selectedActivityDefinition = computed<ActivityTypeDefinition | null>(() => {
     const selection = this.activitySelection.selectedActivityState();
@@ -691,27 +706,46 @@ export class PlanningDashboardComponent {
     }
     const typeOverride = this.activityFormTypeSignal();
     const typeId = (typeOverride || selection.activity.type) ?? null;
-    return this.findActivityType(typeId);
+    return findActivityTypeById(this.activityTypeDefinitions, typeId);
+  });
+
+  private readonly selectionActionsFacade = new PlanningDashboardSelectionActionsFacade({
+    activitySelection: this.activitySelection,
+    activityFacade: this.activityFacade,
+    stageResourceSignals: this.stageResourceSignals,
+    activeStage: () => this.activeStageSignal(),
+    updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
+    applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    isPendingSelection: (id) => this.pendingFacade.isPendingSelection(id),
+    commitPendingActivityUpdate: (activity) => this.pendingFacade.commitPendingActivityUpdate(activity),
+    replaceActivity: (activity) => this.activityOpsFacade.replaceActivity(activity),
+    findActivityType: (typeId) => this.findActivityType(typeId),
+    activityMoveTargetSignal: this.activityMoveTargetSignal,
+  });
+  private readonly selectionHandlers = new PlanningDashboardSelectionHandlers({
+    activeStage: () => this.activeStageSignal(),
+    pendingFacade: this.pendingFacade,
+    selectionActions: this.selectionActionsFacade,
+    activitySelection: this.activitySelection,
+    pendingActivitySignal: this.pendingActivitySignal,
+    pendingActivityOriginal: this.pendingActivityOriginal,
+    baseHandlers: this.baseHandlers,
+    operationsHandlers: this.operationsHandlers,
+    copyHandlers: this.copyHandlers,
+    activityHandlers: this.activityHandlers,
+    findActivityType: (id) => this.findActivityType(id),
+    activityForm: this.activityForm,
+    selectedActivities: this.selectionState.selectedActivities,
+    activityMoveTargetSignal: this.activityMoveTargetSignal,
   });
 
   protected readonly pendingServiceResource = computed(() => this.pendingServiceResourceSignal());
-
   protected readonly serviceAssignmentTarget = computed(() => this.serviceAssignmentTargetSignal());
+  protected readonly assignmentCandidates = this.assignmentFacade.assignmentCandidates;
 
-  protected readonly assignmentCandidates = computed(() => {
-    const pending = this.pendingServiceResourceSignal();
-    if (!pending) {
-      return [];
-    }
-    const stage = this.activeStageSignal();
-    return computeAssignmentCandidatesFor(pending, this.stageResourceSignals[stage]());
-  });
+  protected readonly selectionSize = this.selectionState.selectionSize;
 
-  protected readonly selectionSize = computed(
-    () => this.stageStore.stageState(this.activeStageSignal())().selectedResourceIds.size,
-  );
-
-  protected readonly hasSelection = computed(() => this.selectionSize() > 0);
+  protected readonly hasSelection = this.selectionState.hasSelection;
 
   protected readonly selectedResourceIds = computed(() =>
     this.boardFacade.normalizeResourceIds(
@@ -851,91 +885,11 @@ export class PlanningDashboardComponent {
   }
 
   protected adjustFormEndBy(deltaMinutes: number): void {
-    const value = this.activityForm.getRawValue();
-    if (!value.start) {
-      return;
-    }
-    const start = fromLocalDateTime(value.start);
-    if (!start) {
-      return;
-    }
-    const baseEnd = value.end ? fromLocalDateTime(value.end) : new Date(start);
-    if (!baseEnd) {
-      return;
-    }
-    const nextEndMs = baseEnd.getTime() + deltaMinutes * 60 * 1000;
-    const minEndMs = start.getTime() + 60 * 1000;
-    const safeEnd = new Date(Math.max(nextEndMs, minEndMs));
-    const nextEndLocal = toLocalDateTime(safeEnd.toISOString());
-    this.activityForm.controls.end.setValue(nextEndLocal);
-    this.activityForm.controls.end.markAsDirty();
+    this.formFacade.adjustFormEndBy(deltaMinutes);
   }
 
   protected shiftFormBy(deltaMinutes: number): void {
-    const value = this.activityForm.getRawValue();
-    if (!value.start) {
-      return;
-    }
-    const start = fromLocalDateTime(value.start);
-    if (!start) {
-      return;
-    }
-    const end = value.end ? fromLocalDateTime(value.end) : null;
-    const deltaMs = deltaMinutes * 60 * 1000;
-    const nextStart = new Date(start.getTime() + deltaMs);
-    this.activityForm.controls.start.setValue(toLocalDateTime(nextStart.toISOString()));
-    this.activityForm.controls.start.markAsDirty();
-    if (end) {
-      const nextEnd = new Date(end.getTime() + deltaMs);
-      this.activityForm.controls.end.setValue(toLocalDateTime(nextEnd.toISOString()));
-      this.activityForm.controls.end.markAsDirty();
-    }
-  }
-
-  private updatePendingActivityFromForm(): void {
-    this.activityFacade.updatePendingFromForm(
-      this.activeStageSignal(),
-      this.activitySelection.selectedActivityState(),
-      this.pendingActivitySignal(),
-      (selection) =>
-        buildActivityFromForm(selection, this.activityForm.getRawValue(), {
-          findActivityType: (id) => this.findActivityType(id),
-          selectedCatalogOption: this.selectedCatalogOption,
-          buildActivityTitle: (definition) => this.buildActivityTitle(definition),
-          definitionHasField: (definition, field) => this.definitionHasField(definition, field as ActivityFieldKey),
-          applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
-        }),
-      (a, b) => areActivitiesEquivalent(a, b),
-      (activity) => this.pendingFacade.commitPendingActivityUpdate(activity),
-    );
-  }
-
-  private updateEditingPreviewFromForm(): void {
-    const selection = this.activitySelection.selectedActivityState();
-    if (!selection) {
-      this.pendingFacade.clearEditingPreview();
-      return;
-    }
-    if (this.pendingFacade.isPendingSelection(selection.activity.id)) {
-      this.pendingFacade.clearEditingPreview();
-      return;
-    }
-    const normalized = buildActivityFromForm(selection, this.activityForm.getRawValue(), {
-      findActivityType: (id) => this.findActivityType(id),
-      selectedCatalogOption: this.selectedCatalogOption,
-      buildActivityTitle: (definition) => this.buildActivityTitle(definition),
-      definitionHasField: (definition, field) => this.definitionHasField(definition, field as ActivityFieldKey),
-      applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
-    });
-    if (!normalized) {
-      this.pendingFacade.clearEditingPreview();
-      return;
-    }
-    if (areActivitiesEquivalent(selection.activity, normalized)) {
-      this.pendingFacade.clearEditingPreview();
-      return;
-    }
-    this.activityEditPreviewSignal.set({ stage: this.activeStageSignal(), activity: normalized });
+    this.formFacade.shiftFormBy(deltaMinutes);
   }
 
   protected handleResourceViewModeChange(event: { resourceId: string; mode: 'block' | 'detail' }): void {
@@ -955,7 +909,7 @@ export class PlanningDashboardComponent {
     activity: Activity;
     selectionMode: 'set' | 'toggle';
   }): void {
-    this.activitySelection.toggleSelection(event);
+    this.selectionHandlers.toggleSelection(event);
   }
 
   protected handleActivityReposition(event: {
@@ -968,104 +922,7 @@ export class PlanningDashboardComponent {
     participantResourceId?: string | null;
     isOwnerSlot?: boolean;
   }): void {
-    if (this.pendingFacade.isPendingSelection(event.activity.id)) {
-      this.pendingFacade.updatePendingActivityPosition(event);
-      return;
-    }
-    const stage = this.activeStageSignal();
-    if (stage === 'base') {
-      this.baseHandlers.handleReposition(event);
-      return;
-    }
-    const targetId = event.targetResourceId;
-    const targetResource =
-      this.stageResourceSignals[stage]().find((resource) => resource.id === targetId) ?? null;
-    if (!targetResource) {
-      return;
-    }
-    const attrs = (event.activity.attributes ?? {}) as Record<string, unknown>;
-    const linkGroupId =
-      typeof attrs['linkGroupId'] === 'string' ? (attrs['linkGroupId'] as string) : null;
-    const isOwnerSlot = event.isOwnerSlot ?? true;
-    const participantResourceId = event.participantResourceId ?? event.sourceResourceId ?? null;
-    const targetCategory =
-      event.participantCategory ?? resourceParticipantCategory(targetResource);
-    const applyUpdate = (activity: Activity): Activity => {
-      const updatedBase: Activity = {
-        ...activity,
-        start: event.start.toISOString(),
-        end: event.end ? event.end.toISOString() : null,
-      };
-      if (!isOwnerSlot && participantResourceId) {
-        return moveParticipantToResource(updatedBase, participantResourceId, targetResource);
-      }
-      return addParticipantToActivity(updatedBase, targetResource, undefined, undefined, {
-        retainPreviousOwner: false,
-        ownerCategory: targetCategory,
-      });
-    };
-    this.updateStageActivities(stage, (activities) => {
-      if (!linkGroupId) {
-        return activities.map((activity) => {
-          if (activity.id !== event.activity.id) {
-            return activity;
-          }
-          return applyUpdate(activity);
-        });
-      }
-      return activities.map((activity) => {
-        const currentAttrs = (activity.attributes ?? {}) as Record<string, unknown>;
-        const currentGroupId =
-          typeof currentAttrs['linkGroupId'] === 'string'
-            ? (currentAttrs['linkGroupId'] as string)
-            : null;
-        if (activity.id === event.activity.id) {
-          return applyUpdate(activity);
-        }
-        if (!currentGroupId || currentGroupId !== linkGroupId) {
-          return activity;
-        }
-        return {
-          ...activity,
-          start: event.start.toISOString(),
-          end: event.end ? event.end.toISOString() : null,
-        };
-      });
-    });
-    const activeSelection = this.activitySelection.selectedActivityState();
-    if (activeSelection?.activity.id === event.activity.id) {
-      const resource = targetResource;
-      const updatedSelectionActivity = this.applyActivityTypeConstraints(
-        !isOwnerSlot && participantResourceId
-          ? moveParticipantToResource(
-              {
-                ...activeSelection.activity,
-                start: event.start.toISOString(),
-                end: event.end ? event.end.toISOString() : null,
-              },
-              participantResourceId,
-              targetResource,
-            )
-          : addParticipantToActivity(
-              {
-                ...activeSelection.activity,
-                start: event.start.toISOString(),
-                end: event.end ? event.end.toISOString() : null,
-              },
-              targetResource,
-              undefined,
-              undefined,
-              {
-                retainPreviousOwner: false,
-                ownerCategory: targetCategory,
-              },
-            ),
-      );
-      this.activitySelection.selectedActivityState.set({
-        activity: updatedSelectionActivity,
-        resource,
-      });
-    }
+    this.selectionHandlers.handleReposition(event);
   }
 
   protected handleActivityCopy(event: {
@@ -1074,130 +931,55 @@ export class PlanningDashboardComponent {
     start: Date;
     end: Date | null;
   }): void {
-    const stage = this.activeStageSignal();
-    const source = event.activity;
-    const targetResourceId = event.targetResourceId;
-    const sourceOwnerId = this.activityOwnerId(source);
-    if (!sourceOwnerId || targetResourceId === sourceOwnerId) {
-      return;
-    }
-    const resources = this.stageResourceSignals[stage]();
-    const sourceResource = resources.find((res) => res.id === sourceOwnerId);
-    const targetResource = resources.find((res) => res.id === targetResourceId);
-    if (!sourceResource || !targetResource || sourceResource.kind !== targetResource.kind) {
-      return;
-    }
-    const dialogRef = this.dialog.open<
-      ActivityLinkRoleDialogComponent,
-      {
-        sourceResourceName: string;
-        targetResourceName: string;
-      },
-      ActivityLinkRoleDialogResult | undefined
-    >(ActivityLinkRoleDialogComponent, {
-      width: '420px',
-      data: {
-        sourceResourceName: sourceResource.name,
-        targetResourceName: targetResource.name,
-      },
-    });
-
-    dialogRef.afterClosed().subscribe((result) => {
-      if (!result) {
-        return;
-      }
-    if (stage === 'base') {
-      this.baseHandlers.applyCopyWithRoles(source, sourceResource, targetResource, result);
-      return;
-    }
-    this.applyActivityCopyWithRoles(stage, source, sourceResource, targetResource, event, result);
-  });
-}
-
-  private applyActivityCopyWithRoles(
-    stage: PlanningStageId,
-    source: Activity,
-    sourceResource: Resource,
-    targetResource: Resource,
-    event: {
-      activity: Activity;
-      targetResourceId: string;
-      start: Date;
-      end: Date | null;
-    },
-    roles: ActivityLinkRoleDialogResult,
-  ): void {
-    this.updateStageActivities(stage, (activities) =>
-      activities.map((activity) => {
-        if (activity.id !== source.id) {
-          return activity;
-        }
-        const withRoles = applyActivityCopyWithRoles(
-          activity,
-          sourceResource,
-          targetResource,
-          roles,
-          (act, owner, partner, partnerRole, opts) =>
-            addParticipantToActivity(act, owner, partner, partnerRole, opts),
-        );
-        return this.applyActivityTypeConstraints(withRoles);
-      }),
-    );
+    this.selectionHandlers.handleCopy(event);
   }
 
   protected clearActivitySelection(): void {
-    this.activitySelection.clearSelection();
-    this.activityMoveTargetSignal.set('');
+    this.selectionHandlers.clearActivitySelection();
   }
 
   protected clearSelectedActivity(): void {
-    const selection = this.activitySelection.selectedActivityState();
-    if (selection && this.pendingFacade.isPendingSelection(selection.activity.id)) {
-      this.pendingActivitySignal.set(null);
-      this.pendingActivityOriginal.set(null);
-    }
-    this.activitySelection.selectedActivityState.set(null);
-    this.pendingFacade.clearEditingPreview();
+    this.selectionHandlers.clearSelectedActivity();
   }
 
   protected saveSelectedActivityEdits(): void {
-    this.activityHandlers.saveSelectedActivityEdits();
+    this.selectionHandlers.saveSelectedActivityEdits();
   }
 
   protected deleteSelectedActivity(): void {
-    this.activityHandlers.deleteSelectedActivity();
+    this.selectionHandlers.deleteSelectedActivity();
   }
 
   protected handleServiceAssignRequest(resource: Resource): void {
-    this.serviceAssignmentFacade.handleRequest(resource);
+    this.assignmentFacade.handleServiceAssignRequest(resource);
   }
 
   protected setServiceAssignmentTarget(resourceId: string | null): void {
-    this.serviceAssignmentFacade.setTarget(resourceId);
+    this.assignmentFacade.setServiceAssignmentTarget(resourceId);
   }
 
   protected confirmServiceAssignment(): void {
-    this.serviceAssignmentFacade.confirm();
+    this.assignmentFacade.confirmServiceAssignment();
   }
 
   protected cancelServiceAssignment(): void {
-    this.serviceAssignmentFacade.cancel();
+    this.assignmentFacade.cancelServiceAssignment();
   }
 
   protected setMoveSelectionTarget(resourceId: string | null): void {
-    this.selectionActionsFacade.setMoveSelectionTarget(resourceId);
+    this.selectionHandlers.setMoveSelectionTarget(resourceId);
   }
 
   protected moveSelectionToTarget(): void {
-    this.selectionActionsFacade.moveSelectionToTarget();
+    this.selectionHandlers.moveSelectionToTarget();
   }
 
   protected shiftSelectedActivityBy(deltaMinutes: number): void {
-    this.selectionActionsFacade.shiftSelectedActivityBy(deltaMinutes, this.selectedActivities());
+    this.selectionHandlers.shiftSelectedActivityBy(deltaMinutes);
   }
 
   protected snapSelectedActivityToPrevious(): void {
-    this.selectionActionsFacade.snapSelectedActivity(
+    this.selectionHandlers.snapSelectedActivity(
       'previous',
       (activity) =>
         findNeighborActivities(
@@ -1205,13 +987,11 @@ export class PlanningDashboardComponent {
           this.normalizedStageActivitySignals[this.activeStageSignal()](),
           this.activityOwnerId(activity),
         ),
-      this.activityForm,
-      (typeId) => this.findActivityType(typeId),
     );
   }
 
   protected snapSelectedActivityToNext(): void {
-    this.selectionActionsFacade.snapSelectedActivity(
+    this.selectionHandlers.snapSelectedActivity(
       'next',
       (activity) =>
         findNeighborActivities(
@@ -1219,21 +999,17 @@ export class PlanningDashboardComponent {
           this.normalizedStageActivitySignals[this.activeStageSignal()](),
           this.activityOwnerId(activity),
         ),
-      this.activityForm,
-      (typeId) => this.findActivityType(typeId),
     );
   }
 
   protected fillGapForSelectedActivity(): void {
-    this.selectionActionsFacade.fillGapForSelectedActivity(
+    this.selectionHandlers.fillGapForSelectedActivity(
       (activity) =>
         findNeighborActivities(
           activity,
           this.normalizedStageActivitySignals[this.activeStageSignal()](),
           this.activityOwnerId(activity),
         ),
-      this.activityForm,
-      (typeId) => this.findActivityType(typeId),
     );
   }
 
@@ -1271,89 +1047,6 @@ export class PlanningDashboardComponent {
     this.boardFacade.createBoardFromSelection(stage, participantIds, this.stageResourceSignals[stage]());
   }
 
-  private updateStageActivities(
-    stage: PlanningStageId,
-    updater: (activities: Activity[]) => Activity[],
-  ): void {
-    this.data.updateStageData(stage, (stageData) => {
-      const next = updater([...stageData.activities]);
-      return {
-        ...stageData,
-        activities: this.normalizeActivityList(next),
-      };
-    });
-  }
-
-  private replaceActivity(updated: Activity): void {
-    const stage = this.activeStageSignal();
-    this.updateStageActivities(stage, (activities) => {
-      const attrs = (updated.attributes ?? {}) as Record<string, unknown>;
-      const linkGroupId = typeof attrs['linkGroupId'] === 'string' ? (attrs['linkGroupId'] as string) : null;
-      if (!linkGroupId) {
-        return activities.map((activity) => (activity.id === updated.id ? updated : activity));
-      }
-      return activities.map((activity) => {
-        const currentAttrs = (activity.attributes ?? {}) as Record<string, unknown>;
-        const currentGroupId =
-          typeof currentAttrs['linkGroupId'] === 'string' ? (currentAttrs['linkGroupId'] as string) : null;
-        if (!currentGroupId || currentGroupId !== linkGroupId) {
-          return activity.id === updated.id ? updated : activity;
-        }
-        // Gleiche Gruppe: Inhalt übernehmen, Ressourcenkontext beibehalten.
-        const next: Activity = {
-          ...activity,
-          title: updated.title,
-          start: updated.start,
-          end: updated.end,
-          type: updated.type,
-          from: updated.from,
-          to: updated.to,
-          remark: updated.remark,
-          attributes: {
-            ...(updated.attributes ?? {}),
-            ...(activity.attributes ?? {}),
-            linkGroupId,
-          },
-        };
-        return next;
-      });
-    });
-    const ownerId = this.activityOwnerId(updated);
-    const resource =
-      (ownerId
-        ? this.stageResourceSignals[stage]().find((entry) => entry.id === ownerId)
-        : null) ?? this.activitySelection.selectedActivityState()?.resource ?? null;
-    if (resource) {
-      this.activitySelection.selectedActivityState.set({
-        activity: this.applyActivityTypeConstraints(updated),
-        resource,
-      });
-    } else {
-      this.activitySelection.selectedActivityState.set(null);
-    }
-    this.pendingFacade.clearEditingPreview();
-  }
-
-  private generateActivityId(prefix: string): string {
-    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  private buildActivityTitle(definition: ActivityTypeDefinition | null): string {
-    return definition?.label ?? 'Aktivität';
-  }
-
-  private resolveServiceCategory(
-    resource: Resource,
-  ): 'personnel-service' | 'vehicle-service' | undefined {
-    if (resource.kind === 'personnel' || resource.kind === 'personnel-service') {
-      return 'personnel-service';
-    }
-    if (resource.kind === 'vehicle' || resource.kind === 'vehicle-service') {
-      return 'vehicle-service';
-    }
-    return undefined;
-  }
-
   private selectedActivityParticipantIds(): string[] {
     const selection = this.activitySelection.selectedActivityState();
     if (!selection) {
@@ -1363,50 +1056,18 @@ export class PlanningDashboardComponent {
   }
 
   private findActivityType(id: string | null | undefined): ActivityTypeDefinition | null {
-    if (!id) {
-      return null;
-    }
-    return this.activityTypeDefinitions().find((definition) => definition.id === id) ?? null;
-  }
-
-  private definitionAppliesToResource(definition: ActivityTypeDefinition, resource: Resource): boolean {
-    return (definition.relevantFor ?? definition.appliesTo).includes(resource.kind);
-  }
-
-  private resolveActivityTypeForResource(
-    resource: Resource,
-    requestedId: string | null | undefined,
-  ): ActivityTypeDefinition | null {
-    const definitions = this.activityTypeDefinitions();
-    if (requestedId) {
-      const requested = definitions.find(
-        (definition) => definition.id === requestedId && this.definitionAppliesToResource(definition, resource),
-      );
-      if (requested) {
-        return requested;
-      }
-    }
-    return definitions.find((definition) => this.definitionAppliesToResource(definition, resource)) ?? null;
+    return findActivityTypeById(this.activityTypeDefinitions, id);
   }
 
   protected definitionHasField(
     definition: ActivityTypeDefinition | null,
     field: ActivityFieldKey,
   ): boolean {
-    if (field === 'start' || field === 'end') {
-      return true;
-    }
-    if (!definition) {
-      return false;
-    }
-    return definition.fields.includes(field);
+    return definitionHasField(definition, field);
   }
 
   protected shouldShowEndField(definition: ActivityTypeDefinition | null): boolean {
-    if (!definition) {
-      return true;
-    }
-    return definition.timeMode !== 'point';
+    return shouldShowEndField(definition);
   }
 
   private normalizeActivityList(list: Activity[]): Activity[] {
@@ -1467,22 +1128,7 @@ export class PlanningDashboardComponent {
   }
 
   protected boardPendingActivity(board: PlanningBoard): Activity | null {
-    const stage = this.activeStageSignal();
-    const pending = this.pendingFacade.pendingActivityForStage(stage);
-    if (pending) {
-      const ownerId = this.activityOwnerId(pending);
-      if (ownerId && board.resourceIds.includes(ownerId)) {
-        return pending;
-      }
-    }
-    const preview = this.activityEditPreviewSignal();
-    if (preview && preview.stage === stage) {
-      const ownerId = this.activityOwnerId(preview.activity);
-      if (ownerId && board.resourceIds.includes(ownerId)) {
-        return preview.activity;
-      }
-    }
-    return null;
+    return this.boardActionsFacade.boardPendingActivity(board);
   }
 
   protected isActiveBoard(boardId: string): boolean {
@@ -1491,67 +1137,27 @@ export class PlanningDashboardComponent {
   }
 
   protected isTimetableYearSelected(label: string): boolean {
-    const stage = this.activeStageSignal();
-    return this.stageYearSelectionState()[stage]?.has(label) ?? false;
+    return this.filterHandlers.isTimetableYearSelected(label);
   }
 
   protected onTimetableYearToggle(label: string, checked: boolean): void {
-    const stage = this.activeStageSignal();
-    this.filterFacade.updateStageYearSelection(stage, this.timetableYearOptions(), (current, options) => {
-      const next = new Set(current);
-      if (checked) {
-        next.add(label);
-      } else {
-        if (next.size <= 1) {
-          return current;
-        }
-        next.delete(label);
-      }
-      if (next.size === 0 && options.length) {
-        next.add(this.filterFacade.preferredYearLabel(options));
-      }
-      return next;
-    });
+    this.filterHandlers.onTimetableYearToggle(label, checked);
   }
 
   protected selectDefaultTimetableYear(): void {
-    const stage = this.activeStageSignal();
-    this.filterFacade.updateStageYearSelection(stage, this.timetableYearOptions(), (_current, options) => {
-      if (!options.length) {
-        return _current;
-      }
-      return new Set([this.filterFacade.preferredYearLabel(options)]);
-    });
+    this.filterHandlers.selectDefaultTimetableYear();
   }
 
   protected selectAllTimetableYears(): void {
-    const stage = this.activeStageSignal();
-    this.filterFacade.updateStageYearSelection(stage, this.timetableYearOptions(), (_current, options) => {
-      if (!options.length) {
-        return _current;
-      }
-      return new Set(options.map((year) => year.label));
-    });
+    this.filterHandlers.selectAllTimetableYears();
   }
 
   protected onSimulationSelect(simulationId: string): void {
-    const sim = this.simulationOptions().find((entry) => entry.id === simulationId);
-    if (!sim) {
-      return;
-    }
-    this.selectedSimulationSignal.set(sim);
-    this.filterFacade.applySimulationSelection(sim);
-  }
-
-  private updateStageState(
-    stage: PlanningStageId,
-    reducer: (state: StageRuntimeState) => StageRuntimeState,
-  ): void {
-    this.stageStore.updateStage(stage, (state) => reducer(state));
+    this.filterHandlers.onSimulationSelect(simulationId);
   }
 
   private selectedYearBounds(stage: PlanningStageId): TimetableYearBounds[] {
-    return this.filterFacade.selectedYearBounds(stage, this.timetableYearOptions());
+    return this.yearFacade.selectedYearBounds(stage);
   }
 
   private saveTemplateActivity(activity: Activity): void {
@@ -1563,20 +1169,6 @@ export class PlanningDashboardComponent {
   }
 
   private setActiveStage(stage: PlanningStageId, updateUrl: boolean): void {
-    const current = this.activeStageSignal();
-    if (current === stage) {
-      if (updateUrl) {
-        updateStageQueryParam(this.router, this.route, stage);
-      }
-      return;
-    }
-    this.activitySelection.selectedActivityState.set(null);
-    this.pendingServiceResourceSignal.set(null);
-    this.serviceAssignmentTargetSignal.set(null);
-    this.clearActivitySelection();
-    this.activeStageSignal.set(stage);
-    if (updateUrl) {
-      updateStageQueryParam(this.router, this.route, stage);
-    }
+    this.routingFacade.setActiveStage(stage, updateUrl);
   }
 }

@@ -1,4 +1,4 @@
-import { ActivityCategory } from '../../core/services/activity-type.service';
+import { ActivityCategory, ActivityTypeDefinition } from '../../core/services/activity-type.service';
 import { Activity, ActivityParticipantRole } from '../../models/activity';
 import { ActivityLinkRole } from './activity-link-role-dialog.component';
 import { Resource } from '../../models/resource';
@@ -203,4 +203,40 @@ export function applyParticipantRoleUpdates(
     } as ActivityParticipant;
   });
   return changed ? { ...activity, participants } : activity;
+}
+
+export function buildActivityTitle(definition: ActivityTypeDefinition | null): string {
+  return definition?.label ?? 'Aktivität';
+}
+
+export function definitionAppliesToResource(definition: ActivityTypeDefinition, resource: Resource): boolean {
+  return (definition.relevantFor ?? definition.appliesTo).includes(resource.kind);
+}
+
+export function resolveActivityTypeForResource(
+  resource: Resource,
+  requestedId: string | null | undefined,
+  definitions: ActivityTypeDefinition[],
+): ActivityTypeDefinition | null {
+  if (requestedId) {
+    const requested = definitions.find(
+      (definition) => definition.id === requestedId && definitionAppliesToResource(definition, resource),
+    );
+    if (requested) {
+      return requested;
+    }
+  }
+  return definitions.find((definition) => definitionAppliesToResource(definition, resource)) ?? null;
+}
+
+export function resolveServiceCategory(
+  resource: Resource,
+): 'personnel-service' | 'vehicle-service' | undefined {
+  if (resource.kind === 'personnel' || resource.kind === 'personnel-service') {
+    return 'personnel-service';
+  }
+  if (resource.kind === 'vehicle' || resource.kind === 'vehicle-service') {
+    return 'vehicle-service';
+  }
+  return undefined;
 }

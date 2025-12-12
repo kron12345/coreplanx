@@ -24,6 +24,10 @@ export class PlanningDashboardSelectionActionsFacade {
     },
   ) {}
 
+  resetMoveTarget(): void {
+    this.deps.activityMoveTargetSignal.set('');
+  }
+
   setMoveSelectionTarget(resourceId: string | null): void {
     this.deps.activityMoveTargetSignal.set(resourceId ?? '');
   }
