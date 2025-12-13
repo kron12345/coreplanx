@@ -1,0 +1,179 @@
+<div class="tab-panel">
+  <div class="inline-actions">
+    <button mat-stroked-button type="button" (click)="createTemplateRequested.emit()">
+      <mat-icon>schema</mat-icon>
+      Vorlage erstellen
+    </button>
+  </div>
+
+  <form [formGroup]="form" class="form plan-form">
+    <mat-form-field appearance="outline">
+      <mat-label>Vorlage</mat-label>
+      <mat-select formControlName="templateId">
+        @for (template of templates; track template.id) {
+          <mat-option [value]="template.id">{{ template.title }}</mat-option>
+        }
+      </mat-select>
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="help-icon"
+        [matTooltip]="fieldDescriptions['templateId']"
+        aria-label="Vorlage Hilfe"
+      >
+        <mat-icon>help_outline</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Erste Abfahrt</mat-label>
+        <input matInput type="time" formControlName="startTime" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['startTime']"
+          aria-label="Erste Abfahrt Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Letzte Abfahrt</mat-label>
+        <input matInput type="time" formControlName="endTime" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['endTime']"
+          aria-label="Letzte Abfahrt Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Takt (Minuten)</mat-label>
+        <input matInput type="number" formControlName="intervalMinutes" min="1" />
+        <mat-hint>Abstand zwischen den Zügen, z. B. 30.</mat-hint>
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['intervalMinutes']"
+          aria-label="Takt Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Namenspräfix</mat-label>
+        <input matInput formControlName="namePrefix" placeholder="z. B. S3 Basel" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['namePrefix']"
+          aria-label="Namenspräfix Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Verantwortlich</mat-label>
+        <input matInput formControlName="responsible" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['responsible']"
+          aria-label="Verantwortlich Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Tags (optional)</mat-label>
+        <input matInput formControlName="tags" placeholder="#rolling, #priority" />
+        <mat-hint>Kommagetrennte Schlagwörter für jede erzeugte Position.</mat-hint>
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['tags']"
+          aria-label="Tags Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Zugnummer (OTN)</mat-label>
+        <input matInput type="number" formControlName="otn" placeholder="z. B. 2400" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['otn']"
+          aria-label="OTN Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>OTN-Intervall</mat-label>
+        <input matInput type="number" min="1" formControlName="otnInterval" />
+        <button
+          mat-icon-button
+          matSuffix
+          type="button"
+          class="help-icon"
+          [matTooltip]="fieldDescriptions['otnInterval']"
+          aria-label="OTN Intervall Hilfe"
+        >
+          <mat-icon>help_outline</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+
+    <div class="variant-assignment">
+      <button mat-stroked-button type="button" (click)="simulationAssignmentRequested.emit()">
+        <mat-icon>hub</mat-icon>
+        Simulation / Produktiv zuordnen
+      </button>
+      @if (simulationSelectionLabel; as selection) {
+        <span class="variant-assignment__label">
+          Aktuell: {{ selection }}
+        </span>
+      }
+    </div>
+
+    <p class="calendar-hint">
+      Referenzkalender und Vorschau findest du im Abschnitt darunter.
+    </p>
+
+    <app-vehicle-composition-form
+      [baseVehicles]="baseVehicles"
+      [changeEntries]="changeEntries"
+      [stopOptions]="stopOptions"
+      [required]="requiresRollingStock"
+      [baseVehicleFactory]="baseVehicleFactory"
+      [changeEntryFactory]="changeEntryFactory"
+      [hint]="'Basisfahrzeuge und Kopplungen/Entkopplungen entlang der Strecke.'"
+    ></app-vehicle-composition-form>
+  </form>
+</div>
+

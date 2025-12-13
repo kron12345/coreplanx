@@ -1,6 +1,6 @@
 import { Signal, computed } from '@angular/core';
 import { Resource } from '../../models/resource';
-import { PlanningTimelineRange } from './planning-data.service';
+import { PlanningTimelineRange } from './planning-data.types';
 import { PlanningDashboardBoardFacade, StageResourceGroupConfig } from './planning-dashboard-board.facade';
 import { PlanningStageId } from './planning-stage.model';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';

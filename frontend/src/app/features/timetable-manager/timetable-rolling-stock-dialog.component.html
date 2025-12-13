@@ -7,12 +7,11 @@
         <mat-label>Komposition</mat-label>
         <mat-select formControlName="compositionId">
           <mat-option [value]="null">Keine Zuordnung</mat-option>
-          <mat-option
-            *ngFor="let option of compositionOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of compositionOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
         <mat-hint>Optionaler Verweis auf Stammdaten</mat-hint>
       </mat-form-field>
@@ -30,24 +29,22 @@
         <mat-label>Traktionsart</mat-label>
         <mat-select formControlName="tractionMode">
           <mat-option [value]="null">Nicht gesetzt</mat-option>
-          <mat-option
-            *ngFor="let option of tractionOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of tractionOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Energieversorgung</mat-label>
         <mat-select formControlName="powerSupplySystems" multiple>
-          <mat-option
-            *ngFor="let option of powerSupplyOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of powerSupplyOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
         <mat-hint>Mehrfachauswahl möglich</mat-hint>
       </mat-form-field>
@@ -71,12 +68,11 @@
         <mat-label>Bremssystem</mat-label>
         <mat-select formControlName="brakeType">
           <mat-option [value]="null">Nicht gesetzt</mat-option>
-          <mat-option
-            *ngFor="let option of brakeTypeOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of brakeTypeOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
@@ -89,24 +85,22 @@
         <mat-label>ETCS-Level</mat-label>
         <mat-select formControlName="etcsLevel">
           <mat-option [value]="null">Nicht gesetzt</mat-option>
-          <mat-option
-            *ngFor="let option of etcsLevelOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of etcsLevelOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Zugsicherungssysteme</mat-label>
         <mat-select formControlName="trainProtectionSystems" multiple>
-          <mat-option
-            *ngFor="let option of trainProtectionOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of trainProtectionOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
         <mat-hint>Mehrfachauswahl möglich</mat-hint>
       </mat-form-field>
@@ -115,12 +109,11 @@
         <mat-label>Lichtraumprofil</mat-label>
         <mat-select formControlName="gaugeProfile">
           <mat-option [value]="null">Nicht gesetzt</mat-option>
-          <mat-option
-            *ngFor="let option of gaugeProfileOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of gaugeProfileOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
@@ -128,12 +121,11 @@
         <mat-label>Neigetechnik</mat-label>
         <mat-select formControlName="tiltingCapability">
           <mat-option [value]="null">Nicht gesetzt</mat-option>
-          <mat-option
-            *ngFor="let option of tiltingOptions"
-            [value]="option.value"
-          >
-            {{ option.label }}
-          </mat-option>
+          @for (option of tiltingOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
@@ -176,11 +168,8 @@
       </p>
 
       <div class="segments-list">
-        <mat-card
-          class="segment-card"
-          appearance="outlined"
-          *ngFor="let segment of segments.controls; let i = index"
-        >
+        @for (segment of segments.controls; track $index; let i = $index) {
+          <mat-card class="segment-card" appearance="outlined">
           <mat-card-content [formGroupName]="i" class="segment-grid">
             <div class="segment-header">
               <h4>#{{ i + 1 }}</h4>
@@ -219,24 +208,22 @@
               <mat-label>Rolle</mat-label>
               <mat-select formControlName="role">
                 <mat-option [value]="''">Nicht gesetzt</mat-option>
-                <mat-option
-                  *ngFor="let option of segmentRoleOptions"
-                  [value]="option.value"
-                >
-                  {{ option.label }}
-                </mat-option>
+                @for (option of segmentRoleOptions; track option.value) {
+                  <mat-option [value]="option.value">
+                    {{ option.label }}
+                  </mat-option>
+                }
               </mat-select>
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Fahrzeugtyp</mat-label>
               <mat-select formControlName="vehicleTypeId" required>
-                <mat-option
-                  *ngFor="let option of vehicleTypeOptions"
-                  [value]="option.value"
-                >
-                  {{ option.label }}
-                </mat-option>
+                @for (option of vehicleTypeOptions; track option.value) {
+                  <mat-option [value]="option.value">
+                    {{ option.label }}
+                  </mat-option>
+                }
               </mat-select>
               <mat-error>Bitte Fahrzeugtyp wählen.</mat-error>
             </mat-form-field>
@@ -283,6 +270,7 @@
             </mat-form-field>
           </mat-card-content>
         </mat-card>
+        }
       </div>
 
       @if (segmentError(); as message) {
@@ -312,11 +300,8 @@
       </p>
 
       <div class="operations-list">
-        <mat-card
-          class="operation-card"
-          appearance="outlined"
-          *ngFor="let operation of operations.controls; let i = index"
-        >
+        @for (operation of operations.controls; track $index; let i = $index) {
+          <mat-card class="operation-card" appearance="outlined">
           <mat-card-content [formGroupName]="i" class="operation-grid">
             <div class="operation-header">
               <h4>Operation #{{ i + 1 }}</h4>
@@ -355,12 +340,11 @@
               <mat-label>Betriebshalt</mat-label>
               <mat-select formControlName="stopId">
                 <mat-option [value]="null">Bitte wählen</mat-option>
-                <mat-option
-                  *ngFor="let option of stopOptions"
-                  [value]="option.value"
-                >
-                  {{ option.label }}
-                </mat-option>
+                @for (option of stopOptions; track option.value) {
+                  <mat-option [value]="option.value">
+                    {{ option.label }}
+                  </mat-option>
+                }
               </mat-select>
             </mat-form-field>
 
@@ -368,12 +352,11 @@
               <mat-label>Typ</mat-label>
               <mat-select formControlName="type">
                 <mat-option [value]="null">Bitte wählen</mat-option>
-                <mat-option
-                  *ngFor="let option of operationTypeOptions"
-                  [value]="option.value"
-                >
-                  {{ option.label }}
-                </mat-option>
+                @for (option of operationTypeOptions; track option.value) {
+                  <mat-option [value]="option.value">
+                    {{ option.label }}
+                  </mat-option>
+                }
               </mat-select>
             </mat-form-field>
 
@@ -398,6 +381,7 @@
             </mat-form-field>
           </mat-card-content>
         </mat-card>
+        }
       </div>
 
       @if (operationError(); as message) {

@@ -16,20 +16,7 @@ export interface ConfirmDialogData {
 @Component({
     selector: 'app-confirm-dialog',
     imports: [CommonModule, ...MATERIAL_IMPORTS],
-    template: `
-    <h2 mat-dialog-title>{{ data.title }}</h2>
-    <mat-dialog-content>
-      <p>{{ data.message }}</p>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button (click)="onCancel()">
-        {{ data.cancelLabel || 'Abbrechen' }}
-      </button>
-      <button mat-flat-button color="warn" (click)="onConfirm()">
-        {{ data.confirmLabel || 'Löschen' }}
-      </button>
-    </mat-dialog-actions>
-  `
+    templateUrl: './confirm-dialog.component.html',
 })
 export class ConfirmDialogComponent {
   protected readonly data = inject<ConfirmDialogData>(MAT_DIALOG_DATA);

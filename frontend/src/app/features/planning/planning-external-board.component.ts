@@ -9,33 +9,13 @@ import { Activity, ServiceRole } from '../../models/activity';
 import { getActivityOwnerId } from '../../models/activity-ownership';
 import { ActivityTypeDefinition, ActivityTypeService } from '../../core/services/activity-type.service';
 import { TranslationService } from '../../core/services/translation.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
     selector: 'app-planning-external-board',
     imports: [CommonModule, GanttComponent],
-    template: `
-    <div class="external-board">
-      <app-gantt
-        [resources]="boardResources()"
-        [activities]="boardActivities()"
-        [timelineRange]="timelineRange()"
-        [resourceViewModes]="resourceViewModes()"
-        [selectedActivityIds]="selectedActivityIds()"
-        [activityTypeInfo]="activityTypeInfo()"
-        (activitySelectionToggle)="noop()"
-      ></app-gantt>
-    </div>
-  `,
-    styles: [
-        `
-      .external-board {
-        width: 100%;
-        height: 100vh;
-        overflow: hidden;
-        display: flex;
-      }
-    `,
-    ]
+    templateUrl: './planning-external-board.component.html',
+    styleUrl: './planning-external-board.component.scss',
 })
 export class PlanningExternalBoardComponent {
   private readonly route = inject(ActivatedRoute);
@@ -94,7 +74,7 @@ export class PlanningExternalBoardComponent {
   readonly activityTypeInfo = computed(() => this.buildActivityTypeInfo());
 
   constructor() {
-    this.route.queryParamMap.subscribe((params) => {
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const rawStage = params.get('stage');
       const stage = rawStage === 'operations' ? 'operations' : 'base';
       const resources = params.get('resources');

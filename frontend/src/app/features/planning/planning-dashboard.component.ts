@@ -1,23 +1,13 @@
-import { ChangeDetectionStrategy, Component, Signal, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Signal, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatDialog } from '@angular/material/dialog';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import { GanttComponent } from '../../gantt/gantt.component';
 import { GanttWindowLauncherComponent } from './components/gantt-window-launcher.component';
 import { DragDropModule } from '@angular/cdk/drag-drop';
-import { PlanningDataService, PlanningTimelineRange } from './planning-data.service';
+import { PlanningDataService } from './planning-data.service';
+import type { PlanningTimelineRange } from './planning-data.types';
 import { Resource } from '../../models/resource';
 import { Activity, ServiceRole } from '../../models/activity';
 import {
@@ -51,8 +41,8 @@ import { SimulationRecord } from '../../core/models/simulation.model';
 import { ActivityLinkRole, ActivityLinkRoleDialogComponent, ActivityLinkRoleDialogResult } from './activity-link-role-dialog.component';
 import { TemplateTimelineStoreService } from './template-timeline-store.service';
 import { PlanningBoard, PlanningStageStore, StageRuntimeState } from './stores/planning-stage.store';
-import { PlanningDashboardBoardFacade, StageResourceGroupConfig } from './planning-dashboard-board.facade';
-import { ActivityCatalogOption } from './planning-dashboard.types';
+import { PlanningDashboardBoardFacade } from './planning-dashboard-board.facade';
+import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
 import {
   buildAttributesFromCatalog,
   defaultTemplatePeriod,
@@ -83,6 +73,7 @@ import {
   initTimetableYearEffects,
   initSelectionMaintenanceEffects,
 } from './planning-dashboard-stage.effects';
+import { buildStageMetaMap } from './planning-dashboard-stage.utils';
 import { PlanningDashboardBoardActionsFacade } from './planning-dashboard-board.actions';
 import { PlanningDashboardCatalogFacade } from './planning-dashboard-catalog.facade';
 import {
@@ -115,95 +106,14 @@ import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facad
 import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.facade';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { findActivityTypeById, definitionHasField, shouldShowEndField } from './planning-dashboard-activity.helpers';
-
-interface PendingActivityState {
-  stage: PlanningStageId;
-  activity: Activity;
-}
-
-interface ResourceGroupView extends StageResourceGroupConfig {
-  resources: Resource[];
-}
-
-interface ActivityEditPreviewState {
-  stage: PlanningStageId;
-  activity: Activity;
-}
-
-const STAGE_RESOURCE_GROUPS: Record<PlanningStageId, StageResourceGroupConfig[]> = {
-  base: [
-    {
-      category: 'vehicle-service',
-      label: 'Fahrzeugdienste',
-      description: 'Umläufe und Fahrzeugdienste, die in den Pools der Planwoche entworfen werden.',
-      icon: 'train',
-    },
-    {
-      category: 'personnel-service',
-      label: 'Personaldienste',
-      description: 'Dienstfolgen für Fahr- und Begleitpersonal innerhalb der Planwoche.',
-      icon: 'badge',
-    },
-  ],
-  operations: [
-    {
-      category: 'vehicle-service',
-      label: 'Fahrzeugdienste (Pool)',
-      description: 'Standardisierte Dienste aus der Basisplanung als Grundlage für den Jahresausroll.',
-      icon: 'train',
-    },
-    {
-      category: 'personnel-service',
-      label: 'Personaldienste (Pool)',
-      description: 'Personaldienste aus der Basisplanung zur Verknüpfung mit Ressourcen.',
-      icon: 'assignment_ind',
-    },
-    {
-      category: 'vehicle',
-      label: 'Fahrzeuge',
-      description: 'Reale Fahrzeuge, die über das Jahr disponiert und mit Diensten verknüpft werden.',
-      icon: 'directions_transit',
-    },
-    {
-      category: 'personnel',
-      label: 'Personal',
-      description: 'Einsatzkräfte mit Verfügbarkeiten, Leistungen sowie Ruhetagen und Ferien.',
-      icon: 'groups',
-    },
-  ],
-};
-
-const TYPE_PICKER_META: Array<{ id: ActivityCategory; label: string; icon: string }> = [
-  { id: 'rest', label: 'Freitage', icon: 'beach_access' },
-  { id: 'movement', label: 'Rangieren', icon: 'precision_manufacturing' },
-  { id: 'service', label: 'Dienst & Pause', icon: 'schedule' },
-  { id: 'other', label: 'Sonstige', icon: 'widgets' },
-];
-
-type ActivityTypePickerGroup = {
-  id: ActivityCategory;
-  label: string;
-  icon: string;
-  items: ActivityCatalogOption[];
-};
+import { STAGE_RESOURCE_GROUPS, TYPE_PICKER_META, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
 
 @Component({
     selector: 'app-planning-dashboard',
     imports: [
         CommonModule,
         ReactiveFormsModule,
-        MatIconModule,
-        MatButtonModule,
-        MatButtonToggleModule,
-        MatTabsModule,
-        MatMenuModule,
-        MatTooltipModule,
-        MatCheckboxModule,
-        MatChipsModule,
-        MatCardModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatSelectModule,
+        ...MATERIAL_IMPORTS,
         DragDropModule,
         GanttComponent,
         GanttWindowLauncherComponent,
@@ -216,6 +126,7 @@ export class PlanningDashboardComponent {
   private readonly data = inject(PlanningDataService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
   private readonly timetableYearService = inject(TimetableYearService);
   private readonly managedTimetableYearBounds = this.timetableYearService.managedYearBoundsSignal();
@@ -224,13 +135,7 @@ export class PlanningDashboardComponent {
   private readonly simulationService = inject(SimulationService);
 
   readonly stages = PLANNING_STAGE_METAS;
-  private readonly stageMetaMap: Record<PlanningStageId, PlanningStageMeta> = this.stages.reduce(
-    (record, stage) => {
-      record[stage.id] = stage;
-      return record;
-    },
-    {} as Record<PlanningStageId, PlanningStageMeta>,
-  );
+  private readonly stageMetaMap: Record<PlanningStageId, PlanningStageMeta> = buildStageMetaMap(this.stages);
 
   private readonly stageOrder: PlanningStageId[] = this.stages.map((stage) => stage.id);
 
@@ -385,6 +290,7 @@ export class PlanningDashboardComponent {
     activeStageSignal: this.activeStageSignal,
     queryFrom: this.queryFrom,
     queryTo: this.queryTo,
+    destroyRef: this.destroyRef,
     onStageChanged: (stage) => this.onStageChange(stage),
   });
   private readonly yearFacade = new PlanningDashboardYearFacade({
@@ -473,6 +379,7 @@ export class PlanningDashboardComponent {
     });
 
     initFormEffects({
+      destroyRef: this.destroyRef,
       activityForm: this.activityForm,
       activityFormTypeSignal: () => this.activityFormTypeSignal(),
       setActivityFormType: (val) => this.activityFormTypeSignal.set(val),
@@ -549,9 +456,7 @@ export class PlanningDashboardComponent {
   protected readonly activityCreationOptions = this.catalogFacade.activityCreationOptions;
   protected readonly activityTypeCandidates = this.catalogFacade.activityTypeCandidates;
   protected readonly quickActivityTypes = this.catalogFacade.quickActivityTypes;
-  protected readonly activityTypePickerGroups = this.catalogFacade.activityTypePickerGroups as unknown as Signal<
-    ActivityTypePickerGroup[]
-  >;
+  protected readonly activityTypePickerGroups = this.catalogFacade.activityTypePickerGroups;
   protected readonly activityCatalogOptionMap = this.catalogFacade.activityCatalogOptionMap;
   protected readonly selectedCatalogOption = this.catalogFacade.selectedCatalogOption;
   private readonly pendingFacade: PlanningDashboardPendingFacade = new PlanningDashboardPendingFacade({
@@ -583,7 +488,7 @@ export class PlanningDashboardComponent {
     boardFacade: this.boardFacade,
     activeStage: () => this.activeStageSignal(),
     selectedResourceIds: () => this.selectedResourceIds(),
-    stageResourceSignals: this.stageResourceSignals as any,
+    stageResourceSignals: this.stageResourceSignals,
     stageStore: this.stageStore,
     pendingActivityForStage: (stage) => this.pendingFacade.pendingActivityForStage(stage),
     previewActivityForStage: (stage) => {
@@ -781,17 +686,11 @@ export class PlanningDashboardComponent {
     );
   }
 
-  protected setActivityTypePickerGroup(groupId: ActivityTypePickerGroup['id']): void {
-    this.uiFacade.setActivityTypePickerGroup(groupId);
-  }
+  protected setActivityTypePickerGroup(groupId: ActivityTypePickerGroup['id']): void { this.uiFacade.setActivityTypePickerGroup(groupId); }
 
-  protected isActivityOptionSelected(optionId: string): boolean {
-    return this.uiFacade.isActivityOptionSelected(optionId);
-  }
+  protected isActivityOptionSelected(optionId: string): boolean { return this.uiFacade.isActivityOptionSelected(optionId); }
 
-  protected selectCatalogActivity(optionId: string): void {
-    this.uiFacade.selectCatalogActivity(optionId);
-  }
+  protected selectCatalogActivity(optionId: string): void { this.uiFacade.selectCatalogActivity(optionId); }
 
   protected openPeriodsWindow(): void {
     let templateId = this.selectedTemplateId();
@@ -812,73 +711,43 @@ export class PlanningDashboardComponent {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  protected openTypePicker(): void {
-    this.uiFacade.openTypePicker();
-  }
+  protected openTypePicker(): void { this.uiFacade.openTypePicker(); }
 
-  protected closeTypePicker(): void {
-    this.uiFacade.closeTypePicker();
-  }
+  protected closeTypePicker(): void { this.uiFacade.closeTypePicker(); }
 
-  protected selectActivityTypeFromPicker(optionId: string): void {
-    this.uiFacade.selectActivityTypeFromPicker(optionId);
-  }
+  protected selectActivityTypeFromPicker(optionId: string): void { this.uiFacade.selectActivityTypeFromPicker(optionId); }
 
-  protected toggleActivityDetails(): void {
-    this.uiFacade.toggleActivityDetails();
-  }
+  protected toggleActivityDetails(): void { this.uiFacade.toggleActivityDetails(); }
 
   protected onStageChange(stage: PlanningStageId | null | undefined): void {
     if (!stage || !(stage in this.stageMetaMap)) {
       return;
     }
     const nextStage = stage as PlanningStageId;
-    this.setActiveStage(nextStage, true);
+    this.routingFacade.setActiveStage(nextStage, true);
   }
 
-  protected onSelectionToggle(resourceId: string, selected: boolean): void {
-    this.selectionFacade.onSelectionToggle(resourceId, selected);
-  }
+  protected onSelectionToggle(resourceId: string, selected: boolean): void { this.selectionFacade.onSelectionToggle(resourceId, selected); }
 
-  protected isResourceSelected(resourceId: string): boolean {
-    return this.selectionFacade.isResourceSelected(resourceId);
-  }
+  protected isResourceSelected(resourceId: string): boolean { return this.selectionFacade.isResourceSelected(resourceId); }
 
-  protected clearSelection(): void {
-    this.selectionFacade.clearSelection();
-  }
+  protected clearSelection(): void { this.selectionFacade.clearSelection(); }
 
-  protected selectAllResources(): void {
-    this.selectionFacade.selectAllResources();
-  }
+  protected selectAllResources(): void { this.selectionFacade.selectAllResources(); }
 
-  protected setActivityCreationTool(tool: string): void {
-    this.uiFacade.setActivityCreationTool(tool);
-  }
+  protected setActivityCreationTool(tool: string): void { this.uiFacade.setActivityCreationTool(tool); }
 
-  protected resetPendingActivityEdits(): void {
-    this.activityHandlers.resetPendingActivityEdits();
-  }
+  protected resetPendingActivityEdits(): void { this.activityHandlers.resetPendingActivityEdits(); }
 
-  protected adjustFormEndBy(deltaMinutes: number): void {
-    this.formFacade.adjustFormEndBy(deltaMinutes);
-  }
+  protected adjustFormEndBy(deltaMinutes: number): void { this.formFacade.adjustFormEndBy(deltaMinutes); }
 
-  protected shiftFormBy(deltaMinutes: number): void {
-    this.formFacade.shiftFormBy(deltaMinutes);
-  }
+  protected shiftFormBy(deltaMinutes: number): void { this.formFacade.shiftFormBy(deltaMinutes); }
 
-  protected handleResourceViewModeChange(event: { resourceId: string; mode: 'block' | 'detail' }): void {
-    this.selectionFacade.handleResourceViewModeChange(event);
-  }
+  protected handleResourceViewModeChange(event: { resourceId: string; mode: 'block' | 'detail' }): void { this.selectionFacade.handleResourceViewModeChange(event); }
 
-  protected handleActivityCreate(event: { resource: Resource; start: Date }): void {
-    this.activityHandlers.handleActivityCreate(event);
-  }
+  protected handleActivityCreate(event: { resource: Resource; start: Date }): void { this.activityHandlers.handleActivityCreate(event); }
 
-  protected handleActivityEdit(event: { resource: Resource; activity: Activity }): void {
-    this.activityHandlers.handleActivityEdit(event);
-  }
+  protected handleActivityEdit(event: { resource: Resource; activity: Activity }): void { this.activityHandlers.handleActivityEdit(event); }
 
   protected handleActivitySelectionToggle(event: {
     resource: Resource;
@@ -910,49 +779,27 @@ export class PlanningDashboardComponent {
     this.selectionHandlers.handleCopy(event);
   }
 
-  protected clearActivitySelection(): void {
-    this.selectionHandlers.clearActivitySelection();
-  }
+  protected clearActivitySelection(): void { this.selectionHandlers.clearActivitySelection(); }
 
-  protected clearSelectedActivity(): void {
-    this.selectionHandlers.clearSelectedActivity();
-  }
+  protected clearSelectedActivity(): void { this.selectionHandlers.clearSelectedActivity(); }
 
-  protected saveSelectedActivityEdits(): void {
-    this.selectionHandlers.saveSelectedActivityEdits();
-  }
+  protected saveSelectedActivityEdits(): void { this.selectionHandlers.saveSelectedActivityEdits(); }
 
-  protected deleteSelectedActivity(): void {
-    this.selectionHandlers.deleteSelectedActivity();
-  }
+  protected deleteSelectedActivity(): void { this.selectionHandlers.deleteSelectedActivity(); }
 
-  protected handleServiceAssignRequest(resource: Resource): void {
-    this.assignmentFacade.handleServiceAssignRequest(resource);
-  }
+  protected handleServiceAssignRequest(resource: Resource): void { this.assignmentFacade.handleServiceAssignRequest(resource); }
 
-  protected setServiceAssignmentTarget(resourceId: string | null): void {
-    this.assignmentFacade.setServiceAssignmentTarget(resourceId);
-  }
+  protected setServiceAssignmentTarget(resourceId: string | null): void { this.assignmentFacade.setServiceAssignmentTarget(resourceId); }
 
-  protected confirmServiceAssignment(): void {
-    this.assignmentFacade.confirmServiceAssignment();
-  }
+  protected confirmServiceAssignment(): void { this.assignmentFacade.confirmServiceAssignment(); }
 
-  protected cancelServiceAssignment(): void {
-    this.assignmentFacade.cancelServiceAssignment();
-  }
+  protected cancelServiceAssignment(): void { this.assignmentFacade.cancelServiceAssignment(); }
 
-  protected setMoveSelectionTarget(resourceId: string | null): void {
-    this.selectionHandlers.setMoveSelectionTarget(resourceId);
-  }
+  protected setMoveSelectionTarget(resourceId: string | null): void { this.selectionHandlers.setMoveSelectionTarget(resourceId); }
 
-  protected moveSelectionToTarget(): void {
-    this.selectionHandlers.moveSelectionToTarget();
-  }
+  protected moveSelectionToTarget(): void { this.selectionHandlers.moveSelectionToTarget(); }
 
-  protected shiftSelectedActivityBy(deltaMinutes: number): void {
-    this.selectionHandlers.shiftSelectedActivityBy(deltaMinutes);
-  }
+  protected shiftSelectedActivityBy(deltaMinutes: number): void { this.selectionHandlers.shiftSelectedActivityBy(deltaMinutes); }
 
   protected snapSelectedActivityToPrevious(): void {
     this.selectionHandlers.snapSelectedActivity(
@@ -1142,9 +989,5 @@ export class PlanningDashboardComponent {
       return;
     }
     this.data.upsertTemplateActivity(templateId, activity);
-  }
-
-  private setActiveStage(stage: PlanningStageId, updateUrl: boolean): void {
-    this.routingFacade.setActiveStage(stage, updateUrl);
   }
 }

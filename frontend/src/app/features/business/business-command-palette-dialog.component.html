@@ -1,0 +1,34 @@
+<h2 mat-dialog-title>Befehlspalette</h2>
+<div mat-dialog-content class="command-palette">
+  <mat-form-field appearance="outline" class="command-search">
+    <mat-label>Suchen</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      [formControl]="queryControl"
+      placeholder="Aktion oder Filter"
+      autofocus
+    />
+  </mat-form-field>
+
+  <mat-nav-list>
+    @for (command of filteredCommands(); track command.id) {
+      <a mat-list-item (click)="select(command.id)">
+        <mat-icon matListIcon>{{ command.icon || 'bolt' }}</mat-icon>
+        <div matLine>{{ command.label }}</div>
+        @if (command.hint) {
+          <div matLine class="command-hint">{{ command.hint }}</div>
+        }
+      </a>
+    }
+  </mat-nav-list>
+
+  @if (!filteredCommands().length) {
+    <p class="command-empty">
+      Keine Befehle gefunden.
+    </p>
+  }
+</div>
+<div mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Schließen</button>
+</div>

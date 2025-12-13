@@ -17,12 +17,11 @@
     <mat-form-field appearance="outline">
       <mat-label>Bereich</mat-label>
       <mat-select formControlName="relatedEntity">
-        <mat-option
-          *ngFor="let option of entityOptions"
-          [value]="option.value"
-        >
-          {{ option.label }}
-        </mat-option>
+        @for (option of entityOptions; track option.value) {
+          <mat-option [value]="option.value">
+            {{ option.label }}
+          </mat-option>
+        }
       </mat-select>
     </mat-form-field>
 

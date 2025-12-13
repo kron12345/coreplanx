@@ -37,8 +37,12 @@
             <span class="type">{{ typeLabel(it) }}</span>
             @if (variantChip(it); as chip) {
               <mat-chip class="variant-chip" [ngClass]="chip.class" appearance="outlined">
-                <mat-icon *ngIf="chip.class === 'variant-simulation'">science</mat-icon>
-                <mat-icon *ngIf="chip.class === 'variant-productive'">category</mat-icon>
+                @if (chip.class === 'variant-simulation') {
+                  <mat-icon>science</mat-icon>
+                }
+                @if (chip.class === 'variant-productive') {
+                  <mat-icon>category</mat-icon>
+                }
                 {{ chip.label }}
               </mat-chip>
             }

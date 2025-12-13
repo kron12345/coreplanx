@@ -1,0 +1,81 @@
+<section class="personnel-editor">
+  <header>
+    <mat-button-toggle-group
+      color="primary"
+      [value]="viewMode()"
+      (valueChange)="viewMode.set($event)"
+    >
+      <mat-button-toggle value="servicePools">
+        <mat-icon fontIcon="group_work"></mat-icon>
+        Dienstpools
+      </mat-button-toggle>
+      <mat-button-toggle value="services">
+        <mat-icon fontIcon="event"></mat-icon>
+        Dienste
+      </mat-button-toggle>
+      <mat-button-toggle value="personnelPools">
+        <mat-icon fontIcon="groups"></mat-icon>
+        Personalpools
+      </mat-button-toggle>
+      <mat-button-toggle value="personnel">
+        <mat-icon fontIcon="badge"></mat-icon>
+        Personal
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+  </header>
+
+  @switch (viewMode()) {
+    @case ('servicePools') {
+      <app-attribute-entity-editor
+        [title]="'Dienstpools'"
+        [entities]="servicePoolRecords()"
+        [attributeDefinitions]="servicePoolDefinitions()"
+        [defaultFallbackValues]="servicePoolDefaults"
+        [detailError]="servicePoolError()"
+        [requiredKeys]="servicePoolRequiredKeys"
+        (saveEntity)="handleServicePoolSave($event)"
+        (deleteEntities)="handleServicePoolDelete($event)"
+      />
+    }
+    @case ('services') {
+      <app-attribute-entity-editor
+        [title]="'Dienste'"
+        [entities]="serviceRecords()"
+        [attributeDefinitions]="serviceDefinitions()"
+        [defaultFallbackValues]="serviceDefaults"
+        [detailError]="serviceError()"
+        [groupedEntities]="serviceGroups()"
+        [createDefaultsFactory]="serviceCreateDefaultsFactory"
+        [selectOptions]="serviceSelectOptions()"
+        (saveEntity)="handleServiceSave($event)"
+        (deleteEntities)="handleServiceDelete($event)"
+      />
+    }
+    @case ('personnelPools') {
+      <app-attribute-entity-editor
+        [title]="'Personalpools'"
+        [entities]="personnelPoolRecords()"
+        [attributeDefinitions]="personnelPoolDefinitions()"
+        [defaultFallbackValues]="personnelPoolDefaults"
+        [detailError]="personnelPoolError()"
+        [requiredKeys]="personnelPoolRequiredKeys"
+        (saveEntity)="handlePersonnelPoolSave($event)"
+        (deleteEntities)="handlePersonnelPoolDelete($event)"
+      />
+    }
+    @case ('personnel') {
+      <app-attribute-entity-editor
+        [title]="'Personal'"
+        [entities]="personnelRecords()"
+        [attributeDefinitions]="personnelDefinitions()"
+        [defaultFallbackValues]="personnelDefaults"
+        [detailError]="personnelError()"
+        [groupedEntities]="personnelGroups()"
+        [createDefaultsFactory]="personnelCreateDefaultsFactory"
+        [selectOptions]="personnelSelectOptions()"
+        (saveEntity)="handlePersonnelSave($event)"
+        (deleteEntities)="handlePersonnelDelete($event)"
+      />
+    }
+  }
+</section>

@@ -60,65 +60,7 @@ const DEFAULT_FALLBACK = {
         MatProgressSpinnerModule,
         AttributeEntityEditorComponent,
     ],
-    template: `
-    <section class="topology-editor">
-      <header class="topology-editor__toolbar">
-        <button
-          mat-stroked-button
-          color="primary"
-          type="button"
-          (click)="triggerOperationalPointImport()"
-          [disabled]="importState() === 'running'"
-        >
-          <mat-icon fontIcon="cloud_download"></mat-icon>
-          Importieren
-          <mat-progress-spinner
-            *ngIf="importState() === 'running'"
-            diameter="16"
-            mode="indeterminate"
-          ></mat-progress-spinner>
-        </button>
-        <button
-          mat-button
-          type="button"
-          *ngIf="canToggleConsole()"
-          (click)="toggleImportConsole()"
-          [disabled]="importState() === 'running'"
-        >
-          {{ importConsoleOpen() ? 'Konsole schließen' : 'Konsole anzeigen' }}
-        </button>
-      </header>
-
-      <div class="topology-editor__console" *ngIf="importConsoleVisible()">
-        <header>
-          <span>Import-Log</span>
-          <button
-            mat-icon-button
-            type="button"
-            (click)="hideImportConsole()"
-            [disabled]="importState() === 'running'"
-          >
-            <mat-icon>close</mat-icon>
-          </button>
-        </header>
-        <pre>{{ importLogs().join('\n') }}</pre>
-      </div>
-
-      <app-attribute-entity-editor
-        [title]="'Operational Points'"
-        [entities]="entityRecords()"
-        [attributeDefinitions]="attributeDefinitions()"
-        [defaultFallbackValues]="defaultFallback"
-        [numericKeys]="numericKeys"
-        [actionKeys]="actionKeys"
-        [detailError]="error()"
-        (saveEntity)="handleSave($event)"
-        (deleteEntities)="handleDelete($event)"
-        (bulkApply)="handleBulkApply($event)"
-        (actionTriggered)="handleAction($event)"
-      />
-    </section>
-  `,
+    templateUrl: './operational-point-editor.component.html',
     styleUrl: './operational-point-editor.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
 })

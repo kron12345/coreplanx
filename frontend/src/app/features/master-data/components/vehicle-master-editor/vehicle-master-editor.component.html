@@ -28,83 +28,84 @@
     </mat-button-toggle-group>
   </header>
 
-  <ng-container [ngSwitch]="viewMode()">
-    <app-attribute-entity-editor
-      *ngSwitchCase="'servicePools'"
-      [title]="'Fahrzeugdienstpools'"
-      [entities]="servicePoolRecords()"
-      [attributeDefinitions]="servicePoolDefinitions()"
-      [defaultFallbackValues]="servicePoolDefaults"
-      [detailError]="servicePoolError()"
-      [requiredKeys]="servicePoolRequiredKeys"
-      (saveEntity)="handleServicePoolSave($event)"
-      (deleteEntities)="handleServicePoolDelete($event)"
-    />
-
-    <app-attribute-entity-editor
-      *ngSwitchCase="'services'"
-      [title]="'Fahrzeugdienste'"
-      [entities]="serviceRecords()"
-      [attributeDefinitions]="serviceDefinitions()"
-      [defaultFallbackValues]="serviceDefaults"
-      [detailError]="serviceError()"
-      [groupedEntities]="serviceGroups()"
-      [createDefaultsFactory]="serviceCreateDefaultsFactory"
-      [selectOptions]="serviceSelectOptions()"
-      (saveEntity)="handleServiceSave($event)"
-      (deleteEntities)="handleServiceDelete($event)"
-    />
-
-    <app-attribute-entity-editor
-      *ngSwitchCase="'vehiclePools'"
-      [title]="'Fahrzeugpools'"
-      [entities]="vehiclePoolRecords()"
-      [attributeDefinitions]="vehiclePoolDefinitions()"
-      [defaultFallbackValues]="vehiclePoolDefaults"
-      [detailError]="vehiclePoolError()"
-      [requiredKeys]="vehiclePoolRequiredKeys"
-      (saveEntity)="handleVehiclePoolSave($event)"
-      (deleteEntities)="handleVehiclePoolDelete($event)"
-    />
-
-    <app-attribute-entity-editor
-      *ngSwitchCase="'vehicles'"
-      [title]="'Fahrzeuge'"
-      [entities]="vehicleRecords()"
-      [attributeDefinitions]="vehicleDefinitions()"
-      [defaultFallbackValues]="vehicleDefaults"
-      [detailError]="vehicleError()"
-      [groupedEntities]="vehicleGroups()"
-      [createDefaultsFactory]="vehicleCreateDefaultsFactory"
-      [selectOptions]="vehicleSelectOptions()"
-      (saveEntity)="handleVehicleSave($event)"
-      (deleteEntities)="handleVehicleDelete($event)"
-    />
-
-    <app-attribute-entity-editor
-      *ngSwitchCase="'vehicleTypes'"
-      [title]="'Fahrzeugtypen'"
-      [entities]="vehicleTypeRecords()"
-      [attributeDefinitions]="vehicleTypeDefinitions()"
-      [defaultFallbackValues]="vehicleTypeDefaults"
-      [detailError]="vehicleTypeError()"
-      [requiredKeys]="vehicleTypeRequiredKeys"
-      [numericKeys]="vehicleTypeNumericKeys"
-      [selectOptions]="vehicleTypeSelectOptions"
-      (saveEntity)="handleVehicleTypeSave($event)"
-      (deleteEntities)="handleVehicleTypeDelete($event)"
-    />
-
-    <app-attribute-entity-editor
-      *ngSwitchCase="'compositions'"
-      [title]="'Fahrzeugkompositionen'"
-      [entities]="compositionRecords()"
-      [attributeDefinitions]="compositionDefinitions()"
-      [defaultFallbackValues]="compositionDefaults"
-      [detailError]="compositionError()"
-      [requiredKeys]="compositionRequiredKeys"
-      (saveEntity)="handleCompositionSave($event)"
-      (deleteEntities)="handleCompositionDelete($event)"
-    />
-  </ng-container>
+  @switch (viewMode()) {
+    @case ('servicePools') {
+      <app-attribute-entity-editor
+        [title]="'Fahrzeugdienstpools'"
+        [entities]="servicePoolRecords()"
+        [attributeDefinitions]="servicePoolDefinitions()"
+        [defaultFallbackValues]="servicePoolDefaults"
+        [detailError]="servicePoolError()"
+        [requiredKeys]="servicePoolRequiredKeys"
+        (saveEntity)="handleServicePoolSave($event)"
+        (deleteEntities)="handleServicePoolDelete($event)"
+      />
+    }
+    @case ('services') {
+      <app-attribute-entity-editor
+        [title]="'Fahrzeugdienste'"
+        [entities]="serviceRecords()"
+        [attributeDefinitions]="serviceDefinitions()"
+        [defaultFallbackValues]="serviceDefaults"
+        [detailError]="serviceError()"
+        [groupedEntities]="serviceGroups()"
+        [createDefaultsFactory]="serviceCreateDefaultsFactory"
+        [selectOptions]="serviceSelectOptions()"
+        (saveEntity)="handleServiceSave($event)"
+        (deleteEntities)="handleServiceDelete($event)"
+      />
+    }
+    @case ('vehiclePools') {
+      <app-attribute-entity-editor
+        [title]="'Fahrzeugpools'"
+        [entities]="vehiclePoolRecords()"
+        [attributeDefinitions]="vehiclePoolDefinitions()"
+        [defaultFallbackValues]="vehiclePoolDefaults"
+        [detailError]="vehiclePoolError()"
+        [requiredKeys]="vehiclePoolRequiredKeys"
+        (saveEntity)="handleVehiclePoolSave($event)"
+        (deleteEntities)="handleVehiclePoolDelete($event)"
+      />
+    }
+    @case ('vehicles') {
+      <app-attribute-entity-editor
+        [title]="'Fahrzeuge'"
+        [entities]="vehicleRecords()"
+        [attributeDefinitions]="vehicleDefinitions()"
+        [defaultFallbackValues]="vehicleDefaults"
+        [detailError]="vehicleError()"
+        [groupedEntities]="vehicleGroups()"
+        [createDefaultsFactory]="vehicleCreateDefaultsFactory"
+        [selectOptions]="vehicleSelectOptions()"
+        (saveEntity)="handleVehicleSave($event)"
+        (deleteEntities)="handleVehicleDelete($event)"
+      />
+    }
+    @case ('vehicleTypes') {
+      <app-attribute-entity-editor
+        [title]="'Fahrzeugtypen'"
+        [entities]="vehicleTypeRecords()"
+        [attributeDefinitions]="vehicleTypeDefinitions()"
+        [defaultFallbackValues]="vehicleTypeDefaults"
+        [detailError]="vehicleTypeError()"
+        [requiredKeys]="vehicleTypeRequiredKeys"
+        [numericKeys]="vehicleTypeNumericKeys"
+        [selectOptions]="vehicleTypeSelectOptions"
+        (saveEntity)="handleVehicleTypeSave($event)"
+        (deleteEntities)="handleVehicleTypeDelete($event)"
+      />
+    }
+    @case ('compositions') {
+      <app-attribute-entity-editor
+        [title]="'Fahrzeugkompositionen'"
+        [entities]="compositionRecords()"
+        [attributeDefinitions]="compositionDefinitions()"
+        [defaultFallbackValues]="compositionDefaults"
+        [detailError]="compositionError()"
+        [requiredKeys]="compositionRequiredKeys"
+        (saveEntity)="handleCompositionSave($event)"
+        (deleteEntities)="handleCompositionDelete($event)"
+      />
+    }
+  }
 </section>

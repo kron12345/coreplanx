@@ -19,10 +19,12 @@
         <mat-icon inline>category</mat-icon>
         {{ variantChip().label }}
       </mat-chip>
-      <mat-chip *ngIf="simulationLabel()" class="simulation-chip">
-        <mat-icon inline>science</mat-icon>
-        {{ simulationLabel() }}
-      </mat-chip>
+      @if (simulationLabel()) {
+        <mat-chip class="simulation-chip">
+          <mat-icon inline>science</mat-icon>
+          {{ simulationLabel() }}
+        </mat-chip>
+      }
     </mat-chip-set>
     <p class="summary__validity">
       <mat-icon inline>calendar_month</mat-icon>
@@ -91,18 +93,22 @@
             <p class="calendar-editor-note">
               Änderungen werden direkt im Referenzkalender gespeichert.
             </p>
-            <div class="calendar-summary" *ngIf="calendarPreviewDates().length; else calendarEmpty">
-              <mat-chip-set>
-                @for (date of calendarPreviewHead(); track date) {
-                  <mat-chip appearance="outlined">{{ date }}</mat-chip>
-                }
-                @if (calendarPreviewOverflow() > 0) {
-                  <mat-chip appearance="outlined" class="muted-chip">
-                    +{{ calendarPreviewOverflow() }} weitere
-                  </mat-chip>
-                }
-              </mat-chip-set>
-            </div>
+            @if (calendarPreviewDates().length) {
+              <div class="calendar-summary">
+                <mat-chip-set>
+                  @for (date of calendarPreviewHead(); track date) {
+                    <mat-chip appearance="outlined">{{ date }}</mat-chip>
+                  }
+                  @if (calendarPreviewOverflow() > 0) {
+                    <mat-chip appearance="outlined" class="muted-chip">
+                      +{{ calendarPreviewOverflow() }} weitere
+                    </mat-chip>
+                  }
+                </mat-chip-set>
+              </div>
+            } @else {
+              <ng-container [ngTemplateOutlet]="calendarEmpty"></ng-container>
+            }
             <ng-template #calendarEmpty>
               <p class="calendar-hint">Keine Verkehrstage ausgewählt.</p>
             </ng-template>

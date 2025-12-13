@@ -1,0 +1,331 @@
+<div class="editor">
+  <section class="editor__list">
+    <header>
+      <h2>{{ title }}</h2>
+      <span>{{ combinedEntities().length }} Einträge</span>
+    </header>
+
+    <div class="toolbar">
+      <div class="toolbar__row">
+        <mat-form-field appearance="outline" class="toolbar__search">
+          <mat-label>Suchen</mat-label>
+          <input
+            matInput
+            type="search"
+            placeholder="Name, Code …"
+            [ngModel]="searchTerm()"
+            (ngModelChange)="searchTerm.set($event)"
+          />
+          @if (searchTerm()) {
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="searchTerm.set('')"
+              aria-label="Suche leeren"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+
+        <button
+          mat-icon-button
+          type="button"
+          (click)="toggleFilters()"
+          matTooltip="Filter anzeigen"
+          class="toolbar__filter-button"
+        >
+          <mat-icon>filter_alt</mat-icon>
+        </button>
+      </div>
+
+      <div class="toolbar__row toolbar__row--compact">
+        <mat-form-field appearance="outline" class="toolbar__sort">
+          <mat-label>Sortieren nach</mat-label>
+          <mat-select [ngModel]="sortKey()" (ngModelChange)="sortKey.set($event)">
+            <mat-option value="name">Name</mat-option>
+            <mat-option value="secondaryLabel">Code</mat-option>
+            @for (definition of attributeDefinitions; track definition.key) {
+              <mat-option [value]="definition.key">{{ definition.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="toolbar__sort">
+          <mat-label>Richtung</mat-label>
+          <mat-select [ngModel]="sortDirection()" (ngModelChange)="sortDirection.set($event)">
+            <mat-option value="asc">Aufsteigend</mat-option>
+            <mat-option value="desc">Absteigend</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </div>
+
+    @if (showFilters()) {
+      <div class="filter-panel" @filterPanel>
+      <div class="filter-panel__body">
+        @for (definition of attributeDefinitions; track definition.key) {
+          <div class="filter-chip-field">
+            <mat-form-field appearance="outline">
+              <mat-label>{{ definition.label }}</mat-label>
+              <input
+                matInput
+                placeholder="Wert hinzufügen"
+                #filterInput
+                (keyup.enter)="addFilterValue(definition.key, filterInput.value); filterInput.value = ''"
+              />
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                (click)="addFilterValue(definition.key, filterInput.value); filterInput.value = ''"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </mat-form-field>
+            <div class="filter-chip-field__chips">
+              @for (value of filterValuesFor(definition.key); track value) {
+                <span class="filter-chip">
+                  {{ value }}
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="removeFilterValue(definition.key, value)"
+                    aria-label="Filter entfernen"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      <div class="filter-panel__actions">
+        <button mat-stroked-button type="button" (click)="clearFilters()">Filter zurücksetzen</button>
+        <button mat-flat-button color="primary" type="button" (click)="applyFilters()">Filter anwenden</button>
+      </div>
+    </div>
+    }
+
+    @if (groupedView().length > 0) {
+      <div class="stop-list stop-list--grouped">
+        @for (group of groupedView(); track group.id) {
+          <div class="stop-group">
+            <div class="stop-group__header" (click)="toggleGroup(group.id)">
+              <button mat-icon-button type="button" (click)="$event.stopPropagation(); toggleGroup(group.id)">
+                <mat-icon>{{ isGroupExpanded(group.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              <div class="stop-group__info">
+                <div class="stop-group__name">{{ group.label }}</div>
+                <div class="stop-group__secondary">{{ group.secondaryLabel || '—' }}</div>
+              </div>
+              <span class="stop-group__count">{{ group.children.length }}</span>
+              <button
+                mat-icon-button
+                type="button"
+                matTooltip="Eintrag hinzufügen"
+                (click)="createChildForGroup(group.id, $event)"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+            @if (isGroupExpanded(group.id)) {
+              <div class="stop-group__children">
+                @for (entity of group.children; track entity.id) {
+                  <div class="stop-row" [class.selected]="isSelected(entity.id)">
+                    <mat-checkbox
+                      [checked]="isSelected(entity.id)"
+                      (change)="toggleSelection(entity.id, $event.checked)"
+                    ></mat-checkbox>
+                    <div class="stop-row__info" (click)="openSingle(entity.id)">
+                      <div class="stop-row__name">{{ entity.label }}</div>
+                      <div class="stop-row__secondary">{{ entity.secondaryLabel || '—' }}</div>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <ng-container [ngTemplateOutlet]="flatList"></ng-container>
+    }
+
+    <ng-template #flatList>
+      @if (filteredEntities().length > 0) {
+        <div class="stop-list">
+          @for (entity of filteredEntities(); track entity.id) {
+            <div class="stop-row" [class.selected]="isSelected(entity.id)">
+              <mat-checkbox
+                [checked]="isSelected(entity.id)"
+                (change)="toggleSelection(entity.id, $event.checked)"
+              ></mat-checkbox>
+              <div class="stop-row__info" (click)="openSingle(entity.id)">
+                <div class="stop-row__name">{{ entity.label }}</div>
+                <div class="stop-row__secondary">{{ entity.secondaryLabel || '—' }}</div>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <ng-container [ngTemplateOutlet]="emptyState"></ng-container>
+      }
+    </ng-template>
+
+    <ng-template #emptyState>
+      <div class="stop-empty">
+        <mat-icon>map_off</mat-icon>
+        <strong>Keine Einträge gefunden</strong>
+        <span>Filter anpassen oder neue Daten hinzufügen.</span>
+        <button mat-stroked-button type="button" (click)="resetView()">Ansicht zurücksetzen</button>
+      </div>
+    </ng-template>
+
+    <button mat-stroked-button color="primary" type="button" (click)="createNew()">
+      <mat-icon>add</mat-icon>
+      Neu anlegen
+    </button>
+
+    @if (selectedIds().length > 1) {
+      <section class="bulk-panel" @bulkPanel>
+      <header>
+        <div>
+          <strong>{{ selectedIds().length }} Elemente ausgewählt</strong>
+        </div>
+        <button mat-icon-button type="button" matTooltip="Auswahl leeren" (click)="clearSelection()">
+          <mat-icon>clear_all</mat-icon>
+        </button>
+      </header>
+
+      <div class="bulk-panel__form">
+        <mat-form-field appearance="outline">
+          <mat-label>Attribut</mat-label>
+          <mat-select
+            [ngModel]="bulkAttributeKey()"
+            (ngModelChange)="bulkAttributeKey.set($event)"
+          >
+            <mat-option value="">Bitte wählen</mat-option>
+            @for (definition of attributeDefinitions; track definition.key) {
+              <mat-option [value]="definition.key">{{ definition.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        @if (bulkAttributeDefinition(); as selectedDef) {
+          <mat-form-field appearance="outline">
+            <mat-label>Wert</mat-label>
+            <input
+              matInput
+              [type]="bulkInputType(selectedDef.type)"
+              [ngModel]="bulkValue()"
+              (ngModelChange)="bulkValue.set($event)"
+            />
+          </mat-form-field>
+
+          @if (selectedDef.temporal) {
+            <mat-form-field appearance="outline">
+              <mat-label>Gültig ab</mat-label>
+              <input
+                matInput
+                type="date"
+                [ngModel]="bulkValidFrom()"
+                (ngModelChange)="bulkValidFrom.set($event)"
+              />
+            </mat-form-field>
+          }
+        }
+      </div>
+
+      @if (presets.length) {
+        <div class="bulk-panel__presets">
+          <span>Presets:</span>
+          @for (preset of presets; track preset.label) {
+            <button mat-stroked-button type="button" (click)="applyPreset(preset)">
+              {{ preset.label }}
+            </button>
+          }
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="copyFromPrimary()"
+            [disabled]="selectedIds().length < 2 || !bulkAttributeDefinition()"
+          >
+            Wert vom ersten
+          </button>
+          <button mat-stroked-button color="warn" type="button" (click)="emitDeleteSelected()">
+            Ausgewählte löschen
+          </button>
+        </div>
+      }
+
+      <div class="bulk-panel__actions">
+        @if (bulkError()) {
+          <span class="error">{{ bulkError() }}</span>
+        }
+        @if (bulkFeedback() === 'success') {
+          <span class="success">
+            <mat-icon>check_circle</mat-icon>
+            Übernommen
+          </span>
+        }
+        <button mat-stroked-button type="button" (click)="clearSelection()">
+          Auswahl leeren
+        </button>
+        <button mat-flat-button color="primary" type="button" (click)="applyBulkAttribute()">
+          Anwenden
+        </button>
+      </div>
+    </section>
+    }
+  </section>
+
+  @if (attributeDefinitions.length > 0 && selectedIds().length <= 1) {
+    <section class="editor__detail">
+    <div class="attributes">
+      <header class="detail-header">
+        <h3>Attribute</h3>
+        <div class="detail-header__actions">
+          <button
+            mat-mini-fab
+            color="primary"
+            type="button"
+            (click)="createNew()"
+            matTooltip="Neu anlegen"
+            aria-label="Neu anlegen"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+          <button
+            mat-mini-fab
+            color="warn"
+            type="button"
+            (click)="emitDeleteSelected()"
+            matTooltip="Löschen"
+            aria-label="Löschen"
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </header>
+      @if (detailError) {
+        <div class="error detail-error">{{ detailError }}</div>
+      }
+      <app-attribute-table-editor
+        [definitions]="attributeDefinitions"
+        [attributes]="tableAttributes()"
+        [fallbackValues]="fallbackValues()"
+        [requiredKeys]="effectiveRequiredKeys"
+        [numericKeys]="numericKeys"
+        [actionKeys]="actionKeys"
+        [selectOptions]="selectOptions"
+        (valueChange)="handleValueChange($event)"
+        (attributesChange)="emitSave($event)"
+        (actionTriggered)="onActionTriggered($event)"
+      />
+    </div>
+
+  </section>
+  }
+</div>

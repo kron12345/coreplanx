@@ -1,4 +1,4 @@
-import { Component, Input, computed, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
@@ -34,6 +34,14 @@ import {
   SimulationAssignDialogComponent,
   SimulationAssignDialogResult,
 } from '../shared/simulation-assign-dialog/simulation-assign-dialog.component';
+import {
+  BUSINESS_STATUS_LABELS,
+  FILTERABLE_TTR_PHASES,
+  INTERNAL_STATUS_LABELS,
+  ORDER_PROCESS_STATUS_LABELS,
+  TIMETABLE_PHASE_LABELS,
+} from './order-card.constants';
+import type { OrderHealthSnapshot, StatusSummary } from './order-card.types';
 
 @Component({
     selector: 'app-order-card',
@@ -43,7 +51,8 @@ import {
         OrderItemListComponent,
     ],
     templateUrl: './order-card.component.html',
-    styleUrl: './order-card.component.scss'
+    styleUrl: './order-card.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderCardComponent {
   private readonly orderSignal = signal<Order | null>(null);
@@ -99,45 +108,7 @@ export class OrderCardComponent {
   readonly selectionMode = signal(false);
   readonly selectedIds = signal<Set<string>>(new Set());
   readonly selectedCount = computed(() => this.selectedIds().size);
-
-  private readonly businessStatusLabels: Record<BusinessStatus, string> = {
-    neu: 'Neu',
-    pausiert: 'Pausiert',
-    in_arbeit: 'In Arbeit',
-    erledigt: 'Erledigt',
-  };
-  private readonly timetablePhaseLabels: Record<TimetablePhase, string> = {
-    bedarf: 'Draft',
-    path_request: 'Path Request',
-    offer: 'Offered',
-    contract: 'Booked',
-    operational: 'Used',
-    archived: 'Cancelled',
-  };
-  private readonly internalStatusLabels: Partial<Record<InternalProcessingStatus, string>> = {
-    in_bearbeitung: 'In Bearbeitung',
-    freigegeben: 'Freigegeben',
-    ueberarbeiten: 'Überarbeiten',
-    uebermittelt: 'Übermittelt',
-    beantragt: 'Beantragt',
-    abgeschlossen: 'Abgeschlossen',
-    annulliert: 'Annulliert',
-  };
-  public readonly orderProcessStatusLabels: Record<OrderProcessStatus, string> = {
-    auftrag: 'Auftrag',
-    planung: 'Planung',
-    produkt_leistung: 'Produkt/Leistung',
-    produktion: 'Produktion',
-    abrechnung_nachbereitung: 'Abrechnung/Nachbereitung',
-  };
-  private readonly filterableTtrPhases = new Set<OrderTtrPhaseFilter>([
-    'annual_request',
-    'final_offer',
-    'rolling_planning',
-    'short_term',
-    'ad_hoc',
-    'operational_delivery',
-  ]);
+  public readonly orderProcessStatusLabels = ORDER_PROCESS_STATUS_LABELS;
 
   constructor(
     private readonly dialog: MatDialog,
@@ -479,7 +450,7 @@ export class OrderCardComponent {
       counts.set(className, (counts.get(className) ?? 0) + 1);
       labels.set(
         className,
-        this.businessStatusLabels[status] ?? this.fallbackStatusLabel(status),
+        BUSINESS_STATUS_LABELS[status] ?? this.fallbackStatusLabel(status),
       );
       values.set(className, status);
     });
@@ -508,7 +479,7 @@ export class OrderCardComponent {
       }
       const key = this.statusClassName(phase);
       counts.set(key, (counts.get(key) ?? 0) + 1);
-      labels.set(key, this.timetablePhaseLabels[phase] ?? phase);
+      labels.set(key, TIMETABLE_PHASE_LABELS[phase] ?? phase);
       values.set(key, phase);
     });
 
@@ -584,7 +555,9 @@ export class OrderCardComponent {
       }
       const key = this.statusClassName(item.internalStatus);
       counts.set(key, (counts.get(key) ?? 0) + 1);
-      const label = this.internalStatusLabels[item.internalStatus] ?? this.fallbackStatusLabel(item.internalStatus);
+      const label =
+        INTERNAL_STATUS_LABELS[item.internalStatus] ??
+        this.fallbackStatusLabel(item.internalStatus);
       labels.set(key, label);
       values.set(key, item.internalStatus);
     });
@@ -775,7 +748,7 @@ export class OrderCardComponent {
   }
 
   private isFilterableTtrPhase(phase: OrderTtrPhase): boolean {
-    return this.filterableTtrPhases.has(phase as OrderTtrPhaseFilter);
+    return FILTERABLE_TTR_PHASES.has(phase as OrderTtrPhaseFilter);
   }
 
   customerDetails(): Customer | undefined {
@@ -873,26 +846,4 @@ export class OrderCardComponent {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
-}
-
-interface StatusSummary<T = string> {
-  key: string;
-  label: string;
-  count: number;
-  value: T;
-}
-
-interface OrderHealthSnapshot {
-  total: number;
-  upcoming: number;
-  attention: number;
-  active: number;
-  idle: number;
-  tone: 'ok' | 'warn' | 'critical';
-  label: string;
-  icon: string;
-  caption: string;
-  pastPercent: number;
-  upcomingPercent: number;
-  idlePercent: number;
 }

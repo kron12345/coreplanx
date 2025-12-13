@@ -121,14 +121,15 @@
     </div>
   </div>
 
-  <div
-    class="gantt__lasso"
-    *ngIf="lassoBox() as box"
-    [style.left.px]="box.left"
-    [style.top.px]="box.top"
-    [style.width.px]="box.width"
-    [style.height.px]="box.height"
-  ></div>
+  @if (lassoBox(); as box) {
+    <div
+      class="gantt__lasso"
+      [style.left.px]="box.left"
+      [style.top.px]="box.top"
+      [style.width.px]="box.width"
+      [style.height.px]="box.height"
+    ></div>
+  }
 
   <app-gantt-status-bar
     [viewStart]="viewStart()"

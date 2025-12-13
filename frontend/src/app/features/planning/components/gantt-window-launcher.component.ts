@@ -9,17 +9,7 @@ import { Router } from '@angular/router';
 @Component({
     selector: 'app-gantt-window-launcher',
     imports: [CommonModule, MatIconModule, MatButtonModule, MatTooltipModule],
-    template: `
-    <button
-      mat-icon-button
-      type="button"
-      [disabled]="!stageId"
-      (click)="openExternalBoard()"
-      matTooltip="Plantafel in neuem Fenster öffnen"
-    >
-      <mat-icon fontIcon="open_in_new"></mat-icon>
-    </button>
-  `,
+    templateUrl: './gantt-window-launcher.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttWindowLauncherComponent {

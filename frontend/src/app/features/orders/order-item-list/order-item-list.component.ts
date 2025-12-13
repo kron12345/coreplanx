@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
 import {
@@ -37,7 +37,8 @@ import {
     imports: [CommonModule, ...MATERIAL_IMPORTS],
     providers: [DatePipe],
     templateUrl: './order-item-list.component.html',
-    styleUrl: './order-item-list.component.scss'
+    styleUrl: './order-item-list.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderItemListComponent {
   @Input({ required: true }) items!: OrderItem[];

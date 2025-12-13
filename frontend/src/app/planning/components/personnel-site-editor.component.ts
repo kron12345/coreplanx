@@ -26,21 +26,7 @@ const SITE_TYPES: PersonnelSiteType[] = ['MELDESTELLE', 'PAUSENRAUM', 'BEREITSCH
 @Component({
     selector: 'app-personnel-site-editor',
     imports: [CommonModule, AttributeEntityEditorComponent],
-    template: `
-    <app-attribute-entity-editor
-      [title]="'Personnel Sites'"
-      [entities]="entityRecords()"
-      [attributeDefinitions]="attributeDefinitions()"
-      [defaultFallbackValues]="defaultFallback"
-      [numericKeys]="numericKeys"
-      [actionKeys]="actionKeys"
-      [detailError]="error()"
-      (saveEntity)="handleSave($event)"
-      (deleteEntities)="handleDelete($event)"
-      (bulkApply)="handleBulkApply($event)"
-      (actionTriggered)="handleAction($event)"
-    />
-  `,
+    templateUrl: './personnel-site-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PersonnelSiteEditorComponent {

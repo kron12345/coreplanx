@@ -1,9 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, Inject, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import {
   FormArray,
   FormBuilder,
-  FormControl,
   FormGroup,
   ReactiveFormsModule,
   Validators,
@@ -14,11 +13,10 @@ import {
   MatDialogRef,
 } from '@angular/material/dialog';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
-import { OrderItem, OrderItemValiditySegment } from '../../../core/models/order-item.model';
+import { OrderItem } from '../../../core/models/order-item.model';
 import {
   TrainPlan,
   TrainPlanRouteMetadata,
-  TrainPlanStop,
   TrainPlanTechnicalData,
 } from '../../../core/models/train-plan.model';
 import {
@@ -28,8 +26,6 @@ import {
 import { TrafficPeriodService } from '../../../core/services/traffic-period.service';
 import { OrderService } from '../../../core/services/order.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { TrafficPeriod } from '../../../core/models/traffic-period.model';
-import { ScheduleTemplate } from '../../../core/models/schedule-template.model';
 import { ScheduleTemplateService } from '../../../core/services/schedule-template.service';
 import { TimetableYearService } from '../../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../../core/models/timetable-year.model';
@@ -51,37 +47,31 @@ import {
   CompositionBaseVehicleForm,
   CompositionChangeEntryForm,
 } from '../shared/vehicle-composition-form/vehicle-composition-form.component';
-
-interface PlanModificationDialogData {
-  orderId: string;
-  item: OrderItem;
-  plan: TrainPlan;
-}
-
-type ValidityMode = 'trafficPeriod' | 'custom';
-
-interface PlanModificationFormModel {
-  title: FormControl<string>;
-  trainNumber: FormControl<string>;
-  responsibleRu: FormControl<string>;
-  notes: FormControl<string>;
-  templateId: FormControl<string>;
-  templateStartTime: FormControl<string>;
-  validityMode: FormControl<ValidityMode>;
-  trafficPeriodId: FormControl<string>;
-  validFrom: FormControl<string>;
-  validTo: FormControl<string>;
-  daysBitmap: FormControl<string>;
-  customYear: FormControl<number>;
-  technicalMaxSpeed: FormControl<number | null>;
-  technicalLength: FormControl<number | null>;
-  technicalWeight: FormControl<number | null>;
-  technicalTraction: FormControl<string>;
-  technicalEtcsLevel: FormControl<string>;
-  originBorderPoint: FormControl<string>;
-  destinationBorderPoint: FormControl<string>;
-  borderNotes: FormControl<string>;
-}
+import {
+  buildSegmentsFromDates,
+  calendarFromCustomSelection,
+  calendarFromPeriod as calendarFromTrafficPeriod,
+  deriveDatesFromCalendar,
+  deriveInitialCustomYear,
+  deriveYearFromLabel,
+  expandDatesInRange,
+} from './plan-modification-calendar.utils';
+import {
+  buildStopsFromTemplate,
+  combineDateWithTime,
+  formatIsoTime,
+  mapPlanStop,
+  operationReferenceIso,
+  resolveStopIdBySequence,
+  resolveStopSequenceById,
+  stopLabel,
+  toTrainPlanStop,
+} from './plan-modification-stops.utils';
+import type {
+  PlanModificationDialogData,
+  PlanModificationFormModel,
+  ValidityMode,
+} from './plan-modification-dialog.types';
 
 @Component({
     selector: 'app-plan-modification-dialog',
@@ -93,7 +83,8 @@ interface PlanModificationFormModel {
         VehicleCompositionFormComponent,
     ],
     templateUrl: './plan-modification-dialog.component.html',
-    styleUrl: './plan-modification-dialog.component.scss'
+    styleUrl: './plan-modification-dialog.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PlanModificationDialogComponent {
   private readonly dialogRef =
@@ -152,7 +143,7 @@ export class PlanModificationDialogComponent {
   constructor() {
     this.timetableYearBounds = this.resolveTimetableYearBounds();
     this.allowedCalendarDates = this.timetableYearBounds
-      ? this.expandDatesInRange(this.timetableYearBounds.startIso, this.timetableYearBounds.endIso)
+      ? expandDatesInRange(this.timetableYearBounds.startIso, this.timetableYearBounds.endIso)
       : null;
     const initialTrafficPeriod = this.plan.trafficPeriodId ?? '';
     const initialValidFrom = this.plan.calendar.validFrom;
@@ -164,9 +155,9 @@ export class PlanModificationDialogComponent {
 
     const initialYear = this.calendarLocked
       ? this.timetableYearBounds?.startYear ??
-        this.deriveYearFromLabel(this.item.timetableYearLabel) ??
-        this.deriveInitialCustomYear(initialValidFrom)
-      : this.deriveInitialCustomYear(initialValidFrom);
+        deriveYearFromLabel(this.item.timetableYearLabel) ??
+        deriveInitialCustomYear(initialValidFrom)
+      : deriveInitialCustomYear(initialValidFrom);
 
     this.form = this.fb.group({
       title: this.fb.nonNullable.control(this.plan.title, {
@@ -276,14 +267,14 @@ export class PlanModificationDialogComponent {
     if (this.calendarLocked) {
       const lockedYear =
         this.timetableYearBounds?.startYear ??
-        this.deriveYearFromLabel(this.item.timetableYearLabel);
+        deriveYearFromLabel(this.item.timetableYearLabel);
       if (lockedYear) {
         return lockedYear;
       }
     }
     return (
       this.form.controls.customYear.value ??
-      this.deriveInitialCustomYear(this.plan.calendar.validFrom)
+      deriveInitialCustomYear(this.plan.calendar.validFrom)
     );
   }
 
@@ -375,8 +366,8 @@ export class PlanModificationDialogComponent {
   }
 
   stopPreviewTimeLabel(stop: PlanModificationStopInput): string {
-    const departure = this.formatIsoTime(stop.departureTime);
-    const arrival = this.formatIsoTime(stop.arrivalTime);
+    const departure = formatIsoTime(stop.departureTime);
+    const arrival = formatIsoTime(stop.arrivalTime);
     if (arrival && departure && arrival !== departure) {
       return `${arrival} / ${departure}`;
     }
@@ -401,14 +392,18 @@ export class PlanModificationDialogComponent {
       return;
     }
 
-    const referenceIso = this.operationReferenceIso();
-    const departure = this.combineDateWithTime(referenceIso, startTime);
+    const referenceIso = operationReferenceIso(this.plan);
+    const departure = combineDateWithTime({
+      referenceIso,
+      time: startTime,
+      fallbackValidFromIso: this.plan.calendar.validFrom,
+    });
     if (Number.isNaN(departure.getTime())) {
       this.errorMessage.set('Startzeit konnte nicht verarbeitet werden.');
       return;
     }
 
-    const stops = this.buildStopsFromTemplate(template, departure);
+    const stops = buildStopsFromTemplate(template, departure);
     if (!stops.length) {
       this.errorMessage.set('Die Fahrplanvorlage enthält keine Halte.');
       return;
@@ -449,7 +444,7 @@ export class PlanModificationDialogComponent {
       const calendar =
         mode === 'trafficPeriod'
           ? this.calendarFromPeriod(value.trafficPeriodId!)
-          : this.calendarFromCustomSelection(this.customSelectedDates());
+          : calendarFromCustomSelection(this.customSelectedDates());
       const rollingStock = this.buildRollingStockPayload();
       const technical = this.buildTechnicalPayload(value);
       const routeMetadata = this.buildRouteMetadataPayload(value);
@@ -514,7 +509,7 @@ export class PlanModificationDialogComponent {
       if (!currentDates.length) {
         const year =
           this.form.controls.customYear.value ??
-          this.deriveInitialCustomYear(this.plan.calendar.validFrom);
+          deriveInitialCustomYear(this.plan.calendar.validFrom);
         this.initializeCustomCalendarState(year);
       } else {
         this.updateCustomCalendarFields(currentDates);
@@ -527,7 +522,7 @@ export class PlanModificationDialogComponent {
     if (this.calendarLocked) {
       const lockedYear =
         this.timetableYearBounds?.startYear ??
-        this.deriveYearFromLabel(this.item.timetableYearLabel);
+        deriveYearFromLabel(this.item.timetableYearLabel);
       if (lockedYear) {
         this.form.controls.customYear.setValue(lockedYear, { emitEvent: false });
         const presetDates = this.filterDatesToTimetableYear(
@@ -538,18 +533,6 @@ export class PlanModificationDialogComponent {
         this.updateCustomCalendarFields(presetDates);
       }
     }
-  }
-
-  private deriveYearFromLabel(label: string | null | undefined): number | null {
-    if (!label) {
-      return null;
-    }
-    const match = /^(\d{4})/.exec(label);
-    if (match) {
-      const year = Number.parseInt(match[1], 10);
-      return Number.isNaN(year) ? null : year;
-    }
-    return null;
   }
 
   private resolveTimetableYearBounds(): TimetableYearBounds | null {
@@ -637,120 +620,8 @@ export class PlanModificationDialogComponent {
     );
   }
 
-  private operationReferenceIso(): string {
-    const firstDeparture = this.plan.stops.find((stop) => stop.departureTime)?.departureTime;
-    if (firstDeparture) {
-      return firstDeparture;
-    }
-    const firstArrival = this.plan.stops.find((stop) => stop.arrivalTime)?.arrivalTime;
-    if (firstArrival) {
-      return firstArrival;
-    }
-    return `${this.plan.calendar.validFrom}T00:00:00.000Z`;
-  }
-
-  private combineDateWithTime(referenceIso: string, time: string): Date {
-    const reference = new Date(referenceIso);
-    const [hours, minutes] = time.split(':').map((value) => Number.parseInt(value, 10));
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-      return new Date(NaN);
-    }
-    if (Number.isNaN(reference.getTime())) {
-      return new Date(`${this.plan.calendar.validFrom}T${time}:00.000Z`);
-    }
-    const result = new Date(reference);
-    result.setUTCHours(hours, minutes, 0, 0);
-    return result;
-  }
-
-  private buildStopsFromTemplate(
-    template: ScheduleTemplate,
-    departure: Date,
-  ): PlanModificationStopInput[] {
-    const baseMinutes = this.extractReferenceMinutes(template.stops) ?? 0;
-    return template.stops.map((stop) => {
-      const arrivalMinutes = this.extractTime(stop.arrival?.earliest ?? stop.arrival?.latest);
-      const departureMinutes = this.extractTime(
-        stop.departure?.earliest ?? stop.departure?.latest,
-      );
-
-      const offsetMinutes = (stop.offsetDays ?? 0) * 1440;
-      const arrivalTime =
-        arrivalMinutes !== undefined
-          ? this.addMinutesToDate(departure, arrivalMinutes - baseMinutes + offsetMinutes)
-          : undefined;
-      const departureTime =
-        departureMinutes !== undefined
-          ? this.addMinutesToDate(departure, departureMinutes - baseMinutes + offsetMinutes)
-          : undefined;
-
-      return {
-        sequence: stop.sequence,
-        type: stop.type,
-        locationCode: stop.locationCode,
-        locationName: stop.locationName,
-        countryCode: stop.countryCode,
-        arrivalTime: arrivalTime ? arrivalTime.toISOString() : undefined,
-        departureTime: departureTime ? departureTime.toISOString() : undefined,
-        arrivalOffsetDays: arrivalTime ? this.offsetDays(departure, arrivalTime) : undefined,
-        departureOffsetDays: departureTime
-          ? this.offsetDays(departure, departureTime)
-          : undefined,
-        dwellMinutes: stop.dwellMinutes,
-        activities:
-          stop.activities && stop.activities.length ? [...stop.activities] : ['0001'],
-        platform: stop.platformWish,
-        notes: stop.notes,
-      } satisfies PlanModificationStopInput;
-    });
-  }
-
-  private extractReferenceMinutes(stops: ScheduleTemplate['stops']): number | undefined {
-    for (const stop of stops) {
-      const candidate =
-        stop.departure?.earliest ??
-        stop.departure?.latest ??
-        stop.arrival?.earliest ??
-        stop.arrival?.latest;
-      const minutes = this.extractTime(candidate);
-      if (minutes !== undefined) {
-        return minutes + (stop.offsetDays ?? 0) * 1440;
-      }
-    }
-    return undefined;
-  }
-
-  private extractTime(value: string | undefined): number | undefined {
-    if (!value) {
-      return undefined;
-    }
-    return this.parseTimeToMinutes(value);
-  }
-
-  private parseTimeToMinutes(time: string): number | undefined {
-    const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(time);
-    if (!match) {
-      return undefined;
-    }
-    const hours = Number.parseInt(match[1], 10);
-    const minutes = Number.parseInt(match[2], 10);
-    return hours * 60 + minutes;
-  }
-
-  private addMinutesToDate(base: Date, deltaMinutes: number): Date {
-    const result = new Date(base.getTime());
-    result.setMinutes(result.getMinutes() + deltaMinutes);
-    return result;
-  }
-
-  private offsetDays(base: Date, target: Date): number | undefined {
-    const diff = target.getTime() - base.getTime();
-    const days = Math.round(diff / 86400000);
-    return days === 0 ? undefined : days;
-  }
-
   private initializeCustomCalendarState(targetYear: number) {
-    const calendarDates = this.deriveDatesFromCalendar(this.plan.calendar);
+    const calendarDates = deriveDatesFromCalendar(this.plan.calendar);
     const filtered = this.filterDatesToTimetableYear(calendarDates, targetYear);
     this.customSelectedDates.set(filtered);
     this.updateCustomCalendarFields(filtered);
@@ -768,7 +639,7 @@ export class PlanModificationDialogComponent {
       );
       return;
     }
-    const calendar = this.calendarFromCustomSelection(dates);
+    const calendar = calendarFromCustomSelection(dates);
     this.form.patchValue(
       {
         validFrom: calendar.validFrom,
@@ -777,60 +648,6 @@ export class PlanModificationDialogComponent {
       },
       { emitEvent: false },
     );
-  }
-
-  private calendarFromCustomSelection(dates: string[]): {
-    validFrom: string;
-    validTo?: string;
-    daysBitmap: string;
-  } {
-    const sorted = [...dates].sort();
-    const validFrom = sorted[0];
-    const validTo = sorted[sorted.length - 1];
-    return {
-      validFrom,
-      validTo: validTo !== validFrom ? validTo : undefined,
-      daysBitmap: this.bitmapFromDates(sorted),
-    };
-  }
-
-  private deriveInitialCustomYear(validFrom: string | undefined): number {
-    if (validFrom && /^\d{4}-/.test(validFrom)) {
-      const parsed = Number.parseInt(validFrom.slice(0, 4), 10);
-      if (!Number.isNaN(parsed)) {
-        return parsed;
-      }
-    }
-    return new Date().getFullYear();
-  }
-
-  private deriveDatesFromCalendar(calendar: TrainPlan['calendar']): string[] {
-    const { validFrom } = calendar;
-    if (!validFrom) {
-      return [];
-    }
-    const start = new Date(validFrom);
-    if (Number.isNaN(start.getTime())) {
-      return [];
-    }
-    const end = calendar.validTo ? new Date(calendar.validTo) : new Date(validFrom);
-    if (Number.isNaN(end.getTime())) {
-      return [];
-    }
-    const bitmap =
-      calendar.daysBitmap && /^[01]{7}$/.test(calendar.daysBitmap)
-        ? calendar.daysBitmap
-        : '1111111';
-    const result: string[] = [];
-    const cursor = new Date(start);
-    while (cursor <= end) {
-      const weekday = (cursor.getDay() + 6) % 7;
-      if (bitmap[weekday] === '1') {
-        result.push(this.formatDate(cursor));
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return result;
   }
 
   private filterDatesToTimetableYear(
@@ -850,84 +667,16 @@ export class PlanModificationDialogComponent {
     return dates;
   }
 
-  private expandDatesInRange(startIso: string, endIso: string): string[] {
-    const start = new Date(`${startIso}T00:00:00`);
-    const end = new Date(`${endIso}T00:00:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-      return [];
-    }
-    const dates: string[] = [];
-    const cursor = new Date(start);
-    while (cursor <= end && dates.length <= 1460) {
-      dates.push(cursor.toISOString().slice(0, 10));
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return dates;
-  }
-
-  private bitmapFromDates(dates: string[]): string {
-    const bits = ['0', '0', '0', '0', '0', '0', '0'];
-    dates.forEach((date) => {
-      const parsed = new Date(date);
-      if (!Number.isNaN(parsed.getTime())) {
-        const weekday = (parsed.getDay() + 6) % 7;
-        bits[weekday] = '1';
-      }
-    });
-    return bits.join('');
-  }
-
-  private formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  private calendarFromPeriod(
-    periodId: string,
-  ): { validFrom: string; validTo?: string; daysBitmap: string } {
+  private calendarFromPeriod(periodId: string): TrainPlan['calendar'] {
     const period = this.trafficPeriodService.getById(periodId);
     if (!period) {
       throw new Error('Referenzkalender nicht gefunden.');
     }
-    let earliest: string | undefined;
-    let latest: string | undefined;
-    let combinedBitmap = '0000000';
-
-    period.rules.forEach((rule: TrafficPeriod['rules'][number]) => {
-      const start = rule.validityStart;
-      const end = rule.validityEnd ?? rule.validityStart;
-      if (!earliest || start < earliest) {
-        earliest = start;
-      }
-      if (!latest || end > latest) {
-        latest = end;
-      }
-      if (rule.daysBitmap?.length === 7) {
-        combinedBitmap = this.mergeBitmap(combinedBitmap, rule.daysBitmap);
-      }
-    });
-
-    return {
-      validFrom: earliest ?? new Date().toISOString().slice(0, 10),
-      validTo: latest,
-      daysBitmap: combinedBitmap.includes('1') ? combinedBitmap : '1111111',
-    };
-  }
-
-  private mergeBitmap(a: string, b: string): string {
-    const result: string[] = [];
-    for (let i = 0; i < 7; i++) {
-      const bitA = a[i] === '1';
-      const bitB = b[i] === '1';
-      result.push(bitA || bitB ? '1' : '0');
-    }
-    return result.join('');
+    return calendarFromTrafficPeriod(period);
   }
 
   openAssemblyDialog() {
-    const baseStops = this.previewStops().map((stop) => this.toTrainPlanStop(stop));
+    const baseStops = this.previewStops().map((stop) => toTrainPlanStop(this.plan.id, stop));
 
     this.dialogService
       .open<
@@ -955,25 +704,6 @@ export class PlanModificationDialogComponent {
     return this.assembledStops() !== null;
   }
 
-  private toTrainPlanStop(stop: PlanModificationStopInput): TrainPlanStop {
-    return {
-      id: `${this.plan.id}-TMP-${String(stop.sequence).padStart(3, '0')}`,
-      sequence: stop.sequence,
-      type: stop.type,
-      locationCode: stop.locationCode,
-      locationName: stop.locationName,
-      countryCode: stop.countryCode,
-      arrivalTime: stop.arrivalTime,
-      departureTime: stop.departureTime,
-      arrivalOffsetDays: stop.arrivalOffsetDays,
-      departureOffsetDays: stop.departureOffsetDays,
-      dwellMinutes: stop.dwellMinutes,
-      activities: stop.activities,
-      platform: stop.platform,
-      notes: stop.notes,
-    };
-  }
-
   stopCount(): number {
     return this.previewStops().length;
   }
@@ -983,7 +713,7 @@ export class PlanModificationDialogComponent {
     if (!stops.length) {
       return '–';
     }
-    return this.stopLabel(stops[0], true);
+    return stopLabel(stops[0], true);
   }
 
   endStopLabel(): string {
@@ -991,25 +721,7 @@ export class PlanModificationDialogComponent {
     if (!stops.length) {
       return '–';
     }
-    return this.stopLabel(stops[stops.length - 1], false);
-  }
-
-  private stopLabel(stop: PlanModificationStopInput, preferDeparture: boolean): string {
-    const primary = preferDeparture ? stop.departureTime : stop.arrivalTime;
-    const fallback = preferDeparture ? stop.arrivalTime : stop.departureTime;
-    const time = primary || fallback || '–';
-    return `${stop.locationName} (${time})`;
-  }
-
-  private formatIsoTime(value: string | undefined): string | null {
-    if (!value) {
-      return null;
-    }
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-      return null;
-    }
-    return parsed.toISOString().slice(11, 16);
+    return stopLabel(stops[stops.length - 1], false);
   }
 
   private hydrateCompositionFromRollingStock() {
@@ -1031,7 +743,7 @@ export class PlanModificationDialogComponent {
     operations.forEach((operation) => {
       const action: 'attach' | 'detach' =
         operation.type === 'split' ? 'detach' : 'attach';
-      const stopIndex = this.resolveStopSequence(operation.stopId);
+      const stopIndex = resolveStopSequenceById(this.plan.stops, operation.stopId);
       this.addChangeEntry({
         action,
         stopIndex: stopIndex ?? null,
@@ -1149,7 +861,7 @@ export class PlanModificationDialogComponent {
           return null;
         }
         return {
-          stopId: this.resolveStopId(stopIndex),
+          stopId: resolveStopIdBySequence({ planId: this.plan.id, stops: this.plan.stops, sequence: stopIndex }),
           action: group.controls.action.value,
           vehicleType: type,
           count,
@@ -1213,49 +925,16 @@ export class PlanModificationDialogComponent {
     };
   }
 
-  private resolveStopId(sequence: number | undefined): string {
-    if (!sequence) {
-      return this.plan.stops[0]?.id ?? `${this.plan.id}-STOP-001`;
-    }
-    const match = this.plan.stops.find((stop) => stop.sequence === sequence);
-    return match?.id ?? this.plan.stops[0]?.id ?? `${this.plan.id}-STOP-001`;
-  }
-
-  private resolveStopSequence(stopId: string | undefined): number | undefined {
-    if (!stopId) {
-      return undefined;
-    }
-    return this.plan.stops.find((stop) => stop.id === stopId)?.sequence;
-  }
-
   private previewStops(): PlanModificationStopInput[] {
     if (this.assembledStops()) {
       return this.assembledStops() as PlanModificationStopInput[];
     }
-    return this.plan.stops.map((stop) => this.mapPlanStop(stop));
-  }
-
-  private mapPlanStop(stop: TrainPlanStop): PlanModificationStopInput {
-    return {
-      sequence: stop.sequence,
-      type: stop.type,
-      locationCode: stop.locationCode,
-      locationName: stop.locationName,
-      countryCode: stop.countryCode,
-      arrivalTime: stop.arrivalTime,
-      departureTime: stop.departureTime,
-      arrivalOffsetDays: stop.arrivalOffsetDays,
-      departureOffsetDays: stop.departureOffsetDays,
-      dwellMinutes: stop.dwellMinutes,
-      activities: [...stop.activities],
-      platform: stop.platform,
-      notes: stop.notes,
-    };
+    return this.plan.stops.map((stop) => mapPlanStop(stop));
   }
 
   private handleLockedPlanModification(plan: TrainPlan, dates: string[]) {
     const normalizedDates = Array.from(new Set(dates)).sort();
-    const segments = this.buildSegmentsFromDates(normalizedDates);
+    const segments = buildSegmentsFromDates(normalizedDates);
     if (!segments.length) {
       throw new Error('Bitte mindestens einen Verkehrstag auswählen.');
     }
@@ -1290,37 +969,5 @@ export class PlanModificationDialogComponent {
       reason: `Variante für ${plan.trainNumber}`,
     });
     this.trafficPeriodService.addExclusionDates(periodId, dates);
-  }
-
-  private buildSegmentsFromDates(dates: string[]): OrderItemValiditySegment[] {
-    if (!dates.length) {
-      return [];
-    }
-    const normalized = Array.from(new Set(dates.filter((date) => !!date))).sort();
-    const segments: OrderItemValiditySegment[] = [];
-    let start = normalized[0];
-    let prev = start;
-    for (let i = 1; i < normalized.length; i += 1) {
-      const current = normalized[i];
-      if (this.areConsecutiveDates(prev, current)) {
-        prev = current;
-        continue;
-      }
-      segments.push({ startDate: start, endDate: prev });
-      start = current;
-      prev = current;
-    }
-    segments.push({ startDate: start, endDate: prev });
-    return segments;
-  }
-
-  private areConsecutiveDates(a: string, b: string): boolean {
-    const first = new Date(`${a}T00:00:00Z`);
-    const second = new Date(`${b}T00:00:00Z`);
-    if (Number.isNaN(first.getTime()) || Number.isNaN(second.getTime())) {
-      return false;
-    }
-    const diff = second.getTime() - first.getTime();
-    return diff === 24 * 60 * 60 * 1000;
   }
 }

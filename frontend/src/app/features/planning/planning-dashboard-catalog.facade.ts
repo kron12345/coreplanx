@@ -1,8 +1,8 @@
 import { Signal, computed } from '@angular/core';
-import { ActivityTypeDefinition, ActivityTypeService } from '../../core/services/activity-type.service';
+import { ActivityCategory, ActivityTypeDefinition, ActivityTypeService } from '../../core/services/activity-type.service';
 import { ActivityCatalogService } from '../../core/services/activity-catalog.service';
 import { TranslationService } from '../../core/services/translation.service';
-import { ActivityCatalogOption } from './planning-dashboard.types';
+import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
 import { ResourceKind } from '../../models/resource';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 
@@ -100,7 +100,7 @@ export class PlanningDashboardCatalogFacade {
     return candidates.slice(0, MAX_QUICK_TYPES);
   });
 
-  readonly activityTypePickerGroups = computed(() => {
+  readonly activityTypePickerGroups = computed<ActivityTypePickerGroup[]>(() => {
     const options = this.activityTypeCandidates();
     if (!options.length) {
       return [];
@@ -147,7 +147,7 @@ export class PlanningDashboardCatalogFacade {
     private readonly activityTypeService: ActivityTypeService,
     private readonly activityCatalog: ActivityCatalogService,
     private readonly translationService: TranslationService,
-    private readonly typePickerMeta: Array<{ id: string; label: string; icon: string }>,
+    private readonly typePickerMeta: Array<{ id: ActivityCategory; label: string; icon: string }>,
     private readonly selection?: PlanningDashboardActivitySelectionFacade,
     private readonly activityCreationToolSignal?: () => string,
     private readonly activityTypeMenuSelection?: () => string | null,

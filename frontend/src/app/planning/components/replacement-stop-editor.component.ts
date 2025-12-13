@@ -29,22 +29,7 @@ const DEFAULT_FALLBACK = {
 @Component({
     selector: 'app-replacement-stop-editor',
     imports: [CommonModule, AttributeEntityEditorComponent],
-    template: `
-    <app-attribute-entity-editor
-      [title]="'Replacement Stops'"
-      [entities]="entityRecords()"
-      [attributeDefinitions]="attributeDefinitions()"
-      [defaultFallbackValues]="defaultFallback"
-      [numericKeys]="numericKeys"
-      [actionKeys]="actionKeys"
-      [presets]="bulkPresets"
-      [detailError]="error()"
-      (saveEntity)="handleSave($event)"
-      (deleteEntities)="handleDelete($event)"
-      (bulkApply)="handleBulkApply($event)"
-      (actionTriggered)="handleAction($event)"
-    />
-  `,
+    templateUrl: './replacement-stop-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReplacementStopEditorComponent {

@@ -19,18 +19,7 @@ const DEFAULT_FALLBACK = {
 @Component({
     selector: 'app-replacement-route-editor',
     imports: [CommonModule, AttributeEntityEditorComponent],
-    template: `
-    <app-attribute-entity-editor
-      [title]="'Replacement Routes'"
-      [entities]="entityRecords()"
-      [attributeDefinitions]="attributeDefinitions()"
-      [defaultFallbackValues]="defaultFallback"
-      [detailError]="error()"
-      (saveEntity)="handleSave($event)"
-      (deleteEntities)="handleDelete($event)"
-      (bulkApply)="handleBulkApply($event)"
-    />
-  `,
+    templateUrl: './replacement-route-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReplacementRouteEditorComponent {

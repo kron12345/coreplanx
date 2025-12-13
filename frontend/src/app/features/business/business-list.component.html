@@ -2,288 +2,28 @@
   @let metrics = overviewMetrics();
   @let trends = metricTrends();
 
-  <section class="business-hero">
-    <div class="business-hero__body">
-      <div class="business-hero__lead">
-        <p class="business-hero__eyebrow">Pipeline · {{ metrics.active }} aktiv</p>
-        <h1>Geschäfte</h1>
-        <p class="business-hero__subtitle">
-          {{ metrics.total }} Vorgänge insgesamt – {{ metrics.overdue }} davon überfällig und
-          {{ metrics.dueSoon }} in den nächsten 7 Tagen fällig.
-        </p>
-      </div>
-      <div class="business-hero__actions">
-        <button mat-stroked-button type="button" (click)="openCommandPalette()">
-          <mat-icon>bolt</mat-icon>
-          Befehle
-        </button>
-        <button mat-stroked-button type="button" (click)="resetFilters()">
-          <mat-icon>refresh</mat-icon>
-          Filter zurücksetzen
-        </button>
-        <button mat-flat-button color="primary" type="button" (click)="openCreateDialog()">
-          <mat-icon>add</mat-icon>
-          Neues Geschäft
-        </button>
-        <span class="shortcut-hint">
-          Shortcuts: ⌘/Ctrl + K (Befehle) · ⇧ + N (Neues Geschäft)
-        </span>
-      </div>
-    </div>
+  <app-business-hero
+    [metrics]="metrics"
+    [trends]="trends"
+    (openCommandPalette)="openCommandPalette()"
+    (resetFilters)="resetFilters()"
+    (createBusiness)="openCreateDialog()"
+    (metricFilterSelected)="applyMetricFilter($event)"
+  ></app-business-hero>
 
-    <div class="business-hero__metrics">
-      <div class="hero-metric">
-        <span class="hero-metric__label">Aktiv</span>
-        <strong>{{ metrics.active }}</strong>
-        @if (trends.active !== null) {
-          <span
-            class="hero-metric__trend"
-            [attr.data-trend]="trends.active >= 0 ? 'up' : 'down'"
-          >
-            <mat-icon>{{ trends.active >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
-            {{ trends.active >= 0 ? '+' : '' }}{{ trends.active }}
-          </span>
-        }
-        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('active')">
-          <mat-icon>north_east</mat-icon>
-          Anzeigen
-        </button>
-      </div>
-      <div class="hero-metric">
-        <span class="hero-metric__label">Abgeschlossen</span>
-        <strong>{{ metrics.completed }}</strong>
-        @if (trends.completed !== null) {
-          <span
-            class="hero-metric__trend"
-            [attr.data-trend]="trends.completed >= 0 ? 'up' : 'down'"
-          >
-            <mat-icon>{{ trends.completed >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
-            {{ trends.completed >= 0 ? '+' : '' }}{{ trends.completed }}
-          </span>
-        }
-        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('completed')">
-          <mat-icon>north_east</mat-icon>
-          Anzeigen
-        </button>
-      </div>
-      <div class="hero-metric">
-        <span class="hero-metric__label">Überfällig</span>
-        <strong>{{ metrics.overdue }}</strong>
-        @if (trends.overdue !== null) {
-          <span
-            class="hero-metric__trend"
-            [attr.data-trend]="trends.overdue <= 0 ? 'up' : 'down'"
-          >
-            <mat-icon>{{ trends.overdue <= 0 ? 'trending_down' : 'trending_up' }}</mat-icon>
-            {{ trends.overdue > 0 ? '+' : '' }}{{ trends.overdue }}
-          </span>
-        }
-        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('overdue')">
-          <mat-icon>north_east</mat-icon>
-          Anzeigen
-        </button>
-      </div>
-      <div class="hero-metric">
-        <span class="hero-metric__label">Diese Woche fällig</span>
-        <strong>{{ metrics.dueSoon }}</strong>
-        @if (trends.dueSoon !== null) {
-          <span
-            class="hero-metric__trend"
-            [attr.data-trend]="trends.dueSoon >= 0 ? 'up' : 'down'"
-          >
-            <mat-icon>{{ trends.dueSoon >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
-            {{ trends.dueSoon >= 0 ? '+' : '' }}{{ trends.dueSoon }}
-          </span>
-        }
-        <button type="button" class="hero-metric__cta" (click)="applyMetricFilter('dueSoon')">
-          <mat-icon>north_east</mat-icon>
-          Anzeigen
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <section class="business-insights" aria-label="Team-Insights">
-    <div class="insights-header">
-      <div>
-        <p>Team-Insights</p>
-        <span>Schneller Überblick über Tags, Zuständigkeiten und Termine.</span>
-      </div>
-      <button mat-stroked-button type="button" (click)="toggleInsightsCollapsed()">
-        <mat-icon>{{ insightsCollapsed() ? 'unfold_more' : 'unfold_less' }}</mat-icon>
-        {{ insightsCollapsed() ? 'Einblenden' : 'Ausblenden' }}
-      </button>
-    </div>
-
-    @if (!insightsCollapsed()) {
-      <div class="business-insights__grid">
-        @let context = insightContext();
-        <article class="insight-card insight-card--context">
-          <header class="insight-card__header">
-            <div class="insight-card__title">
-              <mat-icon>{{ context.icon }}</mat-icon>
-              <div>
-                <strong>{{ context.title }}</strong>
-                <span>{{ context.message }}</span>
-              </div>
-            </div>
-          </header>
-          <div class="insight-card__body">
-            <p class="insight-card__hint">{{ context.hint }}</p>
-          </div>
-        </article>
-
-        <article class="insight-card insight-card--tags">
-          <header class="insight-card__header">
-            <div class="insight-card__title">
-              <mat-icon>sell</mat-icon>
-              <div>
-                <strong>Beliebte Tags</strong>
-                <span>Meistgenutzte Kontexte aus den gefilterten Geschäften.</span>
-              </div>
-            </div>
-          </header>
-          <div class="insight-card__body">
-            @if (!topTagInsights().length) {
-              <p class="insight-card__empty">Noch keine Tags vorhanden.</p>
-            } @else {
-              <div class="insight-pills insight-pills--clickable">
-                @for (tagStat of topTagInsights(); track tagStat[0]) {
-                  <button
-                    type="button"
-                    class="insight-pill insight-pill--button"
-                    (click)="applyTagInsight(tagStat[0])"
-                  >
-                    <mat-icon>sell</mat-icon>
-                    <span>{{ formatTagLabel(tagStat[0]) }}</span>
-                    <small>{{ tagStat[1] }}</small>
-                  </button>
-                }
-              </div>
-            }
-          </div>
-        </article>
-
-        <article class="insight-card insight-card--assignments">
-          <header class="insight-card__header">
-            <div class="insight-card__title">
-              <mat-icon>group</mat-icon>
-              <div>
-                <strong>Top Zuständigkeiten</strong>
-                <span>Wer betreut aktuell die meisten Geschäfte?</span>
-              </div>
-            </div>
-          </header>
-          <div class="insight-card__body">
-            @if (!topAssignments().length) {
-              <p class="insight-card__empty">Noch keine Zuständigkeiten gesetzt.</p>
-            } @else {
-              <div class="insight-pills insight-pills--clickable">
-                @for (assignment of topAssignments(); track assignment.name) {
-                  <button
-                    type="button"
-                    class="insight-pill insight-pill--button"
-                    (click)="applyAssignmentInsight(assignment.name)"
-                  >
-                    <mat-icon>{{ assignment.type === 'group' ? 'groups' : 'person' }}</mat-icon>
-                    <span>{{ assignment.name }}</span>
-                    <small>{{ assignment.count }}</small>
-                  </button>
-                }
-              </div>
-            }
-          </div>
-        </article>
-
-        <article class="insight-card insight-card--status">
-          <header class="insight-card__header">
-            <div class="insight-card__title">
-              <mat-icon>flag</mat-icon>
-              <div>
-                <strong>Statusverteilung</strong>
-                <span>Wo steckt die Pipeline fest?</span>
-              </div>
-            </div>
-          </header>
-          <div class="insight-card__body">
-            @if (!statusBreakdown().length) {
-              <p class="insight-card__empty">Noch keine Geschäfte vorhanden.</p>
-            } @else {
-              <div class="insight-pills insight-pills--clickable">
-                @for (entry of statusBreakdown(); track entry.status) {
-                  <button
-                    type="button"
-                    class="insight-pill insight-pill--button insight-pill--status"
-                    (click)="applyStatusInsight(entry.status)"
-                  >
-                    <mat-icon>flag</mat-icon>
-                    <span>{{ entry.label }}</span>
-                    <small>{{ entry.count }}</small>
-                  </button>
-                }
-              </div>
-            }
-          </div>
-        </article>
-
-        <article class="insight-card insight-card--due">
-          <header class="insight-card__header">
-            <div class="insight-card__title">
-              <mat-icon>event</mat-icon>
-              <div>
-                <strong>Termine im Blick</strong>
-                <span>Überfällige und fällige Geschäfte der nächsten Tage.</span>
-              </div>
-            </div>
-          </header>
-          <div class="insight-card__body">
-            @if (!dueSoonHighlights().length) {
-              <p class="insight-card__empty">Keine fälligen Geschäfte.</p>
-            } @else {
-              <div class="insight-due-list">
-                @for (business of dueSoonHighlights(); track business.id) {
-                  <div
-                    class="due-row"
-                    [class.due-row--overdue]="dueDateState(business) === 'overdue'"
-                    [class.due-row--today]="dueDateState(business) === 'today'"
-                  >
-                    <div>
-                      <strong>{{ business.title }}</strong>
-                      <span>
-                        @if (business.dueDate) {
-                          {{ business.dueDate | date: 'mediumDate' }}
-                        } @else {
-                          Keine Fälligkeit
-                        }
-                      </span>
-                    </div>
-                    <button
-                      mat-icon-button
-                      type="button"
-                      aria-label="Geschäft anzeigen"
-                      (click)="selectBusiness(business)"
-                    >
-                      <mat-icon>north_east</mat-icon>
-                    </button>
-                  </div>
-                }
-              </div>
-              <div class="insight-due-actions">
-                <button mat-stroked-button type="button" (click)="focusDueSoon()">
-                  <mat-icon>event</mat-icon>
-                  Diese Woche
-                </button>
-                <button mat-button type="button" (click)="applyMetricFilter('overdue')">
-                  <mat-icon>warning</mat-icon>
-                  Überfällige
-                </button>
-              </div>
-            }
-          </div>
-        </article>
-      </div>
-    }
-  </section>
+  <app-business-insights
+    [context]="insightContext()"
+    [topTagInsights]="topTagInsights()"
+    [topAssignments]="topAssignments()"
+    [statusBreakdown]="statusBreakdown()"
+    [dueSoonHighlights]="dueSoonHighlights()"
+    (applyTag)="applyTagInsight($event)"
+    (applyAssignment)="applyAssignmentInsight($event)"
+    (applyStatus)="applyStatusInsight($event)"
+    (focusDueSoon)="focusDueSoon()"
+    (metricFilterSelected)="applyMetricFilter($event)"
+    (selectBusiness)="selectBusiness($event)"
+  ></app-business-insights>
 
   <section class="business-controller manager-filter">
     <div class="filter-shelf" #filterShelf>
@@ -591,7 +331,8 @@
         </mat-card>
       </div>
     </ng-template>
-    <div class="business-main__layout" *ngIf="businesses().length; else emptyState">
+    @if (businesses().length) {
+      <div class="business-main__layout">
         <div class="business-content">
           @if (hasBulkSelection()) {
             <div class="bulk-toolbar">
@@ -664,17 +405,19 @@
                         </span>
                         <span class="card-meta-id">#{{ business.id }}</span>
                       </div>
-                      <div class="card-timeline" *ngIf="businessTimeline(business) as timeline">
-                        @for (entry of timeline; track entry.label) {
-                          <div class="card-timeline__item" [attr.data-state]="entry.state">
-                            <span class="card-timeline__dot"></span>
-                            <div>
-                              <strong>{{ entry.label }}</strong>
-                              <span>{{ entry.description }}</span>
+                      @if (businessTimeline(business); as timeline) {
+                        <div class="card-timeline">
+                          @for (entry of timeline; track entry.label) {
+                            <div class="card-timeline__item" [attr.data-state]="entry.state">
+                              <span class="card-timeline__dot"></span>
+                              <div>
+                                <strong>{{ entry.label }}</strong>
+                                <span>{{ entry.description }}</span>
+                              </div>
                             </div>
-                          </div>
-                        }
-                      </div>
+                          }
+                        </div>
+                      }
                       <div class="card-highlight-row">
                         @for (highlight of businessHighlights(business); track highlight.label) {
                           <button
@@ -881,7 +624,8 @@
             </div>
           }
         </div>
-        <aside class="business-detail-pane" *ngIf="selectedBusiness() as detail">
+        @if (selectedBusiness(); as detail) {
+          <aside class="business-detail-pane">
           <header>
             <h3>{{ detail.title }}</h3>
             <mat-chip color="primary" appearance="outlined">
@@ -1014,30 +758,37 @@
             }
           </ul>
         </div>
-        <div class="detail-list" *ngIf="detail.linkedOrderItemIds?.length">
-          <h4>Verknüpfte Positionen</h4>
-          <ul>
-            @for (itemId of detail.linkedOrderItemIds; track itemId) {
-              @let meta = orderItemMeta(itemId);
-              <li>
-                <span>{{ meta?.itemName || itemId }}</span>
-                <button mat-button (click)="goToOrderItem(detail, itemId)">Öffnen</button>
-              </li>
-            }
-          </ul>
-        </div>
-        </aside>
-    </div>
+          @if (detail.linkedOrderItemIds?.length) {
+            <div class="detail-list">
+              <h4>Verknüpfte Positionen</h4>
+              <ul>
+                @for (itemId of detail.linkedOrderItemIds; track itemId) {
+                  @let meta = orderItemMeta(itemId);
+                  <li>
+                    <span>{{ meta?.itemName || itemId }}</span>
+                    <button mat-button (click)="goToOrderItem(detail, itemId)">Öffnen</button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+          </aside>
+        }
+      </div>
+    } @else {
+      <ng-container [ngTemplateOutlet]="emptyState"></ng-container>
+    }
   </div>
-  <button
-    class="detail-jump"
-    mat-fab
-    color="primary"
-    type="button"
-    *ngIf="detailJumpVisible() && selectedBusiness()"
-    (click)="scrollToBusinessCard(selectedBusiness()!.id)"
-    aria-label="Zum ausgewählten Geschäft scrollen"
-  >
-    <mat-icon>arrow_upward</mat-icon>
-  </button>
+  @if (detailJumpVisible() && selectedBusiness()) {
+    <button
+      class="detail-jump"
+      mat-fab
+      color="primary"
+      type="button"
+      (click)="scrollToBusinessCard(selectedBusiness()!.id)"
+      aria-label="Zum ausgewählten Geschäft scrollen"
+    >
+      <mat-icon>arrow_upward</mat-icon>
+    </button>
+  }
 </div>

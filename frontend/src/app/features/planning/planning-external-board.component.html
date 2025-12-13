@@ -1,0 +1,11 @@
+<div class="external-board">
+  <app-gantt
+    [resources]="boardResources()"
+    [activities]="boardActivities()"
+    [timelineRange]="timelineRange()"
+    [resourceViewModes]="resourceViewModes()"
+    [selectedActivityIds]="selectedActivityIds()"
+    [activityTypeInfo]="activityTypeInfo()"
+    (activitySelectionToggle)="noop()"
+  ></app-gantt>
+</div>

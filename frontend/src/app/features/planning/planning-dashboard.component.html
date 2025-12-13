@@ -237,6 +237,7 @@
           [selectedIndex]="selectedBoardIndex()"
           (selectedIndexChange)="handleBoardIndexChange($event)"
           animationDuration="250ms"
+          [preserveContent]="true"
         >
           @for (board of boards(); track board.id) {
             <mat-tab>
@@ -260,49 +261,51 @@
                 </span>
               </ng-template>
 
-              <div class="planning-board">
-                @if (board.resourceIds.length > 0) {
-                  <div class="planning-board__gantt">
-                    <app-gantt
-                      [resources]="boardResources(board)"
-                      [activities]="boardActivities(board)"
-                      [pendingActivity]="boardPendingActivity(board)"
-                      [timelineRange]="timelineRange()"
-                      [periods]="currentPeriods()"
-                      [minTimelineDays]="activeStageId() === 'base' ? 8 : 30"
-                      [snapTimelineToMidnight]="activeStageId() !== 'base'"
-                      [resourceViewModes]="resourceViewModes()"
-                      [selectedActivityIds]="selectedActivityIdsArray()"
-                      [activityTypeInfo]="activityTypeInfoMap()"
-                      (resourceViewModeChange)="handleResourceViewModeChange($event)"
-                      (serviceAssignmentRequested)="handleServiceAssignRequest($event)"
-                      (activityCreateRequested)="handleActivityCreate($event)"
-                      (activityEditRequested)="handleActivityEdit($event)"
-                      (activityCopyRequested)="handleActivityCopy($event)"
-                      (activityRepositionRequested)="handleActivityReposition($event)"
-                      (activitySelectionToggle)="handleActivitySelectionToggle($event)"
-                      (removeResource)="removeResourceFromBoard(board.id, $event)"
-                    >
-                      <ng-container gantt-menu-actions>
-                        <button
-                          mat-icon-button
-                          class="planning-board__menu-trigger"
-                          [matMenuTriggerFor]="boardActionsMenu"
-                          [matMenuTriggerData]="{ board: board }"
-                          matTooltip="Aktionen"
-                        >
-                          <mat-icon fontIcon="more_vert"></mat-icon>
-                        </button>
-                      </ng-container>
-                    </app-gantt>
-                  </div>
-                } @else {
-                  <div class="planning-board__empty">
-                    <mat-icon fontIcon="dashboard"></mat-icon>
-                    <p>Diese Plantafel enthält noch keine Ressourcen. Bitte Auswahl hinzufügen.</p>
-                  </div>
-                }
-              </div>
+              <ng-template matTabContent>
+                <div class="planning-board">
+                  @if (board.resourceIds.length > 0) {
+                    <div class="planning-board__gantt">
+                      <app-gantt
+                        [resources]="boardResources(board)"
+                        [activities]="boardActivities(board)"
+                        [pendingActivity]="boardPendingActivity(board)"
+                        [timelineRange]="timelineRange()"
+                        [periods]="currentPeriods()"
+                        [minTimelineDays]="activeStageId() === 'base' ? 8 : 30"
+                        [snapTimelineToMidnight]="activeStageId() !== 'base'"
+                        [resourceViewModes]="resourceViewModes()"
+                        [selectedActivityIds]="selectedActivityIdsArray()"
+                        [activityTypeInfo]="activityTypeInfoMap()"
+                        (resourceViewModeChange)="handleResourceViewModeChange($event)"
+                        (serviceAssignmentRequested)="handleServiceAssignRequest($event)"
+                        (activityCreateRequested)="handleActivityCreate($event)"
+                        (activityEditRequested)="handleActivityEdit($event)"
+                        (activityCopyRequested)="handleActivityCopy($event)"
+                        (activityRepositionRequested)="handleActivityReposition($event)"
+                        (activitySelectionToggle)="handleActivitySelectionToggle($event)"
+                        (removeResource)="removeResourceFromBoard(board.id, $event)"
+                      >
+                        <ng-container gantt-menu-actions>
+                          <button
+                            mat-icon-button
+                            class="planning-board__menu-trigger"
+                            [matMenuTriggerFor]="boardActionsMenu"
+                            [matMenuTriggerData]="{ board: board }"
+                            matTooltip="Aktionen"
+                          >
+                            <mat-icon fontIcon="more_vert"></mat-icon>
+                          </button>
+                        </ng-container>
+                      </app-gantt>
+                    </div>
+                  } @else {
+                    <div class="planning-board__empty">
+                      <mat-icon fontIcon="dashboard"></mat-icon>
+                      <p>Diese Plantafel enthält noch keine Ressourcen. Bitte Auswahl hinzufügen.</p>
+                    </div>
+                  }
+                </div>
+              </ng-template>
             </mat-tab>
           }
         </mat-tab-group>

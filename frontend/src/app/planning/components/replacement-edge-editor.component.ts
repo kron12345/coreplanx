@@ -23,19 +23,7 @@ const DEFAULT_FALLBACK = {
 @Component({
     selector: 'app-replacement-edge-editor',
     imports: [CommonModule, AttributeEntityEditorComponent],
-    template: `
-    <app-attribute-entity-editor
-      [title]="'Replacement Edges'"
-      [entities]="entityRecords()"
-      [attributeDefinitions]="attributeDefinitions()"
-      [defaultFallbackValues]="defaultFallback"
-      [numericKeys]="numericKeys"
-      [detailError]="error()"
-      (saveEntity)="handleSave($event)"
-      (deleteEntities)="handleDelete($event)"
-      (bulkApply)="handleBulkApply($event)"
-    />
-  `,
+    templateUrl: './replacement-edge-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReplacementEdgeEditorComponent {

@@ -1,0 +1,89 @@
+<section class="business-hero">
+  <div class="business-hero__body">
+    <div class="business-hero__lead">
+      <p class="business-hero__eyebrow">Pipeline · {{ metrics.active }} aktiv</p>
+      <h1>Geschäfte</h1>
+      <p class="business-hero__subtitle">
+        {{ metrics.total }} Vorgänge insgesamt – {{ metrics.overdue }} davon überfällig und
+        {{ metrics.dueSoon }} in den nächsten 7 Tagen fällig.
+      </p>
+    </div>
+    <div class="business-hero__actions">
+      <button mat-stroked-button type="button" (click)="openCommandPalette.emit()">
+        <mat-icon>bolt</mat-icon>
+        Befehle
+      </button>
+      <button mat-stroked-button type="button" (click)="resetFilters.emit()">
+        <mat-icon>refresh</mat-icon>
+        Filter zurücksetzen
+      </button>
+      <button mat-flat-button color="primary" type="button" (click)="createBusiness.emit()">
+        <mat-icon>add</mat-icon>
+        Neues Geschäft
+      </button>
+      <span class="shortcut-hint">
+        Shortcuts: ⌘/Ctrl + K (Befehle) · ⇧ + N (Neues Geschäft)
+      </span>
+    </div>
+  </div>
+
+  <div class="business-hero__metrics">
+    <div class="hero-metric">
+      <span class="hero-metric__label">Aktiv</span>
+      <strong>{{ metrics.active }}</strong>
+      @if (trends.active !== null) {
+        <span class="hero-metric__trend" [attr.data-trend]="trends.active >= 0 ? 'up' : 'down'">
+          <mat-icon>{{ trends.active >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+          {{ trends.active >= 0 ? '+' : '' }}{{ trends.active }}
+        </span>
+      }
+      <button type="button" class="hero-metric__cta" (click)="metricFilterSelected.emit('active')">
+        <mat-icon>north_east</mat-icon>
+        Anzeigen
+      </button>
+    </div>
+    <div class="hero-metric">
+      <span class="hero-metric__label">Abgeschlossen</span>
+      <strong>{{ metrics.completed }}</strong>
+      @if (trends.completed !== null) {
+        <span class="hero-metric__trend" [attr.data-trend]="trends.completed >= 0 ? 'up' : 'down'">
+          <mat-icon>{{ trends.completed >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+          {{ trends.completed >= 0 ? '+' : '' }}{{ trends.completed }}
+        </span>
+      }
+      <button type="button" class="hero-metric__cta" (click)="metricFilterSelected.emit('completed')">
+        <mat-icon>north_east</mat-icon>
+        Anzeigen
+      </button>
+    </div>
+    <div class="hero-metric">
+      <span class="hero-metric__label">Überfällig</span>
+      <strong>{{ metrics.overdue }}</strong>
+      @if (trends.overdue !== null) {
+        <span class="hero-metric__trend" [attr.data-trend]="trends.overdue <= 0 ? 'up' : 'down'">
+          <mat-icon>{{ trends.overdue <= 0 ? 'trending_down' : 'trending_up' }}</mat-icon>
+          {{ trends.overdue > 0 ? '+' : '' }}{{ trends.overdue }}
+        </span>
+      }
+      <button type="button" class="hero-metric__cta" (click)="metricFilterSelected.emit('overdue')">
+        <mat-icon>north_east</mat-icon>
+        Anzeigen
+      </button>
+    </div>
+    <div class="hero-metric">
+      <span class="hero-metric__label">Diese Woche fällig</span>
+      <strong>{{ metrics.dueSoon }}</strong>
+      @if (trends.dueSoon !== null) {
+        <span class="hero-metric__trend" [attr.data-trend]="trends.dueSoon >= 0 ? 'up' : 'down'">
+          <mat-icon>{{ trends.dueSoon >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+          {{ trends.dueSoon >= 0 ? '+' : '' }}{{ trends.dueSoon }}
+        </span>
+      }
+      <button type="button" class="hero-metric__cta" (click)="metricFilterSelected.emit('dueSoon')">
+        <mat-icon>north_east</mat-icon>
+        Anzeigen
+      </button>
+    </div>
+  </div>
+</section>
+

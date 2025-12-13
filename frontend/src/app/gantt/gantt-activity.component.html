@@ -60,14 +60,15 @@
   (cdkDragEnded)="onDragEnded($event)"
   [class.gantt-activity--copy-mode]="dragMode === 'copy'"
 >
-  <button
-    *ngIf="dragMode === 'copy'"
-    type="button"
-    class="gantt-activity__copy-chip"
-    (click)="disableCopyMode($event)"
-  >
-    × Kopieren
-  </button>
+  @if (dragMode === 'copy') {
+    <button
+      type="button"
+      class="gantt-activity__copy-chip"
+      (click)="disableCopyMode($event)"
+    >
+      × Kopieren
+    </button>
+  }
   <ng-container [ngTemplateOutlet]="activityContent"></ng-container>
 </div>
 

@@ -1,0 +1,173 @@
+<section class="business-insights" aria-label="Team-Insights">
+  <div class="insights-header">
+    <div>
+      <p>Team-Insights</p>
+      <span>Schneller Überblick über Tags, Zuständigkeiten und Termine.</span>
+    </div>
+    <button mat-stroked-button type="button" (click)="toggleCollapsed()">
+      <mat-icon>{{ collapsed() ? 'unfold_more' : 'unfold_less' }}</mat-icon>
+      {{ collapsed() ? 'Einblenden' : 'Ausblenden' }}
+    </button>
+  </div>
+
+  @if (!collapsed()) {
+    <div class="business-insights__grid">
+      <article class="insight-card insight-card--context">
+        <header class="insight-card__header">
+          <div class="insight-card__title">
+            <mat-icon>{{ context.icon }}</mat-icon>
+            <div>
+              <strong>{{ context.title }}</strong>
+              <span>{{ context.message }}</span>
+            </div>
+          </div>
+        </header>
+        <div class="insight-card__body">
+          <p class="insight-card__hint">{{ context.hint }}</p>
+        </div>
+      </article>
+
+      <article class="insight-card insight-card--tags">
+        <header class="insight-card__header">
+          <div class="insight-card__title">
+            <mat-icon>sell</mat-icon>
+            <div>
+              <strong>Beliebte Tags</strong>
+              <span>Meistgenutzte Kontexte aus den gefilterten Geschäften.</span>
+            </div>
+          </div>
+        </header>
+        <div class="insight-card__body">
+          @if (!topTagInsights.length) {
+            <p class="insight-card__empty">Noch keine Tags vorhanden.</p>
+          } @else {
+            <div class="insight-pills insight-pills--clickable">
+              @for (tagStat of topTagInsights; track tagStat[0]) {
+                <button type="button" class="insight-pill insight-pill--button" (click)="applyTag.emit(tagStat[0])">
+                  <mat-icon>sell</mat-icon>
+                  <span>{{ formatTagLabel(tagStat[0]) }}</span>
+                  <small>{{ tagStat[1] }}</small>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </article>
+
+      <article class="insight-card insight-card--assignments">
+        <header class="insight-card__header">
+          <div class="insight-card__title">
+            <mat-icon>group</mat-icon>
+            <div>
+              <strong>Top Zuständigkeiten</strong>
+              <span>Wer betreut aktuell die meisten Geschäfte?</span>
+            </div>
+          </div>
+        </header>
+        <div class="insight-card__body">
+          @if (!topAssignments.length) {
+            <p class="insight-card__empty">Noch keine Zuständigkeiten gesetzt.</p>
+          } @else {
+            <div class="insight-pills insight-pills--clickable">
+              @for (assignment of topAssignments; track assignment.name) {
+                <button type="button" class="insight-pill insight-pill--button" (click)="applyAssignment.emit(assignment.name)">
+                  <mat-icon>{{ assignment.type === 'group' ? 'groups' : 'person' }}</mat-icon>
+                  <span>{{ assignment.name }}</span>
+                  <small>{{ assignment.count }}</small>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </article>
+
+      <article class="insight-card insight-card--status">
+        <header class="insight-card__header">
+          <div class="insight-card__title">
+            <mat-icon>flag</mat-icon>
+            <div>
+              <strong>Statusverteilung</strong>
+              <span>Wo steckt die Pipeline fest?</span>
+            </div>
+          </div>
+        </header>
+        <div class="insight-card__body">
+          @if (!statusBreakdown.length) {
+            <p class="insight-card__empty">Noch keine Geschäfte vorhanden.</p>
+          } @else {
+            <div class="insight-pills insight-pills--clickable">
+              @for (entry of statusBreakdown; track entry.status) {
+                <button
+                  type="button"
+                  class="insight-pill insight-pill--button insight-pill--status"
+                  (click)="applyStatus.emit(entry.status)"
+                >
+                  <mat-icon>flag</mat-icon>
+                  <span>{{ entry.label }}</span>
+                  <small>{{ entry.count }}</small>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </article>
+
+      <article class="insight-card insight-card--due">
+        <header class="insight-card__header">
+          <div class="insight-card__title">
+            <mat-icon>event</mat-icon>
+            <div>
+              <strong>Termine im Blick</strong>
+              <span>Überfällige und fällige Geschäfte der nächsten Tage.</span>
+            </div>
+          </div>
+        </header>
+        <div class="insight-card__body">
+          @if (!dueSoonHighlights.length) {
+            <p class="insight-card__empty">Keine fälligen Geschäfte.</p>
+          } @else {
+            <div class="insight-due-list">
+              @for (business of dueSoonHighlights; track business.id) {
+                <div
+                  class="due-row"
+                  [class.due-row--overdue]="dueDateState(business) === 'overdue'"
+                  [class.due-row--today]="dueDateState(business) === 'today'"
+                >
+                  <div>
+                    <strong>{{ business.title }}</strong>
+                    <span>
+                      @if (business.dueDate) {
+                        {{ business.dueDate | date: 'mediumDate' }}
+                      } @else {
+                        Keine Fälligkeit
+                      }
+                    </span>
+                  </div>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    aria-label="Geschäft anzeigen"
+                    (click)="selectBusiness.emit(business)"
+                  >
+                    <mat-icon>north_east</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+            <div class="insight-due-actions">
+              <button mat-stroked-button type="button" (click)="focusDueSoon.emit()">
+                <mat-icon>event</mat-icon>
+                Diese Woche
+              </button>
+              <button mat-button type="button" (click)="metricFilterSelected.emit('overdue')">
+                <mat-icon>warning</mat-icon>
+                Überfällige
+              </button>
+            </div>
+          }
+        </div>
+      </article>
+    </div>
+  }
+</section>
+

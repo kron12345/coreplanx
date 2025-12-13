@@ -1,0 +1,11 @@
+<app-attribute-entity-editor
+  [title]="'OP ↔ Replacement Stop Links'"
+  [entities]="entityRecords()"
+  [attributeDefinitions]="attributeDefinitions()"
+  [defaultFallbackValues]="defaultFallback"
+  [numericKeys]="numericKeys"
+  [detailError]="error()"
+  (saveEntity)="handleSave($event)"
+  (deleteEntities)="handleDelete($event)"
+  (bulkApply)="handleBulkApply($event)"
+/>

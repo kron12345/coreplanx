@@ -33,68 +33,8 @@ export interface BusinessCommandPaletteData {
         MatButtonModule,
         MatInputModule,
     ],
-    template: `
-    <h2 mat-dialog-title>Befehlspalette</h2>
-    <div mat-dialog-content class="command-palette">
-      <mat-form-field appearance="outline" class="command-search">
-        <mat-label>Suchen</mat-label>
-        <mat-icon matPrefix>search</mat-icon>
-        <input
-          matInput
-          [formControl]="queryControl"
-          placeholder="Aktion oder Filter"
-          autofocus
-        />
-      </mat-form-field>
-
-      <mat-nav-list>
-        @for (command of filteredCommands(); track command.id) {
-          <a mat-list-item (click)="select(command.id)">
-            <mat-icon matListIcon>{{ command.icon || 'bolt' }}</mat-icon>
-            <div matLine>{{ command.label }}</div>
-            @if (command.hint) {
-              <div matLine class="command-hint">{{ command.hint }}</div>
-            }
-          </a>
-        }
-      </mat-nav-list>
-
-      @if (!filteredCommands().length) {
-        <p class="command-empty">
-          Keine Befehle gefunden.
-        </p>
-      }
-    </div>
-    <div mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Schließen</button>
-    </div>
-  `,
-    styles: [
-        `
-      .command-palette {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        min-width: min(520px, 90vw);
-      }
-
-      .command-search {
-        margin-bottom: 4px;
-      }
-
-      .command-hint {
-        font-size: 0.78rem;
-        color: rgba(15, 23, 42, 0.6);
-      }
-
-      .command-empty {
-        margin: 12px 0 0 0;
-        font-size: 0.9rem;
-        color: rgba(15, 23, 42, 0.7);
-        text-align: center;
-      }
-    `,
-    ]
+    templateUrl: './business-command-palette-dialog.component.html',
+    styleUrl: './business-command-palette-dialog.component.scss',
 })
 export class BusinessCommandPaletteDialogComponent {
   private readonly dialogRef =

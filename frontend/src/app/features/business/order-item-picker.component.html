@@ -13,17 +13,19 @@
     </div>
   </div>
 
-  <div class="picker-selected" *ngIf="selectedOptions().length">
-    <span>Auswahl:</span>
-    <mat-chip-set>
-      @for (option of selectedOptions(); track option.itemId) {
-        <mat-chip appearance="outlined" [removable]="true" (removed)="toggleSelection(option.itemId)">
-          {{ option.itemName }}
-          <mat-icon matChipRemove>close</mat-icon>
-        </mat-chip>
-      }
-    </mat-chip-set>
-  </div>
+  @if (selectedOptions().length) {
+    <div class="picker-selected">
+      <span>Auswahl:</span>
+      <mat-chip-set>
+        @for (option of selectedOptions(); track option.itemId) {
+          <mat-chip appearance="outlined" [removable]="true" (removed)="toggleSelection(option.itemId)">
+            {{ option.itemName }}
+            <mat-icon matChipRemove>close</mat-icon>
+          </mat-chip>
+        }
+      </mat-chip-set>
+    </div>
+  }
 
   <div class="picker-filters">
     <mat-form-field appearance="outline">

@@ -1,0 +1,185 @@
+.business-insights {
+  margin-top: clamp(16px, 3vw, 32px);
+  padding: 0 clamp(24px, 4vw, 56px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(100%, var(--business-page-max-width, 1600px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.insights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+
+  p {
+    margin: 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #0f172a;
+  }
+
+  span {
+    font-size: 0.9rem;
+    color: rgba(15, 23, 42, 0.6);
+  }
+}
+
+.business-insights__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.insight-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 24px;
+  padding: 18px 20px;
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insight-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-card__title {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+
+  mat-icon {
+    color: #1e2762;
+  }
+
+  strong {
+    display: block;
+    font-size: 1rem;
+  }
+
+  span {
+    font-size: 0.8rem;
+    color: rgba(15, 23, 42, 0.7);
+  }
+}
+
+.insight-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insight-card__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.insight-card__empty {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.6);
+  font-size: 0.9rem;
+}
+
+.insight-card--context {
+  background: linear-gradient(135deg, #eef2ff, #dbeafe);
+  color: #0f172a;
+
+  .insight-card__title mat-icon {
+    color: #4338ca;
+  }
+}
+
+.insight-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.insight-pills--clickable .insight-pill {
+  cursor: pointer;
+}
+
+.insight-pill {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.insight-pill--button {
+  background: rgba(99, 102, 241, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.15);
+  }
+}
+
+.insight-pill--status {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.insight-card--due .insight-card__title mat-icon {
+  color: #0ea5e9;
+}
+
+.insight-due-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.due-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(37, 99, 235, 0.04);
+
+  strong {
+    display: block;
+    font-size: 0.95rem;
+  }
+
+  span {
+    font-size: 0.8rem;
+    color: rgba(15, 23, 42, 0.65);
+  }
+}
+
+.due-row--overdue {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.due-row--today {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.insight-due-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+

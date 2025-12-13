@@ -14,3 +14,10 @@ export interface ActivityCatalogOption {
   relevantFor?: ResourceKind[];
   category?: ActivityCategory;
 }
+
+export interface ActivityTypePickerGroup {
+  id: ActivityCategory;
+  label: string;
+  icon: string;
+  items: ActivityCatalogOption[];
+}

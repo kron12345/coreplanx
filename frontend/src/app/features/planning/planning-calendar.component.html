@@ -42,9 +42,11 @@
       <span class="legend__swatch legend__swatch--special">★</span>
       Spezialtag
     </div>
-    <div class="legend__item" *ngIf="selectedDate()">
-      <strong>Ausgewählt:</strong> {{ selectedDate() }}
-    </div>
+    @if (selectedDate()) {
+      <div class="legend__item">
+        <strong>Ausgewählt:</strong> {{ selectedDate() }}
+      </div>
+    }
   </mat-card>
 
   <div class="planning-calendar__grid">
@@ -74,14 +76,19 @@
               [style.background]="cell ? buildBackground(cell) : ''"
               (click)="cell && onDayClick(cell)"
             >
-              <span *ngIf="cell" class="day-number">{{ cell.day }}</span>
-              <span *ngIf="cell" class="weekday">{{ cell.weekday }}</span>
-              <span *ngIf="cell?.isSpecial" class="marker marker--special">★</span>
-              <span
-                *ngIf="cell?.isInPeriod"
-                class="marker marker--period"
-                [style.background]="cell?.periodColor || '#2f80ed'"
-              ></span>
+              @if (cell) {
+                <span class="day-number">{{ cell.day }}</span>
+                <span class="weekday">{{ cell.weekday }}</span>
+              }
+              @if (cell?.isSpecial) {
+                <span class="marker marker--special">★</span>
+              }
+              @if (cell?.isInPeriod) {
+                <span
+                  class="marker marker--period"
+                  [style.background]="cell?.periodColor || '#2f80ed'"
+                ></span>
+              }
             </button>
           }
         </div>
@@ -89,7 +96,8 @@
     </div>
   </div>
 
-  <mat-card class="planning-calendar__actions" *ngIf="selectedDate()">
+  @if (selectedDate()) {
+    <mat-card class="planning-calendar__actions">
     <div class="actions__title">
       <mat-icon fontIcon="calendar_month"></mat-icon>
       <div>
@@ -132,9 +140,16 @@
         </button>
       </div>
     </div>
-    <div class="actions__feedback" *ngIf="actionMessage() || actionError()">
-      <span class="feedback feedback--success" *ngIf="actionMessage()">{{ actionMessage() }}</span>
-      <span class="feedback feedback--error" *ngIf="actionError()">{{ actionError() }}</span>
-    </div>
+    @if (actionMessage() || actionError()) {
+      <div class="actions__feedback">
+        @if (actionMessage()) {
+          <span class="feedback feedback--success">{{ actionMessage() }}</span>
+        }
+        @if (actionError()) {
+          <span class="feedback feedback--error">{{ actionError() }}</span>
+        }
+      </div>
+    }
   </mat-card>
+  }
 </section>

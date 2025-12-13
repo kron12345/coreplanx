@@ -1,6 +1,18 @@
 import { ActivatedRoute, Router } from '@angular/router';
 import { PlanningStageId, PlanningStageMeta } from './planning-stage.model';
 
+export function buildStageMetaMap(
+  stages: readonly PlanningStageMeta[],
+): Record<PlanningStageId, PlanningStageMeta> {
+  return stages.reduce(
+    (record, stage) => {
+      record[stage.id] = stage;
+      return record;
+    },
+    {} as Record<PlanningStageId, PlanningStageMeta>,
+  );
+}
+
 export function normalizeStageId(
   value: string | null,
   stageMetaMap: Record<PlanningStageId, PlanningStageMeta>,

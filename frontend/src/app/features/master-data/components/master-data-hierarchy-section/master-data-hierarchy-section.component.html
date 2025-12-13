@@ -2,21 +2,25 @@
   <header class="md-hierarchy__header">
     <div>
       <h3>{{ config.title }}</h3>
-      <p *ngIf="config.description">{{ config.description }}</p>
+      @if (config.description) {
+        <p>{{ config.description }}</p>
+      }
     </div>
   </header>
 
   <div class="md-hierarchy__content">
-    <div class="md-hierarchy__parent" *ngIf="parentConfigView() as parentConfig">
-      <app-master-data-category
-        [config]="parentConfig"
-        (selectionChange)="handleParentSelectionChange($event)"
-        (itemsChange)="handleParentItemsChange($event)"
-      ></app-master-data-category>
-    </div>
+    @if (parentConfigView(); as parentConfig) {
+      <div class="md-hierarchy__parent">
+        <app-master-data-category
+          [config]="parentConfig"
+          (selectionChange)="handleParentSelectionChange($event)"
+          (itemsChange)="handleParentItemsChange($event)"
+        ></app-master-data-category>
+      </div>
+    }
 
     <div class="md-hierarchy__children">
-      <ng-container *ngIf="selectedParent() as activeParent; else noParentSelected">
+      @if (selectedParent(); as activeParent) {
         <header class="md-hierarchy__children-header">
           <h4>
             {{ config.child.entityLabel }} in {{ activeParent.name ?? activeParent.title ?? activeParent.id }}
@@ -24,13 +28,15 @@
           <span>{{ parentSelectionLabel() }}</span>
         </header>
 
-        <ng-container *ngIf="childConfigView() as childConfig">
+        @if (childConfigView(); as childConfig) {
           <app-master-data-category
             [config]="childConfig"
             (itemsChange)="handleChildItemsChange($event)"
           ></app-master-data-category>
-        </ng-container>
-      </ng-container>
+        }
+      } @else {
+        <ng-container [ngTemplateOutlet]="noParentSelected"></ng-container>
+      }
 
       <ng-template #noParentSelected>
         <div class="md-hierarchy__empty">

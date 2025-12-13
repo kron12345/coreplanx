@@ -24,19 +24,7 @@ const RELATIONS: OpReplRelation[] = ['PRIMARY_SEV_STOP', 'ALTERNATIVE', 'TEMPORA
 @Component({
     selector: 'app-op-replacement-stop-link-editor',
     imports: [CommonModule, AttributeEntityEditorComponent],
-    template: `
-    <app-attribute-entity-editor
-      [title]="'OP ↔ Replacement Stop Links'"
-      [entities]="entityRecords()"
-      [attributeDefinitions]="attributeDefinitions()"
-      [defaultFallbackValues]="defaultFallback"
-      [numericKeys]="numericKeys"
-      [detailError]="error()"
-      (saveEntity)="handleSave($event)"
-      (deleteEntities)="handleDelete($event)"
-      (bulkApply)="handleBulkApply($event)"
-    />
-  `,
+    templateUrl: './op-replacement-stop-link-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OpReplacementStopLinkEditorComponent {

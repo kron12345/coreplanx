@@ -1,0 +1,36 @@
+.period-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+.muted {
+  color: #666;
+  font-size: 13px;
+}
+.section-title {
+  margin-top: 16px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.special-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.special {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}

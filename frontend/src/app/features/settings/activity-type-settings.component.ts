@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   ActivityFieldKey,
   ActivityTypeDefinition,
@@ -113,23 +114,27 @@ export class ActivityTypeSettingsComponent {
   });
 
   constructor() {
-    this.newTypeForm.controls.label.valueChanges.subscribe((label) => {
-      const control = this.newTypeForm.controls.id;
-      if (control.dirty) {
-        return;
-      }
-      control.setValue(this.slugify(label ?? ''), { emitEvent: false });
-    });
-    this.editTypeForm.controls.label.valueChanges.subscribe((label) => {
-      if (!this.editingId()) {
-        return;
-      }
-      const control = this.editTypeForm.controls.id;
-      if (control.dirty) {
-        return;
-      }
-      control.setValue(this.slugify(label ?? ''), { emitEvent: false });
-    });
+    this.newTypeForm.controls.label.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((label) => {
+        const control = this.newTypeForm.controls.id;
+        if (control.dirty) {
+          return;
+        }
+        control.setValue(this.slugify(label ?? ''), { emitEvent: false });
+      });
+    this.editTypeForm.controls.label.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((label) => {
+        if (!this.editingId()) {
+          return;
+        }
+        const control = this.editTypeForm.controls.id;
+        if (control.dirty) {
+          return;
+        }
+        control.setValue(this.slugify(label ?? ''), { emitEvent: false });
+      });
   }
 
   protected createType(): void {

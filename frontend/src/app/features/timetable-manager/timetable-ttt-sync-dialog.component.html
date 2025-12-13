@@ -25,7 +25,9 @@
         [formControl]="importControl"
         placeholder="TTT Payload als JSON einfügen"
       ></textarea>
-      <mat-error *ngIf="importControl.invalid">Bitte gültiges JSON einfügen.</mat-error>
+      @if (importControl.invalid) {
+        <mat-error>Bitte gültiges JSON einfügen.</mat-error>
+      }
     </mat-form-field>
     <button mat-flat-button color="primary" type="button" (click)="applyImport()">
       <mat-icon>cloud_upload</mat-icon>
@@ -33,10 +35,12 @@
     </button>
   </section>
 
-  <div class="error" *ngIf="errorMessage() as message">
-    <mat-icon fontIcon="info"></mat-icon>
-    <span>{{ message }}</span>
-  </div>
+  @if (errorMessage(); as message) {
+    <div class="error">
+      <mat-icon fontIcon="info"></mat-icon>
+      <span>{{ message }}</span>
+    </div>
+  }
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">

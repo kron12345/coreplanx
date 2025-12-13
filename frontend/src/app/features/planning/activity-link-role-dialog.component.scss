@@ -1,0 +1,18 @@
+.activity-link-role-dialog__section {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-link-role-dialog__label {
+  font-size: 0.85rem;
+}
+
+mat-button-toggle-group {
+  width: 100%;
+}
+
+mat-button-toggle {
+  flex: 1 1 0;
+}

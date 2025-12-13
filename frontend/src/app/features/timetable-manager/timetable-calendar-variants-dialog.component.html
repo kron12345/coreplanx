@@ -3,11 +3,8 @@
 <mat-dialog-content class="dialog-content">
   <form [formGroup]="form" class="variants-form">
     <section formArrayName="variants" class="variant-section">
-      <div
-        class="variant-card"
-        *ngFor="let group of variants.controls; let i = index"
-        [formGroupName]="i"
-      >
+      @for (group of variants.controls; track $index; let i = $index) {
+        <div class="variant-card" [formGroupName]="i">
         <header>
           <h3>Variante #{{ i + 1 }}</h3>
           <span class="spacer"></span>
@@ -52,12 +49,11 @@
           <mat-form-field appearance="outline">
             <mat-label>Typ</mat-label>
             <mat-select formControlName="type">
-              <mat-option
-                *ngFor="let option of typeOptions"
-                [value]="option.value"
-              >
-                {{ option.label }}
-              </mat-option>
+              @for (option of typeOptions; track option.value) {
+                <mat-option [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
@@ -74,12 +70,11 @@
           <mat-form-field appearance="outline">
             <mat-label>Wirkt auf</mat-label>
             <mat-select formControlName="appliesTo">
-              <mat-option
-                *ngFor="let option of appliesOptions"
-                [value]="option.value"
-              >
-                {{ option.label }}
-              </mat-option>
+              @for (option of appliesOptions; track option.value) {
+                <mat-option [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
         </div>
@@ -88,12 +83,11 @@
           <mat-form-field appearance="outline">
             <mat-label>Wochentage</mat-label>
             <mat-select formControlName="daysOfWeek" multiple>
-              <mat-option
-                *ngFor="let option of daysOfWeekOptions"
-                [value]="option.value"
-              >
-                {{ option.label }}
-              </mat-option>
+              @for (option of daysOfWeekOptions; track option.value) {
+                <mat-option [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              }
             </mat-select>
             <mat-hint>Leer lassen, wenn einzelne Tage benutzt werden.</mat-hint>
           </mat-form-field>
@@ -115,6 +109,7 @@
           <textarea matInput rows="2" formControlName="reason"></textarea>
         </mat-form-field>
       </div>
+      }
 
       <button mat-stroked-button type="button" (click)="addVariant()">
         <mat-icon>add</mat-icon>

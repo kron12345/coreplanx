@@ -8,7 +8,9 @@
         Backend-Service übertragen werden.
       </p>
     </div>
-    <span class="custom-attributes__badge" *ngIf="isDirty()">Änderungen nicht gespeichert</span>
+    @if (isDirty()) {
+      <span class="custom-attributes__badge">Änderungen nicht gespeichert</span>
+    }
   </header>
 
   <section class="custom-attributes__controls">
@@ -86,12 +88,16 @@
             <div class="attribute-card__content">
               <div>
                 <h3>{{ definition.label }}</h3>
-                <p *ngIf="definition.description">{{ definition.description }}</p>
+                @if (definition.description) {
+                  <p>{{ definition.description }}</p>
+                }
                 <div class="attribute-card__meta">
                   <span class="attribute-card__chip">{{ attributeTypeLabel(definition.type) }}</span>
-                  <span class="attribute-card__chip attribute-card__chip--required" *ngIf="definition.required">
-                    Pflichtfeld
-                  </span>
+                  @if (definition.required) {
+                    <span class="attribute-card__chip attribute-card__chip--required">
+                      Pflichtfeld
+                    </span>
+                  }
                   <code class="attribute-card__key">{{ definition.key }}</code>
                 </div>
               </div>

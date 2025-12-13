@@ -62,13 +62,12 @@
                   </mat-select>
                 </mat-form-field>
 
-                <mat-form-field
-                  appearance="outline"
-                  *ngIf="editTypeForm.controls.timeMode.value === 'duration'"
-                >
-                  <mat-label>Dauer (Minuten)</mat-label>
-                  <input matInput type="number" min="1" formControlName="defaultDurationMinutes" />
-                </mat-form-field>
+                @if (editTypeForm.controls.timeMode.value === 'duration') {
+                  <mat-form-field appearance="outline">
+                    <mat-label>Dauer (Minuten)</mat-label>
+                    <input matInput type="number" min="1" formControlName="defaultDurationMinutes" />
+                  </mat-form-field>
+                }
 
                 <mat-form-field appearance="outline" class="activity-type-card__description">
                   <mat-label>Beschreibung</mat-label>
@@ -107,20 +106,28 @@
             <div class="activity-type-card__content">
               <div>
                 <h3>{{ definition.label }}</h3>
-                <p *ngIf="definition.description">{{ definition.description }}</p>
+                @if (definition.description) {
+                  <p>{{ definition.description }}</p>
+                }
                 <div class="activity-type-card__meta">
                   <mat-chip-set>
-                    <mat-chip *ngFor="let target of definition.relevantFor">{{ resourceLabel(target) }}</mat-chip>
+                    @for (target of definition.relevantFor; track target) {
+                      <mat-chip>{{ resourceLabel(target) }}</mat-chip>
+                    }
                   </mat-chip-set>
                   <code>{{ definition.id }}</code>
                 </div>
                 <div class="activity-type-card__meta">
                   <span>{{ categoryLabel(definition.category) }}</span>
-                  <span *ngIf="definition.timeMode === 'duration'">
-                    Dauer: {{ definition.defaultDurationMinutes }} min
-                  </span>
-                  <span *ngIf="definition.timeMode === 'range'">Zeitmodus: Start & Ende (manuell)</span>
-                  <span *ngIf="definition.timeMode === 'point'">Zeitmodus: Zeitpunkt</span>
+                  @if (definition.timeMode === 'duration') {
+                    <span>Dauer: {{ definition.defaultDurationMinutes }} min</span>
+                  }
+                  @if (definition.timeMode === 'range') {
+                    <span>Zeitmodus: Start & Ende (manuell)</span>
+                  }
+                  @if (definition.timeMode === 'point') {
+                    <span>Zeitmodus: Zeitpunkt</span>
+                  }
                   <span>Felder: {{ fieldList(definition) }}</span>
                 </div>
               </div>
@@ -182,13 +189,12 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field
-          appearance="outline"
-          *ngIf="newTypeForm.controls.timeMode.value === 'duration'"
-        >
-          <mat-label>Dauer (Minuten)</mat-label>
-          <input matInput type="number" min="1" formControlName="defaultDurationMinutes" />
-        </mat-form-field>
+        @if (newTypeForm.controls.timeMode.value === 'duration') {
+          <mat-form-field appearance="outline">
+            <mat-label>Dauer (Minuten)</mat-label>
+            <input matInput type="number" min="1" formControlName="defaultDurationMinutes" />
+          </mat-form-field>
+        }
 
         <mat-form-field appearance="outline" class="activity-type-create-form__description">
           <mat-label>Beschreibung</mat-label>

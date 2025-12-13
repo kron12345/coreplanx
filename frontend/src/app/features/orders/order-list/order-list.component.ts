@@ -1,10 +1,20 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  HostListener,
+  computed,
+  effect,
+  inject,
+  signal,
+  DOCUMENT,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
 import { OrderFilters, OrderService, OrderTtrPhase } from '../../../core/services/order.service';
@@ -17,61 +27,20 @@ import { FilterBarComponent } from '../../filters/filter-bar/filter-bar.componen
 import { OrderCardComponent } from '../order-card/order-card.component';
 import { OrderCreateDialogComponent } from '../order-create-dialog.component';
 import { OrderTemplateRecommendationComponent } from '../order-template-recommendation.component';
-
-interface OrderSummary {
-  order: Order;
-  items: OrderItem[];
-  itemCount: number;
-  upcomingCount: number;
-  attentionCount: number;
-  tags: string[];
-  customer?: string;
-  timetableYear?: string;
-  responsibles: string[];
-}
-
-interface OrderHeroMetrics {
-  totalOrders: number;
-  totalItems: number;
-  upcomingItems: number;
-  attentionItems: number;
-  phaseCoverage: number;
-  rollingPlanningItems: number;
-  shortTermItems: number;
-  adHocItems: number;
-}
-
-interface SearchSuggestion {
-  label: string;
-  value: string;
-  icon: string;
-  description: string;
-}
-
-interface OrdersHealthInsight {
-  tone: 'ok' | 'warn' | 'critical';
-  attentionPercent: number;
-  upcomingPercent: number;
-  summary: string;
-  icon: string;
-  title: string;
-}
-
-interface CollaborationContext {
-  title: string;
-  message: string;
-  hint: string;
-  icon: string;
-}
-
-interface OrderFilterPreset {
-  id: string;
-  name: string;
-  filters: OrderFilters;
-}
-
-const INSIGHTS_COLLAPSED_STORAGE_KEY = 'orders.insightsCollapsed.v1';
-const ORDER_PRESETS_STORAGE_KEY = 'orders.presets.v1';
+import {
+  INSIGHTS_COLLAPSED_STORAGE_KEY,
+  ORDER_PRESETS_STORAGE_KEY,
+  ORDER_TIMELINE_REFERENCE_LABELS,
+  ORDER_TTR_PHASE_META,
+} from './order-list.constants';
+import type {
+  CollaborationContext,
+  OrderFilterPreset,
+  OrderHeroMetrics,
+  OrdersHealthInsight,
+  OrderSummary,
+  SearchSuggestion,
+} from './order-list.types';
 
 @Component({
     selector: 'app-order-list',
@@ -84,7 +53,8 @@ const ORDER_PRESETS_STORAGE_KEY = 'orders.presets.v1';
         OrderTemplateRecommendationComponent,
     ],
     templateUrl: './order-list.component.html',
-    styleUrl: './order-list.component.scss'
+    styleUrl: './order-list.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderListComponent {
   private readonly store = inject(OrderService);
@@ -115,31 +85,12 @@ export class OrderListComponent {
   readonly savedFilterPresets = computed(() => this.savedPresets());
   private readonly activePresetId = signal<string | null>(null);
   readonly activePreset = computed(() => this.activePresetId());
-  private readonly ttrPhaseMeta: Record<
-    Exclude<OrderFilters['ttrPhase'], 'all'>,
-    { label: string; window: string }
-  > = {
-    annual_request: { label: 'Annual TT Request', window: '12–7 Monate vor FP' },
-    final_offer: { label: 'Final Offer (ENFP)', window: '7–4 Monate vor FP' },
-    rolling_planning: { label: 'Rolling Planning', window: '13–3 Wochen vor FP' },
-    short_term: { label: 'Short-Term', window: '30–7 Tage vor FP' },
-    ad_hoc: { label: 'Ad-hoc', window: '0–7 Tage vor Produktion' },
-    operational_delivery: { label: 'Operative Begleitung', window: 'laufender Betrieb' },
-  };
-  private readonly timelineReferenceLabels: Record<
-    OrderFilters['timelineReference'],
-    { label: string; hint: string }
-  > = {
-    fpDay: { label: 'Fahrplantag', hint: 'Planungsbezug' },
-    fpYear: { label: 'Fahrplanjahr', hint: 'Jahresfrist' },
-    operationalDay: { label: 'Produktionstag', hint: 'Echtzeit / Betrieb' },
-  };
 
   constructor() {
     this.restorePresetsFromStorage();
     this.searchControl.setValue(this.store.filters().search, { emitEvent: false });
     this.searchControl.valueChanges
-      .pipe(debounceTime(200), distinctUntilChanged())
+      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((value) => {
         this.startViewTransition();
         this.clearActivePreset();
@@ -153,17 +104,19 @@ export class OrderListComponent {
       }
     });
 
-    this.route.queryParamMap.subscribe((params) => {
-      const businessId = params.get('businessId');
-      if (businessId) {
-        this.store.setFilter({ linkedBusinessId: businessId });
-      }
-      const highlightItem = params.get('highlightItem');
-      this.highlightItemId.set(highlightItem);
-      if (highlightItem) {
-        window.setTimeout(() => this.scrollToHighlightedItem(highlightItem), 0);
-      }
-    });
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed())
+      .subscribe((params) => {
+        const businessId = params.get('businessId');
+        if (businessId) {
+          this.store.setFilter({ linkedBusinessId: businessId });
+        }
+        const highlightItem = params.get('highlightItem');
+        this.highlightItemId.set(highlightItem);
+        if (highlightItem) {
+          window.setTimeout(() => this.scrollToHighlightedItem(highlightItem), 0);
+        }
+      });
 
     effect(() => {
       this.orders();
@@ -340,14 +293,14 @@ export class OrderListComponent {
     if (phase === 'all') {
       return 'Alle TTR-Phasen';
     }
-    return this.ttrPhaseMeta[phase]?.label ?? phase;
+    return ORDER_TTR_PHASE_META[phase]?.label ?? phase;
   }
 
   describeTtrPhaseWindow(phase: OrderFilters['ttrPhase']): string {
     if (phase === 'all') {
       return 'Keine Einschränkung';
     }
-    return this.ttrPhaseMeta[phase]?.window ?? '';
+    return ORDER_TTR_PHASE_META[phase]?.window ?? '';
   }
 
   hasFpRange(): boolean {
@@ -370,11 +323,11 @@ export class OrderListComponent {
   }
 
   timelineReferenceLabel(): string {
-    return this.timelineReferenceLabels[this.filters().timelineReference]?.label ?? 'Fahrplantag';
+    return ORDER_TIMELINE_REFERENCE_LABELS[this.filters().timelineReference]?.label ?? 'Fahrplantag';
   }
 
   timelineReferenceHint(): string {
-    return this.timelineReferenceLabels[this.filters().timelineReference]?.hint ?? '';
+    return ORDER_TIMELINE_REFERENCE_LABELS[this.filters().timelineReference]?.hint ?? '';
   }
 
   private formatDateLabel(value: string): string {

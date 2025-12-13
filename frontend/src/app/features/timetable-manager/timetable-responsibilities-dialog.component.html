@@ -3,11 +3,8 @@
 <mat-dialog-content class="dialog-content">
   <form [formGroup]="form" class="responsibilities-form">
     <section formArrayName="responsibilities" class="responsibility-section">
-      <div
-        class="responsibility-card"
-        *ngFor="let group of responsibilities.controls; let i = index"
-        [formGroupName]="i"
-      >
+      @for (group of responsibilities.controls; track $index; let i = $index) {
+        <div class="responsibility-card" [formGroupName]="i">
         <header>
           <h3>Verantwortung #{{ i + 1 }}</h3>
           <span class="spacer"></span>
@@ -63,12 +60,11 @@
           <mat-form-field appearance="outline">
             <mat-label>Bereich</mat-label>
             <mat-select formControlName="scope">
-              <mat-option
-                *ngFor="let option of scopeOptions"
-                [value]="option.value"
-              >
-                {{ option.label }}
-              </mat-option>
+              @for (option of scopeOptions; track option.value) {
+                <mat-option [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
@@ -76,12 +72,11 @@
             <mat-label>Status</mat-label>
             <mat-select formControlName="status">
               <mat-option [value]="null">Nicht gesetzt</mat-option>
-              <mat-option
-                *ngFor="let option of statusOptions"
-                [value]="option.value"
-              >
-                {{ option.label }}
-              </mat-option>
+              @for (option of statusOptions; track option.value) {
+                <mat-option [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
@@ -96,6 +91,7 @@
           <textarea matInput rows="2" formControlName="notes"></textarea>
         </mat-form-field>
       </div>
+      }
 
       <button mat-stroked-button type="button" (click)="addResponsibility()">
         <mat-icon>add</mat-icon>

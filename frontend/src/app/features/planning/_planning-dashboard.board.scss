@@ -1,0 +1,154 @@
+@keyframes planning-type-overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .planning-type-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-type-picker__list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.planning-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 12px 12px 16px;
+  box-sizing: border-box;
+}
+
+.planning-board__gantt {
+  flex: 1;
+  min-height: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  position: relative;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.planning-board__menu-trigger {
+  width: 32px;
+  height: 32px;
+  color: inherit;
+}
+
+.planning-board__gantt app-gantt {
+  display: block;
+  flex: 1;
+  height: 100%;
+}
+
+.planning-board__empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 16px;
+  color: rgba(0, 0, 0, 0.54);
+  text-align: center;
+}
+
+.planning-board__empty mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+}
+
+.planning-tab-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+@media (max-width: 960px) {
+  .planning-toolbar__info {
+    margin-left: 0;
+  }
+
+  .planning-toolbar__summary {
+    width: 100%;
+  }
+
+  .planning-resource-menu__content {
+    max-height: 320px;
+  }
+
+  .planning-board__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .planning-side-panels {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 0 16px 16px;
+    pointer-events: auto;
+  }
+
+  .planning-side-panels mat-card {
+    box-shadow:
+      0 12px 28px rgba(15, 23, 42, 0.18),
+      0 4px 8px rgba(15, 23, 42, 0.12);
+  }
+
+  .planning-panel {
+    border-radius: 14px;
+  }
+
+  .planning-base-overlay__panel {
+    width: 100%;
+    border-radius: 0;
+  }
+
+  .planning-base-overlay__content {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .planning-dashboard {
+    gap: 8px;
+  }
+
+  .planning-toolbar {
+    padding: 0 12px;
+  }
+
+  .planning-main {
+    padding: 0 12px;
+  }
+
+  .planning-resource-menu__list {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-board {
+    padding: 12px;
+  }
+
+  .planning-board__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

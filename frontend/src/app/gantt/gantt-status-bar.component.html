@@ -19,10 +19,12 @@
     <span class="gantt-status__label">Aktivitäten</span>
     <span class="gantt-status__value">{{ visibleActivityCount }} / {{ activityCount }}</span>
   </div>
-  <div class="gantt-status__item gantt-status__item--drag" *ngIf="dragStatus?.message">
-    <span class="gantt-status__label">Aktion</span>
-    <span class="gantt-status__value" [ngClass]="dragValueClasses">
-      {{ dragStatus?.message }}
-    </span>
-  </div>
+  @if (dragStatus?.message) {
+    <div class="gantt-status__item gantt-status__item--drag">
+      <span class="gantt-status__label">Aktion</span>
+      <span class="gantt-status__value" [ngClass]="dragValueClasses">
+        {{ dragStatus?.message }}
+      </span>
+    </div>
+  }
 </footer>

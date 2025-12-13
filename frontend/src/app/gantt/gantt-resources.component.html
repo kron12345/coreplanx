@@ -10,7 +10,7 @@
   </button>
 
   <mat-menu #resourceMenu="matMenu">
-    <ng-container *ngIf="viewModeToggleEnabled">
+    @if (viewModeToggleEnabled) {
       <button mat-menu-item (click)="onViewModeClick('block')" [disabled]="viewMode === 'block'">
         Blockansicht
       </button>
@@ -18,10 +18,10 @@
         Detailansicht
       </button>
       <mat-divider></mat-divider>
-    </ng-container>
-    <button mat-menu-item *ngIf="canAssignService" (click)="onAssignServiceClick()">
-      Dienst zuweisen
-    </button>
+    }
+    @if (canAssignService) {
+      <button mat-menu-item (click)="onAssignServiceClick()">Dienst zuweisen</button>
+    }
     <button mat-menu-item (click)="onRemoveClick()">Ressource entfernen</button>
   </mat-menu>
 </div>

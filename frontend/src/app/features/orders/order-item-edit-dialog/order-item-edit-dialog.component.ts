@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -64,7 +64,8 @@ interface OrderItemEditFormModel {
         ReferenceCalendarInlineFormComponent,
     ],
     templateUrl: './order-item-edit-dialog.component.html',
-    styleUrl: './order-item-edit-dialog.component.scss'
+    styleUrl: './order-item-edit-dialog.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderItemEditDialogComponent implements OnInit {
   private readonly dialogRef =

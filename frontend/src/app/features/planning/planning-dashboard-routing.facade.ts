@@ -1,5 +1,6 @@
 import { ActivatedRoute, Router } from '@angular/router';
-import { Signal } from '@angular/core';
+import { DestroyRef, Signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PlanningStageId, PlanningStageMeta } from './planning-stage.model';
 import { normalizeStageId, updateStageQueryParam } from './planning-dashboard-stage.utils';
 
@@ -12,6 +13,7 @@ export class PlanningDashboardRoutingFacade {
       activeStageSignal: Signal<PlanningStageId> & { set: (val: PlanningStageId) => void };
       queryFrom: Signal<string | null> & { set: (val: string | null) => void };
       queryTo: Signal<string | null> & { set: (val: string | null) => void };
+      destroyRef: DestroyRef;
       onStageChanged: (stage: PlanningStageId) => void;
     },
   ) {}
@@ -28,12 +30,14 @@ export class PlanningDashboardRoutingFacade {
       updateStageQueryParam(this.deps.router, this.deps.route, initialStage);
     }
 
-    this.deps.route.queryParamMap.subscribe((params) => {
+    this.deps.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.deps.destroyRef))
+      .subscribe((params) => {
       const stage = normalizeStageId(params.get('stage'), this.deps.stageMetaMap);
       this.setActiveStage(stage, false);
       this.deps.queryFrom.set(params.get('from'));
       this.deps.queryTo.set(params.get('to'));
-    });
+      });
   }
 
   setActiveStage(stage: PlanningStageId, updateUrl: boolean): void {

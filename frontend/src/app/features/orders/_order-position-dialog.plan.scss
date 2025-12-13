@@ -1,0 +1,49 @@
+:host ::ng-deep {
+.plan-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 24px;
+  align-items: flex-start;
+}
+
+@media (max-width: 1200px) {
+  .plan-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.plan-form {
+  background: #fff;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.calendar-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.help-icon {
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.54));
+}
+
+.error {
+  margin-top: 12px;
+  color: #d93025;
+}
+
+.error--inline {
+  margin: 0;
+  align-self: flex-start;
+}
+}

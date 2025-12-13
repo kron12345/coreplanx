@@ -1,0 +1,12 @@
+.planning-master {
+  display: block;
+  padding: 16px;
+}
+
+mat-tab-group {
+  background: var(--mat-form-field-filled-container-color, #fff);
+  border-radius: 12px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 6px 16px rgba(0, 0, 0, 0.06);
+}

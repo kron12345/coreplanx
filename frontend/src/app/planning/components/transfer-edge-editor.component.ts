@@ -27,19 +27,7 @@ const MODES: TransferMode[] = ['WALK', 'SHUTTLE', 'INTERNAL'];
 @Component({
     selector: 'app-transfer-edge-editor',
     imports: [CommonModule, AttributeEntityEditorComponent],
-    template: `
-    <app-attribute-entity-editor
-      [title]="'Transfer Edges'"
-      [entities]="entityRecords()"
-      [attributeDefinitions]="attributeDefinitions()"
-      [defaultFallbackValues]="defaultFallback"
-      [numericKeys]="numericKeys"
-      [detailError]="error()"
-      (saveEntity)="handleSave($event)"
-      (deleteEntities)="handleDelete($event)"
-      (bulkApply)="handleBulkApply($event)"
-    />
-  `,
+    templateUrl: './transfer-edge-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransferEdgeEditorComponent {

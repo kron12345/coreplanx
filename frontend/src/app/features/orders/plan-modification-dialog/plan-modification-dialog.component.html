@@ -156,18 +156,22 @@
           </button>
         </div>
       </div>
-      <div class="stop-preview-list" *ngIf="stopPreviewEntries().length; else noStopsDefined">
-        @for (stop of stopPreviewEntries(); track stop.sequence) {
-          <div class="stop-preview-row">
-            <span class="stop-preview-row__index">#{{ stop.sequence }}</span>
-            <div class="stop-preview-row__body">
-              <strong>{{ stop.locationName }}</strong>
-              <span class="stop-preview-row__times">{{ stopPreviewTimeLabel(stop) }}</span>
+      @if (stopPreviewEntries().length) {
+        <div class="stop-preview-list">
+          @for (stop of stopPreviewEntries(); track stop.sequence) {
+            <div class="stop-preview-row">
+              <span class="stop-preview-row__index">#{{ stop.sequence }}</span>
+              <div class="stop-preview-row__body">
+                <strong>{{ stop.locationName }}</strong>
+                <span class="stop-preview-row__times">{{ stopPreviewTimeLabel(stop) }}</span>
+              </div>
+              <mat-chip appearance="outlined">{{ stop.type | titlecase }}</mat-chip>
             </div>
-            <mat-chip appearance="outlined">{{ stop.type | titlecase }}</mat-chip>
-          </div>
-        }
-      </div>
+          }
+        </div>
+      } @else {
+        <ng-container [ngTemplateOutlet]="noStopsDefined"></ng-container>
+      }
       <ng-template #noStopsDefined>
         <p class="hint">Noch keine Halte definiert.</p>
       </ng-template>

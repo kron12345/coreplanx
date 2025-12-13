@@ -1,4 +1,4 @@
-import { PlanningTimelineRange } from './planning-data.service';
+import { PlanningTimelineRange } from './planning-data.types';
 import { PlanningStageId, PlanningResourceCategory, PlanningStageMeta } from './planning-stage.model';
 import { Resource } from '../../models/resource';
 import { Activity } from '../../models/activity';

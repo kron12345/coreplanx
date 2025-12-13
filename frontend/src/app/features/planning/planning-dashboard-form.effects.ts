@@ -1,5 +1,6 @@
-import { effect } from '@angular/core';
+import { DestroyRef, effect } from '@angular/core';
 import { FormGroup } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SimulationRecord } from '../../core/models/simulation.model';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facade';
@@ -8,6 +9,7 @@ import { PlanningStageId } from './planning-stage.model';
 import { toLocalDateTime } from './planning-dashboard-time.utils';
 
 export interface PlanningDashboardFormEffectsDeps {
+  destroyRef: DestroyRef;
   activityForm: FormGroup;
   activityFormTypeSignal: (value?: string) => string;
   setActivityFormType: (value: string) => void;
@@ -32,10 +34,12 @@ export interface PlanningDashboardFormEffectsDeps {
 }
 
 export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
-  deps.activityForm.valueChanges.subscribe(() => {
-    deps.updatePendingActivityFromForm();
-    deps.updateEditingPreviewFromForm();
-  });
+  deps.activityForm.valueChanges
+    .pipe(takeUntilDestroyed(deps.destroyRef))
+    .subscribe(() => {
+      deps.updatePendingActivityFromForm();
+      deps.updateEditingPreviewFromForm();
+    });
 
   effect(() => {
     const selection = deps.activitySelection.selectedActivityState();

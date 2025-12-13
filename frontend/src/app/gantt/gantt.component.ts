@@ -26,7 +26,6 @@ import { Resource } from '../models/resource';
 import { Activity } from '../models/activity';
 import { getActivityOwnerId } from '../models/activity-ownership';
 import { TimeScaleService } from '../core/services/time-scale.service';
-import { createTimeViewport, TimeViewport } from '../core/signals/time-viewport.signal';
 import { GanttMenuComponent } from './gantt-menu.component';
 import { GanttResourcesComponent } from './gantt-resources.component';
 import { GanttActivityDragData, GanttActivitySelectionEvent } from './gantt-activity.component';
@@ -40,8 +39,8 @@ import { GanttTimelineHeaderComponent } from './gantt-timeline-header.component'
 import { GanttStatusBarComponent } from './gantt-status-bar.component';
 import { TrackHorizontalScrollDirective } from '../shared/directives/track-horizontal-scroll.directive';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { addDays, startOfDay, MS_IN_DAY, MS_IN_HOUR, MS_IN_MINUTE } from '../core/utils/time-math';
-import { ZOOM_RANGE_MS, findNearestZoomConfig } from '../core/constants/time-scale.config';
+import { MS_IN_DAY, MS_IN_HOUR, MS_IN_MINUTE } from '../core/utils/time-math';
+import { findNearestZoomConfig } from '../core/constants/time-scale.config';
 import { LayerGroupService } from '../core/services/layer-group.service';
 import { TemplatePeriod } from '../core/api/timeline-api.types';
 import { GanttDragFacade } from './gantt-drag.facade';
@@ -54,6 +53,7 @@ import type {
 } from './gantt.models';
 import { GanttRowBuilderFacade } from './gantt-row-builder.facade';
 import { GanttSelectionFacade } from './gantt-selection.facade';
+import { GanttViewportFacade } from './gantt-viewport.facade';
 
 function arraysEqual<T>(a: T[], b: T[]): boolean {
   if (a.length !== b.length) {
@@ -120,23 +120,17 @@ export class GanttComponent implements AfterViewInit {
   private readonly pendingActivitySignal = signal<PreparedActivity | null>(null);
   private readonly filterTerm = signal('');
   private readonly cursorTimeSignal = signal<Date | null>(null);
-  private readonly viewportReady = signal(false);
-  private minTimelineDaysValue = 1;
-  private snapTimelineToMidnightValue = true;
-  private timelineRangeInput: { start: Date; end: Date } | null = null;
   private readonly expandedGroups = signal<Set<string>>(new Set());
-  private readonly activeTouchPointers = new Map<number, { x: number; y: number }>();
-  private pinchReferenceDistance: number | null = null;
-  private touchPanLastX: number | null = null;
-  private touchPointerContainer: HTMLElement | null = null;
-  private readonly pinchLogThreshold = 0.08;
-  private readonly mousePanActivationThreshold = 4;
-  private mousePanPointerId: number | null = null;
-  private mousePanStartX: number | null = null;
-  private mousePanLastX: number | null = null;
-  private mousePanMoved = false;
-  private mousePanContainer: HTMLElement | null = null;
   private suppressNextTimelineClick = false;
+  private readonly viewportFacade = new GanttViewportFacade({
+    timeScale: this.timeScale,
+    host: () => this.hostElement.nativeElement,
+    headerScroller: () => this.headerScrollerDir?.element ?? null,
+    suppressNextTimelineClick: () => {
+      this.suppressNextTimelineClick = true;
+    },
+  });
+  private readonly viewportReady = this.viewportFacade.viewportReady;
   private lastOverlapGroupKey: string | null = null;
   private lastOverlapActivityId: string | null = null;
   protected readonly periodsSignal = signal<TemplatePeriod[]>([]);
@@ -163,12 +157,16 @@ export class GanttComponent implements AfterViewInit {
   });
 
   constructor() {
-    this.destroyRef.onDestroy(() => this.dragFacade.cleanup());
+    this.destroyRef.onDestroy(() => {
+      this.dragFacade.cleanup();
+      this.viewportFacade.cleanup();
+    });
   }
 
-  protected viewport!: TimeViewport;
-  private viewportInitialized = false;
-  private lastTimelineRange: { start: number; end: number } | null = null;
+  protected get viewport() {
+    return this.viewportFacade.viewport;
+  }
+
   private previousResourceIds: string[] | null = null;
   private previousActivityIds: string[] | null = null;
   private previousActivitySignature: string | null = null;
@@ -258,34 +256,23 @@ export class GanttComponent implements AfterViewInit {
   @Input({ required: true })
   set timelineRange(value: { start: Date; end: Date }) {
     if (!value) {
-      this.timelineRangeInput = null;
+      this.viewportFacade.setTimelineRange(null);
       return;
     }
-    this.timelineRangeInput = {
+    this.viewportFacade.setTimelineRange({
       start: new Date(value.start),
       end: new Date(value.end),
-    };
-    this.applyTimelineRange();
+    });
   }
 
   @Input()
   set minTimelineDays(value: number | null | undefined) {
-    const parsed = Number.isFinite(value as number) ? Math.max(1, Math.floor((value as number) ?? 1)) : 1;
-    if (parsed === this.minTimelineDaysValue) {
-      return;
-    }
-    this.minTimelineDaysValue = parsed;
-    this.applyTimelineRange();
+    this.viewportFacade.setMinTimelineDays(value);
   }
 
   @Input()
   set snapTimelineToMidnight(value: boolean | '') {
-    const next = value !== false;
-    if (next === this.snapTimelineToMidnightValue) {
-      return;
-    }
-    this.snapTimelineToMidnightValue = next;
-    this.applyTimelineRange();
+    this.viewportFacade.setSnapTimelineToMidnight(value);
   }
 
   @Input()
@@ -315,57 +302,6 @@ export class GanttComponent implements AfterViewInit {
   set periods(value: TemplatePeriod[] | null) {
     this.periodsSignal.set(value ?? []);
   }
-
-  private applyTimelineRange(): void {
-    if (!this.timelineRangeInput) {
-      return;
-    }
-    let normalizedStart = this.snapTimelineToMidnightValue
-      ? startOfDay(this.timelineRangeInput.start)
-      : new Date(this.timelineRangeInput.start);
-    let normalizedEndBase = this.snapTimelineToMidnightValue
-      ? startOfDay(this.timelineRangeInput.end)
-      : new Date(this.timelineRangeInput.end);
-    if (!Number.isFinite(normalizedStart.getTime())) {
-      normalizedStart = new Date();
-    }
-    if (!Number.isFinite(normalizedEndBase.getTime())) {
-      normalizedEndBase = addDays(normalizedStart, Math.max(1, this.minTimelineDaysValue));
-    }
-    let normalizedEnd: Date;
-    if (normalizedEndBase.getTime() <= normalizedStart.getTime()) {
-      normalizedEnd = new Date(normalizedStart.getTime() + MS_IN_DAY);
-    } else {
-      normalizedEnd = new Date(normalizedEndBase.getTime());
-    }
-    if (this.snapTimelineToMidnightValue) {
-      normalizedEnd = new Date(normalizedEnd.getTime() + MS_IN_DAY);
-    }
-    const minRangeMs = Math.max(1, this.minTimelineDaysValue) * MS_IN_DAY;
-    if (normalizedEnd.getTime() - normalizedStart.getTime() < minRangeMs) {
-      normalizedEnd = new Date(normalizedStart.getTime() + minRangeMs);
-    }
-    const nextRange = {
-      start: normalizedStart.getTime(),
-      end: normalizedEnd.getTime(),
-    };
-    if (
-      this.lastTimelineRange &&
-      this.lastTimelineRange.start === nextRange.start &&
-      this.lastTimelineRange.end === nextRange.end
-    ) {
-      return;
-    }
-    this.lastTimelineRange = nextRange;
-    const startDate = new Date(nextRange.start);
-    const endDate = new Date(nextRange.end);
-    if (this.viewportInitialized) {
-      this.resetViewport(startDate, endDate);
-    } else {
-      this.initializeViewport(startDate, endDate);
-    }
-  }
-
 
   readonly filteredResources = computed(() => {
     const term = this.filterTerm().trim().toLowerCase();
@@ -637,19 +573,11 @@ export class GanttComponent implements AfterViewInit {
   }
 
   onZoomIn() {
-    if (!this.viewportReady()) {
-      return;
-    }
-    this.viewport.zoomIn(this.viewport.viewCenter());
-    this.syncTimeScaleToViewport();
+    this.viewportFacade.zoomIn();
   }
 
   onZoomOut() {
-    if (!this.viewportReady()) {
-      return;
-    }
-    this.viewport.zoomOut(this.viewport.viewCenter());
-    this.syncTimeScaleToViewport();
+    this.viewportFacade.zoomOut();
   }
 
   onFilterChange(value: string) {
@@ -657,46 +585,19 @@ export class GanttComponent implements AfterViewInit {
   }
 
   onGotoToday() {
-    if (!this.viewportReady()) {
-      return;
-    }
-    this.viewport.gotoToday();
+    this.viewportFacade.gotoToday();
   }
 
   onGotoDate(date: Date) {
-    if (!this.viewportReady()) {
-      return;
-    }
-    this.viewport.goto(date);
+    this.viewportFacade.gotoDate(date);
   }
 
   onTimelineScroll(scrollLeft: number) {
-    if (!this.viewportReady()) {
-      return;
-    }
-    this.viewport.setScrollPx(scrollLeft);
+    this.viewportFacade.setScrollLeft(scrollLeft);
   }
 
   onTimelineWheel(event: WheelEvent, container?: HTMLElement | null) {
-    if (!this.viewportReady()) {
-      return;
-    }
-    const host = container ?? this.headerScrollerDir?.element ?? null;
-    const preferScroll =
-      (!event.ctrlKey && !event.metaKey && !event.altKey && Math.abs(event.deltaX) > Math.abs(event.deltaY)) ||
-      event.shiftKey;
-    if (preferScroll) {
-      event.preventDefault();
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      this.viewport.scrollBy(delta);
-      return;
-    }
-    event.preventDefault();
-    if (event.deltaY === 0) {
-      return;
-    }
-    const factor = Math.exp(event.deltaY * 0.0012);
-    this.applyZoomAtPointer(factor, event.clientX, host ?? (event.currentTarget as HTMLElement | null));
+    this.viewportFacade.handleWheel(event, container);
   }
 
   onTimelinePointerDown(event: PointerEvent, container?: HTMLElement | null) {
@@ -709,18 +610,7 @@ export class GanttComponent implements AfterViewInit {
     }
     const targetElement = event.target as HTMLElement | null;
     const isActivityTarget = this.isActivityElement(targetElement);
-    if (this.isTouchPointer(event)) {
-      this.touchPointerContainer = host;
-      host.setPointerCapture?.(event.pointerId);
-      this.activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (this.activeTouchPointers.size === 1) {
-        this.touchPanLastX = event.clientX;
-        this.pinchReferenceDistance = null;
-      } else if (this.activeTouchPointers.size === 2) {
-        this.touchPanLastX = null;
-        this.pinchReferenceDistance = this.computePointerDistance();
-      }
-      event.preventDefault();
+    if (this.viewportFacade.handleTouchPointerDown(event, host)) {
       return;
     }
     if (event.pointerType === 'mouse' && event.button === 0) {
@@ -732,111 +622,33 @@ export class GanttComponent implements AfterViewInit {
       if (isActivityTarget) {
         return;
       }
-      this.mousePanPointerId = event.pointerId;
-      this.mousePanStartX = event.clientX;
-      this.mousePanLastX = event.clientX;
-      this.mousePanMoved = false;
-      this.mousePanContainer = host;
       this.suppressNextTimelineClick = false;
-      host.setPointerCapture?.(event.pointerId);
+      this.viewportFacade.beginMousePan(event, host);
     }
   }
 
   onTimelinePointerMove(event: PointerEvent) {
-    if (!this.viewportReady()) {
-      return;
-    }
     if (this.selection.handlePointerMove(event)) {
       return;
     }
-    if (this.isTouchPointer(event)) {
-      if (!this.activeTouchPointers.has(event.pointerId)) {
-        return;
-      }
-      this.activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (this.activeTouchPointers.size === 1 && this.touchPanLastX !== null) {
-        const deltaX = event.clientX - this.touchPanLastX;
-        if (Math.abs(deltaX) > 0.5) {
-          this.viewport.scrollBy(-deltaX);
-          this.touchPanLastX = event.clientX;
-        }
-        event.preventDefault();
-        return;
-      }
-      if (this.activeTouchPointers.size >= 2) {
-        const distance = this.computePointerDistance();
-        if (distance && this.pinchReferenceDistance) {
-          const scale = distance / this.pinchReferenceDistance;
-        if (Math.abs(Math.log(scale)) >= this.pinchLogThreshold) {
-          const midpointX = this.computePointerMidpointX();
-          const factor = scale > 0 ? 1 / scale : 1;
-          this.applyZoomAtPointer(factor, midpointX, this.touchPointerContainer);
-          this.pinchReferenceDistance = distance;
-        }
-        } else {
-          this.pinchReferenceDistance = distance;
-        }
-        event.preventDefault();
-      }
-      return;
-    }
-    if (event.pointerType === 'mouse' && this.mousePanPointerId === event.pointerId && this.mousePanLastX !== null) {
-      const startX = this.mousePanStartX ?? event.clientX;
-      const totalDelta = event.clientX - startX;
-      if (!this.mousePanMoved && Math.abs(totalDelta) < this.mousePanActivationThreshold) {
-        this.mousePanLastX = event.clientX;
-        return;
-      }
-      if (!this.mousePanMoved) {
-        this.mousePanMoved = true;
-        this.suppressNextTimelineClick = true;
-        this.hostElement.nativeElement.classList.add('gantt--panning');
-      }
-      const deltaX = event.clientX - this.mousePanLastX;
-      if (deltaX !== 0) {
-        this.viewport.scrollBy(-deltaX);
-      }
-      this.mousePanLastX = event.clientX;
-      if (this.mousePanStartX === null) {
-        this.mousePanStartX = startX;
-      }
-      event.preventDefault();
-    }
+    this.viewportFacade.handlePointerMove(event);
   }
 
   onTimelinePointerUp(event: PointerEvent) {
     if (this.selection.handlePointerUp(event)) {
       return;
     }
-    if (this.isTouchPointer(event)) {
-      if (this.activeTouchPointers.has(event.pointerId)) {
-        this.activeTouchPointers.delete(event.pointerId);
-      }
-      const target = (event.currentTarget as HTMLElement | null) ?? this.touchPointerContainer;
-      target?.hasPointerCapture?.(event.pointerId) && target.releasePointerCapture(event.pointerId);
-      if (this.activeTouchPointers.size === 0) {
-        this.touchPanLastX = null;
-        this.touchPointerContainer = null;
-      } else if (this.activeTouchPointers.size === 1) {
-        const remaining = Array.from(this.activeTouchPointers.values())[0];
-        this.touchPanLastX = remaining.x;
-      }
-      if (this.activeTouchPointers.size < 2) {
-        this.pinchReferenceDistance = null;
-      }
-      return;
-    }
-    if (event.pointerType === 'mouse' && this.mousePanPointerId === event.pointerId) {
-      const target = (event.currentTarget as HTMLElement | null) ?? this.mousePanContainer;
-      this.endMousePan(target);
-    }
+    this.viewportFacade.handlePointerUp(event);
   }
 
   onTimelineMouseMove(event: MouseEvent, container?: HTMLElement) {
     if (!this.viewportReady()) {
       return;
     }
-    const cursorTime = this.getPointerTime(event.clientX, container ?? (event.currentTarget as HTMLElement | null));
+    const cursorTime = this.viewportFacade.pointerTime(
+      event.clientX,
+      container ?? (event.currentTarget as HTMLElement | null),
+    );
     this.cursorTimeSignal.set(cursorTime);
   }
 
@@ -875,7 +687,7 @@ export class GanttComponent implements AfterViewInit {
       return;
     }
     const target = container ?? (event.currentTarget as HTMLElement | null) ?? null;
-    const start = this.getPointerTime(event.clientX, target);
+    const start = this.viewportFacade.pointerTime(event.clientX, target);
     this.activityCreateRequested.emit({ resource, start });
     this.suppressNextTimelineClick = false;
   }
@@ -953,55 +765,16 @@ export class GanttComponent implements AfterViewInit {
       case '+':
       case '=':
         event.preventDefault();
-        this.viewport.zoomIn(this.viewport.viewCenter());
-        this.syncTimeScaleToViewport();
+        this.viewportFacade.zoomIn();
         break;
       case '-':
       case '_':
         event.preventDefault();
-        this.viewport.zoomOut(this.viewport.viewCenter());
-        this.syncTimeScaleToViewport();
+        this.viewportFacade.zoomOut();
         break;
       default:
         break;
     }
-  }
-
-  private initializeViewport(start: Date, end: Date) {
-    if (this.viewportInitialized) {
-      return;
-    }
-    this.timeScale.setTimelineRange(start, end);
-    this.viewport = createTimeViewport({
-      timelineStart: start,
-      timelineEnd: end,
-      initialRangeMs: this.computeInitialRange(start, end, ZOOM_RANGE_MS['week']),
-      initialCenter: start,
-    });
-    this.viewportInitialized = true;
-    this.syncTimeScaleToViewport();
-    this.viewportReady.set(true);
-  }
-
-  private resetViewport(start: Date, end: Date) {
-    const previousRange = this.viewport?.rangeMs() ?? ZOOM_RANGE_MS['week'];
-    const previousCenter = this.viewport?.viewCenter() ?? start;
-    this.viewportReady.set(false);
-    this.timeScale.setTimelineRange(start, end);
-    this.viewport = createTimeViewport({
-      timelineStart: start,
-      timelineEnd: end,
-      initialRangeMs: this.computeInitialRange(start, end, previousRange),
-      initialCenter: this.clampCenter(previousCenter, start, end),
-    });
-    this.syncTimeScaleToViewport();
-    this.viewportReady.set(true);
-  }
-
-  private computeInitialRange(start: Date, end: Date, requested: number): number {
-    const duration = Math.max(1, end.getTime() - start.getTime());
-    // Always ensure the initial range spans the full timeline so keine Bereiche fehlen.
-    return Math.max(requested, duration);
   }
 
   private setupScrollSyncEffects() {
@@ -1015,54 +788,6 @@ export class GanttComponent implements AfterViewInit {
         this.rowScrollerDirs?.forEach((dir) => dir.setScrollLeft(scrollLeft));
       }, { allowSignalWrites: true });
     });
-  }
-
-  private getPointerTime(clientX: number, container: HTMLElement | null): Date {
-    if (!container) {
-      return this.viewport.viewCenter();
-    }
-    const rect = container.getBoundingClientRect();
-    const relativeX = clientX - rect.left + container.scrollLeft;
-    return this.timeScale.pxToTime(relativeX);
-  }
-
-  private endMousePan(target?: HTMLElement | null): void {
-    if (this.mousePanPointerId !== null) {
-      const host = target ?? this.mousePanContainer;
-      if (host?.hasPointerCapture?.(this.mousePanPointerId)) {
-        host.releasePointerCapture(this.mousePanPointerId);
-      }
-    }
-    if (this.mousePanMoved) {
-      this.hostElement.nativeElement.classList.remove('gantt--panning');
-    }
-    this.mousePanPointerId = null;
-    this.mousePanStartX = null;
-    this.mousePanLastX = null;
-    this.mousePanContainer = null;
-    this.mousePanMoved = false;
-  }
-
-  private applyZoomAtPointer(factor: number, clientX: number, container: HTMLElement | null) {
-    if (!this.viewportReady()) {
-      return;
-    }
-    const host = container ?? this.headerScrollerDir?.element ?? null;
-    const focus = this.getPointerTime(clientX, host);
-    const safeFactor = Math.min(Math.max(factor, 0.2), 5);
-    this.viewport.zoomBy(safeFactor, focus);
-    this.syncTimeScaleToViewport();
-    const pointerPx = this.timeScale.timeToPx(focus);
-    const offset = this.computeViewportOffset(clientX, host);
-    this.viewport.setScrollPx(pointerPx - offset);
-  }
-
-  private computeViewportOffset(clientX: number, container: HTMLElement | null): number {
-    const target = container ?? (this.headerScrollerDir?.element ?? this.hostElement.nativeElement);
-    const rect = target.getBoundingClientRect();
-    const raw = clientX - rect.left;
-    const clamped = Math.min(Math.max(raw, 0), target.clientWidth || raw);
-    return Number.isFinite(clamped) ? clamped : 0;
   }
 
   private isActivityElement(element: HTMLElement | null): boolean {
@@ -1112,51 +837,6 @@ export class GanttComponent implements AfterViewInit {
       return `${(rangeMs / MS_IN_HOUR).toFixed(1)} Stunden`;
     }
     return `${Math.max(1, Math.round(rangeMs / MS_IN_MINUTE))} Minuten`;
-  }
-
-  private computePointerDistance(): number {
-    const points = Array.from(this.activeTouchPointers.values());
-    if (points.length < 2) {
-      return 0;
-    }
-    const [a, b] = points;
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-    return Math.hypot(dx, dy);
-  }
-
-  private computePointerMidpointX(): number {
-    if (this.activeTouchPointers.size === 0) {
-      return this.touchPointerContainer
-        ? this.touchPointerContainer.getBoundingClientRect().left + this.touchPointerContainer.clientWidth / 2
-        : 0;
-    }
-    const total = Array.from(this.activeTouchPointers.values()).reduce((sum, point) => sum + point.x, 0);
-    return total / this.activeTouchPointers.size;
-  }
-
-  private isTouchPointer(event: PointerEvent): boolean {
-    return event.pointerType === 'touch' || event.pointerType === 'pen';
-  }
-
-  private syncTimeScaleToViewport(): void {
-    if (!this.viewport) {
-      return;
-    }
-    this.timeScale.setPixelsPerMs(this.viewport.pixelsPerMs());
-  }
-
-  private clampCenter(center: Date, start: Date, end: Date): Date {
-    const startMs = start.getTime();
-    const endMs = end.getTime();
-    const value = center.getTime();
-    if (value <= startMs) {
-      return new Date(start);
-    }
-    if (value >= endMs) {
-      return new Date(end);
-    }
-    return new Date(center);
   }
 
   private findOverlappingActivities(resourceId: string, reference: Activity): Activity[] {

@@ -6,48 +6,62 @@
       <mat-form-field appearance="outline">
         <mat-label>Titel</mat-label>
         <input matInput formControlName="title" placeholder="z. B. IC 201 Basel → Hamburg" />
-        <mat-error *ngIf="form.controls.title.hasError('required')">Titel ist erforderlich.</mat-error>
+        @if (form.controls.title.hasError('required')) {
+          <mat-error>Titel ist erforderlich.</mat-error>
+        }
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>RefTrainID</mat-label>
         <input matInput formControlName="refTrainId" placeholder="z. B. TT-2026-0005" />
-        <mat-error *ngIf="form.controls.refTrainId.hasError('required')">RefTrainID ist erforderlich.</mat-error>
+        @if (form.controls.refTrainId.hasError('required')) {
+          <mat-error>RefTrainID ist erforderlich.</mat-error>
+        }
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Zugnummer (OPN)</mat-label>
         <input matInput formControlName="opn" placeholder="z. B. OPN-4711" />
-        <mat-error *ngIf="form.controls.opn.hasError('required')">OPN ist erforderlich.</mat-error>
+        @if (form.controls.opn.hasError('required')) {
+          <mat-error>OPN ist erforderlich.</mat-error>
+        }
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Zugnummer</mat-label>
         <input matInput formControlName="trainNumber" placeholder="z. B. IC 201" />
-        <mat-error *ngIf="form.controls.trainNumber.hasError('required')">Zugnummer ist erforderlich.</mat-error>
+        @if (form.controls.trainNumber.hasError('required')) {
+          <mat-error>Zugnummer ist erforderlich.</mat-error>
+        }
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Verantwortliches RU</mat-label>
         <input matInput formControlName="responsibleRu" placeholder="z. B. Qnamic Rail GmbH" />
-        <mat-error *ngIf="form.controls.responsibleRu.hasError('required')">Angabe erforderlich.</mat-error>
+        @if (form.controls.responsibleRu.hasError('required')) {
+          <mat-error>Angabe erforderlich.</mat-error>
+        }
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Status / Phase</mat-label>
         <mat-select formControlName="status">
-          <mat-option *ngFor="let option of phaseOptions" [value]="option.value">
-            {{ option.label }}
-          </mat-option>
+          @for (option of phaseOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Quelle</mat-label>
         <mat-select formControlName="sourceType">
-          <mat-option *ngFor="let option of sourceOptions" [value]="option.value">
-            {{ option.label }}
-          </mat-option>
+          @for (option of sourceOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
@@ -103,9 +117,11 @@
             placeholder="1111111"
           />
           <mat-hint align="end">0/1 für Mo-So</mat-hint>
-          <mat-error *ngIf="form.controls.daysBitmap.hasError('pattern')">
-            Erwartet wird eine 7-stellige 0/1-Kombination.
-          </mat-error>
+          @if (form.controls.daysBitmap.hasError('pattern')) {
+            <mat-error>
+              Erwartet wird eine 7-stellige 0/1-Kombination.
+            </mat-error>
+          }
         </mat-form-field>
       </div>
     </section>
@@ -130,27 +146,26 @@
       </p>
       <mat-card class="stops-preview" appearance="outlined">
         <mat-card-content>
-          <div
-            class="stops-preview__item"
-            *ngFor="let stop of stopPreview(); let last = last"
-          >
-            <div class="index">#{{ stop.sequence }}</div>
-            <div class="name">{{ stop.name }}</div>
-            <div class="times">
-              @if (stop.arrivalTime) {
-                <span>An: {{ stop.arrivalTime }}</span>
-              }
-              @if (stop.departureTime) {
-                <span>Ab: {{ stop.departureTime }}</span>
-              }
-              @if (!stop.arrivalTime && !stop.departureTime) {
-                <span>Noch ohne Zeiten</span>
+          @for (stop of stopPreview(); track stop.sequence; let last = $last) {
+            <div class="stops-preview__item">
+              <div class="index">#{{ stop.sequence }}</div>
+              <div class="name">{{ stop.name }}</div>
+              <div class="times">
+                @if (stop.arrivalTime) {
+                  <span>An: {{ stop.arrivalTime }}</span>
+                }
+                @if (stop.departureTime) {
+                  <span>Ab: {{ stop.departureTime }}</span>
+                }
+                @if (!stop.arrivalTime && !stop.departureTime) {
+                  <span>Noch ohne Zeiten</span>
+                }
+              </div>
+              @if (!last) {
+                <mat-icon fontIcon="arrow_forward" class="arrow"></mat-icon>
               }
             </div>
-            @if (!last) {
-              <mat-icon fontIcon="arrow_forward" class="arrow"></mat-icon>
-            }
-          </div>
+          }
           @if (!stopPreview().length) {
             <p class="empty">Noch keine Halte definiert.</p>
           }
@@ -160,10 +175,12 @@
   </mat-dialog-content>
 
   <mat-dialog-actions align="end" class="dialog-actions">
-    <div class="error" *ngIf="errorMessage() as message">
-      <mat-icon fontIcon="error_outline"></mat-icon>
-      {{ message }}
-    </div>
+    @if (errorMessage(); as message) {
+      <div class="error">
+        <mat-icon fontIcon="error_outline"></mat-icon>
+        {{ message }}
+      </div>
+    }
     <span class="spacer"></span>
     <button mat-button type="button" (click)="cancel()">Abbrechen</button>
     <button mat-flat-button color="primary" type="submit">

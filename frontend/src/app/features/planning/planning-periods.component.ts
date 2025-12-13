@@ -11,6 +11,7 @@ import { TemplatePeriod } from '../../core/api/timeline-api.types';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 function normalizeDate(value: string | null | undefined): string | null {
   if (!value) {
@@ -62,7 +63,7 @@ export class PlanningPeriodsComponent {
 
   constructor() {
     this.store.loadTemplates();
-    this.route.queryParamMap.subscribe((params) => {
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const template = params.get('template');
       const dateParam = normalizeDate(params.get('date'));
       const specialParam = normalizeDate(params.get('special'));

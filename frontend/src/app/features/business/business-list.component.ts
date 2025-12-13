@@ -1,5 +1,16 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, ElementRef, HostListener, ViewChild, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  computed,
+  effect,
+  inject,
+  signal,
+  DOCUMENT,
+} from '@angular/core';
 import {
   FormControl,
   ReactiveFormsModule,
@@ -10,9 +21,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import {
   BusinessDueDateFilter,
-  BusinessFilters,
   BusinessService,
-  BusinessSort,
   BusinessSortField,
   CreateBusinessPayload,
 } from '../../core/services/business.service';
@@ -36,94 +45,65 @@ import {
   BusinessCommandDefinition,
   BusinessCommandPaletteDialogComponent,
 } from './business-command-palette-dialog.component';
-
-const BUSINESS_PAGE_SIZE = 20;
-
-interface SortOption {
-  value: string;
-  label: string;
-}
-
-type BusinessMetric = {
-  label: string;
-  value: number | string;
-  icon: string;
-  hint: string;
-};
-
-interface BusinessHighlight {
-  icon: string;
-  label: string;
-  filter?: { kind: 'status' | 'assignment'; value: string };
-}
-
-interface SavedFilterPreset {
-  id: string;
-  name: string;
-  filters: BusinessFilters;
-  sort: BusinessSort;
-}
-
-type PipelineMetrics = {
-  total: number;
-  active: number;
-  completed: number;
-  overdue: number;
-  dueSoon: number;
-};
-
-type MetricTrend = {
-  active: number | null;
-  completed: number | null;
-  overdue: number | null;
-  dueSoon: number | null;
-};
-
-type HealthTone = 'critical' | 'warning' | 'ok' | 'done' | 'idle';
-
-interface HealthBadge {
-  tone: HealthTone;
-  label: string;
-}
-
-type TimelineState = 'past' | 'current' | 'future' | 'none';
-
-interface TimelineEntry {
-  label: string;
-  description: string;
-  state: TimelineState;
-  date: Date | null;
-}
-
-interface ActivityFeedItem {
-  icon: string;
-  title: string;
-  subtitle: string;
-}
-
-interface SearchSuggestion {
-  label: string;
-  value: string;
-  icon: string;
-  description: string;
-  kind: 'tag' | 'assignment' | 'status';
-}
-
-interface BusinessInsightContext {
-  title: string;
-  message: string;
-  hint: string;
-  icon: string;
-}
-
-const BUSINESS_INSIGHTS_STORAGE_KEY = 'business.insightsCollapsed.v1';
+import { BusinessHeroComponent } from './business-hero.component';
+import { BusinessInsightsComponent } from './business-insights.component';
+import {
+  BUSINESS_DUE_DATE_LABEL_LOOKUP,
+  BUSINESS_DUE_DATE_PRESET_OPTIONS,
+  BUSINESS_PAGE_SIZE,
+  BUSINESS_SORT_OPTIONS,
+  BUSINESS_STATUS_LABEL_LOOKUP,
+  BUSINESS_STATUS_LABELS,
+  BUSINESS_STATUS_OPTIONS,
+} from './business-list.constants';
+import {
+  businessPresetMatchesCurrent,
+  createBusinessPresetId,
+  defaultBusinessPresetName,
+  loadBusinessFilterPresets,
+  persistBusinessFilterPresets,
+} from './business-list.presets';
+import {
+  assignmentIcon,
+  assignmentInitials,
+  assignmentLabel,
+  buildBusinessHighlights,
+  buildOrderItemLookup,
+  businessActivityFeed as buildBusinessActivityFeed,
+  businessElementId,
+  businessMetrics,
+  businessTimeline as buildBusinessTimeline,
+  computeDueSoonHighlights,
+  computeInsightContext,
+  computeOverviewMetrics,
+  computeSearchSuggestions,
+  computeStatusBreakdown,
+  computeTagStats,
+  computeTopAssignments,
+  daysUntilDue,
+  dueDateState,
+  dueProgress,
+  formatTagLabel,
+  healthBadge,
+  orderItemRange as formatOrderItemRange,
+  tagTone,
+  trackByBusinessId,
+} from './business-list.utils';
+import type {
+  BusinessHighlight,
+  MetricTrend,
+  PipelineMetrics,
+  SavedFilterPreset,
+  SearchSuggestion,
+} from './business-list.types';
 
 @Component({
     selector: 'app-business-list',
-    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS, BusinessHeroComponent, BusinessInsightsComponent],
     templateUrl: './business-list.component.html',
     styleUrl: './business-list.component.scss',
-    providers: [DatePipe]
+    providers: [DatePipe],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BusinessListComponent {
   private readonly businessService = inject(BusinessService);
@@ -141,45 +121,12 @@ export class BusinessListComponent {
     validators: [Validators.maxLength(80)],
   });
 
-  readonly statusOptions: { value: BusinessStatus | 'all'; label: string }[] = [
-    { value: 'all', label: 'Alle' },
-    { value: 'neu', label: 'Neu' },
-    { value: 'in_arbeit', label: 'In Arbeit' },
-    { value: 'pausiert', label: 'Pausiert' },
-    { value: 'erledigt', label: 'Erledigt' },
-  ];
+  readonly statusOptions = BUSINESS_STATUS_OPTIONS;
+  readonly dueDatePresetOptions = BUSINESS_DUE_DATE_PRESET_OPTIONS;
+  readonly sortOptions = BUSINESS_SORT_OPTIONS;
 
-  readonly dueDatePresetOptions: {
-    value: BusinessDueDateFilter;
-    label: string;
-    icon: string;
-  }[] = [
-    { value: 'all', label: 'Alle', icon: 'all_inclusive' },
-    { value: 'today', label: 'Heute', icon: 'event' },
-    { value: 'this_week', label: 'Diese Woche', icon: 'calendar_view_week' },
-    { value: 'next_week', label: 'Nächste Woche', icon: 'calendar_month' },
-    { value: 'overdue', label: 'Überfällig', icon: 'schedule' },
-  ];
-
-  readonly sortOptions: SortOption[] = [
-    { value: 'dueDate:asc', label: 'Fälligkeit · aufsteigend' },
-    { value: 'dueDate:desc', label: 'Fälligkeit · absteigend' },
-    { value: 'status:asc', label: 'Status' },
-    { value: 'createdAt:desc', label: 'Erstellt · neueste zuerst' },
-    { value: 'title:asc', label: 'Titel A–Z' },
-  ];
-
-  readonly statusLabelLookup: Record<BusinessStatus | 'all', string> =
-    this.statusOptions.reduce((acc, option) => {
-      acc[option.value] = option.label;
-      return acc;
-    }, {} as Record<BusinessStatus | 'all', string>);
-
-  readonly dueDateLabelLookup: Record<BusinessDueDateFilter, string> =
-    this.dueDatePresetOptions.reduce((acc, option) => {
-      acc[option.value] = option.label;
-      return acc;
-    }, {} as Record<BusinessDueDateFilter, string>);
+  readonly statusLabelLookup = BUSINESS_STATUS_LABEL_LOOKUP;
+  readonly dueDateLabelLookup = BUSINESS_DUE_DATE_LABEL_LOOKUP;
 
   readonly assignments = computed(() => this.businessService.assignments());
   readonly filters = computed(() => this.businessService.filters());
@@ -197,87 +144,37 @@ export class BusinessListComponent {
   readonly orderItemOptions = computed<OrderItemOption[]>(() =>
     this.orderService.orderItemOptions(),
   );
-  readonly availableTags = computed(() => {
-    const stats = new Map<string, number>();
-    this.businesses().forEach((business) => {
-      business.tags?.forEach((tag) => {
-        stats.set(tag, (stats.get(tag) ?? 0) + 1);
-      });
-    });
-    return Array.from(stats.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de', { sensitivity: 'base' }))
-      .map(([tag]) => tag);
-  });
-  readonly tagStats = computed(() => {
-    const stats = new Map<string, number>();
-    this.businesses().forEach((business) => {
-      business.tags?.forEach((tag) => {
-        stats.set(tag, (stats.get(tag) ?? 0) + 1);
-      });
-    });
-    return Array.from(stats.entries()).sort(
-      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de', { sensitivity: 'base' }),
-    );
-  });
+  readonly tagStats = computed(() => computeTagStats(this.businesses()));
+  readonly availableTags = computed(() => this.tagStats().map(([tag]) => tag));
   readonly topTagInsights = computed(() => this.tagStats().slice(0, 3));
-  readonly insightsCollapsed = signal(this.loadInsightsCollapsed());
-  readonly topAssignments = computed(() => this.computeTopAssignments());
-  readonly statusBreakdown = computed(() => this.computeStatusBreakdown());
-  readonly dueSoonHighlights = computed(() => this.computeDueSoonHighlights());
-  readonly insightContext = computed(() => this.computeInsightContext());
-  readonly searchSuggestions = computed<SearchSuggestion[]>(() => {
-    const query = this.searchControl.value.trim().toLowerCase();
-    const suggestions: SearchSuggestion[] = [];
-
-    this.tagStats().forEach(([tag, count]) => {
-      const encoded = this.encodeTokenValue(tag);
-      suggestions.push({
-        label: this.formatTagLabel(tag),
-        value: `tag:${encoded}`,
-        icon: 'sell',
-        description: `${count} Treffer · Tag`,
-        kind: 'tag',
-      });
-    });
-
-    this.assignments().forEach((assignment) => {
-      const encoded = this.encodeTokenValue(assignment.name);
-      suggestions.push({
-        label: assignment.name,
-        value: `assign:${encoded}`,
-        icon: assignment.type === 'group' ? 'groups' : 'person',
-        description: 'Verantwortlich',
-        kind: 'assignment',
-      });
-    });
-
-    this.statusOptions
-      .filter((option) => option.value !== 'all')
-      .forEach((option) => {
-        suggestions.push({
-          label: option.label,
-          value: `status:${option.value}`,
-          icon: 'flag',
-          description: 'Status',
-          kind: 'status',
-        });
-      });
-
-    const filtered = query
-      ? suggestions.filter(
-          (suggestion) =>
-            suggestion.label.toLowerCase().includes(query) ||
-            suggestion.value.toLowerCase().includes(query),
-        )
-      : suggestions;
-
-    return filtered.slice(0, 8);
-  });
-  readonly orderItemLookup = computed(() => {
-    const map = new Map<string, OrderItemOption>();
-    this.orderItemOptions().forEach((option) => map.set(option.itemId, option));
-    return map;
-  });
+  readonly topAssignments = computed(() => computeTopAssignments(this.businesses()));
+  readonly statusBreakdown = computed(() =>
+    computeStatusBreakdown(this.businesses(), this.statusLabel),
+  );
+  readonly dueSoonHighlights = computed(() =>
+    computeDueSoonHighlights(this.businesses()),
+  );
+  readonly overviewMetrics = computed(() => computeOverviewMetrics(this.businesses()));
+  readonly insightContext = computed(() =>
+    computeInsightContext({
+      filters: this.filters(),
+      search: this.searchControl.value,
+      resultCount: this.businesses().length,
+      statusLabel: this.statusLabel,
+      dueDateLabelLookup: this.dueDateLabelLookup,
+      formatTagLabel: this.formatTagLabel,
+      metrics: this.overviewMetrics(),
+    }),
+  );
+  readonly searchSuggestions = computed<SearchSuggestion[]>(() =>
+    computeSearchSuggestions({
+      query: this.searchControl.value,
+      tagStats: this.tagStats(),
+      assignments: this.assignments(),
+      statusOptions: this.statusOptions,
+    }),
+  );
+  readonly orderItemLookup = computed(() => buildOrderItemLookup(this.orderItemOptions()));
 
   private readonly selectedBusinessId = signal<string | null>(null);
   private readonly savedPresets = signal<SavedFilterPreset[]>([]);
@@ -308,60 +205,40 @@ export class BusinessListComponent {
 
   readonly savedFilterPresets = computed(() => this.savedPresets());
   readonly activePreset = computed(() => this.activePresetId());
-
-  private readonly statusLabels: Record<BusinessStatus, string> = {
-    neu: 'Neu',
-    pausiert: 'Pausiert',
-    in_arbeit: 'In Arbeit',
-    erledigt: 'Erledigt',
-  };
-
-  readonly overviewMetrics = computed(() => {
-    const entries = this.businesses();
-    const total = entries.length;
-    let active = 0;
-    let completed = 0;
-    let overdue = 0;
-    let dueSoon = 0;
-    const startToday = new Date();
-    startToday.setHours(0, 0, 0, 0);
-    const soonThreshold = new Date(startToday);
-    soonThreshold.setDate(soonThreshold.getDate() + 7);
-
-    entries.forEach((business) => {
-      if (business.status === 'erledigt') {
-        completed += 1;
-      } else {
-        active += 1;
-      }
-
-      if (!business.dueDate) {
-        return;
-      }
-
-      const due = new Date(business.dueDate);
-      if (due < startToday) {
-        overdue += 1;
-        return;
-      }
-      if (due >= startToday && due <= soonThreshold) {
-        dueSoon += 1;
-      }
+  readonly statusLabel = (status: BusinessStatus) => BUSINESS_STATUS_LABELS[status];
+  readonly formatTagLabel = formatTagLabel;
+  readonly tagTone = tagTone;
+  readonly assignmentInitials = assignmentInitials;
+  readonly assignmentLabel = assignmentLabel;
+  readonly assignmentIcon = assignmentIcon;
+  readonly dueProgress = dueProgress;
+  readonly daysUntilDue = daysUntilDue;
+  readonly businessMetrics = businessMetrics;
+  readonly healthBadge = healthBadge;
+  readonly dueDateState = dueDateState;
+  readonly trackByBusinessId = trackByBusinessId;
+  readonly businessElementId = businessElementId;
+  readonly orderItemRange = (itemId: string) =>
+    formatOrderItemRange(itemId, this.orderItemLookup(), this.datePipe);
+  readonly businessHighlights = (business: Business) =>
+    buildBusinessHighlights(business, {
+      datePipe: this.datePipe,
+      statusLabel: this.statusLabel,
+      assignmentIcon: this.assignmentIcon,
+      assignmentLabel: this.assignmentLabel,
     });
-
-    return {
-      total,
-      active,
-      completed,
-      overdue,
-      dueSoon,
-    };
-  });
+  readonly businessTimeline = (business: Business) =>
+    buildBusinessTimeline(business, this.datePipe);
+  readonly businessActivityFeed = (business: Business) =>
+    buildBusinessActivityFeed(business, {
+      datePipe: this.datePipe,
+      statusLabel: this.statusLabel,
+    });
 
   private pendingScrollId: string | null = null;
 
   constructor() {
-    this.restorePresetsFromStorage();
+    this.savedPresets.set(loadBusinessFilterPresets(this.presetStorageKey));
     this.searchControl.setValue(this.filters().search, { emitEvent: false });
 
     this.searchControl.valueChanges
@@ -439,7 +316,7 @@ export class BusinessListComponent {
     );
 
     effect(() => {
-      this.persistPresets(this.savedPresets());
+      persistBusinessFilterPresets(this.presetStorageKey, this.savedPresets());
     });
 
     effect(
@@ -449,7 +326,7 @@ export class BusinessListComponent {
           return;
         }
         const preset = this.savedPresets().find((entry) => entry.id === activeId);
-        if (!preset || !this.presetsMatchCurrent(preset)) {
+        if (!preset || !businessPresetMatchesCurrent(preset, this.filters(), this.sort())) {
           this.activePresetId.set(null);
         }
       },
@@ -552,13 +429,13 @@ export class BusinessListComponent {
       return;
     }
     const name = window
-      .prompt('Filteransicht benennen', this.defaultPresetName())
+      .prompt('Filteransicht benennen', defaultBusinessPresetName(this.savedPresets().length))
       ?.trim();
     if (!name) {
       return;
     }
     const preset: SavedFilterPreset = {
-      id: this.generatePresetId(),
+      id: createBusinessPresetId(),
       name,
       filters: { ...this.filters(), search: this.searchControl.value },
       sort: { ...this.sort() },
@@ -604,7 +481,7 @@ export class BusinessListComponent {
 
   duplicateFilterPreset(preset: SavedFilterPreset): void {
     const copy: SavedFilterPreset = {
-      id: this.generatePresetId(),
+      id: createBusinessPresetId(),
       name: `${preset.name} (Kopie)`,
       filters: { ...preset.filters },
       sort: { ...preset.sort },
@@ -674,14 +551,6 @@ export class BusinessListComponent {
     this.businessService.setFilters({ tags: [] });
   }
 
-  toggleInsightsCollapsed(): void {
-    this.insightsCollapsed.update((current) => {
-      const next = !current;
-      this.persistInsightsCollapsed(next);
-      return next;
-    });
-  }
-
   applyTagInsight(tag: string): void {
     const value = tag.trim();
     if (!value) {
@@ -704,14 +573,6 @@ export class BusinessListComponent {
     this.onDueDatePresetChange('this_week');
   }
 
-  formatTagLabel(tag: string): string {
-    return tag.startsWith('#') ? tag : `#${tag}`;
-  }
-
-  private encodeTokenValue(value: string): string {
-    return value.includes(' ') ? `"${value}"` : value;
-  }
-
   addTagToBusiness(business: Business, raw: string): void {
     const value = raw.trim();
     if (!value) {
@@ -728,23 +589,6 @@ export class BusinessListComponent {
     const existing = business.tags ?? [];
     const next = existing.filter((entry) => entry !== tag);
     this.businessService.updateTags(business.id, next);
-  }
-
-  tagTone(tag: string): 'region' | 'phase' | 'risk' | 'priority' | 'default' {
-    const normalized = tag.toLowerCase();
-    if (normalized.startsWith('de-') || ['ch', 'at', 'basel'].some((region) => normalized.includes(region))) {
-      return 'region';
-    }
-    if (['pitch', 'rollout', 'vertrag', 'pilot'].some((keyword) => normalized.includes(keyword))) {
-      return 'phase';
-    }
-    if (['risk', 'risiko', 'escalation', 'warn'].some((keyword) => normalized.includes(keyword))) {
-      return 'risk';
-    }
-    if (['highimpact', 'premium', 'prio'].some((keyword) => normalized.includes(keyword))) {
-      return 'priority';
-    }
-    return 'default';
   }
 
   tagCount(tag: string): number {
@@ -994,82 +838,6 @@ export class BusinessListComponent {
     }
   }
 
-  private restorePresetsFromStorage(): void {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const raw = window.localStorage.getItem(this.presetStorageKey);
-    if (!raw) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as SavedFilterPreset[];
-      if (Array.isArray(parsed)) {
-        this.savedPresets.set(
-          parsed.map((preset) => ({
-            ...preset,
-            filters: this.normalizeFilters(preset.filters as BusinessFilters | undefined),
-            sort: { ...preset.sort },
-          })),
-        );
-      }
-    } catch (error) {
-      console.warn('Filter-Presets konnten nicht geladen werden', error);
-    }
-  }
-
-  private persistPresets(presets: SavedFilterPreset[]): void {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    try {
-      window.localStorage.setItem(this.presetStorageKey, JSON.stringify(presets));
-    } catch (error) {
-      console.warn('Filter-Presets konnten nicht gespeichert werden', error);
-    }
-  }
-
-  private presetsMatchCurrent(preset: SavedFilterPreset): boolean {
-    const currentFilters = this.filters();
-    const currentSort = this.sort();
-    return (
-      this.filtersEqual(preset.filters, currentFilters) &&
-      preset.sort.field === currentSort.field &&
-      preset.sort.direction === currentSort.direction
-    );
-  }
-
-  private filtersEqual(a: BusinessFilters, b: BusinessFilters): boolean {
-    return (
-      a.search === b.search &&
-      a.assignment === b.assignment &&
-      a.status === b.status &&
-      a.dueDate === b.dueDate &&
-      this.sameTags(a.tags, b.tags)
-    );
-  }
-
-  private normalizeFilters(filters?: BusinessFilters): BusinessFilters {
-    return {
-      search: filters?.search ?? '',
-      status: filters?.status ?? 'all',
-      dueDate: filters?.dueDate ?? 'all',
-      assignment: filters?.assignment ?? 'all',
-      tags: filters?.tags ?? [],
-    } as BusinessFilters;
-  }
-
-  private sameTags(a: string[], b: string[]): boolean {
-    if (a.length !== b.length) {
-      return false;
-    }
-    const normalize = (tags: string[]) =>
-      [...tags].map((tag) => tag.toLowerCase()).sort();
-    const aSorted = normalize(a);
-    const bSorted = normalize(b);
-    return aSorted.every((tag, index) => tag === bSorted[index]);
-  }
-
   onStatusChange(id: string, status: BusinessStatus): void {
     this.businessService.updateStatus(id, status);
   }
@@ -1134,61 +902,12 @@ export class BusinessListComponent {
     return this.orderItemLookup().get(itemId);
   }
 
-  orderItemRange(itemId: string): string | null {
-    const meta = this.orderItemMeta(itemId);
-    if (!meta?.start && !meta?.end) {
-      return null;
-    }
-    const start = meta?.start
-      ? this.datePipe.transform(meta.start, 'short')
-      : '—';
-    const end = meta?.end ? this.datePipe.transform(meta.end, 'short') : '—';
-    return `${start} – ${end}`;
-  }
-
   selectBusiness(business: Business): void {
     this.selectedBusinessId.set(business.id);
   }
 
   isBusinessSelected(business: Business): boolean {
     return this.selectedBusinessId() === business.id;
-  }
-
-  assignmentInitials(business: Business): string {
-    return business.assignment.name
-      .split(' ')
-      .map((chunk) => chunk.trim()[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
-  }
-
-  businessHighlights(business: Business): BusinessHighlight[] {
-    const highlights: BusinessHighlight[] = [];
-    highlights.push({
-      icon: 'flag',
-      label: this.statusLabel(business.status),
-      filter: { kind: 'status', value: business.status },
-    });
-    highlights.push({
-      icon: this.assignmentIcon(business),
-      label: this.assignmentLabel(business),
-      filter: { kind: 'assignment', value: business.assignment.name },
-    });
-    const dueLabel = business.dueDate
-      ? this.datePipe.transform(business.dueDate, 'mediumDate')
-      : null;
-    const createdLabel = this.datePipe.transform(business.createdAt, 'short') ?? business.createdAt;
-    highlights.push({
-      icon: 'event_available',
-      label: `Erstellt ${createdLabel}`,
-    });
-    highlights.push({
-      icon: 'schedule',
-      label: dueLabel ? `Fällig ${dueLabel}` : 'Keine Fälligkeit',
-    });
-    return highlights;
   }
 
   applyHighlightFilter(event: MouseEvent, highlight: BusinessHighlight): void {
@@ -1203,345 +922,6 @@ export class BusinessListComponent {
     }
     if (highlight.filter.kind === 'assignment') {
       this.businessService.setFilters({ assignment: highlight.filter.value });
-    }
-  }
-
-  dueProgress(business: Business): number {
-    const created = new Date(business.createdAt).getTime();
-    if (!business.dueDate) {
-      return 0;
-    }
-    const due = new Date(business.dueDate).getTime();
-    if (Number.isNaN(created) || Number.isNaN(due) || due <= created) {
-      return 100;
-    }
-    const now = Date.now();
-    const total = due - created;
-    const elapsed = Math.min(Math.max(0, now - created), total);
-    return Math.round((elapsed / total) * 100);
-  }
-
-  daysUntilDue(business: Business): number | null {
-    if (!business.dueDate) {
-      return null;
-    }
-    const due = new Date(business.dueDate);
-    const now = new Date();
-    const diff = due.getTime() - now.getTime();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-  }
-
-  businessMetrics(business: Business): BusinessMetric[] {
-    const linked = business.linkedOrderItemIds?.length ?? 0;
-    const docs = business.documents?.length ?? 0;
-    const daysLeft = this.daysUntilDue(business);
-    return [
-      {
-        label: 'Positionen',
-        value: linked,
-        icon: 'work',
-        hint: 'Verknüpfte Auftragspositionen',
-      },
-      {
-        label: 'Dokumente',
-        value: docs,
-        icon: 'attach_file',
-        hint: 'Hinterlegte Geschäftsdokumente',
-      },
-      {
-        label: 'Tage übrig',
-        value: daysLeft ?? '—',
-        icon: 'calendar_today',
-        hint: 'Tage bis zur Fälligkeit',
-      },
-    ];
-  }
-
-  businessTimeline(business: Business): TimelineEntry[] {
-    const created = new Date(business.createdAt);
-    const due = business.dueDate ? new Date(business.dueDate) : null;
-    const today = new Date();
-    const createdLabel =
-      this.datePipe.transform(created, 'mediumDate') ?? created.toDateString();
-    const dueLabel = due
-      ? this.datePipe.transform(due, 'mediumDate') ?? due.toDateString()
-      : 'Keine Angabe';
-
-    const dueState: TimelineState = due
-      ? this.isBeforeDay(due, today)
-        ? 'past'
-        : this.isSameDay(due, today)
-        ? 'current'
-        : 'future'
-      : 'none';
-
-    return [
-      {
-        label: 'Erstellt',
-        description: createdLabel,
-        state: 'past',
-        date: created,
-      },
-      {
-        label: 'Heute',
-        description: this.datePipe.transform(today, 'mediumDate') ?? '',
-        state:
-          dueState === 'past'
-            ? 'past'
-            : dueState === 'current'
-            ? 'current'
-            : 'future',
-        date: today,
-      },
-      {
-        label: 'Fälligkeit',
-        description: dueLabel,
-        state: dueState,
-        date: due,
-      },
-    ];
-  }
-
-  businessActivityFeed(business: Business): ActivityFeedItem[] {
-    const items: ActivityFeedItem[] = [
-      {
-        icon: 'flag',
-        title: `Status: ${this.statusLabel(business.status)}`,
-        subtitle: `Aktualisiert am ${
-          this.datePipe.transform(new Date(business.createdAt), 'medium') ??
-          ''
-        }`,
-      },
-    ];
-
-    if (business.dueDate) {
-      items.push({
-        icon: 'calendar_today',
-        title: 'Fälligkeit geplant',
-        subtitle:
-          this.datePipe.transform(business.dueDate, 'fullDate') ??
-          business.dueDate,
-      });
-    }
-
-    if (business.linkedOrderItemIds?.length) {
-      items.push({
-        icon: 'link',
-        title: `${business.linkedOrderItemIds.length} Position${
-          business.linkedOrderItemIds.length === 1 ? '' : 'en'
-        } verknüpft`,
-        subtitle: 'Zuletzt gepflegt im Positionen-Tab',
-      });
-    }
-
-    return items;
-  }
-
-  healthBadge(business: Business): HealthBadge {
-    if (business.status === 'erledigt') {
-      return { tone: 'done', label: 'Abgeschlossen' };
-    }
-    const daysLeft = this.daysUntilDue(business);
-    if (daysLeft === null) {
-      return { tone: 'idle', label: 'Ohne Termin' };
-    }
-    if (daysLeft < 0) {
-      return {
-        tone: 'critical',
-        label: `${Math.abs(daysLeft)} Tage überfällig`,
-      };
-    }
-    if (daysLeft <= 3) {
-      return {
-        tone: 'warning',
-        label: `Fällig in ${daysLeft} Tag${daysLeft === 1 ? '' : 'en'}`,
-      };
-    }
-    return { tone: 'ok', label: 'Im Plan' };
-  }
-
-  assignmentLabel(business: Business): string {
-    return business.assignment.type === 'group'
-      ? `Gruppe ${business.assignment.name}`
-      : business.assignment.name;
-  }
-
-  assignmentIcon(business: Business): string {
-    return business.assignment.type === 'group' ? 'groups' : 'person';
-  }
-
-  statusLabel(status: BusinessStatus): string {
-    return this.statusLabels[status];
-  }
-
-  dueDateState(business: Business):
-    | 'overdue'
-    | 'today'
-    | 'upcoming'
-    | 'none' {
-    if (!business.dueDate) {
-      return 'none';
-    }
-    const due = new Date(business.dueDate);
-    const today = new Date();
-    if (this.isBeforeDay(due, today)) {
-      return 'overdue';
-    }
-    if (this.isSameDay(due, today)) {
-      return 'today';
-    }
-    return 'upcoming';
-  }
-
-  trackByBusinessId(_: number, business: Business): string {
-    return business.id;
-  }
-
-  businessElementId(id: string): string {
-    return `business-${id}`;
-  }
-
-  private isSameDay(a: Date, b: Date): boolean {
-    return (
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate()
-    );
-  }
-
-  private isBeforeDay(a: Date, b: Date): boolean {
-    const startA = new Date(a.getFullYear(), a.getMonth(), a.getDate());
-    const startB = new Date(b.getFullYear(), b.getMonth(), b.getDate());
-    return startA.getTime() < startB.getTime();
-  }
-
-  private generatePresetId(): string {
-    return `preset-${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 7)}`;
-  }
-
-  private defaultPresetName(): string {
-    return `Ansicht ${this.savedPresets().length + 1}`;
-  }
-
-  private computeTopAssignments(): { name: string; type: Business['assignment']['type']; count: number }[] {
-    const stats = new Map<
-      string,
-      { count: number; type: Business['assignment']['type'] }
-    >();
-    this.businesses().forEach((business) => {
-      const entry = stats.get(business.assignment.name) ?? {
-        count: 0,
-        type: business.assignment.type,
-      };
-      entry.count += 1;
-      entry.type = business.assignment.type;
-      stats.set(business.assignment.name, entry);
-    });
-    return Array.from(stats.entries())
-      .map(([name, info]) => ({ name, type: info.type, count: info.count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }))
-      .slice(0, 3);
-  }
-
-  private computeStatusBreakdown(): { status: BusinessStatus; label: string; count: number }[] {
-    const counts = new Map<BusinessStatus, number>();
-    this.businesses().forEach((business) => {
-      counts.set(business.status, (counts.get(business.status) ?? 0) + 1);
-    });
-    const statuses: BusinessStatus[] = ['neu', 'in_arbeit', 'pausiert', 'erledigt'];
-    return statuses
-      .map((status) => ({
-        status,
-        label: this.statusLabel(status),
-        count: counts.get(status) ?? 0,
-      }))
-      .filter((entry) => entry.count > 0)
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }));
-  }
-
-  private computeDueSoonHighlights(): Business[] {
-    return this.businesses()
-      .filter((business) => business.dueDate && business.status !== 'erledigt')
-      .sort(
-        (a, b) =>
-          new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime(),
-      )
-      .slice(0, 3);
-  }
-
-  private computeInsightContext(): BusinessInsightContext {
-    const filters = this.filters();
-    const search = this.searchControl.value.trim();
-    const resultCount = this.businesses().length;
-    if (search.length) {
-      return {
-        title: 'Suche aktiv',
-        message: `Gefiltert nach "${search}" · ${resultCount} Treffer.`,
-        hint: 'Suche leeren, um wieder alle Geschäfte zu sehen.',
-        icon: 'search',
-      };
-    }
-    if (filters.status !== 'all') {
-      return {
-        title: 'Statusfilter aktiv',
-        message: `${this.statusLabel(filters.status as BusinessStatus)} · ${resultCount} Treffer.`,
-        hint: 'Status oben im Filterbereich zurücksetzen.',
-        icon: 'flag',
-      };
-    }
-    if (filters.assignment !== 'all') {
-      return {
-        title: 'Zuständigkeit aktiv',
-        message: `${filters.assignment} · ${resultCount} Geschäfte.`,
-        hint: 'Zuständigkeitsfilter anpassen, um weitere anzuzeigen.',
-        icon: 'groups',
-      };
-    }
-    if (filters.dueDate !== 'all') {
-      return {
-        title: 'Fälligkeit aktiv',
-        message: `${this.dueDateLabelLookup[filters.dueDate]} · ${resultCount} Geschäfte.`,
-        hint: 'Preset in der Suche zurücksetzen für alle Termine.',
-        icon: 'event',
-      };
-    }
-    if (filters.tags.length) {
-      return {
-        title: 'Tags aktiv',
-        message: `${filters.tags.map((tag) => this.formatTagLabel(tag)).join(', ')}`,
-        hint: 'Tag-Chips unten anklicken, um Filter zu entfernen.',
-        icon: 'sell',
-      };
-    }
-    const metrics = this.overviewMetrics();
-    return {
-      title: 'Pipeline Überblick',
-      message: `${metrics.total} Geschäfte · ${metrics.overdue} überfällig · ${metrics.dueSoon} fällig in 7 Tagen.`,
-      hint: 'Nutze die Insights, um schnell in Tags, Zuständigkeiten oder Termine zu springen.',
-      icon: 'insights',
-    };
-  }
-
-  private loadInsightsCollapsed(): boolean {
-    try {
-      const storage = this.document?.defaultView?.localStorage;
-      if (!storage) {
-        return false;
-      }
-      return storage.getItem(BUSINESS_INSIGHTS_STORAGE_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  }
-
-  private persistInsightsCollapsed(value: boolean): void {
-    try {
-      const storage = this.document?.defaultView?.localStorage;
-      storage?.setItem(BUSINESS_INSIGHTS_STORAGE_KEY, String(value));
-    } catch {
-      // ignore storage issues
     }
   }
 

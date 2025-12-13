@@ -1,12 +1,15 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   EventEmitter,
   Input,
   OnChanges,
+  OnDestroy,
   Output,
   SimpleChanges,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -32,6 +35,8 @@ import {
   MasterDataFieldConfig,
   MasterDataTemporalValue,
 } from '../../master-data.types';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
 
 @Component({
     selector: 'app-master-data-category',
@@ -51,7 +56,7 @@ import {
     styleUrl: './master-data-category.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class MasterDataCategoryComponent<T extends { id: string }> implements OnChanges {
+export class MasterDataCategoryComponent<T extends { id: string }> implements OnChanges, OnDestroy {
   @Input({ required: true }) config!: MasterDataCategoryConfig<T>;
   @Output() readonly selectionChange = new EventEmitter<T | null>();
   @Output() readonly itemsChange = new EventEmitter<T[]>();
@@ -59,9 +64,11 @@ export class MasterDataCategoryComponent<T extends { id: string }> implements On
   protected readonly items = signal<T[]>([]);
   protected readonly selectedId = signal<string | null>(null);
   protected form!: FormGroup;
+  private readonly destroyRef = inject(DestroyRef);
   private lastConfigId: string | null = null;
   private lastFieldsSignature: string | null = null;
   private temporalFieldKeys = new Set<string>();
+  private readonly temporalArraySubscriptions = new Map<string, Subscription>();
   protected readonly temporalHistoryVisibility = signal<Record<string, boolean>>({});
 
   protected readonly displayedColumns = computed(() => [
@@ -80,6 +87,10 @@ export class MasterDataCategoryComponent<T extends { id: string }> implements On
 
   constructor(private readonly fb: FormBuilder) {}
 
+  ngOnDestroy(): void {
+    this.teardownTemporalArraySubscriptions();
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['config']) {
       const currentConfig = this.config;
@@ -95,6 +106,7 @@ export class MasterDataCategoryComponent<T extends { id: string }> implements On
         this.lastFieldsSignature !== currentFieldsSignature;
 
       if (shouldRebuildForm) {
+        this.teardownTemporalArraySubscriptions();
         this.buildForm();
         this.lastConfigId = currentConfig.id;
         this.lastFieldsSignature = currentFieldsSignature;
@@ -458,7 +470,6 @@ export class MasterDataCategoryComponent<T extends { id: string }> implements On
           this.validateTemporalEntry(group as FormGroup),
       },
     );
-    group.valueChanges.subscribe(() => this.markTemporalArrayValidities(field.key));
     return group;
   }
 
@@ -575,10 +586,31 @@ export class MasterDataCategoryComponent<T extends { id: string }> implements On
     this.hideTemporalHistory(field.key);
     const nextArray = this.createTemporalFormArray(field, values);
     this.form.setControl(field.key, nextArray, { emitEvent: false });
+    this.updateTemporalArraySubscription(field.key, nextArray);
     if (nextArray.length <= 1) {
       this.hideTemporalHistory(field.key);
     }
     this.markTemporalArrayValidities(field.key);
+  }
+
+  private updateTemporalArraySubscription(fieldKey: string, array: FormArray<FormGroup>): void {
+    const existing = this.temporalArraySubscriptions.get(fieldKey);
+    if (existing) {
+      existing.unsubscribe();
+    }
+    this.temporalArraySubscriptions.set(
+      fieldKey,
+      array.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.markTemporalArrayValidities(fieldKey)),
+    );
+  }
+
+  private teardownTemporalArraySubscriptions(): void {
+    for (const sub of this.temporalArraySubscriptions.values()) {
+      sub.unsubscribe();
+    }
+    this.temporalArraySubscriptions.clear();
   }
 
   private normalizeControlValue(field: MasterDataFieldConfig, value: unknown): unknown {

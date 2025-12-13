@@ -18,69 +18,8 @@ export interface ActivityLinkRoleDialogResult {
 @Component({
     selector: 'app-activity-link-role-dialog',
     imports: [CommonModule, ...MATERIAL_IMPORTS],
-    template: `
-    <h2 mat-dialog-title>Funktionen der verknüpften Leistungen</h2>
-    <mat-dialog-content>
-      <p>
-        Wie sollen die Rollen zwischen den beiden Leistungen verteilt werden?
-      </p>
-      <div class="activity-link-role-dialog__section">
-        <div class="activity-link-role-dialog__label">
-          Original:&nbsp;<strong>{{ data.sourceResourceName }}</strong>
-        </div>
-        <mat-button-toggle-group
-          [value]="sourceRole"
-          (valueChange)="sourceRole = $event"
-          aria-label="Rolle des Originals wählen"
-        >
-          <mat-button-toggle value="teacher">Lehrer</mat-button-toggle>
-          <mat-button-toggle value="student">Schüler</mat-button-toggle>
-        </mat-button-toggle-group>
-      </div>
-
-      <div class="activity-link-role-dialog__section">
-        <div class="activity-link-role-dialog__label">
-          Kopie:&nbsp;<strong>{{ data.targetResourceName }}</strong>
-        </div>
-        <mat-button-toggle-group
-          [value]="targetRole"
-          (valueChange)="targetRole = $event"
-          aria-label="Rolle der Kopie wählen"
-        >
-          <mat-button-toggle value="teacher">Lehrer</mat-button-toggle>
-          <mat-button-toggle value="student">Schüler</mat-button-toggle>
-        </mat-button-toggle-group>
-      </div>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button type="button" (click)="onCancel()">Abbrechen</button>
-      <button mat-flat-button color="primary" type="button" (click)="onConfirm()">
-        Verknüpfen
-      </button>
-    </mat-dialog-actions>
-  `,
-    styles: [
-        `
-      .activity-link-role-dialog__section {
-        margin-top: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-
-      .activity-link-role-dialog__label {
-        font-size: 0.85rem;
-      }
-
-      mat-button-toggle-group {
-        width: 100%;
-      }
-
-      mat-button-toggle {
-        flex: 1 1 0;
-      }
-    `,
-    ]
+    templateUrl: './activity-link-role-dialog.component.html',
+    styleUrl: './activity-link-role-dialog.component.scss',
 })
 export class ActivityLinkRoleDialogComponent {
   protected readonly data = inject<ActivityLinkRoleDialogData>(MAT_DIALOG_DATA);
@@ -103,4 +42,3 @@ export class ActivityLinkRoleDialogComponent {
     });
   }
 }
-

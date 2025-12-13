@@ -365,7 +365,9 @@
                     <strong>Segment #{{ segment.position }}</strong>
                     <span>{{ segment.count }} × {{ segment.vehicleTypeId }}</span>
                   </div>
-                  <small *ngIf="segment.remarks">{{ segment.remarks }}</small>
+                  @if (segment.remarks) {
+                    <small>{{ segment.remarks }}</small>
+                  }
                 </div>
               }
             </div>

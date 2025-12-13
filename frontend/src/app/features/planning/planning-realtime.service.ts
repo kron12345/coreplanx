@@ -3,7 +3,7 @@ import { Observable, Subject } from 'rxjs';
 import { share } from 'rxjs/operators';
 import { API_CONFIG } from '../../core/config/api-config';
 import { PlanningStageId } from './planning-stage.model';
-import { PlanningTimelineRange } from './planning-data.service';
+import { PlanningTimelineRange } from './planning-data.types';
 import { Resource } from '../../models/resource';
 import { Activity } from '../../models/activity';
 import { ClientIdentityService } from '../../core/services/client-identity.service';

@@ -12,55 +12,57 @@
     (selectedIndexChange)="handleTabChange($event)"
     class="md-layout__tabs"
   >
-    <mat-tab *ngFor="let tab of tabs; trackBy: trackTab">
-      <ng-template mat-tab-label>
-        <mat-icon *ngIf="tab.icon" [fontIcon]="tab.icon"></mat-icon>
-        <span>{{ tab.title }}</span>
-      </ng-template>
+    @for (tab of tabs; track tab.id) {
+      <mat-tab>
+        <ng-template mat-tab-label>
+          @if (tab.icon) {
+            <mat-icon [fontIcon]="tab.icon"></mat-icon>
+          }
+          <span>{{ tab.title }}</span>
+        </ng-template>
 
-      <section class="md-layout__content">
-        <p class="md-layout__tab-description">{{ tab.description }}</p>
+        <section class="md-layout__content">
+          <p class="md-layout__tab-description">{{ tab.description }}</p>
 
-        <div class="md-layout__sections">
-          <ng-container *ngFor="let section of tab.sections; trackBy: trackSection">
-            <ng-container *ngIf="isComponentSection(section); else regularSection">
-              <div class="md-layout__section" [attr.data-section-id]="section.id">
-                <header
-                  *ngIf="section.title || section.description"
-                  class="md-layout__section-header"
-                >
-                  <h3 *ngIf="section.title">{{ section.title }}</h3>
-                  <p *ngIf="section.description">{{ section.description }}</p>
-                </header>
-                <ng-container
-                  *ngComponentOutlet="section.component; inputs: section.inputs ?? {}"
-                ></ng-container>
-              </div>
-            </ng-container>
-
-            <ng-template #regularSection>
-              <ng-container *ngIf="isCategorySection(section); else hierarchySection">
+          <div class="md-layout__sections">
+            @for (section of tab.sections; track section.id) {
+              @if (isComponentSection(section)) {
                 <div class="md-layout__section" [attr.data-section-id]="section.id">
-                  <header
-                    *ngIf="section.title || section.description"
-                    class="md-layout__section-header"
-                  >
-                    <h3 *ngIf="section.title">{{ section.title }}</h3>
-                    <p *ngIf="section.description">{{ section.description }}</p>
-                  </header>
+                  @if (section.title || section.description) {
+                    <header class="md-layout__section-header">
+                      @if (section.title) {
+                        <h3>{{ section.title }}</h3>
+                      }
+                      @if (section.description) {
+                        <p>{{ section.description }}</p>
+                      }
+                    </header>
+                  }
+                  <ng-container
+                    *ngComponentOutlet="section.component; inputs: section.inputs ?? {}"
+                  ></ng-container>
+                </div>
+              } @else if (isCategorySection(section)) {
+                <div class="md-layout__section" [attr.data-section-id]="section.id">
+                  @if (section.title || section.description) {
+                    <header class="md-layout__section-header">
+                      @if (section.title) {
+                        <h3>{{ section.title }}</h3>
+                      }
+                      @if (section.description) {
+                        <p>{{ section.description }}</p>
+                      }
+                    </header>
+                  }
                   <app-master-data-category [config]="section.config" />
                 </div>
-              </ng-container>
-
-              <ng-template #hierarchySection>
-                <ng-container *ngIf="isHierarchySection(section)">
-                  <app-master-data-hierarchy-section [config]="section.config" />
-                </ng-container>
-              </ng-template>
-            </ng-template>
-          </ng-container>
-        </div>
-      </section>
-    </mat-tab>
+              } @else if (isHierarchySection(section)) {
+                <app-master-data-hierarchy-section [config]="section.config" />
+              }
+            }
+          </div>
+        </section>
+      </mat-tab>
+    }
   </mat-tab-group>
 </div>

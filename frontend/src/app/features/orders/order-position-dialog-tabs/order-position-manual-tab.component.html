@@ -1,0 +1,101 @@
+<div class="tab-panel">
+  <div class="inline-actions">
+    <button mat-stroked-button type="button" (click)="assemblePlanRequested.emit()">
+      <mat-icon>alt_route</mat-icon>
+      Fahrplan zusammenstellen
+    </button>
+    <p class="hint">
+      Stelle den Fahrplan direkt zusammen und wähle anschließend die Fahrtage.
+    </p>
+  </div>
+
+  @if (manualTemplate; as stops) {
+    @if (stops.length) {
+      <mat-card class="template-summary">
+        <div class="template-summary__header">
+          <div>
+            <strong>{{ form.controls['name']?.value || 'Manueller Fahrplan' }}</strong>
+            <span class="template-summary__train">
+              Zug {{ form.controls['trainNumber']?.value || '—' }}
+            </span>
+          </div>
+          <button mat-button type="button" (click)="clearTemplateRequested.emit()">
+            <mat-icon>close</mat-icon>
+            Entfernen
+          </button>
+        </div>
+        <div class="template-summary__stops">
+          @for (stop of stops; track $index; let idx = $index) {
+            <div class="template-summary__stop">
+              <span class="template-summary__stop-index">#{{ idx + 1 }}</span>
+              <div>
+                <strong>{{ stop.locationName }}</strong>
+                <small>{{ stop.locationCode }}</small>
+              </div>
+              <div class="template-summary__stop-times">
+                <span>Ank {{ stop.arrivalTime || '—' }}</span>
+                <span>Abf {{ stop.departureTime || '—' }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </mat-card>
+    } @else {
+      <p class="hint">Definiere Halte und Zeiten, um einen einmaligen Fahrplan zu erzeugen.</p>
+    }
+  } @else {
+    <p class="hint">Definiere Halte und Zeiten, um einen einmaligen Fahrplan zu erzeugen.</p>
+  }
+
+  <form [formGroup]="form" class="form">
+    <mat-form-field appearance="outline">
+      <mat-label>Zugnummer (OTN)</mat-label>
+      <input matInput formControlName="trainNumber" />
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="help-icon"
+        [matTooltip]="fieldDescriptions['trainNumber']"
+        aria-label="Zugnummer Hilfe"
+      >
+        <mat-icon>help_outline</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <app-order-item-general-fields
+      [form]="form"
+      [labels]="generalLabels"
+      [placeholders]="{ name: 'z. B. Sonderzug 4711', tags: '#rolling, #priority' }"
+      [descriptions]="generalDescriptions"
+      [hints]="{ tags: 'Kommagetrennte Schlagwörter für Auswertung & Automationen.' }"
+    ></app-order-item-general-fields>
+
+    <div class="variant-assignment">
+      <button mat-stroked-button type="button" (click)="simulationAssignmentRequested.emit()">
+        <mat-icon>hub</mat-icon>
+        Simulation / Produktiv zuordnen
+      </button>
+      @if (simulationSelectionLabel; as selection) {
+        <span class="variant-assignment__label">
+          Aktuell: {{ selection }}
+        </span>
+      }
+    </div>
+
+    <p class="calendar-hint">
+      Fahrtage wählst du im Referenzkalender weiter unten.
+    </p>
+
+    <app-vehicle-composition-form
+      [baseVehicles]="baseVehicles"
+      [changeEntries]="changeEntries"
+      [stopOptions]="stopOptions"
+      [required]="requiresRollingStock"
+      [baseVehicleFactory]="baseVehicleFactory"
+      [changeEntryFactory]="changeEntryFactory"
+      [hint]="'Fahrzeuge für diese Fahrt festlegen. Halte für Kopplungen aus dem manuellen Fahrplan.'"
+    ></app-vehicle-composition-form>
+  </form>
+</div>
+

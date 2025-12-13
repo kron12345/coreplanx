@@ -1,0 +1,375 @@
+<div class="tab-panel">
+  <div class="inline-actions">
+    <label class="file-input">
+      <input type="file" accept=".xml,.railml,.railml.xml" (change)="railMlFileSelected.emit($event)" />
+      <span>
+        <mat-icon>upload_file</mat-icon>
+        RailML-Datei auswählen
+      </span>
+    </label>
+    <button mat-stroked-button type="button" (click)="clearImportedDataRequested.emit()">
+      <mat-icon>delete_sweep</mat-icon>
+      Auswahl zurücksetzen
+    </button>
+  </div>
+
+  @if (importError) {
+    <p class="error">{{ importError }}</p>
+  }
+
+  @if (importedTrainsLength) {
+    <form [formGroup]="importOptionsForm" class="form form--compact">
+      <div class="grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Referenzkalender</mat-label>
+          <mat-select formControlName="trafficPeriodId">
+            @for (period of trafficPeriods; track period.id) {
+              <mat-option [value]="period.id">{{ period.name }}</mat-option>
+            }
+          </mat-select>
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="importOptionsDescriptions['trafficPeriodId']"
+            aria-label="Referenzkalender Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Fahrplanjahr</mat-label>
+          <mat-select formControlName="calendarYear" [disabled]="true">
+            @for (year of managedTimetableYears; track year.label) {
+              <mat-option [value]="year.label">{{ year.label }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Vom Auftrag vorgegeben</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Namenspräfix</mat-label>
+          <input matInput formControlName="namePrefix" placeholder="z. B. RailML Import" />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="importOptionsDescriptions['namePrefix']"
+            aria-label="Namenspräfix Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Verantwortlich</mat-label>
+          <input matInput formControlName="responsible" />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="importOptionsDescriptions['responsible']"
+            aria-label="Verantwortlich Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Tags (optional)</mat-label>
+          <input matInput formControlName="tags" placeholder="#rolling, #priority" />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="help-icon"
+            [matTooltip]="importOptionsDescriptions['tags']"
+            aria-label="Tags Hilfe"
+          >
+            <mat-icon>help_outline</mat-icon>
+          </button>
+        </mat-form-field>
+      </div>
+
+      <div class="variant-assignment">
+        <button mat-stroked-button type="button" (click)="simulationAssignmentRequested.emit()">
+          <mat-icon>hub</mat-icon>
+          Simulation / Produktiv zuordnen
+        </button>
+        @if (simulationSelectionLabel; as selection) {
+          <span class="variant-assignment__label">Aktuell: {{ selection }}</span>
+        }
+      </div>
+    </form>
+
+    <app-vehicle-composition-form
+      [title]="'Fahrzeuge'"
+      [hint]="
+        requiresRollingStock
+          ? 'Fahrzeuge sind für TTT-Importe Pflicht.'
+          : 'Optional: Fahrzeuge für importierte Züge hinterlegen.'
+      "
+      [baseVehicles]="baseVehicles"
+      [changeEntries]="changeEntries"
+      [stopOptions]="[]"
+      [required]="requiresRollingStock"
+      [showChangeEntries]="false"
+      [baseVehicleFactory]="baseVehicleFactory"
+    ></app-vehicle-composition-form>
+
+    <app-order-import-filters
+      [form]="importFilters"
+      [descriptions]="importFilterDescriptions"
+      [taktTemplates]="taktTemplates"
+      (reset)="importFiltersResetRequested.emit()"
+    />
+
+    <div class="import-results">
+      <div class="import-results__actions">
+        <div>
+          {{ filteredTrains.length }} Züge · {{ selectedTrainIds.size }} ausgewählt
+        </div>
+        <div class="import-results__buttons">
+          <button mat-button type="button" (click)="selectAllFilteredRequested.emit(true)">Alle auswählen</button>
+          <button mat-button type="button" (click)="selectAllFilteredRequested.emit(false)">Auswahl aufheben</button>
+        </div>
+      </div>
+
+      <mat-selection-list [multiple]="true">
+        @for (train of filteredTrains; track train.id) {
+          <mat-list-option
+            [selected]="isTrainSelected(train.id)"
+            (selectedChange)="trainSelectionToggled.emit({ id: train.id, selected: $event })"
+            class="import-train-option"
+          >
+            <div class="import-train">
+              <div class="import-train__header">
+                <div class="import-train__title-block">
+                  <div class="import-train__title">
+                    <strong>{{ train.name }}</strong>
+                    @if (train.variantLabel) {
+                      <span class="import-train__variant-chip">
+                        <mat-icon>tune</mat-icon>
+                        {{ train.variantLabel }}
+                      </span>
+                    }
+                  </div>
+                  <div class="import-train__chips">
+                    <mat-chip-set aria-label="Zugdaten">
+                      <mat-chip disableRipple>
+                        <mat-icon>confirmation_number</mat-icon>
+                        {{ train.number }}
+                      </mat-chip>
+                      <mat-chip disableRipple>
+                        <mat-icon>category</mat-icon>
+                        {{ train.category || 'ohne Kategorie' }}
+                      </mat-chip>
+                      @if (train.trafficPeriodName) {
+                        <mat-chip disableRipple>
+                          <mat-icon>calendar_month</mat-icon>
+                          {{ train.trafficPeriodName }}
+                        </mat-chip>
+                      }
+                      @if (train.operatingPeriodRef) {
+                        <mat-chip disableRipple>
+                          <mat-icon>link</mat-icon>
+                          {{ train.operatingPeriodRef }}
+                        </mat-chip>
+                      }
+                    </mat-chip-set>
+                  </div>
+                </div>
+                <div class="import-train__actions">
+                  <span class="import-train__stops-count">
+                    {{ train.stops.length }} Halte
+                  </span>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="trainExpansionToggled.emit({ id: train.id, event: $event })"
+                    [attr.aria-label]="
+                      isTrainExpanded(train.id)
+                        ? 'Details einklappen'
+                        : 'Details aufklappen'
+                    "
+                  >
+                    <mat-icon>
+                      {{ isTrainExpanded(train.id) ? 'expand_less' : 'expand_more' }}
+                    </mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <div class="import-train__summary">
+                <div class="import-train__timeline">
+                  <div class="import-train__timeline-point">
+                    <span class="import-train__time">{{ train.departureTime || '--:--' }}</span>
+                    <small>{{ train.start || '—' }}</small>
+                  </div>
+                  <div class="import-train__timeline-line">
+                    <mat-icon>trending_flat</mat-icon>
+                  </div>
+                  <div class="import-train__timeline-point import-train__timeline-point--end">
+                    <span class="import-train__time">{{ train.arrivalTime || '--:--' }}</span>
+                    <small>{{ train.end || '—' }}</small>
+                  </div>
+                </div>
+                <div class="import-train__badges">
+                  @if (train.variantOf) {
+                    <span class="import-train__badge">
+                      Variante von {{ train.variantOf }}
+                    </span>
+                  }
+                  @if (train.trainPartId) {
+                    <span class="import-train__badge">
+                      TrainPart: {{ train.trainPartId }}
+                    </span>
+                  }
+                </div>
+              </div>
+
+              @if (train.templateMatch; as match) {
+                <div class="import-train__template" [ngClass]="match.status">
+                  <div class="import-train__template-icon">
+                    <mat-icon>schedule</mat-icon>
+                  </div>
+                  <div class="import-train__template-body">
+                    <div class="import-train__template-title">
+                      {{ match.templateTitle }}
+                      @if (match.intervalMinutes) {
+                        <span class="import-train__template-interval">
+                          alle {{ match.intervalMinutes }} min
+                        </span>
+                      }
+                    </div>
+                    <div class="import-train__template-meta">
+                      <span class="meta-chip">
+                        Erwartet {{ match.expectedDeparture || '—' }}
+                      </span>
+                      <span class="meta-chip">
+                        Abfahrt {{ train.departureTime || '—' }}
+                      </span>
+                      <span
+                        class="meta-chip"
+                        [class.warning]="hasDeviation(match.deviationMinutes)"
+                      >
+                        Δ Start {{ match.deviationLabel }}
+                      </span>
+                      <span class="meta-chip meta-chip--muted">±{{ match.toleranceMinutes }} min</span>
+                      @if (match.arrivalDeviationLabel) {
+                        <span
+                          class="meta-chip"
+                          [class.warning]="hasDeviation(match.arrivalDeviationMinutes)"
+                        >
+                          Δ Ankunft {{ match.arrivalDeviationLabel }}
+                        </span>
+                      }
+                    </div>
+                    <mat-chip class="import-train__template-chip" appearance="outlined" [ngClass]="match.status">
+                      {{ match.status === 'ok' ? 'Im Takt' : 'Abweichung' }}
+                    </mat-chip>
+                  </div>
+                </div>
+              } @else if (hasTaktTemplates) {
+                <div class="import-train__template import-train__template--empty">
+                  <mat-icon>info</mat-icon>
+                  <span>Keine passende Vorlage gefunden.</span>
+                </div>
+              }
+
+              @if (isTrainExpanded(train.id)) {
+                <div class="import-train__details">
+                  <div class="import-train__details-header">
+                    Halteübersicht
+                  </div>
+                  @if (train.templateMatch?.stopComparisons?.length) {
+                    @let comparisons = train.templateMatch!.stopComparisons!;
+                    <div class="import-train__comparison">
+                      <div class="import-train__comparison-row import-train__comparison-row--header">
+                        <span>Halt</span>
+                        <span>Vorlage</span>
+                        <span>Import</span>
+                        <span>Δ</span>
+                      </div>
+                      @for (comp of comparisons; track comp.locationCode + comp.locationName) {
+                        <div
+                          class="import-train__comparison-row"
+                          [class.unmatched]="!comp.matched"
+                          [class.has-deviation]="stopHasDeviation(comp)"
+                        >
+                          <div>
+                            <strong>{{ comp.locationName }}</strong>
+                            <small>{{ comp.locationCode }}</small>
+                          </div>
+                          <div>
+                            <div>
+                              Ank
+                              {{ comp.alignedTemplateArrival || comp.templateArrival || '—' }}
+                            </div>
+                            <div>
+                              Abf
+                              {{ comp.alignedTemplateDeparture || comp.templateDeparture || '—' }}
+                            </div>
+                          </div>
+                          <div>
+                            <div>Ank {{ comp.actualArrival || '—' }}</div>
+                            <div>Abf {{ comp.actualDeparture || '—' }}</div>
+                          </div>
+                          <div class="import-train__comparison-delta">
+                            <span
+                              class="import-train__comparison-chip"
+                              [class.warning]="hasDeviation(comp.arrivalDeviationMinutes)"
+                            >
+                              Ank {{ comp.arrivalDeviationLabel || '—' }}
+                            </span>
+                            <span
+                              class="import-train__comparison-chip"
+                              [class.warning]="hasDeviation(comp.departureDeviationMinutes)"
+                            >
+                              Abf {{ comp.departureDeviationLabel || '—' }}
+                            </span>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                  <div class="import-train__stops">
+                    @for (stop of train.stops; track $index; let idx = $index) {
+                      <div class="import-train__stop-row">
+                        <div class="import-train__stop-seq">#{{ idx + 1 }}</div>
+                        <div class="import-train__stop-location">
+                          <strong>{{ stop.locationName || stop.locationCode }}</strong>
+                          <small>{{ stop.locationCode }}</small>
+                        </div>
+                        <div class="import-train__stop-times">
+                          <div>
+                            <span>Ankunft</span>
+                            <strong>{{ stopTimeLabel(stop, 'arrival') }}</strong>
+                          </div>
+                          <div>
+                            <span>Abfahrt</span>
+                            <strong>{{ stopTimeLabel(stop, 'departure') }}</strong>
+                          </div>
+                        </div>
+                        <div class="import-train__stop-meta">
+                          @if (stop.activities.length) {
+                            <span>{{ stop.activities.join(', ') }}</span>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </mat-list-option>
+        }
+      </mat-selection-list>
+    </div>
+  } @else if (!importError) {
+    <p class="hint">
+      Wähle eine RailML-Datei, um Züge zu importieren.
+    </p>
+  }
+</div>
+

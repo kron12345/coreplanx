@@ -1,0 +1,56 @@
+<h2 mat-dialog-title>Zeiträume verwalten</h2>
+<div mat-dialog-content>
+  <p class="muted">Fahrplanjahr {{ data.year.label }} ({{ data.year.startIso }} – {{ data.year.endIso }})</p>
+  @if (periods.length) {
+    <div class="period-list">
+      @for (period of periods; track period.id; let i = $index) {
+        <div class="period">
+          <div>
+            <strong>{{ period.validFrom }}</strong>
+            <span>bis {{ period.validTo || 'offen' }}</span>
+          </div>
+          <button
+            mat-icon-button
+            color="warn"
+            (click)="onDelete(period.id, i)"
+            [disabled]="i === 0"
+            [matTooltip]="i === 0 ? 'Erster Zeitraum kann nicht gelöscht werden' : 'Zeitraum löschen'"
+          >
+            <mat-icon fontIcon="delete"></mat-icon>
+          </button>
+        </div>
+      }
+    </div>
+  } @else {
+    <ng-container [ngTemplateOutlet]="empty"></ng-container>
+  }
+  <ng-template #empty>
+    <p class="muted">Keine Zeiträume definiert.</p>
+  </ng-template>
+  <h3 class="section-title">Spezialtage</h3>
+  @if (specialDays.length) {
+    <div class="special-list">
+      @for (day of specialDays; track day) {
+        <div class="special">
+          <span>{{ day }}</span>
+          <button
+            mat-icon-button
+            color="warn"
+            (click)="onDeleteSpecial(day)"
+            matTooltip="Spezialtag löschen"
+          >
+            <mat-icon fontIcon="delete"></mat-icon>
+          </button>
+        </div>
+      }
+    </div>
+  } @else {
+    <ng-container [ngTemplateOutlet]="noSpecials"></ng-container>
+  }
+  <ng-template #noSpecials>
+    <p class="muted">Keine Spezialtage definiert.</p>
+  </ng-template>
+</div>
+<div mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="dialogRef.close()">Schließen</button>
+</div>

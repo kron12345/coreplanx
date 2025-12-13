@@ -60,63 +60,7 @@ const SOL_NATURES: SolNature[] = ['REGULAR', 'LINK'];
         MatProgressSpinnerModule,
         AttributeEntityEditorComponent,
     ],
-    template: `
-    <section class="topology-editor">
-      <header class="topology-editor__toolbar">
-        <button
-          mat-stroked-button
-          color="primary"
-          type="button"
-          (click)="triggerSectionImport()"
-          [disabled]="importState() === 'running'"
-        >
-          <mat-icon fontIcon="cloud_download"></mat-icon>
-          Importieren
-          <mat-progress-spinner
-            *ngIf="importState() === 'running'"
-            diameter="16"
-            mode="indeterminate"
-          ></mat-progress-spinner>
-        </button>
-        <button
-          mat-button
-          type="button"
-          *ngIf="canToggleConsole()"
-          (click)="toggleImportConsole()"
-          [disabled]="importState() === 'running'"
-        >
-          {{ importConsoleOpen() ? 'Konsole schließen' : 'Konsole anzeigen' }}
-        </button>
-      </header>
-
-      <div class="topology-editor__console" *ngIf="importConsoleVisible()">
-        <header>
-          <span>Import-Log</span>
-          <button
-            mat-icon-button
-            type="button"
-            (click)="hideImportConsole()"
-            [disabled]="importState() === 'running'"
-          >
-            <mat-icon>close</mat-icon>
-          </button>
-        </header>
-        <pre>{{ importLogs().join('\n') }}</pre>
-      </div>
-
-      <app-attribute-entity-editor
-        [title]="'Sections of Line'"
-        [entities]="entityRecords()"
-        [attributeDefinitions]="attributeDefinitions()"
-        [defaultFallbackValues]="defaultFallback"
-        [numericKeys]="numericKeys"
-        [detailError]="error()"
-        (saveEntity)="handleSave($event)"
-        (deleteEntities)="handleDelete($event)"
-        (bulkApply)="handleBulkApply($event)"
-      />
-    </section>
-  `,
+    templateUrl: './section-of-line-editor.component.html',
     styleUrl: './section-of-line-editor.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
 })

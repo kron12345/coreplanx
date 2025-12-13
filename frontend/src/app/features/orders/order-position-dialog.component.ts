@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -25,10 +25,6 @@ import {
   ScheduleTemplateDialogResult,
 } from '../schedule-templates/schedule-template-create-dialog.component';
 import {
-  OrderItemGeneralFieldsComponent,
-} from '../orders/shared/order-item-general-fields/order-item-general-fields.component';
-import { OrderItemServiceFieldsComponent } from '../orders/shared/order-item-service-fields/order-item-service-fields.component';
-import {
   PlanAssemblyDialogComponent,
   PlanAssemblyDialogData,
   PlanAssemblyDialogResult,
@@ -39,14 +35,16 @@ import {
   PlanGenerationPreview,
   PlanTemplateStats,
 } from './order-plan-preview/plan-preview.models';
-import { OrderImportFiltersComponent } from './order-import-filters/order-import-filters.component';
 import { ReferenceCalendarInlineFormComponent } from './reference-calendar-inline-form/reference-calendar-inline-form.component';
 import { BusinessTemplateAutomation } from '../../core/models/business-template.model';
 import {
   CompositionBaseVehicleForm,
   CompositionChangeEntryForm,
-  VehicleCompositionFormComponent,
 } from './shared/vehicle-composition-form/vehicle-composition-form.component';
+import { OrderPositionImportTabComponent } from './order-position-dialog-tabs/order-position-import-tab.component';
+import { OrderPositionManualTabComponent } from './order-position-dialog-tabs/order-position-manual-tab.component';
+import { OrderPositionPlanTabComponent } from './order-position-dialog-tabs/order-position-plan-tab.component';
+import { OrderPositionServiceTabComponent } from './order-position-dialog-tabs/order-position-service-tab.component';
 import { OrderPositionCompositionFacade } from './order-position-composition.facade';
 import { OrderPositionRailmlService } from './order-position-railml.service';
 import { OrderPositionDialogActionsService } from './order-position-dialog-actions.service';
@@ -78,14 +76,15 @@ import { createOrderPositionForms } from './order-position-dialog.forms';
         CommonModule,
         ReactiveFormsModule,
         ...MATERIAL_IMPORTS,
-        OrderItemGeneralFieldsComponent,
-        OrderItemServiceFieldsComponent,
-        OrderImportFiltersComponent,
         ReferenceCalendarInlineFormComponent,
-        VehicleCompositionFormComponent,
+        OrderPositionServiceTabComponent,
+        OrderPositionPlanTabComponent,
+        OrderPositionManualTabComponent,
+        OrderPositionImportTabComponent,
     ],
     templateUrl: './order-position-dialog.component.html',
-    styleUrl: './order-position-dialog.component.scss'
+    styleUrl: './order-position-dialog.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderPositionDialogComponent {
   private readonly tabModes: ReadonlyArray<OrderPositionMode> = [

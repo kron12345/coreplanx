@@ -1,0 +1,22 @@
+.command-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: min(520px, 90vw);
+}
+
+.command-search {
+  margin-bottom: 4px;
+}
+
+.command-hint {
+  font-size: 0.78rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.command-empty {
+  margin: 12px 0 0 0;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.7);
+  text-align: center;
+}
