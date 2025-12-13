@@ -17,10 +17,9 @@ const DEFAULT_FALLBACK = {
 };
 
 @Component({
-  selector: 'app-replacement-route-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  template: `
+    selector: 'app-replacement-route-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    template: `
     <app-attribute-entity-editor
       [title]="'Replacement Routes'"
       [entities]="entityRecords()"
@@ -32,7 +31,7 @@ const DEFAULT_FALLBACK = {
       (bulkApply)="handleBulkApply($event)"
     />
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReplacementRouteEditorComponent {
   private readonly store = inject(PlanningStoreService);

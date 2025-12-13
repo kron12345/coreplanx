@@ -12,11 +12,10 @@ import { Customer } from '../../core/models/customer.model';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 
 @Component({
-  selector: 'app-order-create-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './order-create-dialog.component.html',
-  styleUrl: './order-create-dialog.component.scss',
+    selector: 'app-order-create-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './order-create-dialog.component.html',
+    styleUrl: './order-create-dialog.component.scss'
 })
 export class OrderCreateDialogComponent {
   private readonly fb = inject(FormBuilder);

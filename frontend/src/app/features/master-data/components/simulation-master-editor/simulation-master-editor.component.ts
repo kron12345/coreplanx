@@ -42,12 +42,11 @@ const DEFAULT_VALUES = {
 };
 
 @Component({
-  selector: 'app-simulation-master-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  templateUrl: './simulation-master-editor.component.html',
-  styleUrl: './simulation-master-editor.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-simulation-master-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    templateUrl: './simulation-master-editor.component.html',
+    styleUrl: './simulation-master-editor.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SimulationMasterEditorComponent {
   private readonly simulations = inject(SimulationService);

@@ -12,11 +12,10 @@ import { TimetablePhase } from '../../../core/models/timetable.model';
 import { BusinessService } from '../../../core/services/business.service';
 
 @Component({
-  selector: 'app-filter-bar',
-  standalone: true,
-  imports: [FormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './filter-bar.component.html',
-  styleUrl: './filter-bar.component.scss',
+    selector: 'app-filter-bar',
+    imports: [FormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './filter-bar.component.html',
+    styleUrl: './filter-bar.component.scss'
 })
 export class FilterBarComponent {
   @Output() savePreset = new EventEmitter<void>();

@@ -25,11 +25,10 @@ export interface TimetableAuditDialogResult {
 }
 
 @Component({
-  selector: 'app-timetable-audit-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-audit-dialog.component.html',
-  styleUrl: './timetable-audit-dialog.component.scss',
+    selector: 'app-timetable-audit-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-audit-dialog.component.html',
+    styleUrl: './timetable-audit-dialog.component.scss'
 })
 export class TimetableAuditDialogComponent {
   private readonly dialogRef =

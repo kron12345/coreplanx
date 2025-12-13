@@ -6,11 +6,10 @@ import { BusinessTemplateService } from '../../core/services/business-template.s
 import { OrderFilters } from '../../core/services/order.service';
 
 @Component({
-  selector: 'app-order-template-recommendation',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS, RouterLink],
-  templateUrl: './order-template-recommendation.component.html',
-  styleUrl: './order-template-recommendation.component.scss',
+    selector: 'app-order-template-recommendation',
+    imports: [CommonModule, ...MATERIAL_IMPORTS, RouterLink],
+    templateUrl: './order-template-recommendation.component.html',
+    styleUrl: './order-template-recommendation.component.scss'
 })
 export class OrderTemplateRecommendationComponent {
   private readonly templateService = inject(BusinessTemplateService);

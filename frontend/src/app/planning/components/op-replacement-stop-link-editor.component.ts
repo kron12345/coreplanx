@@ -22,10 +22,9 @@ const DEFAULT_FALLBACK = {
 const RELATIONS: OpReplRelation[] = ['PRIMARY_SEV_STOP', 'ALTERNATIVE', 'TEMPORARY'];
 
 @Component({
-  selector: 'app-op-replacement-stop-link-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  template: `
+    selector: 'app-op-replacement-stop-link-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    template: `
     <app-attribute-entity-editor
       [title]="'OP ↔ Replacement Stop Links'"
       [entities]="entityRecords()"
@@ -38,7 +37,7 @@ const RELATIONS: OpReplRelation[] = ['PRIMARY_SEV_STOP', 'ALTERNATIVE', 'TEMPORA
       (bulkApply)="handleBulkApply($event)"
     />
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OpReplacementStopLinkEditorComponent {
   private readonly store = inject(PlanningStoreService);

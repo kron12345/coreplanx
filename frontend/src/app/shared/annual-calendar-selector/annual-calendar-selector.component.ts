@@ -24,11 +24,10 @@ interface CalendarMonthGroup {
 }
 
 @Component({
-  selector: 'app-annual-calendar-selector',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS],
-  templateUrl: './annual-calendar-selector.component.html',
-  styleUrl: './annual-calendar-selector.component.scss',
+    selector: 'app-annual-calendar-selector',
+    imports: [CommonModule, ...MATERIAL_IMPORTS],
+    templateUrl: './annual-calendar-selector.component.html',
+    styleUrl: './annual-calendar-selector.component.scss'
 })
 export class AnnualCalendarSelectorComponent implements OnChanges {
   @Input() title = 'Kalender';

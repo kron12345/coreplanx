@@ -1,5 +1,5 @@
-import { CommonModule, DOCUMENT } from '@angular/common';
-import { Component, Input, computed, effect, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, Input, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -31,11 +31,10 @@ interface TrafficPeriodGroup {
 }
 
 @Component({
-  selector: 'app-traffic-period-list',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './traffic-period-list.component.html',
-  styleUrl: './traffic-period-list.component.scss',
+    selector: 'app-traffic-period-list',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './traffic-period-list.component.html',
+    styleUrl: './traffic-period-list.component.scss'
 })
 export class TrafficPeriodListComponent {
   private readonly service = inject(TrafficPeriodService);

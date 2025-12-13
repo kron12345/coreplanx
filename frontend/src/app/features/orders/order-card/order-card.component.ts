@@ -36,15 +36,14 @@ import {
 } from '../shared/simulation-assign-dialog/simulation-assign-dialog.component';
 
 @Component({
-  selector: 'app-order-card',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ...MATERIAL_IMPORTS,
-    OrderItemListComponent,
-  ],
-  templateUrl: './order-card.component.html',
-  styleUrl: './order-card.component.scss',
+    selector: 'app-order-card',
+    imports: [
+        CommonModule,
+        ...MATERIAL_IMPORTS,
+        OrderItemListComponent,
+    ],
+    templateUrl: './order-card.component.html',
+    styleUrl: './order-card.component.scss'
 })
 export class OrderCardComponent {
   private readonly orderSignal = signal<Order | null>(null);

@@ -36,24 +36,23 @@ const ATTRIBUTE_FORM_DEFAULTS = {
 };
 
 @Component({
-  selector: 'app-attribute-definition-editor',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-    MatDividerModule,
-    MatCardModule,
-    MatSlideToggleModule,
-  ],
-  templateUrl: './attribute-definition-editor.component.html',
-  styleUrl: './attribute-definition-editor.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-attribute-definition-editor',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        MatInputModule,
+        MatButtonModule,
+        MatIconModule,
+        MatTooltipModule,
+        MatDividerModule,
+        MatCardModule,
+        MatSlideToggleModule,
+    ],
+    templateUrl: './attribute-definition-editor.component.html',
+    styleUrl: './attribute-definition-editor.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AttributeDefinitionEditorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);

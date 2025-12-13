@@ -34,11 +34,10 @@ interface SelectOption {
 }
 
 @Component({
-  selector: 'app-timetable-rolling-stock-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-rolling-stock-dialog.component.html',
-  styleUrl: './timetable-rolling-stock-dialog.component.scss',
+    selector: 'app-timetable-rolling-stock-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-rolling-stock-dialog.component.html',
+    styleUrl: './timetable-rolling-stock-dialog.component.scss'
 })
 export class TimetableRollingStockDialogComponent {
   private readonly dialogRef =

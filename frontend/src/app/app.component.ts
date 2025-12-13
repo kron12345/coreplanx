@@ -16,11 +16,10 @@ import { TtrBusinessAutomationService } from './core/services/ttr-business-autom
 type AppSection = 'manager' | 'planning' | 'timetable' | 'master-data' | 'settings';
 
 @Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ...MATERIAL_IMPORTS],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
+    selector: 'app-root',
+    imports: [RouterOutlet, RouterLink, RouterLinkActive, ...MATERIAL_IMPORTS],
+    templateUrl: './app.component.html',
+    styleUrl: './app.component.scss'
 })
 export class AppComponent {
   private readonly router = inject(Router);

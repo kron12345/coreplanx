@@ -224,12 +224,11 @@ function mergeDefinitions(
 }
 
 @Component({
-  selector: 'app-vehicle-master-editor',
-  standalone: true,
-  imports: [CommonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
-  templateUrl: './vehicle-master-editor.component.html',
-  styleUrl: './vehicle-master-editor.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-vehicle-master-editor',
+    imports: [CommonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
+    templateUrl: './vehicle-master-editor.component.html',
+    styleUrl: './vehicle-master-editor.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VehicleMasterEditorComponent {
   private readonly collections = inject(MasterDataCollectionsStoreService);

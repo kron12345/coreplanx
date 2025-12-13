@@ -44,11 +44,10 @@ const CUSTOMER_INSIGHTS_STORAGE_KEY = 'customers.insightsCollapsed.v1';
 const CUSTOMER_PRESETS_STORAGE_KEY = 'customers.presets.v1';
 
 @Component({
-  selector: 'app-customer-list',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './customer-list.component.html',
-  styleUrl: './customer-list.component.scss',
+    selector: 'app-customer-list',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './customer-list.component.html',
+    styleUrl: './customer-list.component.scss'
 })
 export class CustomerListComponent {
   private readonly customerService = inject(CustomerService);

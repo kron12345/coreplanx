@@ -10,21 +10,20 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { LayerGroup, LayerGroupService } from '../../core/services/layer-group.service';
 
 @Component({
-  selector: 'app-layer-group-settings',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-    ReactiveFormsModule,
-  ],
-  templateUrl: './layer-group-settings.component.html',
-  styleUrl: './layer-group-settings.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-layer-group-settings',
+    imports: [
+        CommonModule,
+        MatCardModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatButtonModule,
+        MatIconModule,
+        MatTooltipModule,
+        ReactiveFormsModule,
+    ],
+    templateUrl: './layer-group-settings.component.html',
+    styleUrl: './layer-group-settings.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LayerGroupSettingsComponent {
   private readonly service = inject(LayerGroupService);

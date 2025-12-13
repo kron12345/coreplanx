@@ -49,11 +49,10 @@ type StopForm = FormGroup<{
 }>;
 
 @Component({
-  selector: 'app-plan-assembly-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ScrollingModule, ...MATERIAL_IMPORTS],
-  templateUrl: './plan-assembly-dialog.component.html',
-  styleUrl: './plan-assembly-dialog.component.scss',
+    selector: 'app-plan-assembly-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ScrollingModule, ...MATERIAL_IMPORTS],
+    templateUrl: './plan-assembly-dialog.component.html',
+    styleUrl: './plan-assembly-dialog.component.scss'
 })
 export class PlanAssemblyDialogComponent {
   private readonly dialogRef = inject<

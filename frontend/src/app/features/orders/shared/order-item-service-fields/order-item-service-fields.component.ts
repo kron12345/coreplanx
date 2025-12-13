@@ -18,17 +18,16 @@ interface TrafficPeriodOption {
 }
 
 @Component({
-  selector: 'app-order-item-service-fields',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './order-item-service-fields.component.html',
-  styleUrl: './order-item-service-fields.component.scss',
-  viewProviders: [
-    {
-      provide: ControlContainer,
-      useExisting: FormGroupDirective,
-    },
-  ],
+    selector: 'app-order-item-service-fields',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './order-item-service-fields.component.html',
+    styleUrl: './order-item-service-fields.component.scss',
+    viewProviders: [
+        {
+            provide: ControlContainer,
+            useExisting: FormGroupDirective,
+        },
+    ]
 })
 export class OrderItemServiceFieldsComponent {
   @Input({ required: true }) form!: FormGroup;

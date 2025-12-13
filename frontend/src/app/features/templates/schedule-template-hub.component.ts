@@ -12,11 +12,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
 
 @Component({
-  selector: 'app-schedule-template-hub',
-  standalone: true,
-  imports: [...MATERIAL_IMPORTS, ScheduleTemplateListComponent, RouterLink],
-  templateUrl: './schedule-template-hub.component.html',
-  styleUrl: './schedule-template-hub.component.scss',
+    selector: 'app-schedule-template-hub',
+    imports: [...MATERIAL_IMPORTS, ScheduleTemplateListComponent, RouterLink],
+    templateUrl: './schedule-template-hub.component.html',
+    styleUrl: './schedule-template-hub.component.scss'
 })
 export class ScheduleTemplateHubComponent {
   private readonly scheduleService = inject(ScheduleTemplateService);

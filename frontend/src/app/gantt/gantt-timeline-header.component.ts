@@ -1,8 +1,10 @@
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Tick } from '../models/time-scale';
 import { TemplatePeriod } from '../core/api/timeline-api.types';
 import { addDays } from '../core/utils/time-math';
+
+const PERIOD_PALETTE = ['#4c6fff', '#2eb88a', '#f2a541', '#c95ff2', '#f26b6b', '#3ab0ff'];
 
 interface GroupSegment {
   label: string;
@@ -19,23 +21,67 @@ interface PeriodVisual {
 }
 
 @Component({
-  selector: 'app-gantt-timeline-header',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './gantt-timeline-header.component.html',
-  styleUrl: './gantt-timeline-header.component.scss',
+    selector: 'app-gantt-timeline-header',
+    imports: [CommonModule],
+    templateUrl: './gantt-timeline-header.component.html',
+    styleUrl: './gantt-timeline-header.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttTimelineHeaderComponent {
-  @Input({ required: true }) ticks: Tick[] = [];
-  @Input({ required: true }) contentWidth = 0;
-  @Input() periods: TemplatePeriod[] = [];
-  @Input() pixelsPerMs = 0;
-  @Input() timelineStart?: Date;
-  @Input() viewStart?: Date;
-  @Input() viewEnd?: Date;
+  private readonly ticksSignal = signal<Tick[]>([]);
+  readonly ticks = this.ticksSignal.asReadonly();
 
-  groupedTicks(): GroupSegment[] {
-    if (!this.ticks.length) {
+  private readonly contentWidthSignal = signal(0);
+  readonly contentWidth = this.contentWidthSignal.asReadonly();
+
+  private readonly periodsSignal = signal<TemplatePeriod[]>([]);
+  readonly periods = this.periodsSignal.asReadonly();
+
+  private readonly pixelsPerMsSignal = signal(0);
+  readonly pixelsPerMs = this.pixelsPerMsSignal.asReadonly();
+
+  private readonly timelineStartSignal = signal<Date | null>(null);
+  private readonly viewStartSignal = signal<Date | null>(null);
+  private readonly viewEndSignal = signal<Date | null>(null);
+
+  @Input({ required: true, alias: 'ticks' })
+  set ticksInput(value: Tick[] | null | undefined) {
+    this.ticksSignal.set(value ?? []);
+  }
+
+  @Input({ required: true, alias: 'contentWidth' })
+  set contentWidthInput(value: number | null | undefined) {
+    this.contentWidthSignal.set(Number(value) || 0);
+  }
+
+  @Input({ alias: 'periods' })
+  set periodsInput(value: TemplatePeriod[] | null | undefined) {
+    this.periodsSignal.set(value ?? []);
+  }
+
+  @Input({ alias: 'pixelsPerMs' })
+  set pixelsPerMsInput(value: number | null | undefined) {
+    this.pixelsPerMsSignal.set(Number(value) || 0);
+  }
+
+  @Input({ alias: 'timelineStart' })
+  set timelineStartInput(value: Date | null | undefined) {
+    this.timelineStartSignal.set(value ?? null);
+  }
+
+  @Input({ alias: 'viewStart' })
+  set viewStartInput(value: Date | null | undefined) {
+    this.viewStartSignal.set(value ?? null);
+  }
+
+  @Input({ alias: 'viewEnd' })
+  set viewEndInput(value: Date | null | undefined) {
+    this.viewEndSignal.set(value ?? null);
+  }
+
+  readonly groupedTickSegments = computed<GroupSegment[]>(() => {
+    const ticks = this.ticksSignal();
+    if (!ticks.length) {
       return [];
     }
 
@@ -54,7 +100,7 @@ export class GanttTimelineHeaderComponent {
       current = null;
     };
 
-    this.ticks.forEach((tick) => {
+    ticks.forEach((tick) => {
       if (tick.widthPx <= 0) {
         return;
       }
@@ -86,24 +132,24 @@ export class GanttTimelineHeaderComponent {
     flushCurrent();
 
     return segments;
-  }
+  });
 
-  periodVisuals(): PeriodVisual[] {
-    if (
-      !this.timelineStart ||
-      !this.viewStart ||
-      !this.viewEnd ||
-      !this.pixelsPerMs ||
-      !this.periods?.length
-    ) {
+  readonly periodVisuals = computed<PeriodVisual[]>(() => {
+    const timelineStart = this.timelineStartSignal();
+    const viewStart = this.viewStartSignal();
+    const viewEnd = this.viewEndSignal();
+    const pixelsPerMs = this.pixelsPerMsSignal();
+    const periods = this.periodsSignal();
+
+    if (!timelineStart || !viewStart || !viewEnd || !pixelsPerMs || !periods.length) {
       return [];
     }
-    const startMs = this.viewStart.getTime();
-    const endMs = this.viewEnd.getTime();
-    const timelineStartMs = this.timelineStart.getTime();
-    const palette = ['#4c6fff', '#2eb88a', '#f2a541', '#c95ff2', '#f26b6b', '#3ab0ff'];
 
-    return this.periods
+    const startMs = viewStart.getTime();
+    const endMs = viewEnd.getTime();
+    const timelineStartMs = timelineStart.getTime();
+
+    return periods
       .map((period, idx) => {
         const pStart = new Date(period.validFrom).getTime();
         const rawEnd = period.validTo ? new Date(period.validTo).getTime() : endMs;
@@ -113,16 +159,16 @@ export class GanttTimelineHeaderComponent {
         if (clampedEnd <= clampedStart) {
           return null;
         }
-        const leftPx = (clampedStart - timelineStartMs) * this.pixelsPerMs;
-        const widthPx = Math.max(2, (clampedEnd - clampedStart) * this.pixelsPerMs);
+        const leftPx = (clampedStart - timelineStartMs) * pixelsPerMs;
+        const widthPx = Math.max(2, (clampedEnd - clampedStart) * pixelsPerMs);
         return {
           id: period.id ?? `period-${idx}`,
           label: `${period.validFrom} – ${period.validTo ?? ''}`.trim(),
           offsetPx: leftPx,
           widthPx,
-          color: palette[idx % palette.length],
+          color: PERIOD_PALETTE[idx % PERIOD_PALETTE.length],
         };
       })
       .filter((p): p is PeriodVisual => p !== null);
-  }
+  });
 }

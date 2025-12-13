@@ -24,11 +24,10 @@ export type CompositionChangeEntryForm = FormGroup<{
 }>;
 
 @Component({
-  selector: 'app-vehicle-composition-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './vehicle-composition-form.component.html',
-  styleUrl: './vehicle-composition-form.component.scss',
+    selector: 'app-vehicle-composition-form',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './vehicle-composition-form.component.html',
+    styleUrl: './vehicle-composition-form.component.scss'
 })
 export class VehicleCompositionFormComponent {
   @Input({ required: true }) baseVehicles!: FormArray<CompositionBaseVehicleForm>;

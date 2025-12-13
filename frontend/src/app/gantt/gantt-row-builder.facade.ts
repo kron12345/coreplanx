@@ -1,0 +1,496 @@
+import type { Activity, ActivityParticipant } from '../models/activity';
+import type { Resource } from '../models/resource';
+import {
+  ActivityParticipantCategory,
+  classifyParticipant,
+  getActivityOwnersByCategory,
+  participantCategoryFromKind,
+} from '../models/activity-ownership';
+import { LayerGroupService } from '../core/services/layer-group.service';
+import { TimeScaleService } from '../core/services/time-scale.service';
+import type {
+  GanttGroupDefinition,
+  PreparedActivity,
+  PreparedActivitySlot,
+  ServiceRangeAccumulator,
+} from './gantt.models';
+import type {
+  GanttBar,
+  GanttServiceRange,
+  GanttServiceRangeStatus,
+} from './gantt-timeline-row.component';
+import { encodeSelectionSlot } from './gantt-selection.facade';
+
+const ALLOWED_RESOURCE_CATEGORIES = new Set([
+  'personnel',
+  'personnel-service',
+  'vehicle',
+  'vehicle-service',
+]);
+
+export class GanttRowBuilderFacade {
+  private readonly serviceLabelFormatter = new Intl.DateTimeFormat('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  constructor(
+    private readonly deps: {
+      timeScale: TimeScaleService;
+      layerGroups: LayerGroupService;
+      activityTypeInfo: () => Record<string, { label: string; showRoute: boolean }>;
+    },
+  ) {}
+
+  isDisplayableResource(resource: Resource): boolean {
+    const category = this.resolveCategory(resource);
+    if (category && ALLOWED_RESOURCE_CATEGORIES.has(category)) {
+      return true;
+    }
+    return ALLOWED_RESOURCE_CATEGORIES.has(resource.kind);
+  }
+
+  buildParticipantSlots(activity: PreparedActivity): PreparedActivitySlot[] {
+    if (!activity.participants || activity.participants.length === 0) {
+      return [];
+    }
+    const owners = getActivityOwnersByCategory(activity);
+    return activity.participants
+      .filter((participant): participant is ActivityParticipant => !!participant?.resourceId)
+      .map((participant, index) => {
+        const category = classifyParticipant(participant);
+        const ownerMatch =
+          (category === 'vehicle' && owners.vehicle?.resourceId === participant.resourceId) ||
+          (category === 'personnel' && owners.personnel?.resourceId === participant.resourceId);
+        const isOwner =
+          ownerMatch || (category === 'other' && index === 0 && !owners.vehicle && !owners.personnel);
+        const iconInfo = this.participantRoleIcon(participant, isOwner, category);
+        return {
+          id: `${activity.id}:${participant.resourceId}`,
+          activity,
+          participant,
+          resourceId: participant.resourceId,
+          category,
+          isOwner,
+          icon: iconInfo.icon,
+          iconLabel: iconInfo.label,
+        };
+      });
+  }
+
+  buildGroups(resources: Resource[]): GanttGroupDefinition[] {
+    const groups = new Map<string, GanttGroupDefinition>();
+    resources.forEach((resource) => {
+      const category = this.resolveCategory(resource);
+      const poolId = this.resolvePoolId(resource);
+      const poolName = this.resolvePoolName(resource);
+      const groupId = this.groupIdForParts(category, poolId);
+      const label = poolName ?? this.defaultGroupLabel(category, poolId);
+      const icon = this.iconForCategory(category);
+      const existing = groups.get(groupId);
+      if (existing) {
+        existing.resources.push(resource);
+      } else {
+        groups.set(groupId, {
+          id: groupId,
+          label,
+          icon,
+          category,
+          resources: [resource],
+        });
+      }
+    });
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        resources: [...group.resources].sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .sort((a, b) => {
+        const categoryDiff = this.categorySortKey(a.category) - this.categorySortKey(b.category);
+        if (categoryDiff !== 0) {
+          return categoryDiff;
+        }
+        return a.label.localeCompare(b.label);
+      });
+  }
+
+  buildTimelineData(options: {
+    resources: Resource[];
+    slotsByResource: Map<string, PreparedActivitySlot[]>;
+    pendingActivityId: string | null;
+    viewStart: Date;
+    viewEnd: Date;
+    selectedIds: ReadonlySet<string>;
+    primarySlots: ReadonlySet<string>;
+  }): Map<string, { bars: GanttBar[]; services: GanttServiceRange[] }> {
+    const map = new Map<string, { bars: GanttBar[]; services: GanttServiceRange[] }>();
+
+    const pendingId = options.pendingActivityId;
+    const startMs = options.viewStart.getTime();
+    const endMs = options.viewEnd.getTime();
+    const timeScale = this.deps.timeScale;
+
+    options.resources.forEach((resource) => {
+      const slots = options.slotsByResource.get(resource.id) ?? [];
+      const bars: GanttBar[] = [];
+      const serviceMap = new Map<string, ServiceRangeAccumulator>();
+      for (const slot of slots) {
+        const activity = slot.activity;
+        if (
+          activity.endMs < startMs - 2 * 60 * 60 * 1000 ||
+          activity.startMs > endMs + 2 * 60 * 60 * 1000
+        ) {
+          continue;
+        }
+        const rawLeft = timeScale.timeToPx(activity.startMs);
+        const rawRight = timeScale.timeToPx(activity.endMs);
+        const displayInfo = this.activityDisplayInfo(activity);
+        const isMilestone = !activity.end;
+        const left = Math.round(rawLeft);
+        const right = Math.round(rawRight);
+        let barWidth = Math.max(1, right - left);
+        let barLeft = left;
+        if (isMilestone) {
+          barWidth = 24;
+          barLeft = Math.round(rawLeft) - Math.floor(barWidth / 2);
+          const contentWidth = timeScale.contentWidth();
+          const maxLeft = Math.max(0, contentWidth - barWidth);
+          barLeft = Math.min(Math.max(0, barLeft), maxLeft);
+        }
+        const classes = this.resolveBarClasses(activity);
+        if (isMilestone) {
+          classes.push('gantt-activity--milestone');
+        }
+        const attrMap = activity.attributes as Record<string, unknown> | undefined;
+        const drawAs = typeof attrMap?.['draw_as'] === 'string' ? (attrMap['draw_as'] as string) : null;
+        const layerGroupId =
+          typeof attrMap?.['layer_group'] === 'string'
+            ? (attrMap['layer_group'] as string)
+            : typeof attrMap?.['layer'] === 'string'
+              ? (attrMap['layer'] as string)
+              : null;
+        const layerGroup =
+          this.deps.layerGroups.getById(layerGroupId) ?? this.deps.layerGroups.getById('default');
+        switch (drawAs) {
+          case 'line-above':
+            classes.push('gantt-activity--draw-line-above');
+            break;
+          case 'line-below':
+            classes.push('gantt-activity--draw-line-below');
+            break;
+          case 'shift-up':
+            classes.push('gantt-activity--draw-shift-up');
+            break;
+          case 'shift-down':
+            classes.push('gantt-activity--draw-shift-down');
+            break;
+          case 'dot':
+            classes.push('gantt-activity--draw-dot');
+            break;
+          case 'square':
+            classes.push('gantt-activity--draw-square');
+            break;
+          case 'triangle-up':
+            classes.push('gantt-activity--draw-triangle-up');
+            break;
+          case 'triangle-down':
+            classes.push('gantt-activity--draw-triangle-down');
+            break;
+          case 'thick':
+            classes.push('gantt-activity--draw-thick');
+            break;
+          case 'background':
+            classes.push('gantt-activity--draw-background');
+            break;
+          default:
+            break;
+        }
+        if (layerGroup?.id === 'background') {
+          classes.push('gantt-activity--layer-background');
+        } else if (layerGroup?.id === 'marker') {
+          classes.push('gantt-activity--layer-marker');
+        }
+        const isPending = pendingId === activity.id;
+        if (isPending) {
+          classes.push('gantt-activity--ghost', 'gantt-activity--pending');
+        }
+        const isMirror = !slot.isOwner;
+        if (isMirror) {
+          classes.push('gantt-activity--mirror');
+        }
+        const primarySelected = options.primarySlots.has(encodeSelectionSlot(activity.id, slot.resourceId));
+        bars.push({
+          id: slot.id,
+          activity,
+          left: barLeft,
+          width: barWidth,
+          classes,
+          color: this.extractActivityColor(activity),
+          dragDisabled: false,
+          selected: options.selectedIds.has(activity.id),
+          primarySelected,
+          label: displayInfo.label,
+          showRoute: !isMilestone && displayInfo.showRoute && !!(activity.from || activity.to),
+          isMirror,
+          zIndex: layerGroup?.order,
+          participantResourceId: slot.resourceId,
+          participantCategory: slot.category,
+          isOwner: slot.isOwner,
+          roleIcon: slot.icon,
+          roleLabel: slot.iconLabel,
+        });
+
+        const serviceId = activity.serviceId;
+        if (!serviceId) {
+          continue;
+        }
+        const displayStart = isMilestone ? barLeft + Math.round(barWidth / 2) : left;
+        const displayEnd = isMilestone ? barLeft + Math.round(barWidth / 2) : right;
+        let accumulator = serviceMap.get(serviceId);
+        if (!accumulator) {
+          accumulator = {
+            id: serviceId,
+            minLeft: Number.POSITIVE_INFINITY,
+            maxRight: Number.NEGATIVE_INFINITY,
+            startLeft: null,
+            endLeft: null,
+            startMs: null,
+            endMs: null,
+          };
+          serviceMap.set(serviceId, accumulator);
+        }
+        accumulator.minLeft = Math.min(accumulator.minLeft, displayStart);
+        accumulator.maxRight = Math.max(accumulator.maxRight, displayEnd);
+        if (
+          (activity.type === 'service-start' || activity.serviceRole === 'start') &&
+          (accumulator.startLeft === null || displayStart < accumulator.startLeft)
+        ) {
+          accumulator.startLeft = displayStart;
+          accumulator.startMs = activity.startMs;
+        }
+        if (
+          (activity.type === 'service-end' || activity.serviceRole === 'end') &&
+          (accumulator.endLeft === null || displayEnd > accumulator.endLeft)
+        ) {
+          accumulator.endLeft = displayEnd;
+          accumulator.endMs = activity.endMs;
+        }
+      }
+
+      const services = Array.from(serviceMap.values())
+        .map((entry) => this.createServiceRange(entry))
+        .filter((range): range is GanttServiceRange => !!range);
+      map.set(resource.id, { bars, services });
+    });
+
+    return map;
+  }
+
+  resourceCategoryFromKind(kind: Resource['kind'] | null | undefined): ActivityParticipantCategory {
+    return participantCategoryFromKind(kind ?? undefined);
+  }
+
+  private extractActivityColor(activity: Activity): string | null {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const keys = ['color', 'bar_color', 'display_color', 'main_color'];
+    for (const key of keys) {
+      const val = attrs?.[key];
+      if (typeof val === 'string' && val.trim().length > 0) {
+        return val.trim();
+      }
+    }
+    return null;
+  }
+
+  private resolveCategory(resource: Resource): string | null {
+    const attributes = resource.attributes as Record<string, unknown> | undefined;
+    const category = attributes?.['category'];
+    return typeof category === 'string' ? category : null;
+  }
+
+  private resolvePoolId(resource: Resource): string | null {
+    const attributes = resource.attributes as Record<string, unknown> | undefined;
+    const poolId = attributes?.['poolId'];
+    return typeof poolId === 'string' ? poolId : null;
+  }
+
+  private resolvePoolName(resource: Resource): string | null {
+    const attributes = resource.attributes as Record<string, unknown> | undefined;
+    const poolName = attributes?.['poolName'];
+    return typeof poolName === 'string' && poolName.length > 0 ? poolName : null;
+  }
+
+  private groupIdForParts(category: string | null, poolId: string | null): string {
+    return `${category ?? 'uncategorized'}|${poolId ?? 'none'}`;
+  }
+
+  private iconForCategory(category: string | null): string {
+    switch (category) {
+      case 'vehicle-service':
+        return 'route';
+      case 'personnel-service':
+        return 'badge';
+      case 'vehicle':
+        return 'directions_transit';
+      case 'personnel':
+        return 'groups';
+      default:
+        return 'inventory_2';
+    }
+  }
+
+  private participantRoleIcon(
+    participant: ActivityParticipant,
+    isOwner: boolean,
+    category: ActivityParticipantCategory,
+  ): { icon: string | null; label: string | null } {
+    switch (participant.role) {
+      case 'teacher':
+        return { icon: 'school', label: 'Lehrer' };
+      case 'student':
+        return { icon: 'face', label: 'Schüler' };
+      case 'primary-personnel':
+        return { icon: 'workspace_premium', label: 'Hauptpersonal' };
+      case 'secondary-personnel':
+        return { icon: 'groups', label: 'Begleitpersonal' };
+      case 'primary-vehicle':
+        return { icon: 'train', label: 'Fahrzeug (Primär)' };
+      case 'secondary-vehicle':
+        return { icon: 'directions_transit', label: 'Fahrzeug (Sekundär)' };
+      default:
+        break;
+    }
+    if (!isOwner) {
+      return { icon: 'link', label: 'Verknüpfte Ressource' };
+    }
+    if (category === 'vehicle') {
+      return { icon: 'train', label: 'Fahrzeug' };
+    }
+    if (category === 'personnel') {
+      return { icon: 'badge', label: 'Personal' };
+    }
+    return { icon: null, label: null };
+  }
+
+  private defaultGroupLabel(category: string | null, poolId: string | null): string {
+    switch (category) {
+      case 'vehicle-service':
+        return poolId ? `Fahrzeugdienst-Pool ${poolId}` : 'Fahrzeugdienste';
+      case 'personnel-service':
+        return poolId ? `Personaldienst-Pool ${poolId}` : 'Personaldienste';
+      case 'vehicle':
+        return poolId ? `Fahrzeugpool ${poolId}` : 'Fahrzeuge';
+      case 'personnel':
+        return poolId ? `Personalpool ${poolId}` : 'Personal';
+      default:
+        return 'Weitere Ressourcen';
+    }
+  }
+
+  private categorySortKey(category: string | null): number {
+    switch (category) {
+      case 'vehicle-service':
+        return 0;
+      case 'personnel-service':
+        return 1;
+      case 'vehicle':
+        return 2;
+      case 'personnel':
+        return 3;
+      default:
+        return 99;
+    }
+  }
+
+  private resolveBarClasses(activity: PreparedActivity): string[] {
+    const classes: string[] = [];
+    if (activity.serviceId) {
+      classes.push('gantt-activity--within-service');
+      if (activity.serviceRole === 'start' || activity.type === 'service-start') {
+        classes.push('gantt-activity--service-boundary', 'gantt-activity--service-boundary-start');
+      } else if (activity.serviceRole === 'end' || activity.type === 'service-end') {
+        classes.push('gantt-activity--service-boundary', 'gantt-activity--service-boundary-end');
+      }
+    } else {
+      classes.push('gantt-activity--outside-service');
+    }
+    return classes;
+  }
+
+  private createServiceRange(entry: ServiceRangeAccumulator): GanttServiceRange | null {
+    const hasStart = entry.startLeft !== null;
+    const hasEnd = entry.endLeft !== null;
+    if (!hasStart && !hasEnd && !Number.isFinite(entry.minLeft) && !Number.isFinite(entry.maxRight)) {
+      return null;
+    }
+    let left: number;
+    let right: number;
+    if (hasStart && hasEnd) {
+      left = Math.min(entry.startLeft!, entry.endLeft!);
+      right = Math.max(entry.startLeft!, entry.endLeft!);
+    } else {
+      const fallbackLeft = Number.isFinite(entry.minLeft)
+        ? entry.minLeft
+        : entry.endLeft ?? entry.startLeft ?? 0;
+      const fallbackRight = Number.isFinite(entry.maxRight)
+        ? entry.maxRight
+        : entry.startLeft ?? entry.endLeft ?? fallbackLeft;
+      left = Math.min(fallbackLeft, fallbackRight);
+      right = Math.max(fallbackLeft, fallbackRight);
+      if (hasStart && !hasEnd) {
+        left = Math.min(left, entry.startLeft!);
+        right = Math.max(right, entry.startLeft! + 32);
+      } else if (!hasStart && hasEnd) {
+        right = Math.max(right, entry.endLeft!);
+        left = Math.min(left, entry.endLeft! - 32);
+      } else if (!hasStart && !hasEnd) {
+        right = Math.max(right, left + 32);
+      }
+    }
+    if (right - left < 12) {
+      right = left + 12;
+    }
+    if (left < 0) {
+      right -= left;
+      left = 0;
+    }
+    const status: GanttServiceRangeStatus =
+      hasStart && hasEnd ? 'complete' : hasStart ? 'missing-end' : hasEnd ? 'missing-start' : 'missing-both';
+    const label = this.buildServiceRangeLabel(entry.startMs, entry.endMs, status);
+    return {
+      id: entry.id,
+      label,
+      left,
+      width: Math.max(4, right - left),
+      status,
+    };
+  }
+
+  private buildServiceRangeLabel(
+    startMs: number | null,
+    endMs: number | null,
+    status: GanttServiceRangeStatus,
+  ): string {
+    const format = (value: number | null) => (value ? this.serviceLabelFormatter.format(new Date(value)) : '—');
+    switch (status) {
+      case 'complete':
+        return `Dienst ${format(startMs)} – ${format(endMs)}`;
+      case 'missing-end':
+        return `Dienst ${format(startMs)} • Ende fehlt`;
+      case 'missing-start':
+        return `Dienst ${format(endMs)} • Start fehlt`;
+      default:
+        return 'Dienst (unvollständig)';
+    }
+  }
+
+  private activityDisplayInfo(activity: Activity): { label: string; showRoute: boolean } {
+    const typeId = activity.type ?? '';
+    const info = this.deps.activityTypeInfo()[typeId];
+    const label = info?.label ?? (typeId || 'Aktivität');
+    const showRoute = info?.showRoute ?? false;
+    return { label, showRoute };
+  }
+}
+

@@ -6,12 +6,11 @@ import { MatDividerModule } from '@angular/material/divider';
 import { Resource } from '../models/resource';
 
 @Component({
-  selector: 'app-gantt-resources',
-  standalone: true,
-  imports: [CommonModule, MatMenuModule, MatIconModule, MatDividerModule],
-  templateUrl: './gantt-resources.component.html',
-  styleUrl: './gantt-resources.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-gantt-resources',
+    imports: [CommonModule, MatMenuModule, MatIconModule, MatDividerModule],
+    templateUrl: './gantt-resources.component.html',
+    styleUrl: './gantt-resources.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttResourcesComponent {
   @Input({ required: true }) resource!: Resource;

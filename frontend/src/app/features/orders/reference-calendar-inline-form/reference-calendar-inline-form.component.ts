@@ -8,11 +8,10 @@ import { TimetableYearBounds } from '../../../core/models/timetable-year.model';
 import { Subscription } from 'rxjs';
 
 @Component({
-  selector: 'app-reference-calendar-inline-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AnnualCalendarSelectorComponent, ...MATERIAL_IMPORTS],
-  templateUrl: './reference-calendar-inline-form.component.html',
-  styleUrl: './reference-calendar-inline-form.component.scss',
+    selector: 'app-reference-calendar-inline-form',
+    imports: [CommonModule, ReactiveFormsModule, AnnualCalendarSelectorComponent, ...MATERIAL_IMPORTS],
+    templateUrl: './reference-calendar-inline-form.component.html',
+    styleUrl: './reference-calendar-inline-form.component.scss'
 })
 export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
   @Input({ required: true }) yearControl!: FormControl;

@@ -97,13 +97,13 @@
         }
 
         mat-chip.tag-chip {
-          --mdc-chip-outline-color: rgba(144, 202, 249, 0.55);
-          --mdc-chip-outline-width: 1px;
-          --mdc-chip-container-color: rgba(33, 150, 243, 0.18);
-          --mdc-chip-label-text-color: #e3f2fd;
-          --mdc-chip-label-letter-spacing: 0.02em;
-          --mdc-chip-label-font-size: 0.75rem;
-          --mdc-chip-label-font-weight: 500;
+          --mat-chip-outline-color: rgba(144, 202, 249, 0.55);
+          --mat-chip-outline-width: 1px;
+          --mat-chip-container-color: rgba(33, 150, 243, 0.18);
+          --mat-chip-label-text-color: #e3f2fd;
+          --mat-chip-label-letter-spacing: 0.02em;
+          --mat-chip-label-font-size: 0.75rem;
+          --mat-chip-label-font-weight: 500;
           display: inline-flex;
           align-items: center;
           gap: 4px;
@@ -263,8 +263,8 @@
         }
 
         .status-chip {
-          --mdc-chip-label-text-color: #f8fbff;
-          --mdc-chip-outline-width: 1px;
+          --mat-chip-label-text-color: #f8fbff;
+          --mat-chip-outline-width: 1px;
           font-size: 0.78rem;
           text-transform: uppercase;
           letter-spacing: 0.08em;
@@ -282,122 +282,122 @@
         }
 
         .status-chip--train {
-          --mdc-chip-container-color: rgba(66, 165, 245, 0.25);
-          --mdc-chip-outline-color: rgba(187, 222, 251, 0.9);
-          --mdc-chip-label-text-color: #e3f2fd;
+          --mat-chip-container-color: rgba(66, 165, 245, 0.25);
+          --mat-chip-outline-color: rgba(187, 222, 251, 0.9);
+          --mat-chip-label-text-color: #e3f2fd;
         }
 
         .status-chip--business {
-          --mdc-chip-container-color: rgba(102, 187, 106, 0.23);
-          --mdc-chip-outline-color: rgba(200, 230, 201, 0.9);
-          --mdc-chip-label-text-color: #f1fff0;
+          --mat-chip-container-color: rgba(102, 187, 106, 0.23);
+          --mat-chip-outline-color: rgba(200, 230, 201, 0.9);
+          --mat-chip-label-text-color: #f1fff0;
         }
 
         .status-chip--phase {
-          --mdc-chip-container-color: rgba(149, 117, 205, 0.28);
-          --mdc-chip-outline-color: rgba(209, 196, 233, 0.9);
-          --mdc-chip-label-text-color: #f3e5f5;
+          --mat-chip-container-color: rgba(149, 117, 205, 0.28);
+          --mat-chip-outline-color: rgba(209, 196, 233, 0.9);
+          --mat-chip-label-text-color: #f3e5f5;
         }
         .status-chip--ttr {
-          --mdc-chip-container-color: rgba(3, 155, 229, 0.24);
-          --mdc-chip-outline-color: rgba(144, 202, 249, 0.8);
-          --mdc-chip-label-text-color: #e3f2fd;
+          --mat-chip-container-color: rgba(3, 155, 229, 0.24);
+          --mat-chip-outline-color: rgba(144, 202, 249, 0.8);
+          --mat-chip-label-text-color: #e3f2fd;
         }
         .status-chip--ttr.ttr-phase-capacity-supply {
-          --mdc-chip-container-color: rgba(21, 101, 192, 0.35);
-          --mdc-chip-outline-color: rgba(144, 202, 249, 0.9);
+          --mat-chip-container-color: rgba(21, 101, 192, 0.35);
+          --mat-chip-outline-color: rgba(144, 202, 249, 0.9);
         }
         .status-chip--ttr.ttr-phase-annual-request {
-          --mdc-chip-container-color: rgba(30, 136, 229, 0.32);
-          --mdc-chip-outline-color: rgba(187, 222, 251, 0.9);
+          --mat-chip-container-color: rgba(30, 136, 229, 0.32);
+          --mat-chip-outline-color: rgba(187, 222, 251, 0.9);
         }
         .status-chip--ttr.ttr-phase-final-offer {
-          --mdc-chip-container-color: rgba(244, 143, 177, 0.32);
-          --mdc-chip-outline-color: rgba(255, 205, 210, 0.9);
+          --mat-chip-container-color: rgba(244, 143, 177, 0.32);
+          --mat-chip-outline-color: rgba(255, 205, 210, 0.9);
         }
         .status-chip--ttr.ttr-phase-rolling-planning {
-          --mdc-chip-container-color: rgba(126, 87, 194, 0.32);
-          --mdc-chip-outline-color: rgba(206, 147, 216, 0.9);
+          --mat-chip-container-color: rgba(126, 87, 194, 0.32);
+          --mat-chip-outline-color: rgba(206, 147, 216, 0.9);
         }
         .status-chip--ttr.ttr-phase-short-term {
-          --mdc-chip-container-color: rgba(255, 183, 77, 0.32);
-          --mdc-chip-outline-color: rgba(255, 224, 178, 0.9);
+          --mat-chip-container-color: rgba(255, 183, 77, 0.32);
+          --mat-chip-outline-color: rgba(255, 224, 178, 0.9);
         }
         .status-chip--ttr.ttr-phase-ad-hoc {
-          --mdc-chip-container-color: rgba(239, 83, 80, 0.32);
-          --mdc-chip-outline-color: rgba(255, 205, 210, 0.9);
+          --mat-chip-container-color: rgba(239, 83, 80, 0.32);
+          --mat-chip-outline-color: rgba(255, 205, 210, 0.9);
         }
         .status-chip--ttr.ttr-phase-operational-delivery {
-          --mdc-chip-container-color: rgba(38, 166, 154, 0.32);
-          --mdc-chip-outline-color: rgba(128, 203, 196, 0.9);
+          --mat-chip-container-color: rgba(38, 166, 154, 0.32);
+          --mat-chip-outline-color: rgba(128, 203, 196, 0.9);
         }
 
         .status-chip--variant {
-          --mdc-chip-container-color: rgba(255, 255, 255, 0.16);
-          --mdc-chip-outline-color: rgba(255, 255, 255, 0.35);
-          --mdc-chip-label-text-color: #f8fbff;
+          --mat-chip-container-color: rgba(255, 255, 255, 0.16);
+          --mat-chip-outline-color: rgba(255, 255, 255, 0.35);
+          --mat-chip-label-text-color: #f8fbff;
 
           &.variant-productive {
-            --mdc-chip-container-color: rgba(46, 125, 50, 0.28);
-            --mdc-chip-outline-color: rgba(200, 230, 201, 0.9);
-            --mdc-chip-label-text-color: #f1fff0;
+            --mat-chip-container-color: rgba(46, 125, 50, 0.28);
+            --mat-chip-outline-color: rgba(200, 230, 201, 0.9);
+            --mat-chip-label-text-color: #f1fff0;
           }
 
           &.variant-simulation {
-            --mdc-chip-container-color: rgba(3, 155, 229, 0.3);
-            --mdc-chip-outline-color: rgba(144, 202, 249, 0.9);
-            --mdc-chip-label-text-color: #e3f2fd;
+            --mat-chip-container-color: rgba(3, 155, 229, 0.3);
+            --mat-chip-outline-color: rgba(144, 202, 249, 0.9);
+            --mat-chip-label-text-color: #e3f2fd;
           }
         }
 
         .status-chip--train.status-requested {
-          --mdc-chip-outline-color: #90caf9;
-          --mdc-chip-container-color: rgba(30, 136, 229, 0.3);
+          --mat-chip-outline-color: #90caf9;
+          --mat-chip-container-color: rgba(30, 136, 229, 0.3);
         }
 
         .status-chip--train.status-not-ordered {
-          --mdc-chip-outline-color: #cbd5f5;
-          --mdc-chip-container-color: rgba(99, 102, 241, 0.28);
+          --mat-chip-outline-color: #cbd5f5;
+          --mat-chip-container-color: rgba(99, 102, 241, 0.28);
         }
 
         .status-chip--train.status-offered {
-          --mdc-chip-outline-color: #ce93d8;
-          --mdc-chip-container-color: rgba(123, 31, 162, 0.32);
+          --mat-chip-outline-color: #ce93d8;
+          --mat-chip-container-color: rgba(123, 31, 162, 0.32);
         }
 
         .status-chip--train.status-confirmed {
-          --mdc-chip-outline-color: #a5d6a7;
-          --mdc-chip-container-color: rgba(46, 125, 50, 0.32);
+          --mat-chip-outline-color: #a5d6a7;
+          --mat-chip-container-color: rgba(46, 125, 50, 0.32);
         }
 
         .status-chip--train.status-operating {
-          --mdc-chip-outline-color: #80cbc4;
-          --mdc-chip-container-color: rgba(0, 121, 107, 0.32);
+          --mat-chip-outline-color: #80cbc4;
+          --mat-chip-container-color: rgba(0, 121, 107, 0.32);
         }
 
         .status-chip--train.status-canceled {
-          --mdc-chip-outline-color: #ef9a9a;
-          --mdc-chip-container-color: rgba(211, 47, 47, 0.32);
+          --mat-chip-outline-color: #ef9a9a;
+          --mat-chip-container-color: rgba(211, 47, 47, 0.32);
         }
 
         .status-chip--business.status-neu {
-          --mdc-chip-outline-color: #bbdefb;
-          --mdc-chip-container-color: rgba(66, 165, 245, 0.28);
+          --mat-chip-outline-color: #bbdefb;
+          --mat-chip-container-color: rgba(66, 165, 245, 0.28);
         }
 
         .status-chip--business.status-in-arbeit {
-          --mdc-chip-outline-color: #80deea;
-          --mdc-chip-container-color: rgba(0, 188, 212, 0.28);
+          --mat-chip-outline-color: #80deea;
+          --mat-chip-container-color: rgba(0, 188, 212, 0.28);
         }
 
         .status-chip--business.status-pausiert {
-          --mdc-chip-outline-color: #ffb74d;
-          --mdc-chip-container-color: rgba(255, 160, 0, 0.28);
+          --mat-chip-outline-color: #ffb74d;
+          --mat-chip-container-color: rgba(255, 160, 0, 0.28);
         }
 
         .status-chip--business.status-erledigt {
-          --mdc-chip-outline-color: #a5d6a7;
-          --mdc-chip-container-color: rgba(67, 160, 71, 0.28);
+          --mat-chip-outline-color: #a5d6a7;
+          --mat-chip-container-color: rgba(67, 160, 71, 0.28);
         }
       }
       .year-chip-set {
@@ -406,9 +406,9 @@
       }
 
       .year-chip {
-        --mdc-chip-outline-color: rgba(255, 255, 255, 0.3);
-        --mdc-chip-container-color: rgba(255, 255, 255, 0.12);
-        --mdc-chip-label-text-color: #f5f7fa;
+        --mat-chip-outline-color: rgba(255, 255, 255, 0.3);
+        --mat-chip-container-color: rgba(255, 255, 255, 0.12);
+        --mat-chip-label-text-color: #f5f7fa;
         display: inline-flex;
         align-items: center;
         gap: 4px;

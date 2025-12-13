@@ -27,10 +27,9 @@ const DEFAULT_FALLBACK = {
 };
 
 @Component({
-  selector: 'app-replacement-stop-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  template: `
+    selector: 'app-replacement-stop-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    template: `
     <app-attribute-entity-editor
       [title]="'Replacement Stops'"
       [entities]="entityRecords()"
@@ -46,7 +45,7 @@ const DEFAULT_FALLBACK = {
       (actionTriggered)="handleAction($event)"
     />
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReplacementStopEditorComponent {
   private readonly store = inject(PlanningStoreService);

@@ -14,19 +14,18 @@ import { TrafficPeriodVariantScope, TrafficPeriodVariantType } from '../../core/
 import { TrafficPeriodRulePanelComponent } from './traffic-period-rule-panel.component';
 
 @Component({
-  selector: 'app-traffic-period-rules-section',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatExpansionModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    TrafficPeriodRulePanelComponent,
-  ],
-  templateUrl: './traffic-period-rules-section.component.html',
-  styleUrl: './traffic-period-rules-section.component.scss',
+    selector: 'app-traffic-period-rules-section',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatExpansionModule,
+        MatButtonModule,
+        MatIconModule,
+        MatChipsModule,
+        TrafficPeriodRulePanelComponent,
+    ],
+    templateUrl: './traffic-period-rules-section.component.html',
+    styleUrl: './traffic-period-rules-section.component.scss'
 })
 export class TrafficPeriodRulesSectionComponent {
   @Input({ required: true }) rules!: FormArray<FormGroup<TrafficPeriodRuleForm>>;

@@ -13,18 +13,17 @@ import { MasterDataCategoryComponent } from '../master-data-category/master-data
 import { MasterDataHierarchySectionComponent } from '../master-data-hierarchy-section/master-data-hierarchy-section.component';
 
 @Component({
-  selector: 'app-master-data-layout',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatTabsModule,
-    MatIconModule,
-    MasterDataCategoryComponent,
-    MasterDataHierarchySectionComponent,
-  ],
-  templateUrl: './master-data-layout.component.html',
-  styleUrl: './master-data-layout.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-master-data-layout',
+    imports: [
+        CommonModule,
+        MatTabsModule,
+        MatIconModule,
+        MasterDataCategoryComponent,
+        MasterDataHierarchySectionComponent,
+    ],
+    templateUrl: './master-data-layout.component.html',
+    styleUrl: './master-data-layout.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MasterDataLayoutComponent {
   @Input({ required: true }) title = '';

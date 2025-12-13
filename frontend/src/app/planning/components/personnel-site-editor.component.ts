@@ -24,10 +24,9 @@ const DEFAULT_FALLBACK = {
 const SITE_TYPES: PersonnelSiteType[] = ['MELDESTELLE', 'PAUSENRAUM', 'BEREITSCHAFT', 'BÜRO'];
 
 @Component({
-  selector: 'app-personnel-site-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  template: `
+    selector: 'app-personnel-site-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    template: `
     <app-attribute-entity-editor
       [title]="'Personnel Sites'"
       [entities]="entityRecords()"
@@ -42,7 +41,7 @@ const SITE_TYPES: PersonnelSiteType[] = ['MELDESTELLE', 'PAUSENRAUM', 'BEREITSCH
       (actionTriggered)="handleAction($event)"
     />
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PersonnelSiteEditorComponent {
   private readonly store = inject(PlanningStoreService);

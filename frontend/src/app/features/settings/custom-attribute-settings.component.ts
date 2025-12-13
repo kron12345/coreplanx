@@ -8,19 +8,18 @@ import { ActivityTypeSettingsComponent } from './activity-type-settings.componen
 import { LayerGroupSettingsComponent } from './layer-group-settings.component';
 
 @Component({
-  selector: 'app-custom-attribute-settings',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatTabsModule,
-    AttributeDefinitionEditorComponent,
-    ActivityCatalogSettingsComponent,
-    TranslationSettingsComponent,
-    ActivityTypeSettingsComponent,
-    LayerGroupSettingsComponent,
-  ],
-  templateUrl: './custom-attribute-settings.component.html',
-  styleUrl: './custom-attribute-settings.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-custom-attribute-settings',
+    imports: [
+        CommonModule,
+        MatTabsModule,
+        AttributeDefinitionEditorComponent,
+        ActivityCatalogSettingsComponent,
+        TranslationSettingsComponent,
+        ActivityTypeSettingsComponent,
+        LayerGroupSettingsComponent,
+    ],
+    templateUrl: './custom-attribute-settings.component.html',
+    styleUrl: './custom-attribute-settings.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CustomAttributeSettingsComponent {}

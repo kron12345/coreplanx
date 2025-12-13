@@ -13,10 +13,9 @@ interface DialogData {
 }
 
 @Component({
-  selector: 'app-planning-periods-dialog',
-  standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule],
-  template: `
+    selector: 'app-planning-periods-dialog',
+    imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule],
+    template: `
     <h2 mat-dialog-title>Zeiträume verwalten</h2>
     <div mat-dialog-content>
       <p class="muted">Fahrplanjahr {{ data.year.label }} ({{ data.year.startIso }} – {{ data.year.endIso }})</p>
@@ -62,8 +61,8 @@ interface DialogData {
       <button mat-stroked-button (click)="dialogRef.close()">Schließen</button>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .period-list {
         display: flex;
         flex-direction: column;
@@ -101,8 +100,8 @@ interface DialogData {
         border-radius: 6px;
       }
     `,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PlanningPeriodsDialogComponent {
   protected readonly dialogRef = inject(MatDialogRef<PlanningPeriodsDialogComponent>);

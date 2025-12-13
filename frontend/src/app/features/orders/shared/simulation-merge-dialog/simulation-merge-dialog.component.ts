@@ -19,12 +19,11 @@ export interface SimulationMergeDialogResult {
 type DiffEntry = { field: string; simulation: string | undefined; productive: string | undefined };
 
 @Component({
-  selector: 'app-simulation-merge-dialog',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS],
-  templateUrl: './simulation-merge-dialog.component.html',
-  styleUrl: './simulation-merge-dialog.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-simulation-merge-dialog',
+    imports: [CommonModule, ...MATERIAL_IMPORTS],
+    templateUrl: './simulation-merge-dialog.component.html',
+    styleUrl: './simulation-merge-dialog.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SimulationMergeDialogComponent {
   private readonly dialogRef =

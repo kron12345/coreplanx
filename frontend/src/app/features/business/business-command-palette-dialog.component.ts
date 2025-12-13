@@ -23,18 +23,17 @@ export interface BusinessCommandPaletteData {
 }
 
 @Component({
-  selector: 'app-business-command-palette-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatIconModule,
-    MatListModule,
-    MatButtonModule,
-    MatInputModule,
-  ],
-  template: `
+    selector: 'app-business-command-palette-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatIconModule,
+        MatListModule,
+        MatButtonModule,
+        MatInputModule,
+    ],
+    template: `
     <h2 mat-dialog-title>Befehlspalette</h2>
     <div mat-dialog-content class="command-palette">
       <mat-form-field appearance="outline" class="command-search">
@@ -70,8 +69,8 @@ export interface BusinessCommandPaletteData {
       <button mat-button mat-dialog-close>Schließen</button>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .command-palette {
         display: flex;
         flex-direction: column;
@@ -95,7 +94,7 @@ export interface BusinessCommandPaletteData {
         text-align: center;
       }
     `,
-  ],
+    ]
 })
 export class BusinessCommandPaletteDialogComponent {
   private readonly dialogRef =

@@ -23,25 +23,24 @@ interface TranslationRow {
 }
 
 @Component({
-  selector: 'app-translation-settings',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-    MatDividerModule,
-    MatSelectModule,
-    MatAutocompleteModule,
-  ],
-  templateUrl: './translation-settings.component.html',
-  styleUrl: './translation-settings.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-translation-settings',
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatCardModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatButtonModule,
+        MatIconModule,
+        MatTooltipModule,
+        MatDividerModule,
+        MatSelectModule,
+        MatAutocompleteModule,
+    ],
+    templateUrl: './translation-settings.component.html',
+    styleUrl: './translation-settings.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TranslationSettingsComponent {
   private readonly i18n = inject(TranslationService);

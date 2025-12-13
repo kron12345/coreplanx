@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   GanttActivityComponent,
@@ -17,7 +17,7 @@ export interface GanttBar {
   classes?: string[];
   zIndex?: number;
   selected?: boolean;
-   primarySelected?: boolean;
+  primarySelected?: boolean;
   label?: string;
   showRoute?: boolean;
   dragDisabled?: boolean;
@@ -47,11 +47,11 @@ export interface GanttServiceRange {
 }
 
 @Component({
-  selector: 'app-gantt-timeline-row',
-  standalone: true,
-  imports: [CommonModule, GanttActivityComponent, DragDropModule],
-  templateUrl: './gantt-timeline-row.component.html',
-  styleUrl: './gantt-timeline-row.component.scss',
+    selector: 'app-gantt-timeline-row',
+    imports: [CommonModule, GanttActivityComponent, DragDropModule],
+    templateUrl: './gantt-timeline-row.component.html',
+    styleUrl: './gantt-timeline-row.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttTimelineRowComponent {
   @Input({ required: true }) bars: GanttBar[] = [];

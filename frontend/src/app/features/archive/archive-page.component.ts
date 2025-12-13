@@ -6,11 +6,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
-  selector: 'app-archive-page',
-  standalone: true,
-  imports: [...MATERIAL_IMPORTS, TrainPlanListComponent, TrafficPeriodListComponent],
-  templateUrl: './archive-page.component.html',
-  styleUrl: './archive-page.component.scss',
+    selector: 'app-archive-page',
+    imports: [...MATERIAL_IMPORTS, TrainPlanListComponent, TrafficPeriodListComponent],
+    templateUrl: './archive-page.component.html',
+    styleUrl: './archive-page.component.scss'
 })
 export class ArchivePageComponent {
   private readonly route = inject(ActivatedRoute);

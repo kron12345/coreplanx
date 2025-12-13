@@ -1,4 +1,4 @@
-import { Component, Signal, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Signal, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,7 +13,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDialog } from '@angular/material/dialog';
-import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { GanttComponent } from '../../gantt/gantt.component';
 import { GanttWindowLauncherComponent } from './components/gantt-window-launcher.component';
 import { DragDropModule } from '@angular/cdk/drag-drop';
@@ -44,12 +44,10 @@ import {
   PlanningStageMeta,
 } from './planning-stage.model';
 import { ActivatedRoute, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 import { SimulationService } from '../../core/services/simulation.service';
 import { SimulationRecord } from '../../core/models/simulation.model';
-import { DurationPipe } from '../../shared/pipes/duration.pipe';
 import { ActivityLinkRole, ActivityLinkRoleDialogComponent, ActivityLinkRoleDialogResult } from './activity-link-role-dialog.component';
 import { TemplateTimelineStoreService } from './template-timeline-store.service';
 import { PlanningBoard, PlanningStageStore, StageRuntimeState } from './stores/planning-stage.store';
@@ -190,31 +188,29 @@ type ActivityTypePickerGroup = {
 };
 
 @Component({
-  selector: 'app-planning-dashboard',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatIconModule,
-    MatButtonModule,
-    MatButtonToggleModule,
-    MatTabsModule,
-    MatMenuModule,
-    MatTooltipModule,
-    MatCheckboxModule,
-    MatChipsModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    DragDropModule,
-    DurationPipe,
-    GanttComponent,
-    GanttWindowLauncherComponent,
-  ],
-  templateUrl: './planning-dashboard.component.html',
-  styleUrl: './planning-dashboard.component.scss',
+    selector: 'app-planning-dashboard',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatIconModule,
+        MatButtonModule,
+        MatButtonToggleModule,
+        MatTabsModule,
+        MatMenuModule,
+        MatTooltipModule,
+        MatCheckboxModule,
+        MatChipsModule,
+        MatCardModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        DragDropModule,
+        GanttComponent,
+        GanttWindowLauncherComponent,
+    ],
+    templateUrl: './planning-dashboard.component.html',
+    styleUrl: './planning-dashboard.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PlanningDashboardComponent {
   private readonly data = inject(PlanningDataService);
@@ -773,26 +769,6 @@ export class PlanningDashboardComponent {
     const state = this.stageStore.stageState(stage)();
     return Math.max(0, state.boards.findIndex((board) => board.id === state.activeBoardId));
   });
-
-  protected trackResource(_: number, resource: Resource): string {
-    return resource.id;
-  }
-
-  protected trackBoard(_: number, board: PlanningBoard): string {
-    return board.id;
-  }
-
-  protected trackFocus(_: number, focus: string): string {
-    return focus;
-  }
-
-  protected trackActivityCatalog(_: number, option: ActivityCatalogOption): string {
-    return option.id;
-  }
-
-  protected trackActivity(_: number, item: { activity: Activity; resource: Resource }): string {
-    return item.activity.id;
-  }
 
   protected activityTypeLabel(typeId: string | null | undefined): string {
     if (!typeId) {

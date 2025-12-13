@@ -1,36 +1,43 @@
 <section class="planning-dashboard">
   <header class="planning-toolbar">
     <div class="planning-toolbar__bar">
-      <div class="planning-toolbar__summary-block">
-        <div class="planning-toolbar__alerts">
-          <div class="alert" *ngIf="resourceError()">
-            <mat-icon fontIcon="error"></mat-icon>
-            {{ resourceError() }}
+        <div class="planning-toolbar__summary-block">
+          <div class="planning-toolbar__alerts">
+            @if (resourceError(); as error) {
+              <div class="alert">
+                <mat-icon fontIcon="error"></mat-icon>
+                {{ error }}
+              </div>
+            }
+            @if (timelineError(activeStageId()); as error) {
+              <div class="alert">
+                <mat-icon fontIcon="error_outline"></mat-icon>
+                {{ error }}
+              </div>
+            }
+            @if (templateError(); as error) {
+              <div class="alert">
+                <mat-icon fontIcon="warning"></mat-icon>
+                {{ error }}
+              </div>
+            }
           </div>
-          <div class="alert" *ngIf="timelineError(activeStageId())">
-            <mat-icon fontIcon="error_outline"></mat-icon>
-            {{ timelineError(activeStageId()) }}
-          </div>
-          <div class="alert" *ngIf="templateError()">
-            <mat-icon fontIcon="warning"></mat-icon>
-            {{ templateError() }}
-          </div>
-        </div>
         <span class="planning-toolbar__summary">
           {{ boards().length }} Plantafel(n) · {{ resources().length }} Ressourcen ·
           {{ selectionSize() }} ausgewählt · {{ selectedSimulationLabel() }}
         </span>
-        <button
-          *ngIf="activeStageId() === 'base'"
-          mat-stroked-button
-          color="primary"
-          class="planning-toolbar__base-toggle"
-          (click)="openPeriodsWindow()"
-          matTooltip="Zeiträume und Spezialtage in neuem Fenster bearbeiten."
-        >
-          <mat-icon fontIcon="view_week"></mat-icon>
-          Zeiträume bearbeiten
-        </button>
+        @if (activeStageId() === 'base') {
+          <button
+            mat-stroked-button
+            color="primary"
+            class="planning-toolbar__base-toggle"
+            (click)="openPeriodsWindow()"
+            matTooltip="Zeiträume und Spezialtage in neuem Fenster bearbeiten."
+          >
+            <mat-icon fontIcon="view_week"></mat-icon>
+            Zeiträume bearbeiten
+          </button>
+        }
       </div>
 
       <div class="planning-filter-bar">
@@ -193,23 +200,19 @@
   </header>
 
   <mat-menu #selectionAddMenu="matMenu">
-    <button
-      mat-menu-item
-      *ngFor="let board of boards(); trackBy: trackBoard"
-      (click)="addSelectionToBoard(board.id)"
-    >
-      {{ board.title }}
-    </button>
+    @for (board of boards(); track board.id) {
+      <button mat-menu-item (click)="addSelectionToBoard(board.id)">
+        {{ board.title }}
+      </button>
+    }
   </mat-menu>
 
   <mat-menu #selectionReplaceMenu="matMenu">
-    <button
-      mat-menu-item
-      *ngFor="let board of boards(); trackBy: trackBoard"
-      (click)="replaceBoardWithSelection(board.id)"
-    >
-      {{ board.title }}
-    </button>
+    @for (board of boards(); track board.id) {
+      <button mat-menu-item (click)="replaceBoardWithSelection(board.id)">
+        {{ board.title }}
+      </button>
+    }
   </mat-menu>
 
   <mat-menu #boardActionsMenu="matMenu">
@@ -235,158 +238,170 @@
           (selectedIndexChange)="handleBoardIndexChange($event)"
           animationDuration="250ms"
         >
-          <mat-tab *ngFor="let board of boards(); trackBy: trackBoard">
-            <ng-template mat-tab-label>
-              <span [class.is-active]="isActiveBoard(board.id)">{{ board.title }}</span>
-              <span class="planning-tab-actions">
-                <app-gantt-window-launcher
-                  [stageId]="activeStageId()"
-                  [boardId]="board.id"
-                  [resourceIds]="board.resourceIds"
-                />
-                <button
-                  *ngIf="boards().length > 1"
-                  mat-icon-button
-                  matTooltip="Plantafel schließen"
-                  (click)="removeBoard(board.id); $event.stopPropagation()"
-                >
-                  <mat-icon fontIcon="close"></mat-icon>
-                </button>
-              </span>
-            </ng-template>
-
-            <div class="planning-board">
-              <div class="planning-board__gantt" *ngIf="board.resourceIds.length > 0; else emptyBoard">
-                <app-gantt
-                  [resources]="boardResources(board)"
-                  [activities]="boardActivities(board)"
-                  [pendingActivity]="boardPendingActivity(board)"
-                  [timelineRange]="timelineRange()"
-                  [periods]="currentPeriods()"
-                  [minTimelineDays]="activeStageId() === 'base' ? 8 : 30"
-                  [snapTimelineToMidnight]="activeStageId() !== 'base'"
-                  [resourceViewModes]="resourceViewModes()"
-                  [selectedActivityIds]="selectedActivityIdsArray()"
-                  [activityTypeInfo]="activityTypeInfoMap()"
-                  (resourceViewModeChange)="handleResourceViewModeChange($event)"
-                  (serviceAssignmentRequested)="handleServiceAssignRequest($event)"
-                  (activityCreateRequested)="handleActivityCreate($event)"
-                  (activityEditRequested)="handleActivityEdit($event)"
-                  (activityCopyRequested)="handleActivityCopy($event)"
-                  (activityRepositionRequested)="handleActivityReposition($event)"
-                  (activitySelectionToggle)="handleActivitySelectionToggle($event)"
-                  (removeResource)="removeResourceFromBoard(board.id, $event)"
-                >
-                  <ng-container gantt-menu-actions>
+          @for (board of boards(); track board.id) {
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <span [class.is-active]="isActiveBoard(board.id)">{{ board.title }}</span>
+                <span class="planning-tab-actions">
+                  <app-gantt-window-launcher
+                    [stageId]="activeStageId()"
+                    [boardId]="board.id"
+                    [resourceIds]="board.resourceIds"
+                  />
+                  @if (boards().length > 1) {
                     <button
                       mat-icon-button
-                      class="planning-board__menu-trigger"
-                      [matMenuTriggerFor]="boardActionsMenu"
-                      [matMenuTriggerData]="{ board: board }"
-                      matTooltip="Aktionen"
+                      matTooltip="Plantafel schließen"
+                      (click)="removeBoard(board.id); $event.stopPropagation()"
                     >
-                      <mat-icon fontIcon="more_vert"></mat-icon>
+                      <mat-icon fontIcon="close"></mat-icon>
                     </button>
-                  </ng-container>
-                </app-gantt>
-              </div>
-
-              <ng-template #emptyBoard>
-                <div class="planning-board__empty">
-                  <mat-icon fontIcon="dashboard"></mat-icon>
-                  <p>Diese Plantafel enthält noch keine Ressourcen. Bitte Auswahl hinzufügen.</p>
-                </div>
+                  }
+                </span>
               </ng-template>
-            </div>
-          </mat-tab>
+
+              <div class="planning-board">
+                @if (board.resourceIds.length > 0) {
+                  <div class="planning-board__gantt">
+                    <app-gantt
+                      [resources]="boardResources(board)"
+                      [activities]="boardActivities(board)"
+                      [pendingActivity]="boardPendingActivity(board)"
+                      [timelineRange]="timelineRange()"
+                      [periods]="currentPeriods()"
+                      [minTimelineDays]="activeStageId() === 'base' ? 8 : 30"
+                      [snapTimelineToMidnight]="activeStageId() !== 'base'"
+                      [resourceViewModes]="resourceViewModes()"
+                      [selectedActivityIds]="selectedActivityIdsArray()"
+                      [activityTypeInfo]="activityTypeInfoMap()"
+                      (resourceViewModeChange)="handleResourceViewModeChange($event)"
+                      (serviceAssignmentRequested)="handleServiceAssignRequest($event)"
+                      (activityCreateRequested)="handleActivityCreate($event)"
+                      (activityEditRequested)="handleActivityEdit($event)"
+                      (activityCopyRequested)="handleActivityCopy($event)"
+                      (activityRepositionRequested)="handleActivityReposition($event)"
+                      (activitySelectionToggle)="handleActivitySelectionToggle($event)"
+                      (removeResource)="removeResourceFromBoard(board.id, $event)"
+                    >
+                      <ng-container gantt-menu-actions>
+                        <button
+                          mat-icon-button
+                          class="planning-board__menu-trigger"
+                          [matMenuTriggerFor]="boardActionsMenu"
+                          [matMenuTriggerData]="{ board: board }"
+                          matTooltip="Aktionen"
+                        >
+                          <mat-icon fontIcon="more_vert"></mat-icon>
+                        </button>
+                      </ng-container>
+                    </app-gantt>
+                  </div>
+                } @else {
+                  <div class="planning-board__empty">
+                    <mat-icon fontIcon="dashboard"></mat-icon>
+                    <p>Diese Plantafel enthält noch keine Ressourcen. Bitte Auswahl hinzufügen.</p>
+                  </div>
+                }
+              </div>
+            </mat-tab>
+          }
         </mat-tab-group>
       </mat-card-content>
     </mat-card>
   </section>
 
   <section class="planning-side-panels">
-    <mat-card *ngIf="pendingServiceResource() as pending">
-      <mat-card-header>
-        <mat-card-title>Dienst zuweisen</mat-card-title>
-        <mat-card-subtitle>{{ pending.name }}</mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-        <p>Wähle eine Ressource aus, die diesen Dienst übernehmen soll.</p>
-        <mat-form-field appearance="outline" class="planning-side-panels__field">
-          <mat-label>Zielressource</mat-label>
-          <mat-select
-            [value]="serviceAssignmentTarget()"
-            (selectionChange)="setServiceAssignmentTarget($event.value)"
-          >
-            <mat-option *ngFor="let candidate of assignmentCandidates()" [value]="candidate.id">
-              {{ candidate.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
-      </mat-card-content>
-      <mat-card-actions align="end">
-        <button mat-button type="button" (click)="cancelServiceAssignment()">Abbrechen</button>
-        <button
-          mat-flat-button
-          color="primary"
-          type="button"
-          [disabled]="!serviceAssignmentTarget()"
-          (click)="confirmServiceAssignment()"
-        >
-          Zuweisen
-        </button>
-      </mat-card-actions>
-    </mat-card>
-
-    <div class="planning-panel" *ngIf="selectedActivities().length > 0" cdkDrag>
-      <div class="planning-panel__header" cdkDragHandle>
-        <div>
-          <div class="planning-panel__title">Auswahl</div>
-          <div class="planning-panel__subtitle">{{ selectedActivities().length }} Aktivität(en)</div>
-        </div>
-        <button mat-icon-button type="button" (click)="clearActivitySelection()" aria-label="Auswahl leeren">
-          <mat-icon fontIcon="close"></mat-icon>
-        </button>
-      </div>
-      <div class="planning-panel__body">
-        <mat-chip-set class="planning-selection-chips">
-          <mat-chip *ngFor="let item of selectedActivities(); trackBy: trackActivity">
-            {{ activityTypeLabel(item.activity.type) }}
-          </mat-chip>
-        </mat-chip-set>
-
-        <mat-form-field appearance="outline" class="planning-side-panels__field">
-          <mat-label>Zielressource</mat-label>
-          <mat-select
-            [value]="activityMoveTarget()"
-            (selectionChange)="setMoveSelectionTarget($event.value)"
-            [disabled]="moveTargetOptions().length === 0"
-          >
-            <mat-option *ngFor="let resource of moveTargetOptions(); trackBy: trackResource" [value]="resource.id">
-              {{ resource.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <div class="planning-side-panels__buttons">
-          <button mat-stroked-button type="button" (click)="clearActivitySelection()">
-            Auswahl leeren
-          </button>
+    @if (pendingServiceResource(); as pending) {
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>Dienst zuweisen</mat-card-title>
+          <mat-card-subtitle>{{ pending.name }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p>Wähle eine Ressource aus, die diesen Dienst übernehmen soll.</p>
+          <mat-form-field appearance="outline" class="planning-side-panels__field">
+            <mat-label>Zielressource</mat-label>
+            <mat-select
+              [value]="serviceAssignmentTarget()"
+              (selectionChange)="setServiceAssignmentTarget($event.value)"
+            >
+              @for (candidate of assignmentCandidates(); track candidate.id) {
+                <mat-option [value]="candidate.id">
+                  {{ candidate.name }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <button mat-button type="button" (click)="cancelServiceAssignment()">Abbrechen</button>
           <button
             mat-flat-button
             color="primary"
             type="button"
-            (click)="moveSelectionToTarget()"
-            [disabled]="!activityMoveTarget()"
+            [disabled]="!serviceAssignmentTarget()"
+            (click)="confirmServiceAssignment()"
           >
-            Auf Ressource verschieben
+            Zuweisen
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    }
+
+    @if (selectedActivities().length > 0) {
+      <div class="planning-panel" cdkDrag>
+        <div class="planning-panel__header" cdkDragHandle>
+          <div>
+            <div class="planning-panel__title">Auswahl</div>
+            <div class="planning-panel__subtitle">{{ selectedActivities().length }} Aktivität(en)</div>
+          </div>
+          <button mat-icon-button type="button" (click)="clearActivitySelection()" aria-label="Auswahl leeren">
+            <mat-icon fontIcon="close"></mat-icon>
           </button>
         </div>
+        <div class="planning-panel__body">
+          <mat-chip-set class="planning-selection-chips">
+            @for (item of selectedActivities(); track item.activity.id) {
+              <mat-chip>
+                {{ activityTypeLabel(item.activity.type) }}
+              </mat-chip>
+            }
+          </mat-chip-set>
 
+          <mat-form-field appearance="outline" class="planning-side-panels__field">
+            <mat-label>Zielressource</mat-label>
+            <mat-select
+              [value]="activityMoveTarget()"
+              (selectionChange)="setMoveSelectionTarget($event.value)"
+              [disabled]="moveTargetOptions().length === 0"
+            >
+              @for (resource of moveTargetOptions(); track resource.id) {
+                <mat-option [value]="resource.id">
+                  {{ resource.name }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <div class="planning-side-panels__buttons">
+            <button mat-stroked-button type="button" (click)="clearActivitySelection()">
+              Auswahl leeren
+            </button>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="moveSelectionToTarget()"
+              [disabled]="!activityMoveTarget()"
+            >
+              Auf Ressource verschieben
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-
-    <div class="planning-panel planning-panel--form" *ngIf="selectedActivity() as selected" cdkDrag>
+    }
+    @if (selectedActivity(); as selected) {
+      <div class="planning-panel planning-panel--form" cdkDrag>
       <div class="planning-panel__header" cdkDragHandle>
         <div>
           <div class="planning-panel__title">
@@ -394,7 +409,9 @@
           </div>
           <div class="planning-panel__subtitle">
             {{ activityTypeLabel(selected.activity.type) }}
-            <span class="planning-panel__badge" *ngIf="isSelectedActivityPending()">Entwurf</span>
+            @if (isSelectedActivityPending()) {
+              <span class="planning-panel__badge">Entwurf</span>
+            }
           </div>
         </div>
         <button mat-icon-button type="button" (click)="clearSelectedActivity()" aria-label="Panel schließen">
@@ -420,34 +437,34 @@
             </div>
           </div>
 
-          <section
-            class="planning-type-quick planning-side-panels__full"
-            *ngIf="isSelectedActivityPending() && quickActivityTypes().length > 0"
-          >
-            <div class="planning-type-quick__label">
-              Typ-Schnellauswahl
-            </div>
-            <div class="planning-type-quick__chips">
-              <button
-                type="button"
-                class="planning-type-quick__chip"
-                *ngFor="let option of quickActivityTypes(); trackBy: trackActivityCatalog"
-                [class.is-selected]="isActivityOptionSelected(option.id)"
-                (click)="selectCatalogActivity(option.id)"
-              >
-                <span class="planning-type-quick__chip-label">
-                  {{ option.label }}
-                </span>
-              </button>
-              <button
-                type="button"
-                class="planning-type-quick__chip planning-type-quick__chip--all"
-                (click)="openTypePicker()"
-              >
-                Alle Typen…
-              </button>
-            </div>
-          </section>
+          @if (isSelectedActivityPending() && quickActivityTypes().length > 0) {
+            <section class="planning-type-quick planning-side-panels__full">
+              <div class="planning-type-quick__label">
+                Typ-Schnellauswahl
+              </div>
+              <div class="planning-type-quick__chips">
+                @for (option of quickActivityTypes(); track option.id) {
+                  <button
+                    type="button"
+                    class="planning-type-quick__chip"
+                    [class.is-selected]="isActivityOptionSelected(option.id)"
+                    (click)="selectCatalogActivity(option.id)"
+                  >
+                    <span class="planning-type-quick__chip-label">
+                      {{ option.label }}
+                    </span>
+                  </button>
+                }
+                <button
+                  type="button"
+                  class="planning-type-quick__chip planning-type-quick__chip--all"
+                  (click)="openTypePicker()"
+                >
+                  Alle Typen…
+                </button>
+              </div>
+            </section>
+          }
 
           <section class="planning-section planning-section--time planning-side-panels__full">
             <header class="planning-section__header">
@@ -461,39 +478,31 @@
                 <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                   <mat-label>Start</mat-label>
                   <input matInput type="datetime-local" formControlName="start" />
-                  <mat-error
-                    *ngIf="
-                      activityForm.controls.start.invalid &&
-                      (activityForm.controls.start.dirty || activityForm.controls.start.touched)
-                    "
-                  >
-                    Startzeit ist erforderlich.
-                  </mat-error>
+                  @if (
+                    activityForm.controls.start.invalid &&
+                    (activityForm.controls.start.dirty || activityForm.controls.start.touched)
+                  ) {
+                    <mat-error>Startzeit ist erforderlich.</mat-error>
+                  }
                 </mat-form-field>
-                <mat-form-field
-                  appearance="outline"
-                  class="planning-attribute-grid__item"
-                  *ngIf="shouldShowEndField(selectedActivityDefinition())"
-                >
-                  <mat-label>Ende</mat-label>
-                  <input matInput type="datetime-local" formControlName="end" />
-                </mat-form-field>
-                <mat-form-field
-                  appearance="outline"
-                  class="planning-attribute-grid__item"
-                  *ngIf="definitionHasField(selectedActivityDefinition(), 'from')"
-                >
-                  <mat-label>Von</mat-label>
-                  <input matInput formControlName="from" />
-                </mat-form-field>
-                <mat-form-field
-                  appearance="outline"
-                  class="planning-attribute-grid__item"
-                  *ngIf="definitionHasField(selectedActivityDefinition(), 'to')"
-                >
-                  <mat-label>Nach</mat-label>
-                  <input matInput formControlName="to" />
-                </mat-form-field>
+                @if (shouldShowEndField(selectedActivityDefinition())) {
+                  <mat-form-field appearance="outline" class="planning-attribute-grid__item">
+                    <mat-label>Ende</mat-label>
+                    <input matInput type="datetime-local" formControlName="end" />
+                  </mat-form-field>
+                }
+                @if (definitionHasField(selectedActivityDefinition(), 'from')) {
+                  <mat-form-field appearance="outline" class="planning-attribute-grid__item">
+                    <mat-label>Von</mat-label>
+                    <input matInput formControlName="from" />
+                  </mat-form-field>
+                }
+                @if (definitionHasField(selectedActivityDefinition(), 'to')) {
+                  <mat-form-field appearance="outline" class="planning-attribute-grid__item">
+                    <mat-label>Nach</mat-label>
+                    <input matInput formControlName="to" />
+                  </mat-form-field>
+                }
               </div>
 
               <div class="planning-time-toolbar">
@@ -579,26 +588,21 @@
               class="planning-section__body"
               [class.is-collapsed]="!activityDetailsOpen()"
             >
-              <mat-form-field
-                appearance="outline"
-                class="planning-type-editor__remark"
-                *ngIf="definitionHasField(selectedActivityDefinition(), 'remark')"
-              >
-                <mat-label>Bemerkung</mat-label>
-                <textarea matInput rows="2" formControlName="remark"></textarea>
-              </mat-form-field>
+              @if (definitionHasField(selectedActivityDefinition(), 'remark')) {
+                <mat-form-field appearance="outline" class="planning-type-editor__remark">
+                  <mat-label>Bemerkung</mat-label>
+                  <textarea matInput rows="2" formControlName="remark"></textarea>
+                </mat-form-field>
+              }
 
             </div>
           </section>
           <div class="planning-panel__actions planning-side-panels__full">
-            <button
-              mat-button
-              type="button"
-              *ngIf="isSelectedActivityPending()"
-              (click)="resetPendingActivityEdits()"
-            >
-              Rückgängig
-            </button>
+            @if (isSelectedActivityPending()) {
+              <button mat-button type="button" (click)="resetPendingActivityEdits()">
+                Rückgängig
+              </button>
+            }
             <button mat-button type="button" (click)="clearSelectedActivity()">
               {{ isSelectedActivityPending() ? 'Panel schließen' : 'Abbrechen' }}
             </button>
@@ -616,30 +620,32 @@
           </div>
         </form>
 
-        <div class="planning-type-overlay" *ngIf="isTypePickerOpen()">
-          <div class="planning-type-overlay__backdrop" (click)="closeTypePicker()"></div>
-          <section class="planning-type-overlay__panel">
-            <header class="planning-type-overlay__header">
-              <div>
-                <div class="planning-type-overlay__title">Aktivitätstyp wählen</div>
-                <div class="planning-type-overlay__subtitle">
-                  Für {{ selected.resource.name }}
+        @if (isTypePickerOpen()) {
+          <div class="planning-type-overlay">
+            <div class="planning-type-overlay__backdrop" (click)="closeTypePicker()"></div>
+            <section class="planning-type-overlay__panel">
+              <header class="planning-type-overlay__header">
+                <div>
+                  <div class="planning-type-overlay__title">Aktivitätstyp wählen</div>
+                  <div class="planning-type-overlay__subtitle">
+                    Für {{ selected.resource.name }}
+                  </div>
                 </div>
+                <button
+                  mat-icon-button
+                  type="button"
+                  aria-label="Typauswahl schließen"
+                  (click)="closeTypePicker()"
+                >
+                  <mat-icon fontIcon="close"></mat-icon>
+                </button>
+              </header>
+              <div class="planning-type-overlay__content">
+                <ng-template [ngTemplateOutlet]="typePickerContent"></ng-template>
               </div>
-              <button
-                mat-icon-button
-                type="button"
-                aria-label="Typauswahl schließen"
-                (click)="closeTypePicker()"
-              >
-                <mat-icon fontIcon="close"></mat-icon>
-              </button>
-            </header>
-            <div class="planning-type-overlay__content">
-              <ng-template [ngTemplateOutlet]="typePickerContent"></ng-template>
-            </div>
-          </section>
-        </div>
+            </section>
+          </div>
+        }
 
         <ng-template #typePickerContent>
           @if (activeTypePickerGroup(); as activeGroup) {
@@ -650,32 +656,36 @@
                   {{ selectedCatalogOption()?.label ?? 'Bitte wählen' }}
                 </span>
               </div>
-              <div class="planning-type-picker__tabs" *ngIf="activityTypePickerGroups().length > 1">
-                <button
-                  type="button"
-                  class="planning-type-picker__tab"
-                  *ngFor="let group of activityTypePickerGroups()"
-                  [class.is-active]="group.id === activeGroup.id"
-                  (click)="setActivityTypePickerGroup(group.id)"
-                >
-                  <mat-icon [fontIcon]="group.icon"></mat-icon>
-                  <span>{{ group.label }}</span>
-                  <small>{{ group.items.length }}</small>
-                </button>
-              </div>
+              @if (activityTypePickerGroups().length > 1) {
+                <div class="planning-type-picker__tabs">
+                  @for (group of activityTypePickerGroups(); track group.id) {
+                    <button
+                      type="button"
+                      class="planning-type-picker__tab"
+                      [class.is-active]="group.id === activeGroup.id"
+                      (click)="setActivityTypePickerGroup(group.id)"
+                    >
+                      <mat-icon [fontIcon]="group.icon"></mat-icon>
+                      <span>{{ group.label }}</span>
+                      <small>{{ group.items.length }}</small>
+                    </button>
+                  }
+                </div>
+              }
               <div class="planning-type-picker__list" role="listbox" aria-label="Aktivitätstyp auswählen">
-                <button
-                  type="button"
-                  class="planning-type-picker__list-item"
-                  *ngFor="let option of activeGroup.items; trackBy: trackActivityCatalog"
-                  [class.is-selected]="isActivityOptionSelected(option.id)"
-                  (click)="selectActivityTypeFromPicker(option.id)"
-                >
-                  <span class="planning-type-picker__option-title">{{ option.label }}</span>
-                  <span class="planning-type-picker__option-description">
-                    {{ option.description ?? 'Ohne Beschreibung' }}
-                  </span>
-                </button>
+                @for (option of activeGroup.items; track option.id) {
+                  <button
+                    type="button"
+                    class="planning-type-picker__list-item"
+                    [class.is-selected]="isActivityOptionSelected(option.id)"
+                    (click)="selectActivityTypeFromPicker(option.id)"
+                  >
+                    <span class="planning-type-picker__option-title">{{ option.label }}</span>
+                    <span class="planning-type-picker__option-description">
+                      {{ option.description ?? 'Ohne Beschreibung' }}
+                    </span>
+                  </button>
+                }
               </div>
             </div>
           } @else {
@@ -687,14 +697,17 @@
           <mat-form-field appearance="outline" class="planning-type-editor__fallback">
             <mat-label>Typ</mat-label>
             <mat-select [value]="activityCreationTool()" (valueChange)="selectCatalogActivity($event)">
-              <mat-option *ngFor="let option of activityCreationOptions(); trackBy: trackActivityCatalog" [value]="option.id">
-                {{ option.label }}
-              </mat-option>
+              @for (option of activityCreationOptions(); track option.id) {
+                <mat-option [value]="option.id">
+                  {{ option.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
         </ng-template>
       </div>
     </div>
+    }
   </section>
 
 </section>

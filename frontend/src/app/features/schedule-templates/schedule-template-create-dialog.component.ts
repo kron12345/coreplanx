@@ -86,11 +86,10 @@ type StopFormGroup = FormGroup<{
 }>;
 
 @Component({
-  selector: 'app-schedule-template-create-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './schedule-template-create-dialog.component.html',
-  styleUrl: './schedule-template-create-dialog.component.scss',
+    selector: 'app-schedule-template-create-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './schedule-template-create-dialog.component.html',
+    styleUrl: './schedule-template-create-dialog.component.scss'
 })
 export class ScheduleTemplateCreateDialogComponent {
   private readonly dialogRef = inject<

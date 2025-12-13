@@ -20,11 +20,10 @@ interface TimetableResponsibilitiesDialogData {
 }
 
 @Component({
-  selector: 'app-timetable-responsibilities-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-responsibilities-dialog.component.html',
-  styleUrl: './timetable-responsibilities-dialog.component.scss',
+    selector: 'app-timetable-responsibilities-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-responsibilities-dialog.component.html',
+    styleUrl: './timetable-responsibilities-dialog.component.scss'
 })
 export class TimetableResponsibilitiesDialogComponent {
   private readonly dialogRef =

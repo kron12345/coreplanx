@@ -39,19 +39,18 @@ interface CalendarRow {
 }
 
 @Component({
-  selector: 'app-planning-calendar',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatButtonToggleModule,
-    MatIconModule,
-    MatDialogModule,
-  ],
-  templateUrl: './planning-calendar.component.html',
-  styleUrl: './planning-calendar.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-planning-calendar',
+    imports: [
+        CommonModule,
+        MatCardModule,
+        MatButtonModule,
+        MatButtonToggleModule,
+        MatIconModule,
+        MatDialogModule,
+    ],
+    templateUrl: './planning-calendar.component.html',
+    styleUrl: './planning-calendar.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PlanningCalendarComponent {
   private readonly store = inject(TemplateTimelineStoreService);

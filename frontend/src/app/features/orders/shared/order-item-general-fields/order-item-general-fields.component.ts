@@ -7,17 +7,16 @@ type FieldKey = 'name' | 'responsible' | 'deviation' | 'tags';
 export type OrderItemGeneralLabels = Record<FieldKey, string>;
 
 @Component({
-  selector: 'app-order-item-general-fields',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './order-item-general-fields.component.html',
-  styleUrl: './order-item-general-fields.component.scss',
-  viewProviders: [
-    {
-      provide: ControlContainer,
-      useExisting: FormGroupDirective,
-    },
-  ],
+    selector: 'app-order-item-general-fields',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './order-item-general-fields.component.html',
+    styleUrl: './order-item-general-fields.component.scss',
+    viewProviders: [
+        {
+            provide: ControlContainer,
+            useExisting: FormGroupDirective,
+        },
+    ]
 })
 export class OrderItemGeneralFieldsComponent {
   @Input({ required: true }) form!: FormGroup;

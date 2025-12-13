@@ -15,11 +15,10 @@ export interface OrderStatusUpdateDialogData {
 }
 
 @Component({
-  selector: 'app-order-status-update-dialog',
-  standalone: true,
-  imports: [CommonModule, MatDialogModule, ...MATERIAL_IMPORTS],
-  templateUrl: './order-status-update-dialog.component.html',
-  styleUrl: './order-status-update-dialog.component.scss',
+    selector: 'app-order-status-update-dialog',
+    imports: [CommonModule, MatDialogModule, ...MATERIAL_IMPORTS],
+    templateUrl: './order-status-update-dialog.component.html',
+    styleUrl: './order-status-update-dialog.component.scss'
 })
 export class OrderStatusUpdateDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<OrderStatusUpdateDialogComponent>);

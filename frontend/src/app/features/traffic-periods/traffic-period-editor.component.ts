@@ -32,18 +32,17 @@ import { TrafficPeriodGeneralFormComponent } from './traffic-period-general-form
 import { TrafficPeriodRulesSectionComponent } from './traffic-period-rules-section.component';
 
 @Component({
-  selector: 'app-traffic-period-editor',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    ...MATERIAL_IMPORTS,
-    MatButtonModule,
-    TrafficPeriodGeneralFormComponent,
-    TrafficPeriodRulesSectionComponent,
-  ],
-  templateUrl: './traffic-period-editor.component.html',
-  styleUrl: './traffic-period-editor.component.scss',
+    selector: 'app-traffic-period-editor',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        ...MATERIAL_IMPORTS,
+        MatButtonModule,
+        TrafficPeriodGeneralFormComponent,
+        TrafficPeriodRulesSectionComponent,
+    ],
+    templateUrl: './traffic-period-editor.component.html',
+    styleUrl: './traffic-period-editor.component.scss'
 })
 export class TrafficPeriodEditorComponent {
   private readonly dialogRef = inject<

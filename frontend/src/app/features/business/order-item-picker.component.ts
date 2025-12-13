@@ -6,11 +6,10 @@ import { OrderItemOption } from '../../core/services/order.service';
 import { OrderItem } from '../../core/models/order-item.model';
 
 @Component({
-  selector: 'app-order-item-picker',
-  standalone: true,
-  imports: [CommonModule, FormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './order-item-picker.component.html',
-  styleUrl: './order-item-picker.component.scss',
+    selector: 'app-order-item-picker',
+    imports: [CommonModule, FormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './order-item-picker.component.html',
+    styleUrl: './order-item-picker.component.scss'
 })
 export class OrderItemPickerComponent {
   private readonly optionSignal = signal<OrderItemOption[]>([]);

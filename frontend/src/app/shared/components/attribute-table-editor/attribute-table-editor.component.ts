@@ -48,19 +48,19 @@ interface AttributeRowState {
 const uid = () => crypto.randomUUID();
 
 @Component({
-  selector: 'app-attribute-table-editor',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatInputModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-    MatSelectModule,
-    MatFormFieldModule,
-  ],
-  template: `
+    selector: 'app-attribute-table-editor',
+    standalone: true,
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatInputModule,
+        MatButtonModule,
+        MatIconModule,
+        MatTooltipModule,
+        MatSelectModule,
+        MatFormFieldModule,
+    ],
+    template: `
     <div class="attributes" *ngIf="rows().length > 0">
       <table class="attributes__table">
         <thead>
@@ -217,8 +217,8 @@ const uid = () => crypto.randomUUID();
       </table>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .attributes__table {
         width: 100%;
         border-collapse: collapse;
@@ -276,20 +276,20 @@ const uid = () => crypto.randomUUID();
         width: 100%;
       }
     `,
-  ],
-  animations: [
-    trigger('historyDrawer', [
-      transition(':enter', [
-        style({ opacity: 0, transform: 'translateY(-8px)' }),
-        animate('200ms ease-out', style({ opacity: 1, transform: 'translateY(0)' })),
-      ]),
-      transition(':leave', [
-        style({ opacity: 1, transform: 'translateY(0)' }),
-        animate('150ms ease-in', style({ opacity: 0, transform: 'translateY(-8px)' })),
-      ]),
-    ]),
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    ],
+    animations: [
+        trigger('historyDrawer', [
+            transition(':enter', [
+                style({ opacity: 0, transform: 'translateY(-8px)' }),
+                animate('200ms ease-out', style({ opacity: 1, transform: 'translateY(0)' })),
+            ]),
+            transition(':leave', [
+                style({ opacity: 1, transform: 'translateY(0)' }),
+                animate('150ms ease-in', style({ opacity: 0, transform: 'translateY(-8px)' })),
+            ]),
+        ]),
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AttributeTableEditorComponent implements OnChanges {
   @Input() definitions: CustomAttributeDefinition[] = [];

@@ -6,16 +6,15 @@ import { TrafficPeriodVariantScope, TrafficPeriodVariantType } from '../../core/
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 
 @Component({
-  selector: 'app-traffic-period-rule-panel',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    AnnualCalendarSelectorComponent,
-    ...MATERIAL_IMPORTS,
-  ],
-  templateUrl: './traffic-period-rule-panel.component.html',
-  styleUrl: './traffic-period-rule-panel.component.scss',
+    selector: 'app-traffic-period-rule-panel',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        AnnualCalendarSelectorComponent,
+        ...MATERIAL_IMPORTS,
+    ],
+    templateUrl: './traffic-period-rule-panel.component.html',
+    styleUrl: './traffic-period-rule-panel.component.scss'
 })
 export class TrafficPeriodRulePanelComponent {
   @Input({ required: true }) group!: FormGroup;

@@ -11,11 +11,10 @@ export interface OrderItemPickerDialogData {
 }
 
 @Component({
-  selector: 'app-order-item-picker-dialog',
-  standalone: true,
-  imports: [CommonModule, OrderItemPickerComponent, ...MATERIAL_IMPORTS],
-  templateUrl: './order-item-picker-dialog.component.html',
-  styleUrl: './order-item-picker-dialog.component.scss',
+    selector: 'app-order-item-picker-dialog',
+    imports: [CommonModule, OrderItemPickerComponent, ...MATERIAL_IMPORTS],
+    templateUrl: './order-item-picker-dialog.component.html',
+    styleUrl: './order-item-picker-dialog.component.scss'
 })
 export class OrderItemPickerDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<OrderItemPickerDialogComponent>);

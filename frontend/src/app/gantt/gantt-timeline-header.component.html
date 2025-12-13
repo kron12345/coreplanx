@@ -1,6 +1,6 @@
 <div class="gantt-header" role="row">
-  <div class="gantt-header__groups" [style.width.px]="contentWidth">
-    @for (group of groupedTicks(); track $index) {
+  <div class="gantt-header__groups" [style.width.px]="contentWidth()">
+    @for (group of groupedTickSegments(); track group.leftPx + ':' + group.widthPx + ':' + group.label) {
       <div
         class="gantt-header__group"
         [style.left.px]="group.leftPx"
@@ -11,7 +11,7 @@
     }
   </div>
 
-  <div class="gantt-header__canvas" [style.width.px]="contentWidth">
+  <div class="gantt-header__canvas" [style.width.px]="contentWidth()">
     <div class="gantt-header__periods">
       @for (period of periodVisuals(); track period.id) {
         <div
@@ -23,7 +23,7 @@
         ></div>
       }
     </div>
-    @for (tick of ticks; track tick.time.getTime()) {
+    @for (tick of ticks(); track tick.time.getTime()) {
       <div
         class="gantt-header__tick"
         role="columnheader"

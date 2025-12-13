@@ -21,10 +21,9 @@ const DEFAULT_FALLBACK = {
 };
 
 @Component({
-  selector: 'app-replacement-edge-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  template: `
+    selector: 'app-replacement-edge-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    template: `
     <app-attribute-entity-editor
       [title]="'Replacement Edges'"
       [entities]="entityRecords()"
@@ -37,7 +36,7 @@ const DEFAULT_FALLBACK = {
       (bulkApply)="handleBulkApply($event)"
     />
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReplacementEdgeEditorComponent {
   private readonly store = inject(PlanningStoreService);

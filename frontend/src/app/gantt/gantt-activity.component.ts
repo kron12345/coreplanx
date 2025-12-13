@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Activity } from '../models/activity';
 import { DurationPipe } from '../shared/pipes/duration.pipe';
@@ -7,12 +7,64 @@ import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivityParticipantCategory } from '../models/activity-ownership';
 
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'short',
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const TIME_ONLY_FORMAT = new Intl.DateTimeFormat('de-DE', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const DURATION_PIPE = new DurationPipe();
+
+const TYPE_LABELS: Record<string, string> = {
+  'service-start': 'Dienstbeginn',
+  'service-end': 'Dienstende',
+  service: 'Dienstleistung',
+  break: 'Pause',
+  travel: 'Fahrt',
+  transfer: 'Transfer',
+  other: 'Sonstige',
+};
+
+const TYPE_SHORT_LABELS: Record<string, string> = {
+  'service-start': 'Start',
+  'service-end': 'Ende',
+  service: 'DL',
+  break: 'PA',
+  travel: 'TR',
+  transfer: 'TF',
+  other: 'AKT',
+};
+
+const POPOVER_POSITIONS: ConnectedPosition[] = [
+  {
+    originX: 'center',
+    originY: 'top',
+    overlayX: 'center',
+    overlayY: 'bottom',
+    offsetY: -8,
+  },
+  {
+    originX: 'center',
+    originY: 'bottom',
+    overlayX: 'center',
+    overlayY: 'top',
+    offsetY: 8,
+  },
+];
+
 @Component({
-  selector: 'app-gantt-activity',
-  standalone: true,
-  imports: [CommonModule, DurationPipe, DragDropModule, OverlayModule, MatIconModule],
-  templateUrl: './gantt-activity.component.html',
-  styleUrl: './gantt-activity.component.scss',
+    selector: 'app-gantt-activity',
+    imports: [CommonModule, DragDropModule, OverlayModule, MatIconModule],
+    templateUrl: './gantt-activity.component.html',
+    styleUrl: './gantt-activity.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttActivityComponent {
   @Input({ required: true }) activity!: Activity;
@@ -36,6 +88,8 @@ export class GanttActivityComponent {
   @Output() dragMoved = new EventEmitter<CdkDragMove<GanttActivityDragData>>();
   @Output() dragEnded = new EventEmitter<CdkDragEnd<GanttActivityDragData>>();
 
+  constructor(private readonly cdr: ChangeDetectorRef) {}
+
   private isDragging = false;
   private dragSuppressUntil = 0;
   private readonly dragSuppressWindowMs = 1500;
@@ -53,36 +107,6 @@ export class GanttActivityComponent {
   private popoverHideTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly popoverHideDelayMs = 120;
 
-  private readonly dateTime = new Intl.DateTimeFormat('de-DE', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  private readonly timeOnly = new Intl.DateTimeFormat('de-DE', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  private readonly durationPipe = new DurationPipe();
-  private readonly typeLabels: Record<string, string> = {
-    'service-start': 'Dienstbeginn',
-    'service-end': 'Dienstende',
-    service: 'Dienstleistung',
-    break: 'Pause',
-    travel: 'Fahrt',
-    transfer: 'Transfer',
-    other: 'Sonstige',
-  };
-  private readonly typeShortLabels: Record<string, string> = {
-    'service-start': 'Start',
-    'service-end': 'Ende',
-    service: 'DL',
-    break: 'PA',
-    travel: 'TR',
-    transfer: 'TF',
-    other: 'AKT',
-  };
   get tooltipText(): string {
     if (!this.activity) {
       return '';
@@ -102,22 +126,7 @@ export class GanttActivityComponent {
     return lines.join('\n');
   }
 
-  readonly popoverPositions: ConnectedPosition[] = [
-    {
-      originX: 'center',
-      originY: 'top',
-      overlayX: 'center',
-      overlayY: 'bottom',
-      offsetY: -8,
-    },
-    {
-      originX: 'center',
-      originY: 'bottom',
-      overlayX: 'center',
-      overlayY: 'top',
-      offsetY: 8,
-    },
-  ];
+  readonly popoverPositions: ConnectedPosition[] = POPOVER_POSITIONS;
 
   get hostClasses(): string[] {
     const classes = ['gantt-activity--service'];
@@ -167,7 +176,7 @@ export class GanttActivityComponent {
     if (!this.activity) {
       return '';
     }
-    return this.typeLabels[this.activity.type ?? 'service'] ?? 'Aktivität';
+    return TYPE_LABELS[this.activity.type ?? 'service'] ?? 'Aktivität';
   }
 
   get compactTypeLabel(): string {
@@ -175,7 +184,7 @@ export class GanttActivityComponent {
       return '';
     }
     const type = this.activity.type ?? 'service';
-    return this.typeShortLabels[type] ?? this.typeLabels[type] ?? 'Aktivität';
+    return TYPE_SHORT_LABELS[type] ?? TYPE_LABELS[type] ?? 'Aktivität';
   }
 
   get useCompactLabels(): boolean {
@@ -215,35 +224,35 @@ export class GanttActivityComponent {
     if (!this.activity) {
       return '';
     }
-    return this.dateTime.format(new Date(this.activity.start));
+    return DATE_TIME_FORMAT.format(new Date(this.activity.start));
   }
 
   get endLabel(): string {
     if (!this.activity?.end) {
       return '';
     }
-    return this.dateTime.format(new Date(this.activity.end));
+    return DATE_TIME_FORMAT.format(new Date(this.activity.end));
   }
 
   get shortStartLabel(): string {
     if (!this.activity) {
       return '';
     }
-    return this.timeOnly.format(new Date(this.activity.start));
+    return TIME_ONLY_FORMAT.format(new Date(this.activity.start));
   }
 
   get shortEndLabel(): string {
     if (!this.activity?.end) {
       return '';
     }
-    return this.timeOnly.format(new Date(this.activity.end));
+    return TIME_ONLY_FORMAT.format(new Date(this.activity.end));
   }
 
   get durationLabel(): string {
     if (!this.activity?.end) {
       return '—';
     }
-    return this.durationPipe.transform(this.activity.start, this.activity.end);
+    return DURATION_PIPE.transform(this.activity.start, this.activity.end);
   }
 
   get ariaLabel(): string {
@@ -299,6 +308,7 @@ export class GanttActivityComponent {
     this.popoverHideTimer = window.setTimeout(() => {
       this.isPopoverOpen = false;
       this.popoverHideTimer = null;
+      this.cdr.markForCheck();
     }, this.popoverHideDelayMs);
   }
 

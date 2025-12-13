@@ -6,11 +6,10 @@ import { BusinessTemplateService } from '../../core/services/business-template.s
 import { RouterLink } from '@angular/router';
 
 @Component({
-  selector: 'app-templates-landing',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS, RouterLink],
-  templateUrl: './templates-landing.component.html',
-  styleUrl: './templates-landing.component.scss',
+    selector: 'app-templates-landing',
+    imports: [CommonModule, ...MATERIAL_IMPORTS, RouterLink],
+    templateUrl: './templates-landing.component.html',
+    styleUrl: './templates-landing.component.scss'
 })
 export class TemplatesLandingComponent {
   private readonly scheduleService = inject(ScheduleTemplateService);

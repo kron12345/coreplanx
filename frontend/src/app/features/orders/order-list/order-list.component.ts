@@ -1,5 +1,5 @@
-import { CommonModule, DOCUMENT } from '@angular/common';
-import { Component, HostListener, computed, effect, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, HostListener, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { ActivatedRoute } from '@angular/router';
@@ -74,18 +74,17 @@ const INSIGHTS_COLLAPSED_STORAGE_KEY = 'orders.insightsCollapsed.v1';
 const ORDER_PRESETS_STORAGE_KEY = 'orders.presets.v1';
 
 @Component({
-  selector: 'app-order-list',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    ...MATERIAL_IMPORTS,
-    FilterBarComponent,
-    OrderCardComponent,
-    OrderTemplateRecommendationComponent,
-  ],
-  templateUrl: './order-list.component.html',
-  styleUrl: './order-list.component.scss',
+    selector: 'app-order-list',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        ...MATERIAL_IMPORTS,
+        FilterBarComponent,
+        OrderCardComponent,
+        OrderTemplateRecommendationComponent,
+    ],
+    templateUrl: './order-list.component.html',
+    styleUrl: './order-list.component.scss'
 })
 export class OrderListComponent {
   private readonly store = inject(OrderService);

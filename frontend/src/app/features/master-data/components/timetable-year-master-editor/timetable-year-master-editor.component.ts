@@ -51,12 +51,11 @@ const DEFAULT_VALUES = {
 };
 
 @Component({
-  selector: 'app-timetable-year-master-editor',
-  standalone: true,
-  imports: [CommonModule, AttributeEntityEditorComponent],
-  templateUrl: './timetable-year-master-editor.component.html',
-  styleUrl: './timetable-year-master-editor.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-timetable-year-master-editor',
+    imports: [CommonModule, AttributeEntityEditorComponent],
+    templateUrl: './timetable-year-master-editor.component.html',
+    styleUrl: './timetable-year-master-editor.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TimetableYearMasterEditorComponent {
   private readonly timetableYears = inject(TimetableYearService);

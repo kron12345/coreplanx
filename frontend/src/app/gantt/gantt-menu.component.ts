@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,21 +9,21 @@ import { MatDatepickerModule, MatCalendar } from '@angular/material/datepicker';
 import { FormsModule } from '@angular/forms';
 
 @Component({
-  selector: 'app-gantt-menu',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatDatepickerModule,
-    MatCalendar,
-  ],
-  templateUrl: './gantt-menu.component.html',
-  styleUrl: './gantt-menu.component.scss',
+    selector: 'app-gantt-menu',
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatButtonModule,
+        MatIconModule,
+        MatMenuModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatDatepickerModule,
+        MatCalendar,
+    ],
+    templateUrl: './gantt-menu.component.html',
+    styleUrl: './gantt-menu.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttMenuComponent {
   @Input({ required: true }) zoomLabel = '';

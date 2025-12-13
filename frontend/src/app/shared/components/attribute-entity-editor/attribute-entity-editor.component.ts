@@ -77,21 +77,21 @@ export interface AttributeActionEvent {
 }
 
 @Component({
-  selector: 'app-attribute-entity-editor',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatCheckboxModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-    AttributeTableEditorComponent,
-  ],
-  template: `
+    selector: 'app-attribute-entity-editor',
+    standalone: true,
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatCheckboxModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        MatInputModule,
+        MatButtonModule,
+        MatIconModule,
+        MatTooltipModule,
+        AttributeTableEditorComponent,
+    ],
+    template: `
     <div class="editor">
       <section class="editor__list">
         <header>
@@ -400,8 +400,8 @@ export interface AttributeActionEvent {
       </section>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .editor {
         display: grid;
         grid-template-columns: 320px 1fr;
@@ -679,30 +679,30 @@ export interface AttributeActionEvent {
         justify-content: flex-end;
       }
     `,
-  ],
-  animations: [
-    trigger('filterPanel', [
-      transition(':enter', [
-        style({ height: 0, opacity: 0, transform: 'translateY(-6px)' }),
-        animate('220ms ease-out', style({ height: '*', opacity: 1, transform: 'translateY(0)' })),
-      ]),
-      transition(':leave', [
-        style({ height: '*', opacity: 1, transform: 'translateY(0)' }),
-        animate('180ms ease-in', style({ height: 0, opacity: 0, transform: 'translateY(-6px)' })),
-      ]),
-    ]),
-    trigger('bulkPanel', [
-      transition(':enter', [
-        style({ opacity: 0, transform: 'translateY(12px) scale(0.98)' }),
-        animate('180ms 40ms ease-out', style({ opacity: 1, transform: 'translateY(0) scale(1)' })),
-      ]),
-      transition(':leave', [
-        style({ opacity: 1, transform: 'translateY(0) scale(1)' }),
-        animate('150ms ease-in', style({ opacity: 0, transform: 'translateY(12px) scale(0.97)' })),
-      ]),
-    ]),
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    ],
+    animations: [
+        trigger('filterPanel', [
+            transition(':enter', [
+                style({ height: 0, opacity: 0, transform: 'translateY(-6px)' }),
+                animate('220ms ease-out', style({ height: '*', opacity: 1, transform: 'translateY(0)' })),
+            ]),
+            transition(':leave', [
+                style({ height: '*', opacity: 1, transform: 'translateY(0)' }),
+                animate('180ms ease-in', style({ height: 0, opacity: 0, transform: 'translateY(-6px)' })),
+            ]),
+        ]),
+        trigger('bulkPanel', [
+            transition(':enter', [
+                style({ opacity: 0, transform: 'translateY(12px) scale(0.98)' }),
+                animate('180ms 40ms ease-out', style({ opacity: 1, transform: 'translateY(0) scale(1)' })),
+            ]),
+            transition(':leave', [
+                style({ opacity: 1, transform: 'translateY(0) scale(1)' }),
+                animate('150ms ease-in', style({ opacity: 0, transform: 'translateY(12px) scale(0.97)' })),
+            ]),
+        ]),
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AttributeEntityEditorComponent implements OnDestroy {
   private readonly entitySignal = signal<AttributeEntityRecord[]>([]);

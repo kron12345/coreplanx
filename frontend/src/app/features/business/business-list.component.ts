@@ -1,5 +1,5 @@
-import { CommonModule, DOCUMENT, DatePipe } from '@angular/common';
-import { Component, ElementRef, HostListener, ViewChild, computed, effect, inject, signal } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
+import { Component, ElementRef, HostListener, ViewChild, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
 import {
   FormControl,
   ReactiveFormsModule,
@@ -119,12 +119,11 @@ interface BusinessInsightContext {
 const BUSINESS_INSIGHTS_STORAGE_KEY = 'business.insightsCollapsed.v1';
 
 @Component({
-  selector: 'app-business-list',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './business-list.component.html',
-  styleUrl: './business-list.component.scss',
-  providers: [DatePipe],
+    selector: 'app-business-list',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './business-list.component.html',
+    styleUrl: './business-list.component.scss',
+    providers: [DatePipe]
 })
 export class BusinessListComponent {
   private readonly businessService = inject(BusinessService);

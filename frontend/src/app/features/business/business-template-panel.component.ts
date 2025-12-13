@@ -12,11 +12,10 @@ import { OrderService, OrderTtrPhase } from '../../core/services/order.service';
 import { TimetablePhase } from '../../core/models/timetable.model';
 
 @Component({
-  selector: 'app-business-template-panel',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS],
-  templateUrl: './business-template-panel.component.html',
-  styleUrl: './business-template-panel.component.scss',
+    selector: 'app-business-template-panel',
+    imports: [CommonModule, ...MATERIAL_IMPORTS],
+    templateUrl: './business-template-panel.component.html',
+    styleUrl: './business-template-panel.component.scss'
 })
 export class BusinessTemplatePanelComponent {
   private readonly templateService = inject(BusinessTemplateService);

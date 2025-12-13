@@ -36,11 +36,10 @@ export interface TimetableCreateDialogData {
 }
 
 @Component({
-  selector: 'app-timetable-create-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-create-dialog.component.html',
-  styleUrl: './timetable-create-dialog.component.scss',
+    selector: 'app-timetable-create-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-create-dialog.component.html',
+    styleUrl: './timetable-create-dialog.component.scss'
 })
 export class TimetableCreateDialogComponent {
   private readonly dialogRef = inject<

@@ -38,11 +38,10 @@ type ConditionFormGroup = FormGroup<{
 }>;
 
 @Component({
-  selector: 'app-business-template-edit-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './business-template-edit-dialog.component.html',
-  styleUrl: './business-template-edit-dialog.component.scss',
+    selector: 'app-business-template-edit-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './business-template-edit-dialog.component.html',
+    styleUrl: './business-template-edit-dialog.component.scss'
 })
 export class BusinessTemplateEditDialogComponent {
   private readonly fb = inject(FormBuilder);

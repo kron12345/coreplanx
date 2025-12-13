@@ -29,11 +29,10 @@ type PhaseConditionFormGroup = FormGroup<{
 }>;
 
 @Component({
-  selector: 'app-business-phase-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './business-phase-dialog.component.html',
-  styleUrl: './business-phase-dialog.component.scss',
+    selector: 'app-business-phase-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './business-phase-dialog.component.html',
+    styleUrl: './business-phase-dialog.component.scss'
 })
 export class BusinessPhaseDialogComponent {
   private readonly fb = inject(FormBuilder);

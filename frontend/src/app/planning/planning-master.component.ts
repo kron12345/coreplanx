@@ -13,22 +13,21 @@ import { OpReplacementStopLinkEditorComponent } from './components/op-replacemen
 import { TransferEdgeEditorComponent } from './components/transfer-edge-editor.component';
 
 @Component({
-  selector: 'app-planning-master',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatTabsModule,
-    OperationalPointEditorComponent,
-    SectionOfLineEditorComponent,
-    PersonnelSiteEditorComponent,
-    ReplacementStopEditorComponent,
-    ReplacementRouteEditorComponent,
-    ReplacementEdgeEditorComponent,
-    OpReplacementStopLinkEditorComponent,
-    TransferEdgeEditorComponent,
-    ...MATERIAL_IMPORTS,
-  ],
-  template: `
+    selector: 'app-planning-master',
+    imports: [
+        CommonModule,
+        MatTabsModule,
+        OperationalPointEditorComponent,
+        SectionOfLineEditorComponent,
+        PersonnelSiteEditorComponent,
+        ReplacementStopEditorComponent,
+        ReplacementRouteEditorComponent,
+        ReplacementEdgeEditorComponent,
+        OpReplacementStopLinkEditorComponent,
+        TransferEdgeEditorComponent,
+        ...MATERIAL_IMPORTS,
+    ],
+    template: `
     <div class="planning-master">
       <mat-tab-group color="primary">
         <mat-tab label="Operational Points">
@@ -58,22 +57,22 @@ import { TransferEdgeEditorComponent } from './components/transfer-edge-editor.c
       </mat-tab-group>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .planning-master {
         display: block;
         padding: 16px;
       }
 
       mat-tab-group {
-        background: var(--mdc-filled-text-field-container-color, #fff);
+        background: var(--mat-form-field-filled-container-color, #fff);
         border-radius: 12px;
         box-shadow:
           0 2px 4px rgba(0, 0, 0, 0.05),
           0 6px 16px rgba(0, 0, 0, 0.06);
       }
     `,
-  ],
+    ]
 })
 export class PlanningMasterComponent implements OnInit {
   private readonly store = inject(PlanningStoreService);

@@ -26,11 +26,10 @@ import {
 type DialogStopValue = TimetableTestTrainDialogResult['stops'][number];
 
 @Component({
-  selector: 'app-timetable-manager',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-manager.component.html',
-  styleUrl: './timetable-manager.component.scss',
+    selector: 'app-timetable-manager',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-manager.component.html',
+    styleUrl: './timetable-manager.component.scss'
 })
 export class TimetableManagerComponent {
   private readonly hubService = inject(TimetableHubService);

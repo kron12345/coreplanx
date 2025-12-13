@@ -33,24 +33,23 @@ interface ResourceOption {
 }
 
 @Component({
-  selector: 'app-activity-type-settings',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatCheckboxModule,
-    MatButtonModule,
-    MatIconModule,
-    MatDividerModule,
-    MatChipsModule,
-  ],
-  templateUrl: './activity-type-settings.component.html',
-  styleUrl: './activity-type-settings.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-activity-type-settings',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatCardModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatCheckboxModule,
+        MatButtonModule,
+        MatIconModule,
+        MatDividerModule,
+        MatChipsModule,
+    ],
+    templateUrl: './activity-type-settings.component.html',
+    styleUrl: './activity-type-settings.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ActivityTypeSettingsComponent {
   private readonly fb = inject(FormBuilder);

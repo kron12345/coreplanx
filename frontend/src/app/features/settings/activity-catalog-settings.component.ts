@@ -38,26 +38,25 @@ const DRAW_AS_OPTIONS = [
 ];
 
 @Component({
-  selector: 'app-activity-catalog-settings',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatButtonModule,
-    MatIconModule,
-    MatChipsModule,
-    MatDividerModule,
-    MatTooltipModule,
-    MatTabsModule,
-    MatButtonToggleModule,
-  ],
-  templateUrl: './activity-catalog-settings.component.html',
-  styleUrl: './activity-catalog-settings.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-activity-catalog-settings',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatCardModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatButtonModule,
+        MatIconModule,
+        MatChipsModule,
+        MatDividerModule,
+        MatTooltipModule,
+        MatTabsModule,
+        MatButtonToggleModule,
+    ],
+    templateUrl: './activity-catalog-settings.component.html',
+    styleUrl: './activity-catalog-settings.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ActivityCatalogSettingsComponent {
   private readonly fb = inject(FormBuilder);

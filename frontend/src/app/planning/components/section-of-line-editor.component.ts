@@ -52,16 +52,15 @@ const DEFAULT_FALLBACK = {
 const SOL_NATURES: SolNature[] = ['REGULAR', 'LINK'];
 
 @Component({
-  selector: 'app-section-of-line-editor',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    AttributeEntityEditorComponent,
-  ],
-  template: `
+    selector: 'app-section-of-line-editor',
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        AttributeEntityEditorComponent,
+    ],
+    template: `
     <section class="topology-editor">
       <header class="topology-editor__toolbar">
         <button
@@ -118,8 +117,8 @@ const SOL_NATURES: SolNature[] = ['REGULAR', 'LINK'];
       />
     </section>
   `,
-  styleUrl: './section-of-line-editor.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    styleUrl: './section-of-line-editor.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SectionOfLineEditorComponent implements OnDestroy {
   private readonly store = inject(PlanningStoreService);

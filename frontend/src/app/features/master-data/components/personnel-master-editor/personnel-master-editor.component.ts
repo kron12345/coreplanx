@@ -252,10 +252,9 @@ const PERSONNEL_POOL_DEFAULTS = {
 };
 
 @Component({
-  selector: 'app-personnel-master-editor',
-  standalone: true,
-  imports: [CommonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
-  template: `
+    selector: 'app-personnel-master-editor',
+    imports: [CommonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
+    template: `
     <section class="personnel-editor">
       <header>
         <mat-button-toggle-group
@@ -337,8 +336,8 @@ const PERSONNEL_POOL_DEFAULTS = {
       </ng-container>
     </section>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .personnel-editor {
         display: flex;
         flex-direction: column;
@@ -363,8 +362,8 @@ const PERSONNEL_POOL_DEFAULTS = {
       }
 
     `,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PersonnelMasterEditorComponent {
   private readonly collections = inject(MasterDataCollectionsStoreService);

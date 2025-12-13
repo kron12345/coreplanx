@@ -18,11 +18,10 @@ export interface TimetableOperationalDialogData {
 }
 
 @Component({
-  selector: 'app-timetable-operational-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-operational-dialog.component.html',
-  styleUrl: './timetable-operational-dialog.component.scss',
+    selector: 'app-timetable-operational-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-operational-dialog.component.html',
+    styleUrl: './timetable-operational-dialog.component.scss'
 })
 export class TimetableOperationalDialogComponent {
   private readonly dialogRef = inject<

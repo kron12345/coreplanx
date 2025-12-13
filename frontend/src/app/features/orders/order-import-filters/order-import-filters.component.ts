@@ -12,22 +12,21 @@ import { ScheduleTemplate } from '../../../core/models/schedule-template.model';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
-  selector: 'app-order-import-filters',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatCheckboxModule,
-    MatButtonModule,
-    MatIconModule,
-    MatDividerModule,
-    MatTooltipModule,
-  ],
-  templateUrl: './order-import-filters.component.html',
-  styleUrl: './order-import-filters.component.scss',
+    selector: 'app-order-import-filters',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatCheckboxModule,
+        MatButtonModule,
+        MatIconModule,
+        MatDividerModule,
+        MatTooltipModule,
+    ],
+    templateUrl: './order-import-filters.component.html',
+    styleUrl: './order-import-filters.component.scss'
 })
 export class OrderImportFiltersComponent {
   @Input({ required: true }) form!: FormGroup;

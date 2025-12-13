@@ -23,11 +23,10 @@ export interface BusinessCreateDialogData {
 }
 
 @Component({
-  selector: 'app-business-create-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, OrderItemPickerComponent, ...MATERIAL_IMPORTS],
-  templateUrl: './business-create-dialog.component.html',
-  styleUrl: './business-create-dialog.component.scss',
+    selector: 'app-business-create-dialog',
+    imports: [CommonModule, ReactiveFormsModule, OrderItemPickerComponent, ...MATERIAL_IMPORTS],
+    templateUrl: './business-create-dialog.component.html',
+    styleUrl: './business-create-dialog.component.scss'
 })
 export class BusinessCreateDialogComponent {
   private readonly dialogRef = inject<

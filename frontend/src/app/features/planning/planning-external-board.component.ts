@@ -11,10 +11,9 @@ import { ActivityTypeDefinition, ActivityTypeService } from '../../core/services
 import { TranslationService } from '../../core/services/translation.service';
 
 @Component({
-  selector: 'app-planning-external-board',
-  standalone: true,
-  imports: [CommonModule, GanttComponent],
-  template: `
+    selector: 'app-planning-external-board',
+    imports: [CommonModule, GanttComponent],
+    template: `
     <div class="external-board">
       <app-gantt
         [resources]="boardResources()"
@@ -27,8 +26,8 @@ import { TranslationService } from '../../core/services/translation.service';
       ></app-gantt>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .external-board {
         width: 100%;
         height: 100vh;
@@ -36,7 +35,7 @@ import { TranslationService } from '../../core/services/translation.service';
         display: flex;
       }
     `,
-  ],
+    ]
 })
 export class PlanningExternalBoardComponent {
   private readonly route = inject(ActivatedRoute);

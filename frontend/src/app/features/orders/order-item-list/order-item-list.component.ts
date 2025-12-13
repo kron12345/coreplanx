@@ -33,12 +33,11 @@ import {
 } from '../shared/simulation-assign-dialog/simulation-assign-dialog.component';
 
 @Component({
-  selector: 'app-order-item-list',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS],
-  providers: [DatePipe],
-  templateUrl: './order-item-list.component.html',
-  styleUrl: './order-item-list.component.scss',
+    selector: 'app-order-item-list',
+    imports: [CommonModule, ...MATERIAL_IMPORTS],
+    providers: [DatePipe],
+    templateUrl: './order-item-list.component.html',
+    styleUrl: './order-item-list.component.scss'
 })
 export class OrderItemListComponent {
   @Input({ required: true }) items!: OrderItem[];

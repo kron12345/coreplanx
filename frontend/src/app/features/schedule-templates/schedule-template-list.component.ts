@@ -1,5 +1,5 @@
-import { CommonModule, DOCUMENT } from '@angular/common';
-import { Component, Input, computed, effect, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, Input, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
 import {
   FormControl,
   ReactiveFormsModule,
@@ -34,11 +34,10 @@ interface SortOption {
 }
 
 @Component({
-  selector: 'app-schedule-template-list',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './schedule-template-list.component.html',
-  styleUrl: './schedule-template-list.component.scss',
+    selector: 'app-schedule-template-list',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './schedule-template-list.component.html',
+    styleUrl: './schedule-template-list.component.scss'
 })
 export class ScheduleTemplateListComponent {
   private readonly templateService = inject(ScheduleTemplateService);

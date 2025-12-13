@@ -16,12 +16,11 @@ import {
 import { MasterDataCategoryComponent } from '../master-data-category/master-data-category.component';
 
 @Component({
-  selector: 'app-master-data-hierarchy-section',
-  standalone: true,
-  imports: [CommonModule, MatIconModule, MasterDataCategoryComponent],
-  templateUrl: './master-data-hierarchy-section.component.html',
-  styleUrl: './master-data-hierarchy-section.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-master-data-hierarchy-section',
+    imports: [CommonModule, MatIconModule, MasterDataCategoryComponent],
+    templateUrl: './master-data-hierarchy-section.component.html',
+    styleUrl: './master-data-hierarchy-section.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MasterDataHierarchySectionComponent implements OnChanges {
   @Input({ required: true }) config!: MasterDataHierarchyConfig<any, any>;

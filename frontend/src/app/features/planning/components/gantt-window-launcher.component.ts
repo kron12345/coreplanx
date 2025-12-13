@@ -7,10 +7,9 @@ import { PlanningStageId } from '../planning-stage.model';
 import { Router } from '@angular/router';
 
 @Component({
-  selector: 'app-gantt-window-launcher',
-  standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule, MatTooltipModule],
-  template: `
+    selector: 'app-gantt-window-launcher',
+    imports: [CommonModule, MatIconModule, MatButtonModule, MatTooltipModule],
+    template: `
     <button
       mat-icon-button
       type="button"
@@ -21,7 +20,7 @@ import { Router } from '@angular/router';
       <mat-icon fontIcon="open_in_new"></mat-icon>
     </button>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GanttWindowLauncherComponent {
   private readonly router = inject(Router);

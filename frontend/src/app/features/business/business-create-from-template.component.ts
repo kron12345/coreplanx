@@ -7,11 +7,10 @@ import { BusinessTemplateService } from '../../core/services/business-template.s
 import { OrderService } from '../../core/services/order.service';
 
 @Component({
-  selector: 'app-business-create-from-template',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './business-create-from-template.component.html',
-  styleUrl: './business-create-from-template.component.scss',
+    selector: 'app-business-create-from-template',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './business-create-from-template.component.html',
+    styleUrl: './business-create-from-template.component.scss'
 })
 export class BusinessCreateFromTemplateComponent {
   private readonly templateService = inject(BusinessTemplateService);

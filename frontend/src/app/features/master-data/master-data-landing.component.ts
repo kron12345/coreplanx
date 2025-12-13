@@ -9,12 +9,11 @@ import { TimetableYearMasterEditorComponent } from './components/timetable-year-
 import { SimulationMasterEditorComponent } from './components/simulation-master-editor/simulation-master-editor.component';
 
 @Component({
-  selector: 'app-master-data-landing',
-  standalone: true,
-  imports: [CommonModule, MasterDataLayoutComponent],
-  templateUrl: './master-data-landing.component.html',
-  styleUrl: './master-data-landing.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-master-data-landing',
+    imports: [CommonModule, MasterDataLayoutComponent],
+    templateUrl: './master-data-landing.component.html',
+    styleUrl: './master-data-landing.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MasterDataLandingComponent {
 

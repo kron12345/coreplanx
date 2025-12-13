@@ -1,5 +1,5 @@
-import { CommonModule, DOCUMENT } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, computed, effect, inject, signal, DOCUMENT } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -31,11 +31,10 @@ interface SortOption {
 }
 
 @Component({
-  selector: 'app-train-plan-list',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './train-plan-list.component.html',
-  styleUrl: './train-plan-list.component.scss',
+    selector: 'app-train-plan-list',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './train-plan-list.component.html',
+    styleUrl: './train-plan-list.component.scss'
 })
 export class TrainPlanListComponent {
   private readonly plansService = inject(TrainPlanService);

@@ -22,19 +22,18 @@ export interface SimulationAssignDialogResult {
 }
 
 @Component({
-  selector: 'app-simulation-assign-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
-    MatRadioModule,
-    ...MATERIAL_IMPORTS,
-  ],
-  templateUrl: './simulation-assign-dialog.component.html',
-  styleUrl: './simulation-assign-dialog.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-simulation-assign-dialog',
+    imports: [
+        CommonModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatIconModule,
+        MatRadioModule,
+        ...MATERIAL_IMPORTS,
+    ],
+    templateUrl: './simulation-assign-dialog.component.html',
+    styleUrl: './simulation-assign-dialog.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SimulationAssignDialogComponent {
   private readonly dialogRef =

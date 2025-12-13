@@ -52,16 +52,15 @@ const DEFAULT_FALLBACK = {
 };
 
 @Component({
-  selector: 'app-operational-point-editor',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    AttributeEntityEditorComponent,
-  ],
-  template: `
+    selector: 'app-operational-point-editor',
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        AttributeEntityEditorComponent,
+    ],
+    template: `
     <section class="topology-editor">
       <header class="topology-editor__toolbar">
         <button
@@ -120,8 +119,8 @@ const DEFAULT_FALLBACK = {
       />
     </section>
   `,
-  styleUrl: './operational-point-editor.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    styleUrl: './operational-point-editor.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OperationalPointEditorComponent implements OnDestroy {
   private readonly store = inject(PlanningStoreService);

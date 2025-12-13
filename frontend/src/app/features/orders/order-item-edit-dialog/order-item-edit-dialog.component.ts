@@ -53,19 +53,18 @@ interface OrderItemEditFormModel {
 }
 
 @Component({
-  selector: 'app-order-item-edit-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    ...MATERIAL_IMPORTS,
-    OrderItemGeneralFieldsComponent,
-    OrderItemServiceFieldsComponent,
-    OrderItemRangeFieldsComponent,
-    ReferenceCalendarInlineFormComponent,
-  ],
-  templateUrl: './order-item-edit-dialog.component.html',
-  styleUrl: './order-item-edit-dialog.component.scss',
+    selector: 'app-order-item-edit-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        ...MATERIAL_IMPORTS,
+        OrderItemGeneralFieldsComponent,
+        OrderItemServiceFieldsComponent,
+        OrderItemRangeFieldsComponent,
+        ReferenceCalendarInlineFormComponent,
+    ],
+    templateUrl: './order-item-edit-dialog.component.html',
+    styleUrl: './order-item-edit-dialog.component.scss'
 })
 export class OrderItemEditDialogComponent implements OnInit {
   private readonly dialogRef =

@@ -16,10 +16,9 @@ export interface ActivityLinkRoleDialogResult {
 }
 
 @Component({
-  selector: 'app-activity-link-role-dialog',
-  standalone: true,
-  imports: [CommonModule, ...MATERIAL_IMPORTS],
-  template: `
+    selector: 'app-activity-link-role-dialog',
+    imports: [CommonModule, ...MATERIAL_IMPORTS],
+    template: `
     <h2 mat-dialog-title>Funktionen der verknüpften Leistungen</h2>
     <mat-dialog-content>
       <p>
@@ -60,8 +59,8 @@ export interface ActivityLinkRoleDialogResult {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [
-    `
+    styles: [
+        `
       .activity-link-role-dialog__section {
         margin-top: 12px;
         display: flex;
@@ -81,7 +80,7 @@ export interface ActivityLinkRoleDialogResult {
         flex: 1 1 0;
       }
     `,
-  ],
+    ]
 })
 export class ActivityLinkRoleDialogComponent {
   protected readonly data = inject<ActivityLinkRoleDialogData>(MAT_DIALOG_DATA);

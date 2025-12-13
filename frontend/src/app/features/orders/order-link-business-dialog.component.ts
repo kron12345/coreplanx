@@ -15,11 +15,10 @@ export interface OrderLinkBusinessDialogData {
 }
 
 @Component({
-  selector: 'app-order-link-business-dialog',
-  standalone: true,
-  imports: [CommonModule, MatDialogModule, ...MATERIAL_IMPORTS],
-  templateUrl: './order-link-business-dialog.component.html',
-  styleUrl: './order-link-business-dialog.component.scss',
+    selector: 'app-order-link-business-dialog',
+    imports: [CommonModule, MatDialogModule, ...MATERIAL_IMPORTS],
+    templateUrl: './order-link-business-dialog.component.html',
+    styleUrl: './order-link-business-dialog.component.scss'
 })
 export class OrderLinkBusinessDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<OrderLinkBusinessDialogComponent>);

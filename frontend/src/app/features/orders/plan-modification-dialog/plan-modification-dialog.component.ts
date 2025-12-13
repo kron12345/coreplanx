@@ -84,17 +84,16 @@ interface PlanModificationFormModel {
 }
 
 @Component({
-  selector: 'app-plan-modification-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    ...MATERIAL_IMPORTS,
-    AnnualCalendarSelectorComponent,
-    VehicleCompositionFormComponent,
-  ],
-  templateUrl: './plan-modification-dialog.component.html',
-  styleUrl: './plan-modification-dialog.component.scss',
+    selector: 'app-plan-modification-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        ...MATERIAL_IMPORTS,
+        AnnualCalendarSelectorComponent,
+        VehicleCompositionFormComponent,
+    ],
+    templateUrl: './plan-modification-dialog.component.html',
+    styleUrl: './plan-modification-dialog.component.scss'
 })
 export class PlanModificationDialogComponent {
   private readonly dialogRef =

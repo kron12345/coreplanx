@@ -34,23 +34,22 @@ import {
 } from '../../master-data.types';
 
 @Component({
-  selector: 'app-master-data-category',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatButtonModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatTooltipModule,
-    MatSlideToggleModule,
-  ],
-  templateUrl: './master-data-category.component.html',
-  styleUrl: './master-data-category.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-master-data-category',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatTableModule,
+        MatButtonModule,
+        MatIconModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatTooltipModule,
+        MatSlideToggleModule,
+    ],
+    templateUrl: './master-data-category.component.html',
+    styleUrl: './master-data-category.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MasterDataCategoryComponent<T extends { id: string }> implements OnChanges {
   @Input({ required: true }) config!: MasterDataCategoryConfig<T>;

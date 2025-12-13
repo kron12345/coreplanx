@@ -25,12 +25,11 @@ function normalizeDate(value: string | null | undefined): string | null {
 }
 
 @Component({
-  selector: 'app-planning-periods',
-  standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatIconModule, ReactiveFormsModule],
-  templateUrl: './planning-periods.component.html',
-  styleUrl: './planning-periods.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-planning-periods',
+    imports: [CommonModule, MatCardModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatIconModule, ReactiveFormsModule],
+    templateUrl: './planning-periods.component.html',
+    styleUrl: './planning-periods.component.scss',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PlanningPeriodsComponent {
   private readonly route = inject(ActivatedRoute);

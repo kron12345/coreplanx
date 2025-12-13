@@ -10,7 +10,7 @@
 .md-category__list {
   display: flex;
   flex-direction: column;
-  background: var(--mdc-filled-text-field-container-color, #fff);
+  background: var(--mat-form-field-filled-container-color, #fff);
   border-radius: 12px;
   padding: 18px;
   box-shadow:
@@ -46,7 +46,7 @@
 .md-category__detail {
   display: flex;
   flex-direction: column;
-  background: var(--mdc-filled-text-field-container-color, #fff);
+  background: var(--mat-form-field-filled-container-color, #fff);
   border-radius: 12px;
   padding: 20px;
   box-shadow:

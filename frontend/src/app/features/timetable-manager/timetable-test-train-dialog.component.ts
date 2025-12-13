@@ -70,11 +70,10 @@ type TestTrainFormModel = {
 };
 
 @Component({
-  selector: 'app-timetable-test-train-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-test-train-dialog.component.html',
-  styleUrl: './timetable-test-train-dialog.component.scss',
+    selector: 'app-timetable-test-train-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-test-train-dialog.component.html',
+    styleUrl: './timetable-test-train-dialog.component.scss'
 })
 export class TimetableTestTrainDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<TimetableTestTrainDialogComponent>);

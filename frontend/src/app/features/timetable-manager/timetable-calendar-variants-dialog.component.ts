@@ -24,11 +24,10 @@ interface TimetableCalendarVariantsDialogData {
 }
 
 @Component({
-  selector: 'app-timetable-calendar-variants-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-calendar-variants-dialog.component.html',
-  styleUrl: './timetable-calendar-variants-dialog.component.scss',
+    selector: 'app-timetable-calendar-variants-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-calendar-variants-dialog.component.html',
+    styleUrl: './timetable-calendar-variants-dialog.component.scss'
 })
 export class TimetableCalendarVariantsDialogComponent {
   private readonly dialogRef =

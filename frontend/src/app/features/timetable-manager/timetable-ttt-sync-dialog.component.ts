@@ -18,11 +18,10 @@ interface TimetableTttSyncDialogResult {
 }
 
 @Component({
-  selector: 'app-timetable-ttt-sync-dialog',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
-  templateUrl: './timetable-ttt-sync-dialog.component.html',
-  styleUrl: './timetable-ttt-sync-dialog.component.scss',
+    selector: 'app-timetable-ttt-sync-dialog',
+    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    templateUrl: './timetable-ttt-sync-dialog.component.html',
+    styleUrl: './timetable-ttt-sync-dialog.component.scss'
 })
 export class TimetableTttSyncDialogComponent {
   private readonly dialogRef =
