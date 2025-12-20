@@ -91,7 +91,7 @@
         </div>
 
         <div class="planning-filter planning-filter--wide" tabindex="0">
-          <button type="button" class="planning-filter__trigger">
+          <button #yearFilterTrigger type="button" class="planning-filter__trigger">
             <mat-icon fontIcon="calendar_month"></mat-icon>
             <span>{{ timetableYearSummary() }}</span>
           </button>
@@ -105,16 +105,20 @@
                 Alle
               </button>
             </div>
-            <div class="planning-filter__panel-list planning-filter__panel-list--resources">
-              @for (year of timetableYearOptions(); track year.label) {
-                <mat-checkbox
-                  [checked]="isTimetableYearSelected(year.label)"
-                  (change)="onTimetableYearToggle(year.label, $event.checked)"
-                >
-                  {{ year.label }} · {{ year.startIso }} – {{ year.endIso }}
-                </mat-checkbox>
-              }
-            </div>
+            @defer (on interaction(yearFilterTrigger); on hover(yearFilterTrigger)) {
+              <div class="planning-filter__panel-list planning-filter__panel-list--resources">
+                @for (year of timetableYearOptions(); track year.label) {
+                  <mat-checkbox
+                    [checked]="isTimetableYearSelected(year.label)"
+                    (change)="onTimetableYearToggle(year.label, $event.checked)"
+                  >
+                    {{ year.label }} · {{ year.startIso }} – {{ year.endIso }}
+                  </mat-checkbox>
+                }
+              </div>
+            } @placeholder {
+              <p class="planning-filter__empty">Fahrplanjahre werden geladen…</p>
+            }
           </div>
         </div>
 
@@ -146,7 +150,7 @@
         </div>
 
         <div class="planning-filter planning-filter--wide" tabindex="0">
-          <button type="button" class="planning-filter__trigger">
+          <button #resourceFilterTrigger type="button" class="planning-filter__trigger">
             <mat-icon fontIcon="group"></mat-icon>
             <span>Ressourcen</span>
           </button>
@@ -156,26 +160,30 @@
               <button mat-stroked-button (click)="selectAllResources()">Alle</button>
               <button mat-button (click)="clearSelection()">Leeren</button>
             </div>
-            <div class="planning-filter__panel-groups">
-              @for (group of resourceGroups(); track group.label) {
-                <div class="planning-filter__panel-group">
-                  <header>
-                    <strong>{{ group.label }}</strong>
-                    <small>{{ group.resources.length }} Ressourcen</small>
-                  </header>
-                  <div class="planning-filter__panel-list planning-filter__panel-list--resources">
-                    @for (resource of group.resources; track resource.id) {
-                      <mat-checkbox
-                        [checked]="isResourceSelected(resource.id)"
-                        (change)="onSelectionToggle(resource.id, $event.checked)"
-                      >
-                        {{ resource.name }}
-                      </mat-checkbox>
-                    }
+            @defer (on interaction(resourceFilterTrigger); on hover(resourceFilterTrigger)) {
+              <div class="planning-filter__panel-groups">
+                @for (group of resourceGroups(); track group.label) {
+                  <div class="planning-filter__panel-group">
+                    <header>
+                      <strong>{{ group.label }}</strong>
+                      <small>{{ group.resources.length }} Ressourcen</small>
+                    </header>
+                    <div class="planning-filter__panel-list planning-filter__panel-list--resources">
+                      @for (resource of group.resources; track resource.id) {
+                        <mat-checkbox
+                          [checked]="isResourceSelected(resource.id)"
+                          (change)="onSelectionToggle(resource.id, $event.checked)"
+                        >
+                          {{ resource.name }}
+                        </mat-checkbox>
+                      }
+                    </div>
                   </div>
-                </div>
-              }
-            </div>
+                }
+              </div>
+            } @placeholder {
+              <p class="planning-filter__empty">Ressourcen werden geladen…</p>
+            }
           </div>
         </div>
 

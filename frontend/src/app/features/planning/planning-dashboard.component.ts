@@ -300,7 +300,6 @@ export class PlanningDashboardComponent {
     queryFrom: this.queryFrom,
     queryTo: this.queryTo,
     destroyRef: this.destroyRef,
-    onStageChanged: (stage) => this.onStageChange(stage),
   });
   private readonly yearFacade = new PlanningDashboardYearFacade({
     activeStage: () => this.activeStageSignal(),
@@ -349,6 +348,15 @@ export class PlanningDashboardComponent {
     activityMoveTargetSignal: this.activityMoveTargetSignal,
     stageState: (stage) => this.stageStore.stageState(stage),
   });
+
+  private readonly boardResourcesCache = new Map<
+    string,
+    { resourceIdsRef: string[]; stageResourcesRef: Resource[]; result: Resource[] }
+  >();
+  private readonly boardActivitiesCache = new Map<
+    string,
+    { resourceIdsRef: string[]; stageActivitiesRef: Activity[]; result: Activity[] }
+  >();
 
   constructor() {
     this.templateStore.loadTemplates();
@@ -1117,11 +1125,45 @@ export class PlanningDashboardComponent {
   }
 
   protected boardResources(board: PlanningBoard): Resource[] {
-    return this.boardActionsFacade.boardResources(board);
+    const stage = this.activeStageSignal();
+    const stageResources = this.stageResourceSignals[stage]();
+    const key = `${stage}:${board.id}`;
+    const cached = this.boardResourcesCache.get(key);
+    if (
+      cached &&
+      cached.resourceIdsRef === board.resourceIds &&
+      cached.stageResourcesRef === stageResources
+    ) {
+      return cached.result;
+    }
+    const result = this.boardActionsFacade.boardResources(board);
+    this.boardResourcesCache.set(key, {
+      resourceIdsRef: board.resourceIds,
+      stageResourcesRef: stageResources,
+      result,
+    });
+    return result;
   }
 
   protected boardActivities(board: PlanningBoard): Activity[] {
-    return this.boardActionsFacade.boardActivities(board);
+    const stage = this.activeStageSignal();
+    const stageActivities = this.normalizedStageActivitySignals[stage]();
+    const key = `${stage}:${board.id}`;
+    const cached = this.boardActivitiesCache.get(key);
+    if (
+      cached &&
+      cached.resourceIdsRef === board.resourceIds &&
+      cached.stageActivitiesRef === stageActivities
+    ) {
+      return cached.result;
+    }
+    const result = this.boardActionsFacade.boardActivities(board);
+    this.boardActivitiesCache.set(key, {
+      resourceIdsRef: board.resourceIds,
+      stageActivitiesRef: stageActivities,
+      result,
+    });
+    return result;
   }
 
   protected boardPendingActivity(board: PlanningBoard): Activity | null {

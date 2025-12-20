@@ -14,7 +14,6 @@ export class PlanningDashboardRoutingFacade {
       queryFrom: Signal<string | null> & { set: (val: string | null) => void };
       queryTo: Signal<string | null> & { set: (val: string | null) => void };
       destroyRef: DestroyRef;
-      onStageChanged: (stage: PlanningStageId) => void;
     },
   ) {}
 
@@ -33,10 +32,10 @@ export class PlanningDashboardRoutingFacade {
     this.deps.route.queryParamMap
       .pipe(takeUntilDestroyed(this.deps.destroyRef))
       .subscribe((params) => {
-      const stage = normalizeStageId(params.get('stage'), this.deps.stageMetaMap);
-      this.setActiveStage(stage, false);
-      this.deps.queryFrom.set(params.get('from'));
-      this.deps.queryTo.set(params.get('to'));
+        const stage = normalizeStageId(params.get('stage'), this.deps.stageMetaMap);
+        this.setActiveStage(stage, false);
+        this.deps.queryFrom.set(params.get('from'));
+        this.deps.queryTo.set(params.get('to'));
       });
   }
 
@@ -48,7 +47,6 @@ export class PlanningDashboardRoutingFacade {
       }
       return;
     }
-    this.deps.onStageChanged(stage);
     this.deps.activeStageSignal.set(stage);
     if (updateUrl) {
       updateStageQueryParam(this.deps.router, this.deps.route, stage);
