@@ -1,0 +1,16 @@
+# ADR 0001 – Planungsräume und Produktionsschutz
+
+## Status
+Accepted
+
+## Entscheidung
+- Genau eine produktive Simulation pro Fahrplanjahr
+- Publish betrifft nur Basisplanung
+- Produktiver Fahrplanmanager ist nicht ersetzbar
+- Übergabe Basis → Betrieb erfolgt als Snapshot
+- Regeln gelten in Basis und Betrieb
+
+## Konsequenzen
+- Simulationen sind sicher testbar
+- Produktionsdaten bleiben geschützt
+- Planung bleibt nachvollziehbar

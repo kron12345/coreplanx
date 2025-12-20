@@ -12,6 +12,7 @@ import { TemplatePeriod } from '../../core/api/timeline-api.types';
 import { PlanningStageId } from './planning-stage.model';
 import { Router } from '@angular/router';
 import { PlanningPeriodsDialogComponent } from './planning-periods-dialog.component';
+import { PlanningDataService } from './planning-data.service';
 
 interface CalendarMonthHeader {
   key: string;
@@ -57,6 +58,8 @@ export class PlanningCalendarComponent {
   private readonly timetableYearService = inject(TimetableYearService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
+  private readonly data = inject(PlanningDataService);
+  private readonly planningVariant = this.data.planningVariant();
 
   readonly templates = this.store.templates;
   readonly selectedTemplate = computed(() => this.store.selectedTemplateWithFallback());
@@ -118,39 +121,39 @@ export class PlanningCalendarComponent {
 
   constructor() {
     this.store.loadTemplates();
-    effect(
-      () => {
-        const template = this.selectedTemplate();
-        if (!template) {
-          const templates = this.templates();
-          if (templates.length > 0) {
-            this.store.selectTemplate(templates[0].id);
-          }
+    effect(() => {
+      const template = this.selectedTemplate();
+      if (!template) {
+        const templates = this.templates();
+        if (templates.length > 0) {
+          this.store.selectTemplate(templates[0].id);
         }
-        const tpl = this.selectedTemplate();
-        // If still no template, create a synthetic default in memory so UI works.
-        if (!tpl) {
-          const year = this.selectedYear();
-          this.store.setSyntheticTemplate({
-            id: 'default',
-            name: 'Default',
-            description: 'Standard-Fahrplanjahr',
-            tableName: 'template_default',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            periods: [
-              {
-                id: `default-${year.label}`,
-                validFrom: year.startIso,
-                validTo: year.endIso,
-              },
-            ],
-            specialDays: [],
-          });
-        }
-      },
-      { allowSignalWrites: true },
-    );
+      }
+      const tpl = this.selectedTemplate();
+      // If still no template, create a synthetic default in memory so UI works.
+      if (!tpl) {
+        const year = this.selectedYear();
+        const variantId = this.planningVariant()?.id?.trim() || 'default';
+        const safeVariant = variantId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const templateId = `default-${safeVariant}`;
+        this.store.setSyntheticTemplate({
+          id: templateId,
+          name: 'Default',
+          description: 'Standard-Fahrplanjahr',
+          tableName: `template_${templateId}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          periods: [
+            {
+              id: `default-${year.label}`,
+              validFrom: year.startIso,
+              validTo: year.endIso,
+            },
+          ],
+          specialDays: [],
+        });
+      }
+    });
     // Initial defaults
     const year = this.selectedYear();
     this.periodStart.set(year.startIso);

@@ -54,6 +54,8 @@ import type {
 } from './planning.types';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { PlanningMasterDataService } from './planning-master-data.service';
+import type { OperationsSnapshotRequest, OperationsSnapshotResponse } from './planning-snapshot.service';
+import { PlanningSnapshotService } from './planning-snapshot.service';
 import { PlanningStageService } from './planning-stage.service';
 import { PlanningTopologyImportService } from './planning-topology-import.service';
 
@@ -63,48 +65,80 @@ export class PlanningService {
     private readonly stageService: PlanningStageService,
     private readonly masterDataService: PlanningMasterDataService,
     private readonly catalogService: PlanningActivityCatalogService,
+    private readonly snapshotService: PlanningSnapshotService,
     private readonly topologyImportService: PlanningTopologyImportService,
   ) {}
 
-  getStageSnapshot(stageId: string): PlanningStageSnapshot {
-    return this.stageService.getStageSnapshot(stageId);
+  getStageSnapshot(
+    stageId: string,
+    variantId: string,
+    timetableYearLabel?: string | null,
+  ): Promise<PlanningStageSnapshot> {
+    return this.stageService.getStageSnapshot(stageId, variantId, timetableYearLabel);
   }
 
-  listActivities(stageId: string, filters: ActivityFilters = {}): Activity[] {
-    return this.stageService.listActivities(stageId, filters);
+  listActivities(
+    stageId: string,
+    variantId: string,
+    filters: ActivityFilters = {},
+    timetableYearLabel?: string | null,
+  ): Promise<Activity[]> {
+    return this.stageService.listActivities(stageId, variantId, filters, timetableYearLabel);
   }
 
-  listResources(stageId: string): Resource[] {
-    return this.stageService.listResources(stageId);
+  listResources(
+    stageId: string,
+    variantId: string,
+    timetableYearLabel?: string | null,
+  ): Promise<Resource[]> {
+    return this.stageService.listResources(stageId, variantId, timetableYearLabel);
   }
 
   mutateActivities(
     stageId: string,
+    variantId: string,
     request?: ActivityMutationRequest,
+    timetableYearLabel?: string | null,
   ): Promise<ActivityMutationResponse> {
-    return this.stageService.mutateActivities(stageId, request);
+    return this.stageService.mutateActivities(stageId, variantId, request, timetableYearLabel);
   }
 
   validateActivities(
     stageId: string,
+    variantId: string,
     request?: ActivityValidationRequest,
-  ): ActivityValidationResponse {
-    return this.stageService.validateActivities(stageId, request);
+    timetableYearLabel?: string | null,
+  ): Promise<ActivityValidationResponse> {
+    return this.stageService.validateActivities(stageId, variantId, request, timetableYearLabel);
   }
 
   streamStageEvents(
     stageId: string,
+    variantId: string,
     userId?: string,
     connectionId?: string,
+    timetableYearLabel?: string | null,
   ): Observable<PlanningStageRealtimeEvent> {
-    return this.stageService.streamStageEvents(stageId, userId, connectionId);
+    return this.stageService.streamStageEvents(
+      stageId,
+      variantId,
+      userId,
+      connectionId,
+      timetableYearLabel ?? null,
+    );
   }
 
   mutateResources(
     stageId: string,
+    variantId: string,
     request?: ResourceMutationRequest,
+    timetableYearLabel?: string | null,
   ): Promise<ResourceMutationResponse> {
-    return this.stageService.mutateResources(stageId, request);
+    return this.stageService.mutateResources(stageId, variantId, request, timetableYearLabel);
+  }
+
+  snapshotBaseToOperations(request: OperationsSnapshotRequest): Promise<OperationsSnapshotResponse> {
+    return this.snapshotService.snapshotBaseToOperations(request);
   }
 
   listPersonnelServicePools(): PersonnelServicePoolListResponse {
@@ -400,4 +434,3 @@ export class PlanningService {
     return this.topologyImportService.publishTopologyImportEvent(request);
   }
 }
-

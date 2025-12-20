@@ -13,6 +13,7 @@ import type {
   ActivityValidationIssue,
   ActivityValidationRequest,
   ActivityValidationResponse,
+  PlanningVariantId,
   PlanningStageRealtimeEvent,
   PlanningStageSnapshot,
   Resource,
@@ -26,8 +27,12 @@ import type {
 import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
 
+const DEFAULT_VARIANT_ID: PlanningVariantId = 'default';
+
 interface StageState {
   stageId: StageId;
+  variantId: PlanningVariantId;
+  timetableYearLabel?: string | null;
   resources: Resource[];
   activities: Activity[];
   trainRuns: TrainRun[];
@@ -44,12 +49,9 @@ interface SourceContext {
 @Injectable()
 export class PlanningStageService implements OnModuleInit {
   private readonly logger = new Logger(PlanningStageService.name);
-  private readonly stages = new Map<StageId, StageState>();
+  private readonly stages = new Map<string, StageState>();
   private validationIssueCounter = 0;
-  private readonly stageEventSubjects = new Map<
-    StageId,
-    Subject<PlanningStageRealtimeEvent>
-  >();
+  private readonly stageEventSubjects = new Map<string, Subject<PlanningStageRealtimeEvent>>();
   private readonly heartbeatIntervalMs = 30000;
 
   private readonly usingDatabase: boolean;
@@ -58,7 +60,8 @@ export class PlanningStageService implements OnModuleInit {
     this.usingDatabase = this.repository.isEnabled;
     if (!this.usingDatabase) {
       STAGE_IDS.forEach((stageId) => {
-        this.stages.set(stageId, this.createEmptyStage(stageId));
+        const stage = this.createEmptyStage(stageId, DEFAULT_VARIANT_ID);
+        this.stages.set(this.stageKey(stageId, DEFAULT_VARIANT_ID), stage);
       });
     }
   }
@@ -67,13 +70,19 @@ export class PlanningStageService implements OnModuleInit {
     if (!this.usingDatabase) {
       return;
     }
-    await this.initializeStagesFromDatabase();
+    await this.initializeStagesFromDatabase(DEFAULT_VARIANT_ID);
   }
 
-  getStageSnapshot(stageId: string): PlanningStageSnapshot {
-    const stage = this.getStage(stageId);
+  async getStageSnapshot(
+    stageId: string,
+    variantId: string,
+    timetableYearLabel?: string | null,
+  ): Promise<PlanningStageSnapshot> {
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     return {
       stageId: stage.stageId,
+      variantId: stage.variantId,
+      timetableYearLabel: stage.timetableYearLabel ?? undefined,
       resources: stage.resources.map((resource) => this.cloneResource(resource)),
       activities: stage.activities.map((activity) => this.cloneActivity(activity)),
       trainRuns: stage.trainRuns.map((run) => this.cloneTrainRun(run)),
@@ -85,22 +94,33 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
-  listActivities(stageId: string, filters: ActivityFilters = {}): Activity[] {
-    const stage = this.getStage(stageId);
+  async listActivities(
+    stageId: string,
+    variantId: string,
+    filters: ActivityFilters = {},
+    timetableYearLabel?: string | null,
+  ): Promise<Activity[]> {
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     const filtered = this.applyActivityFilters(stage.activities, filters);
     return filtered.map((activity) => this.cloneActivity(activity));
   }
 
-  listResources(stageId: string): Resource[] {
-    const stage = this.getStage(stageId);
+  async listResources(
+    stageId: string,
+    variantId: string,
+    timetableYearLabel?: string | null,
+  ): Promise<Resource[]> {
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     return stage.resources.map((resource) => this.cloneResource(resource));
   }
 
   async mutateActivities(
     stageId: string,
+    variantId: string,
     request?: ActivityMutationRequest,
+    timetableYearLabel?: string | null,
   ): Promise<ActivityMutationResponse> {
-    const stage = this.getStage(stageId);
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     const previousTimeline = { ...stage.timelineRange };
     const upserts = request?.upserts ?? [];
     const deleteIds = new Set(request?.deleteIds ?? []);
@@ -135,8 +155,7 @@ export class PlanningStageService implements OnModuleInit {
 
     const sourceContext = this.extractSourceContext(request?.clientRequestId);
     if (appliedUpserts.length || deletedIds.length) {
-      this.emitStageEvent(stage.stageId, {
-        stageId: stage.stageId,
+      this.emitStageEvent(stage, {
         scope: 'activities',
         version: stage.version,
         sourceClientId: sourceContext.userId,
@@ -152,11 +171,13 @@ export class PlanningStageService implements OnModuleInit {
     if (this.usingDatabase) {
       await this.repository.applyActivityMutations(
         stage.stageId,
+        stage.variantId,
         activitySnapshots,
         deletedIds,
       );
       await this.repository.updateStageMetadata(
         stage.stageId,
+        stage.variantId,
         stage.timelineRange,
         stage.version,
       );
@@ -169,11 +190,13 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
-  validateActivities(
+  async validateActivities(
     stageId: string,
+    variantId: string,
     request?: ActivityValidationRequest,
-  ): ActivityValidationResponse {
-    const stage = this.getStage(stageId);
+    timetableYearLabel?: string | null,
+  ): Promise<ActivityValidationResponse> {
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     const filters: ActivityFilters = {
       from: request?.windowStart,
       to: request?.windowEnd,
@@ -196,34 +219,51 @@ export class PlanningStageService implements OnModuleInit {
 
   streamStageEvents(
     stageId: string,
-    _userId?: string,
-    _connectionId?: string,
+    variantId: string,
+    userId?: string,
+    connectionId?: string,
+    timetableYearLabel?: string | null,
   ): Observable<PlanningStageRealtimeEvent> {
-    const stage = this.getStage(stageId);
-    const subject = this.getStageEventSubject(stage.stageId);
     return new Observable<PlanningStageRealtimeEvent>((subscriber) => {
-      const subscription = subject.subscribe({
-        next: (event) => subscriber.next(event),
-        error: (error) => subscriber.error(error),
-        complete: () => subscriber.complete(),
-      });
-      subscriber.next(this.createTimelineEvent(stage));
-      const heartbeat = setInterval(() => {
-        const currentStage = this.getStage(stage.stageId);
-        subscriber.next(this.createTimelineEvent(currentStage));
-      }, this.heartbeatIntervalMs);
+      let subscription: { unsubscribe: () => void } | null = null;
+      let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+      this.getStage(stageId, variantId, timetableYearLabel)
+        .then((stage) => {
+          const subject = this.getStageEventSubject(stage.stageId, stage.variantId);
+          subscription = subject.subscribe({
+            next: (event) => subscriber.next(event),
+            error: (error) => subscriber.error(error),
+            complete: () => subscriber.complete(),
+          });
+          subscriber.next(this.createTimelineEvent(stage, { userId, connectionId }));
+          heartbeat = setInterval(() => {
+            const key = this.stageKey(stage.stageId, stage.variantId);
+            const currentStage = this.stages.get(key);
+            if (!currentStage) {
+              return;
+            }
+            subscriber.next(this.createTimelineEvent(currentStage, { userId, connectionId }));
+          }, this.heartbeatIntervalMs);
+        })
+        .catch((error) => subscriber.error(error));
+
       return () => {
-        clearInterval(heartbeat);
-        subscription.unsubscribe();
+        if (heartbeat) {
+          clearInterval(heartbeat);
+        }
+        subscription?.unsubscribe();
       };
     });
   }
 
   async mutateResources(
     stageId: string,
+    variantId: string,
     request?: ResourceMutationRequest,
+    timetableYearLabel?: string | null,
   ): Promise<ResourceMutationResponse> {
-    const stage = this.getStage(stageId);
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     const previousTimeline = { ...stage.timelineRange };
     const upserts = request?.upserts ?? [];
     const deleteIds = new Set(request?.deleteIds ?? []);
@@ -281,8 +321,7 @@ export class PlanningStageService implements OnModuleInit {
 
     const sourceContext = this.extractSourceContext(request?.clientRequestId);
     if (appliedUpserts.length || deletedIds.length) {
-      this.emitStageEvent(stage.stageId, {
-        stageId: stage.stageId,
+      this.emitStageEvent(stage, {
         scope: 'resources',
         version: stage.version,
         sourceClientId: sourceContext.userId,
@@ -292,8 +331,7 @@ export class PlanningStageService implements OnModuleInit {
       });
     }
     if (orphanedActivityIds.length) {
-      this.emitStageEvent(stage.stageId, {
-        stageId: stage.stageId,
+      this.emitStageEvent(stage, {
         scope: 'activities',
         version: stage.version,
         sourceClientId: sourceContext.userId,
@@ -306,11 +344,11 @@ export class PlanningStageService implements OnModuleInit {
     }
 
     if (this.usingDatabase) {
-      await this.repository.applyResourceMutations(stage.stageId, resourceSnapshots, deletedIds);
+      await this.repository.applyResourceMutations(stage.stageId, stage.variantId, resourceSnapshots, deletedIds);
       if (orphanedActivityIds.length) {
-        await this.repository.deleteActivities(stage.stageId, orphanedActivityIds);
+        await this.repository.deleteActivities(stage.stageId, stage.variantId, orphanedActivityIds);
       }
-      await this.repository.updateStageMetadata(stage.stageId, stage.timelineRange, stage.version);
+      await this.repository.updateStageMetadata(stage.stageId, stage.variantId, stage.timelineRange, stage.version);
     }
 
     return {
@@ -320,22 +358,38 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
-  private async initializeStagesFromDatabase(): Promise<void> {
+  private stageKey(stageId: StageId, variantId: PlanningVariantId): string {
+    return `${stageId}::${variantId}`;
+  }
+
+  private normalizeVariantId(value?: string | null): PlanningVariantId {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : DEFAULT_VARIANT_ID;
+  }
+
+  private async initializeStagesFromDatabase(variantId: PlanningVariantId): Promise<void> {
     for (const stageId of STAGE_IDS) {
-      await this.loadStageFromDatabase(stageId);
+      await this.loadStageFromDatabase(stageId, variantId);
     }
   }
 
-  private async loadStageFromDatabase(stageId: StageId): Promise<void> {
+  private async loadStageFromDatabase(
+    stageId: StageId,
+    variantId: PlanningVariantId,
+    timetableYearLabel?: string | null,
+  ): Promise<void> {
+    const key = this.stageKey(stageId, variantId);
     try {
-      const data = await this.repository.loadStageData(stageId);
+      const data = await this.repository.loadStageData(stageId, variantId);
       if (!data) {
-        const emptyStage = this.createEmptyStage(stageId);
-        this.stages.set(stageId, emptyStage);
+        const emptyStage = this.createEmptyStage(stageId, variantId, timetableYearLabel);
+        this.stages.set(key, emptyStage);
         await this.repository.updateStageMetadata(
           stageId,
+          variantId,
           emptyStage.timelineRange,
           emptyStage.version,
+          timetableYearLabel ?? null,
         );
         return;
       }
@@ -347,6 +401,8 @@ export class PlanningStageService implements OnModuleInit {
       const version = data.version ?? this.nextVersion();
       const stage: StageState = {
         stageId,
+        variantId,
+        timetableYearLabel: data.timetableYearLabel ?? timetableYearLabel ?? null,
         resources: data.resources.map((resource) => this.cloneResource(resource)),
         activities: data.activities.map((activity) => this.cloneActivity(activity)),
         trainRuns: data.trainRuns.map((run) => this.cloneTrainRun(run)),
@@ -354,7 +410,7 @@ export class PlanningStageService implements OnModuleInit {
         timelineRange,
         version,
       };
-      this.stages.set(stageId, stage);
+      this.stages.set(key, stage);
 
       if (
         !data.timelineRange ||
@@ -362,20 +418,32 @@ export class PlanningStageService implements OnModuleInit {
         data.timelineRange.end !== timelineRange.end ||
         data.version !== version
       ) {
-        await this.repository.updateStageMetadata(stageId, timelineRange, version);
+        await this.repository.updateStageMetadata(
+          stageId,
+          variantId,
+          timelineRange,
+          version,
+          stage.timetableYearLabel ?? null,
+        );
       }
     } catch (error) {
       this.logger.error(
-        `Stage ${stageId} konnte nicht aus der Datenbank geladen werden – verwende eine leere Stage.`,
+        `Stage ${stageId} (${variantId}) konnte nicht aus der Datenbank geladen werden – verwende eine leere Stage.`,
         (error as Error).stack ?? String(error),
       );
-      this.stages.set(stageId, this.createEmptyStage(stageId));
+      this.stages.set(key, this.createEmptyStage(stageId, variantId, timetableYearLabel));
     }
   }
 
-  private createEmptyStage(stageId: StageId): StageState {
+  private createEmptyStage(
+    stageId: StageId,
+    variantId: PlanningVariantId,
+    timetableYearLabel?: string | null,
+  ): StageState {
     return {
       stageId,
+      variantId,
+      timetableYearLabel: timetableYearLabel ?? null,
       resources: [],
       activities: [],
       trainRuns: [],
@@ -424,37 +492,57 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
-  private getStageEventSubject(stageId: StageId): Subject<PlanningStageRealtimeEvent> {
-    const existing = this.stageEventSubjects.get(stageId);
+  private getStageEventSubject(stageId: StageId, variantId: PlanningVariantId): Subject<PlanningStageRealtimeEvent> {
+    const key = this.stageKey(stageId, variantId);
+    const existing = this.stageEventSubjects.get(key);
     if (existing) {
       return existing;
     }
     const subject = new Subject<PlanningStageRealtimeEvent>();
-    this.stageEventSubjects.set(stageId, subject);
+    this.stageEventSubjects.set(key, subject);
     return subject;
   }
 
-  private emitStageEvent(stageId: StageId, event: PlanningStageRealtimeEvent): void {
-    const subject = this.getStageEventSubject(stageId);
-    subject.next(event);
+  private buildStageEvent(
+    stage: StageState,
+    event: Omit<PlanningStageRealtimeEvent, 'stageId' | 'variantId'>,
+  ): PlanningStageRealtimeEvent {
+    return {
+      stageId: stage.stageId,
+      variantId: stage.variantId,
+      ...event,
+    };
+  }
+
+  private emitStageEvent(
+    stage: StageState,
+    event: Omit<PlanningStageRealtimeEvent, 'stageId' | 'variantId'>,
+  ): void {
+    const subject = this.getStageEventSubject(stage.stageId, stage.variantId);
+    subject.next(this.buildStageEvent(stage, event));
   }
 
   private emitTimelineEvent(stage: StageState, sourceContext?: SourceContext): void {
-    this.emitStageEvent(stage.stageId, this.createTimelineEvent(stage, sourceContext));
+    this.emitStageEvent(stage, {
+      scope: 'timeline',
+      version: stage.version,
+      sourceClientId: sourceContext?.userId,
+      sourceConnectionId: sourceContext?.connectionId,
+      timelineRange: { ...stage.timelineRange },
+    });
   }
 
   private createTimelineEvent(
     stage: StageState,
     sourceContext?: SourceContext,
   ): PlanningStageRealtimeEvent {
-    return {
-      stageId: stage.stageId,
+    return this.buildStageEvent(stage, {
       scope: 'timeline',
       version: stage.version,
       sourceClientId: sourceContext?.userId,
       sourceConnectionId: sourceContext?.connectionId,
       timelineRange: { ...stage.timelineRange },
-    };
+    });
   }
 
   private collectResourceSnapshots(stage: StageState, ids: string[]): Resource[] {
@@ -483,14 +571,31 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
-  private getStage(stageIdValue: string): StageState {
+  private async getStage(
+    stageIdValue: string,
+    variantIdValue: string,
+    timetableYearLabel?: string | null,
+  ): Promise<StageState> {
     if (!isStageId(stageIdValue)) {
       throw new NotFoundException(`Stage ${stageIdValue} ist unbekannt.`);
     }
-    const stage = this.stages.get(stageIdValue);
-    if (!stage) {
-      throw new NotFoundException(`Stage ${stageIdValue} ist nicht initialisiert.`);
+    const stageId = stageIdValue as StageId;
+    const variantId = this.normalizeVariantId(variantIdValue);
+    const key = this.stageKey(stageId, variantId);
+    const existing = this.stages.get(key);
+    if (existing) {
+      return existing;
     }
+    if (this.usingDatabase) {
+      await this.loadStageFromDatabase(stageId, variantId, timetableYearLabel);
+      const loaded = this.stages.get(key);
+      if (loaded) {
+        return loaded;
+      }
+      throw new NotFoundException(`Stage ${stageId} (${variantId}) ist nicht initialisiert.`);
+    }
+    const stage = this.createEmptyStage(stageId, variantId, timetableYearLabel);
+    this.stages.set(key, stage);
     return stage;
   }
 
@@ -640,4 +745,3 @@ export class PlanningStageService implements OnModuleInit {
     return new Date().toISOString();
   }
 }
-

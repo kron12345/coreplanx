@@ -1,9 +1,10 @@
-import { DestroyRef, Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
 import { EMPTY, Observable } from 'rxjs';
 import { catchError, finalize, take, tap } from 'rxjs/operators';
 import { Activity, ServiceRole, type ActivityParticipant } from '../../models/activity';
 import { Resource } from '../../models/resource';
 import { ActivityApiService } from '../../core/api/activity-api.service';
+import { PlanningApiContext } from '../../core/api/planning-api-context';
 import {
   ActivityBatchMutationResponse,
   ActivityValidationRequest,
@@ -77,13 +78,17 @@ export class PlanningDataService {
 
   constructor() {
     this.loadResourceSnapshot();
-    STAGE_IDS.forEach((stage) => this.refreshStage(stage));
-    STAGE_IDS.forEach((stage) =>
-      this.realtime
-        .events(stage)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((event) => this.handleRealtimeEvent(event)),
-    );
+    this.refreshStage('operations');
+
+    effect((onCleanup) => {
+      const context = this.currentApiContext();
+      const subs = STAGE_IDS.map((stage) =>
+        this.realtime
+          .events(stage, context)
+          .subscribe((event) => this.handleRealtimeEvent(event)),
+      );
+      onCleanup(() => subs.forEach((sub) => sub.unsubscribe()));
+    });
   }
 
   private loadResourceSnapshot(): void {
@@ -191,6 +196,7 @@ export class PlanningDataService {
         // ignore invalid labels in mock
       }
     }
+    this.refreshStage('operations');
   }
 
   setBaseTemplateContext(
@@ -260,13 +266,16 @@ export class PlanningDataService {
     if (this.baseTimelineLoading) {
       return;
     }
+    const context = this.currentApiContext();
     const range = {
       from: this.baseTimelineRange.start.toISOString(),
       to: this.baseTimelineRange.end.toISOString(),
       lod: 'activity' as const,
       stage: 'base' as const,
+      variantId: context.variantId ?? undefined,
+      timetableYearLabel: context.timetableYearLabel ?? undefined,
     };
-    const signature = `${this.baseTemplateId}|${range.from}|${range.to}`;
+    const signature = `${this.baseTemplateId}|${range.from}|${range.to}|${range.variantId ?? ''}`;
     if (signature === this.lastBaseTimelineSignature) {
       return;
     }
@@ -293,7 +302,7 @@ export class PlanningDataService {
   upsertTemplateActivity(templateId: string, activity: Activity): void {
     const dto = this.activityToTimelineDto('base', activity);
     this.timelineApi
-      .upsertTemplateActivity(templateId, dto)
+      .upsertTemplateActivity(templateId, dto, this.currentApiContext())
       .pipe(
         take(1),
         tap((saved) => {
@@ -312,7 +321,7 @@ export class PlanningDataService {
 
   deleteTemplateActivity(templateId: string, activityId: string): void {
     this.timelineApi
-      .deleteTemplateActivity(templateId, activityId)
+      .deleteTemplateActivity(templateId, activityId, this.currentApiContext())
       .pipe(
         take(1),
         tap(() => {
@@ -352,7 +361,7 @@ export class PlanningDataService {
     const defaultPayload: ActivityValidationRequest = payload ?? {
       activityIds: current.activities.map((activity) => activity.id),
     };
-    return this.api.validateActivities(stage, defaultPayload);
+    return this.api.validateActivities(stage, defaultPayload, this.currentApiContext());
   }
 
   refreshStage(stage: PlanningStageId): void {
@@ -360,20 +369,28 @@ export class PlanningDataService {
       this.reloadBaseTimeline();
       return;
     }
-    const sourceStage: PlanningStageId = stage;
     const range = this.stageDataSignal()[stage].timelineRange;
-    this.timelineApi
-      .loadTimeline({
-        from: range.start.toISOString(),
-        to: range.end.toISOString(),
-        stage: sourceStage,
-        lod: 'activity',
-      })
+    this.api
+      .listActivities(
+        stage,
+        { from: range.start.toISOString(), to: range.end.toISOString() },
+        this.currentApiContext(),
+      )
       .pipe(
         take(1),
-        tap((response) => this.applyTimelineActivities(stage, response.activities ?? [])),
+        tap((activities) => {
+          const normalized = normalizeActivityParticipants(activities, this.stageDataSignal()[stage].resources);
+          this.stageDataSignal.update((record) => ({
+            ...record,
+            [stage]: {
+              ...record[stage],
+              activities: normalized,
+            },
+          }));
+          this.timelineErrorSignal.update((state) => ({ ...state, [stage]: null }));
+        }),
         catchError((error) => {
-          console.warn(`[PlanningDataService] Failed to load timeline for stage ${stage}`, error);
+          console.warn(`[PlanningDataService] Failed to load activities for stage ${stage}`, error);
           this.timelineErrorSignal.update((state) => ({
             ...state,
             [stage]: 'Timeline konnte nicht geladen werden.',
@@ -646,6 +663,14 @@ export class PlanningDataService {
     return `${this.userId}|${this.connectionId}|${base}`;
   }
 
+  private currentApiContext(): PlanningApiContext {
+    const variant = this.planningVariantContext();
+    return {
+      variantId: variant?.id ?? 'default',
+      timetableYearLabel: variant?.timetableYearLabel ?? null,
+    };
+  }
+
   private syncActivities(stage: PlanningStageId, diff: ActivityDiff): void {
     if (!diff.hasChanges) {
       return;
@@ -659,7 +684,7 @@ export class PlanningDataService {
         upserts: diff.upserts,
         deleteIds: diff.deleteIds,
         clientRequestId: diff.clientRequestId,
-      })
+      }, this.currentApiContext())
       .pipe(
         take(1),
         tap((response) => this.applyMutationResponse(stage, response)),
@@ -694,7 +719,7 @@ export class PlanningDataService {
         upserts: diff.upserts,
         deleteIds: diff.deleteIds,
         clientRequestId: diff.clientRequestId,
-      })
+      }, this.currentApiContext())
       .pipe(
         take(1),
         catchError((error) => {

@@ -14,15 +14,12 @@ export class TtrBusinessAutomationService {
   private readonly itemPhaseState = new Map<string, OrderTtrPhase>();
 
   constructor() {
-    effect(
-      () => {
-        const snapshot = this.orderService.itemTtrPhaseIndex();
-        snapshot.map.forEach((phase, itemId) => {
-          this.handlePhaseChange(itemId, phase, snapshot.reference);
-        });
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const snapshot = this.orderService.itemTtrPhaseIndex();
+      snapshot.map.forEach((phase, itemId) => {
+        this.handlePhaseChange(itemId, phase, snapshot.reference);
+      });
+    });
   }
 
   private handlePhaseChange(

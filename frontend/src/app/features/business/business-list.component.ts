@@ -263,75 +263,63 @@ export class BusinessListComponent {
         window.setTimeout(() => this.scrollToPendingBusiness(), 0);
       });
 
-    effect(
-      () => {
-        const businesses = this.businesses();
-        if (businesses.length && !this.selectedBusinessId()) {
+    effect(() => {
+      const businesses = this.businesses();
+      if (businesses.length && !this.selectedBusinessId()) {
+        this.selectedBusinessId.set(businesses[0].id);
+      } else if (businesses.length && this.selectedBusinessId()) {
+        const exists = businesses.some((biz) => biz.id === this.selectedBusinessId());
+        if (!exists) {
           this.selectedBusinessId.set(businesses[0].id);
-        } else if (businesses.length && this.selectedBusinessId()) {
-          const exists = businesses.some((biz) => biz.id === this.selectedBusinessId());
-          if (!exists) {
-            this.selectedBusinessId.set(businesses[0].id);
-          }
-        } else if (!businesses.length) {
-          this.selectedBusinessId.set(null);
         }
-        window.setTimeout(() => this.scrollToPendingBusiness(), 0);
-      },
-      { allowSignalWrites: true },
-    );
+      } else if (!businesses.length) {
+        this.selectedBusinessId.set(null);
+      }
+      window.setTimeout(() => this.scrollToPendingBusiness(), 0);
+    });
 
-    effect(
-      () => {
-        const current = this.overviewMetrics();
-        const baseline = this.metricsBaseline();
-        if (baseline) {
-          this.metricTrends.set({
-            active: current.active - baseline.active,
-            completed: current.completed - baseline.completed,
-            overdue: current.overdue - baseline.overdue,
-            dueSoon: current.dueSoon - baseline.dueSoon,
-          });
-        } else {
-          this.metricTrends.set({
-            active: null,
-            completed: null,
-            overdue: null,
-            dueSoon: null,
-          });
-        }
-        this.metricsBaseline.set(current);
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const current = this.overviewMetrics();
+      const baseline = this.metricsBaseline();
+      if (baseline) {
+        this.metricTrends.set({
+          active: current.active - baseline.active,
+          completed: current.completed - baseline.completed,
+          overdue: current.overdue - baseline.overdue,
+          dueSoon: current.dueSoon - baseline.dueSoon,
+        });
+      } else {
+        this.metricTrends.set({
+          active: null,
+          completed: null,
+          overdue: null,
+          dueSoon: null,
+        });
+      }
+      this.metricsBaseline.set(current);
+    });
 
-    effect(
-      () => {
-        // Reset sichtbare Ergebnisse bei Filter-/Sort-Änderungen
-        this.businesses();
-        this.sort();
-        this.visibleCount.set(BUSINESS_PAGE_SIZE);
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      // Reset sichtbare Ergebnisse bei Filter-/Sort-Änderungen
+      this.businesses();
+      this.sort();
+      this.visibleCount.set(BUSINESS_PAGE_SIZE);
+    });
 
     effect(() => {
       persistBusinessFilterPresets(this.presetStorageKey, this.savedPresets());
     });
 
-    effect(
-      () => {
-        const activeId = this.activePresetId();
-        if (!activeId) {
-          return;
-        }
-        const preset = this.savedPresets().find((entry) => entry.id === activeId);
-        if (!preset || !businessPresetMatchesCurrent(preset, this.filters(), this.sort())) {
-          this.activePresetId.set(null);
-        }
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const activeId = this.activePresetId();
+      if (!activeId) {
+        return;
+      }
+      const preset = this.savedPresets().find((entry) => entry.id === activeId);
+      if (!preset || !businessPresetMatchesCurrent(preset, this.filters(), this.sort())) {
+        this.activePresetId.set(null);
+      }
+    });
   }
 
   openCreateDialog(): void {

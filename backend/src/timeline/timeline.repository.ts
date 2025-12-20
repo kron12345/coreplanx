@@ -26,10 +26,12 @@ export class TimelineRepository {
     from: string,
     to: string,
     stage: 'base' | 'operations',
+    variantId?: string,
   ): Promise<ActivityDto[]> {
     if (!this.isEnabled) {
       return [];
     }
+    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
     const result = await this.database.query<ActivityRow>(
       `
         SELECT
@@ -45,10 +47,11 @@ export class TimelineRepository {
         FROM activities
         WHERE deleted = FALSE
           AND stage = $1
-          AND start_time < $3
-          AND (end_time IS NULL OR end_time > $2 OR is_open_ended = TRUE)
+          AND variant_id = $2
+          AND start_time < $4
+          AND (end_time IS NULL OR end_time > $3 OR is_open_ended = TRUE)
       `,
-      [stage, from, to],
+      [stage, normalizedVariantId, from, to],
     );
     return result.rows
       .map((row) => mapActivityRow(row, this.logger))
@@ -59,8 +62,9 @@ export class TimelineRepository {
     from: string,
     to: string,
     stage: 'base' | 'operations',
+    variantId?: string,
   ): Promise<TimelineServiceDto[]> {
-    const activities = await this.listActivities(from, to, stage);
+    const activities = await this.listActivities(from, to, stage, variantId);
     return aggregateServices(activities);
   }
 }

@@ -46,20 +46,20 @@ export class TemplateService {
     }
   }
 
-  async listTemplateSets(): Promise<ActivityTemplateSet[]> {
+  async listTemplateSets(variantId?: string, includeArchived = false): Promise<ActivityTemplateSet[]> {
     if (!this.dbEnabled) {
       return [];
     }
-    return this.repository.listTemplateSets();
+    return this.repository.listTemplateSets(variantId, includeArchived);
   }
 
-  async getTemplateSet(id: string): Promise<ActivityTemplateSet> {
+  async getTemplateSet(id: string, variantId?: string): Promise<ActivityTemplateSet> {
     if (!this.dbEnabled) {
       throw new NotFoundException(
         `Template ${id} not found (database disabled).`,
       );
     }
-    const set = await this.repository.getTemplateSet(id);
+    const set = await this.repository.getTemplateSet(id, variantId);
     if (!set) {
       throw new NotFoundException(`Template ${id} not found`);
     }
@@ -68,15 +68,20 @@ export class TemplateService {
 
   async createTemplateSet(
     payload: CreateTemplateSetPayload,
+    variantId?: string,
+    timetableYearLabel?: string | null,
   ): Promise<ActivityTemplateSet> {
     this.ensureDbForWrites();
     const now = new Date().toISOString();
     const tableName = this.tableUtil.sanitize(`template_${payload.id}`);
+    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
     const set: ActivityTemplateSet = {
       id: payload.id || randomUUID(),
       name: payload.name,
       description: payload.description ?? undefined,
       tableName,
+      variantId: normalizedVariantId,
+      timetableYearLabel: timetableYearLabel ?? null,
       createdAt: now,
       updatedAt: now,
       periods: payload.periods ?? [],
@@ -92,7 +97,7 @@ export class TemplateService {
         this.logger.warn(
           `Template ${set.id} existiert bereits – vorhandenen Datensatz verwenden.`,
         );
-        const existing = await this.repository.getTemplateSet(set.id);
+        const existing = await this.repository.getTemplateSet(set.id, normalizedVariantId);
         if (existing) {
           return existing;
         }
@@ -104,9 +109,10 @@ export class TemplateService {
   async updateTemplateSet(
     id: string,
     payload: UpdateTemplateSetPayload,
+    variantId?: string,
   ): Promise<ActivityTemplateSet> {
     this.ensureDbForWrites();
-    const existing = await this.getTemplateSet(id);
+    const existing = await this.getTemplateSet(id, variantId);
     const updated: ActivityTemplateSet = {
       ...existing,
       name: payload.name ?? existing.name,
@@ -120,26 +126,94 @@ export class TemplateService {
     return updated;
   }
 
-  async deleteTemplateSet(id: string): Promise<void> {
+  async deleteTemplateSet(id: string, variantId?: string): Promise<void> {
     this.ensureDbForWrites();
-    await this.repository.deleteTemplateSet(id);
+    await this.repository.deleteTemplateSet(id, variantId);
+  }
+
+  async publishTemplateSet(options: {
+    templateId: string;
+    sourceVariantId?: string;
+    targetVariantId?: string;
+    timetableYearLabel?: string | null;
+  }): Promise<ActivityTemplateSet> {
+    this.ensureDbForWrites();
+    const sourceVariantId =
+      options.sourceVariantId?.trim().length ? options.sourceVariantId.trim() : 'default';
+    let targetVariantId =
+      options.targetVariantId?.trim().length ? options.targetVariantId.trim() : '';
+    const yearLabel =
+      options.timetableYearLabel?.trim().length ? options.timetableYearLabel.trim() : '';
+    if (!targetVariantId) {
+      if (!yearLabel) {
+        throw new Error(
+          'Either targetVariantId or timetableYearLabel must be provided.',
+        );
+      }
+      targetVariantId = `PROD-${yearLabel}`;
+    }
+    if (targetVariantId === sourceVariantId) {
+      throw new Error('Source and target variants must be different.');
+    }
+
+    const source = await this.getTemplateSet(options.templateId, sourceVariantId);
+    const now = new Date().toISOString();
+    const newId = randomUUID();
+    const tableName = this.tableUtil.sanitize(`template_${newId}`);
+    const sourceAttributes =
+      source.attributes && typeof source.attributes === 'object' && !Array.isArray(source.attributes)
+        ? (source.attributes as Record<string, unknown>)
+        : {};
+    const target: ActivityTemplateSet = {
+      ...source,
+      id: newId,
+      tableName,
+      variantId: targetVariantId,
+      timetableYearLabel: yearLabel || source.timetableYearLabel || null,
+      createdAt: now,
+      updatedAt: now,
+      publishedFromVariantId: sourceVariantId,
+      publishedFromTemplateId: source.id,
+      publishedAt: now,
+      attributes: {
+        ...sourceAttributes,
+        publishedFrom: {
+          variantId: sourceVariantId,
+          templateId: source.id,
+          publishedAt: now,
+        },
+      },
+      isArchived: false,
+      archivedAt: null,
+      archivedReason: null,
+    };
+
+    await this.repository.publishTemplateSet({
+      sourceTableName: source.tableName,
+      target,
+      archiveReason: `published from ${sourceVariantId}`,
+    });
+
+    return target;
   }
 
   async upsertTemplateActivity(
     templateId: string,
     activity: ActivityDto,
+    variantId?: string,
   ): Promise<ActivityDto> {
     this.ensureDbForWrites();
-    const set = await this.getTemplateSet(templateId);
+    const set = await this.getTemplateSet(templateId, variantId);
     return this.repository.upsertActivity(set.tableName, activity);
   }
 
   async deleteTemplateActivity(
     templateId: string,
     activityId: string,
+    variantId?: string,
   ): Promise<void> {
     this.ensureDbForWrites();
-    const set = await this.getTemplateSet(templateId);
+    const set = await this.getTemplateSet(templateId, variantId);
     await this.repository.deleteActivity(set.tableName, activityId);
   }
 
@@ -149,6 +223,7 @@ export class TemplateService {
     to: string,
     lod: Lod,
     stage: 'base' | 'operations',
+    variantId?: string,
   ): Promise<TimelineResponse> {
     if (!this.dbEnabled) {
       if (!this.loggedDbWarning) {
@@ -161,7 +236,7 @@ export class TemplateService {
         ? { lod, activities: [] }
         : { lod, services: [] };
     }
-    const set = await this.getTemplateSet(templateId);
+    const set = await this.getTemplateSet(templateId, variantId);
     if (lod === 'activity') {
       const activities = await this.repository.listActivities(
         set.tableName,
@@ -184,13 +259,15 @@ export class TemplateService {
     templateId: string,
     targetStage: 'base' | 'operations',
     anchorStart?: string,
+    variantId?: string,
   ): Promise<ActivityDto[]> {
     this.ensureDbForWrites();
-    const set = await this.getTemplateSet(templateId);
+    const set = await this.getTemplateSet(templateId, variantId);
     const created = await this.repository.rolloutToPlanning(
       set.tableName,
       targetStage,
       anchorStart,
+      variantId,
     );
     this.logger.log(
       `Rolled out template ${templateId} to stage ${targetStage} with ${created.length} activities.`,

@@ -4,7 +4,6 @@ import {
   Component,
   ElementRef,
   HostListener,
-  Injector,
   Input,
   Output,
   EventEmitter,
@@ -13,9 +12,7 @@ import {
   ViewChildren,
   QueryList,
   computed,
-  effect,
   inject,
-  runInInjectionContext,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -106,7 +103,6 @@ const ZOOM_LABELS: Record<string, string> = {
 export class GanttComponent implements AfterViewInit {
   protected readonly timeScale = inject(TimeScaleService);
   private readonly hostElement = inject(ElementRef<HTMLElement>);
-  private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly layerGroups = inject(LayerGroupService);
   private readonly activityTypeInfoSignal = signal<Record<string, { label: string; showRoute: boolean }>>({});
@@ -116,7 +112,10 @@ export class GanttComponent implements AfterViewInit {
     activityTypeInfo: () => this.activityTypeInfoSignal(),
   });
   private readonly resourcesSignal = signal<Resource[]>([]);
-  private readonly activitiesSignal = signal<PreparedActivity[]>([]);
+  private readonly activitiesInputSignal = signal<Activity[]>([]);
+  private readonly activitiesSignal = computed<PreparedActivity[]>(() =>
+    this.prepareActivities(this.activitiesInputSignal()),
+  );
   private readonly pendingActivitySignal = signal<PreparedActivity | null>(null);
   private readonly filterTerm = signal('');
   private readonly cursorTimeSignal = signal<Date | null>(null);
@@ -133,6 +132,8 @@ export class GanttComponent implements AfterViewInit {
   private readonly viewportReady = this.viewportFacade.viewportReady;
   private lastOverlapGroupKey: string | null = null;
   private lastOverlapActivityId: string | null = null;
+  private pendingTimelineScrollLeft: number | null = null;
+  private timelineScrollHandle: number | null = null;
   protected readonly periodsSignal = signal<TemplatePeriod[]>([]);
   private readonly selection = new GanttSelectionFacade({
     host: () => this.hostElement.nativeElement,
@@ -160,6 +161,15 @@ export class GanttComponent implements AfterViewInit {
     this.destroyRef.onDestroy(() => {
       this.dragFacade.cleanup();
       this.viewportFacade.cleanup();
+      if (this.timelineScrollHandle !== null) {
+        if (typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(this.timelineScrollHandle);
+        } else {
+          clearTimeout(this.timelineScrollHandle);
+        }
+        this.timelineScrollHandle = null;
+      }
+      this.pendingTimelineScrollLeft = null;
     });
   }
 
@@ -168,8 +178,10 @@ export class GanttComponent implements AfterViewInit {
   }
 
   private previousResourceIds: string[] | null = null;
-  private previousActivityIds: string[] | null = null;
-  private previousActivitySignature: string | null = null;
+  private readonly rowScrollerElementsSignal = signal<HTMLElement[]>([]);
+  readonly rowScrollerElements = this.rowScrollerElementsSignal.asReadonly();
+  private readonly headerScrollerTargetsSignal = signal<HTMLElement[] | null>(null);
+  readonly headerScrollerTargets = this.headerScrollerTargetsSignal.asReadonly();
 
   @ViewChild('headerScroller', { read: TrackHorizontalScrollDirective })
   private headerScrollerDir?: TrackHorizontalScrollDirective;
@@ -208,44 +220,7 @@ export class GanttComponent implements AfterViewInit {
 
   @Input({ required: true })
   set activities(value: Activity[]) {
-    const prepared = (value ?? []).map((activity) => {
-      const startDate = new Date(activity.start);
-      const startMs = startDate.getTime();
-      const endMs = activity.end ? new Date(activity.end).getTime() : startMs;
-      return {
-        ...activity,
-        startMs,
-        endMs,
-        ownerResourceId: getActivityOwnerId(activity),
-      };
-    });
-    const nextIds = prepared.map((activity) => activity.id);
-    const signature = prepared
-      .map(
-        (activity) =>
-          [
-            activity.id,
-            activity.ownerResourceId ?? '',
-            activity.startMs,
-            activity.endMs,
-            // Teilnehmer-Fingerprint, damit neue/entfernte Ressourcen sofort sichtbar werden.
-            (activity.participants ?? [])
-              .map((participant) => `${participant.resourceId}:${participant.role ?? ''}`)
-              .sort()
-              .join(','),
-          ].join(':'),
-      )
-      .join('|');
-    if (
-      this.previousActivityIds &&
-      arraysEqual(this.previousActivityIds, nextIds) &&
-      this.previousActivitySignature === signature
-    ) {
-      return;
-    }
-    this.previousActivityIds = nextIds;
-    this.previousActivitySignature = signature;
-    this.activitiesSignal.set(prepared);
+    this.activitiesInputSignal.set(value ?? []);
   }
 
   @Input()
@@ -381,17 +356,25 @@ export class GanttComponent implements AfterViewInit {
     let resourceIndex = 0;
 
     const displaySelectedIds = this.displayedSelectionIds();
-    const timelineData = this.viewportReady()
-      ? this.rowBuilder.buildTimelineData({
-          resources,
-          slotsByResource: this.activitySlotsByResource(),
-          pendingActivityId: this.pendingActivitySignal()?.id ?? null,
-          viewStart: this.viewport.viewStart(),
-          viewEnd: this.viewport.viewEnd(),
-          selectedIds: displaySelectedIds,
-          primarySlots: this.selection.primarySelectionSlots(),
-        })
-      : new Map<string, { bars: GanttBar[]; services: GanttServiceRange[] }>();
+    const expandedResources: Resource[] = [];
+    groups.forEach((group) => {
+      if (expanded.has(group.id)) {
+        expandedResources.push(...group.resources);
+      }
+    });
+
+    const timelineData =
+      this.viewportReady() && expandedResources.length > 0
+        ? this.rowBuilder.buildTimelineData({
+            resources: expandedResources,
+            slotsByResource: this.activitySlotsByResource(),
+            pendingActivityId: this.pendingActivitySignal()?.id ?? null,
+            viewStart: this.viewport.viewStart(),
+            viewEnd: this.viewport.viewEnd(),
+            selectedIds: displaySelectedIds,
+            primarySlots: this.selection.primarySelectionSlots(),
+          })
+        : new Map<string, { bars: GanttBar[]; services: GanttServiceRange[] }>();
 
     groups.forEach((group) => {
       const isExpanded = expanded.has(group.id);
@@ -532,23 +515,12 @@ export class GanttComponent implements AfterViewInit {
       0,
     ),
   );
-  readonly totalActivityCount = computed(() => this.activitiesSignal().length);
+  readonly totalActivityCount = computed(() => this.activitiesInputSignal().length);
   readonly cursorTime = computed(() => this.cursorTimeSignal());
   readonly filterText = computed(() => this.filterTerm());
   readonly hasRows = computed(() => this.rows().length > 0);
   readonly isViewportReady = computed(() => this.viewportReady());
   readonly lassoBox = this.selection.lassoBox;
-
-  rowScrollerElements(): HTMLElement[] {
-    return this.rowScrollerDirs
-      ? this.rowScrollerDirs.toArray().map((dir) => dir.element)
-      : [];
-  }
-
-  headerScrollerTargets(): HTMLElement[] | null {
-    const element = this.headerScrollerDir?.element ?? null;
-    return element ? [element] : null;
-  }
 
   private readonly rangeFormatter = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
@@ -557,19 +529,16 @@ export class GanttComponent implements AfterViewInit {
   });
 
   ngAfterViewInit(): void {
-    this.setupScrollSyncEffects();
-    if (this.rowScrollerDirs) {
-      queueMicrotask(() => {
-        const scrollLeft = this.scrollX();
-        this.rowScrollerDirs?.forEach((dir) => dir.setScrollLeft(scrollLeft));
+    const header = this.headerScrollerDir?.element ?? null;
+    this.headerScrollerTargetsSignal.set(header ? [header] : null);
+    this.updateRowScrollerElements();
+    queueMicrotask(() => this.updateScrollbarWidth());
+    this.rowScrollerDirs?.changes
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.updateRowScrollerElements();
+        this.updateScrollbarWidth();
       });
-      this.rowScrollerDirs.changes
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => {
-          const scrollLeft = this.scrollX();
-          this.rowScrollerDirs?.forEach((dir) => dir.setScrollLeft(scrollLeft));
-        });
-    }
   }
 
   onZoomIn() {
@@ -593,7 +562,24 @@ export class GanttComponent implements AfterViewInit {
   }
 
   onTimelineScroll(scrollLeft: number) {
-    this.viewportFacade.setScrollLeft(scrollLeft);
+    this.pendingTimelineScrollLeft = scrollLeft;
+    if (this.timelineScrollHandle !== null) {
+      return;
+    }
+    const flush = () => {
+      this.timelineScrollHandle = null;
+      const next = this.pendingTimelineScrollLeft;
+      this.pendingTimelineScrollLeft = null;
+      if (next === null) {
+        return;
+      }
+      this.viewportFacade.setScrollLeft(next);
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      this.timelineScrollHandle = requestAnimationFrame(flush);
+      return;
+    }
+    this.timelineScrollHandle = window.setTimeout(flush, 16);
   }
 
   onTimelineWheel(event: WheelEvent, container?: HTMLElement | null) {
@@ -777,17 +763,42 @@ export class GanttComponent implements AfterViewInit {
     }
   }
 
-  private setupScrollSyncEffects() {
-    runInInjectionContext(this.injector, () => {
-      effect(() => {
-        if (!this.viewportReady()) {
-          return;
-        }
-        const scrollLeft = this.scrollX();
-        this.headerScrollerDir?.setScrollLeft(scrollLeft);
-        this.rowScrollerDirs?.forEach((dir) => dir.setScrollLeft(scrollLeft));
-      }, { allowSignalWrites: true });
-    });
+  @HostListener('window:resize')
+  handleResize() {
+    this.updateScrollbarWidth();
+  }
+
+  private updateRowScrollerElements(): void {
+    this.rowScrollerElementsSignal.set(
+      this.rowScrollerDirs ? this.rowScrollerDirs.toArray().map((dir) => dir.element) : [],
+    );
+  }
+
+  private updateScrollbarWidth(): void {
+    const viewport = this.hostElement.nativeElement.querySelector('.gantt__viewport') as HTMLElement | null;
+    if (!viewport) {
+      return;
+    }
+    const width = Math.max(0, viewport.offsetWidth - viewport.clientWidth);
+    if (!Number.isFinite(width)) {
+      return;
+    }
+    this.hostElement.nativeElement.style.setProperty('--gantt-scrollbar-width', `${width}px`);
+  }
+
+  private prepareActivities(value: Activity[]): PreparedActivity[] {
+    const prepared: PreparedActivity[] = [];
+    for (const activity of value ?? []) {
+      const startMs = new Date(activity.start).getTime();
+      const endMs = activity.end ? new Date(activity.end).getTime() : startMs;
+      prepared.push({
+        ...activity,
+        startMs,
+        endMs,
+        ownerResourceId: getActivityOwnerId(activity),
+      });
+    }
+    return prepared;
   }
 
   private isActivityElement(element: HTMLElement | null): boolean {

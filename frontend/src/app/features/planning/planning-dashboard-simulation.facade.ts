@@ -21,14 +21,16 @@ export class PlanningDashboardSimulationFacade {
     },
   ) {
     this.simulationOptions = computed<SimulationRecord[]>(() => {
-      const years = Array.from(this.deps.stageYearSelectionState()[this.deps.activeStage()] ?? []);
+      const stage = this.deps.activeStage();
+      const years = Array.from(this.deps.stageYearSelectionState()[stage] ?? []);
       const fallbackYear = this.deps.filterFacade.preferredYearLabel(this.deps.timetableYearOptions());
       const targetYears = years.length ? years : [fallbackYear];
       const entries: SimulationRecord[] = [];
       targetYears.forEach((label) => {
         this.deps.simulationService.byTimetableYear(label).forEach((sim) => entries.push(sim));
       });
-      return entries.sort((a, b) => {
+      const filtered = stage === 'operations' ? entries.filter((entry) => entry.productive) : entries;
+      return filtered.sort((a, b) => {
         if (!!a.productive !== !!b.productive) {
           return a.productive ? -1 : 1;
         }

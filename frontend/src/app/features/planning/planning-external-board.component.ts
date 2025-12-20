@@ -78,6 +78,19 @@ export class PlanningExternalBoardComponent {
       const rawStage = params.get('stage');
       const stage = rawStage === 'operations' ? 'operations' : 'base';
       const resources = params.get('resources');
+      const variantId = params.get('variantId');
+      const yearLabel = params.get('timetableYearLabel') ?? undefined;
+      if (variantId) {
+        const inferredYear =
+          yearLabel ??
+          (variantId.startsWith('PROD-') ? variantId.slice('PROD-'.length) : undefined);
+        this.data.setPlanningVariant({
+          id: variantId,
+          label: variantId,
+          type: variantId.startsWith('PROD-') ? 'productive' : 'simulation',
+          timetableYearLabel: inferredYear,
+        });
+      }
       const resourceIds = resources
         ? resources
             .split(',')

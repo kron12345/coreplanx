@@ -165,7 +165,6 @@ export class AttributeEntityEditorComponent implements OnDestroy {
         this.groupExpansion.set(next);
       }
     },
-    { allowSignalWrites: true },
   );
   private undoStack: Record<string, string>[] = [];
   private redoStack: Record<string, string>[] = [];

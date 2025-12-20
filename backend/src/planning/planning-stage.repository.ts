@@ -6,6 +6,8 @@ import type { StageData } from './planning.repository.types';
 
 interface StageRow {
   stage_id: string;
+  variant_id: string;
+  timetable_year_label: string | null;
   version: string | null;
   timeline_start: string;
   timeline_end: string;
@@ -65,18 +67,19 @@ export class PlanningStageRepository {
     return this.database.enabled;
   }
 
-  async loadStageData(stageId: StageId): Promise<StageData | null> {
+  async loadStageData(stageId: StageId, variantId: string): Promise<StageData | null> {
     if (!this.isEnabled) {
       return null;
     }
 
     const stageResult = await this.database.query<StageRow>(
       `
-        SELECT stage_id, version, timeline_start, timeline_end
+        SELECT stage_id, variant_id, timetable_year_label, version, timeline_start, timeline_end
         FROM planning_stage
         WHERE stage_id = $1
+          AND variant_id = $2
       `,
-      [stageId],
+      [stageId, variantId],
     );
     const stageRow = stageResult.rows[0];
     if (!stageRow) {
@@ -88,9 +91,10 @@ export class PlanningStageRepository {
         SELECT id, name, kind, daily_service_capacity, attributes
         FROM planning_resource
         WHERE stage_id = $1
+          AND variant_id = $2
         ORDER BY name
       `,
-      [stageId],
+      [stageId, variantId],
     );
 
     const activitiesResult = await this.database.query<ActivityRow>(
@@ -131,9 +135,10 @@ export class PlanningStageRepository {
           meta
         FROM planning_activity
         WHERE stage_id = $1
+          AND variant_id = $2
         ORDER BY start
       `,
-      [stageId],
+      [stageId, variantId],
     );
 
     const trainRunsResult = await this.database.query<{
@@ -146,9 +151,10 @@ export class PlanningStageRepository {
         SELECT id, train_number, timetable_id, attributes
         FROM train_run
         WHERE stage_id = $1
+          AND variant_id = $2
         ORDER BY train_number, id
       `,
-      [stageId],
+      [stageId, variantId],
     );
 
     const trainSegmentsResult = await this.database.query<{
@@ -177,9 +183,10 @@ export class PlanningStageRepository {
           attributes
         FROM train_segment
         WHERE stage_id = $1
+          AND variant_id = $2
         ORDER BY train_run_id, section_index, id
       `,
-      [stageId],
+      [stageId, variantId],
     );
 
     const trainRuns: TrainRun[] = trainRunsResult.rows.map((row) => ({
@@ -203,6 +210,8 @@ export class PlanningStageRepository {
 
     return {
       stageId,
+      variantId: stageRow.variant_id,
+      timetableYearLabel: stageRow.timetable_year_label ?? undefined,
       timelineRange: {
         start: this.toIso(stageRow.timeline_start),
         end: this.toIso(stageRow.timeline_end),
@@ -219,8 +228,10 @@ export class PlanningStageRepository {
 
   async updateStageMetadata(
     stageId: StageId,
+    variantId: string,
     timeline: TimelineRange,
     version?: string | null,
+    timetableYearLabel?: string | null,
   ): Promise<void> {
     if (!this.isEnabled) {
       return;
@@ -228,19 +239,28 @@ export class PlanningStageRepository {
     const resolvedVersion = version ?? new Date().toISOString();
     await this.database.query(
       `
-        INSERT INTO planning_stage (stage_id, version, timeline_start, timeline_end)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (stage_id) DO UPDATE
-        SET version = EXCLUDED.version,
+        INSERT INTO planning_stage (stage_id, variant_id, timetable_year_label, version, timeline_start, timeline_end)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (stage_id, variant_id) DO UPDATE
+        SET timetable_year_label = COALESCE(EXCLUDED.timetable_year_label, planning_stage.timetable_year_label),
+            version = EXCLUDED.version,
             timeline_start = EXCLUDED.timeline_start,
             timeline_end = EXCLUDED.timeline_end
       `,
-      [stageId, resolvedVersion, timeline.start, timeline.end],
+      [
+        stageId,
+        variantId,
+        timetableYearLabel ?? null,
+        resolvedVersion,
+        timeline.start,
+        timeline.end,
+      ],
     );
   }
 
   async applyResourceMutations(
     stageId: StageId,
+    variantId: string,
     upserts: Resource[],
     deleteIds: string[],
   ): Promise<void> {
@@ -269,24 +289,27 @@ export class PlanningStageRepository {
                      )
               )
               INSERT INTO planning_resource (
-                id, stage_id, name, kind, daily_service_capacity, attributes
+                id, stage_id, variant_id, name, kind, daily_service_capacity, attributes
               )
               SELECT
                 id,
                 $1,
+                $3,
                 name,
                 kind,
                 "dailyServiceCapacity",
                 attributes
               FROM payload
               ON CONFLICT (id) DO UPDATE SET
+                stage_id = EXCLUDED.stage_id,
+                variant_id = EXCLUDED.variant_id,
                 name = EXCLUDED.name,
                 kind = EXCLUDED.kind,
                 daily_service_capacity = EXCLUDED.daily_service_capacity,
                 attributes = EXCLUDED.attributes,
                 updated_at = now()
             `,
-            [stageId, JSON.stringify(upserts)],
+            [stageId, JSON.stringify(upserts), variantId],
           );
         }
 
@@ -295,9 +318,10 @@ export class PlanningStageRepository {
             `
               DELETE FROM planning_resource
               WHERE stage_id = $1
-                AND id = ANY($2::text[])
+                AND variant_id = $2
+                AND id = ANY($3::text[])
             `,
-            [stageId, deleteIds],
+            [stageId, variantId, deleteIds],
           );
         }
 
@@ -315,6 +339,7 @@ export class PlanningStageRepository {
 
   async applyActivityMutations(
     stageId: StageId,
+    variantId: string,
     upserts: Activity[],
     deleteIds: string[],
   ): Promise<void> {
@@ -331,7 +356,7 @@ export class PlanningStageRepository {
         const normalizedUpserts: Activity[] = [];
         for (const activity of upserts) {
           normalizedUpserts.push(
-            await this.prepareServiceMetadata(client, stageId, activity),
+            await this.prepareServiceMetadata(client, stageId, variantId, activity),
           );
         }
         if (normalizedUpserts.length) {
@@ -379,6 +404,7 @@ export class PlanningStageRepository {
               INSERT INTO planning_activity (
                 id,
                 stage_id,
+                variant_id,
                 client_id,
                 title,
                 start,
@@ -415,6 +441,7 @@ export class PlanningStageRepository {
               SELECT
                 id,
                 $1,
+                $3,
                 "clientId",
                 title,
                 start,
@@ -449,6 +476,8 @@ export class PlanningStageRepository {
                 meta
               FROM payload
               ON CONFLICT (id) DO UPDATE SET
+                stage_id = EXCLUDED.stage_id,
+                variant_id = EXCLUDED.variant_id,
                 client_id = EXCLUDED.client_id,
                 title = EXCLUDED.title,
                 start = EXCLUDED.start,
@@ -480,7 +509,7 @@ export class PlanningStageRepository {
                 train_segment_ids = EXCLUDED.train_segment_ids,
                 updated_at = now()
             `,
-            [stageId, JSON.stringify(normalizedUpserts)],
+            [stageId, JSON.stringify(normalizedUpserts), variantId],
           );
         }
 
@@ -489,9 +518,10 @@ export class PlanningStageRepository {
             `
               DELETE FROM planning_activity
               WHERE stage_id = $1
-                AND id = ANY($2::text[])
+                AND variant_id = $2
+                AND id = ANY($3::text[])
             `,
-            [stageId, deleteIds],
+            [stageId, variantId, deleteIds],
           );
         }
 
@@ -507,7 +537,7 @@ export class PlanningStageRepository {
     });
   }
 
-  async deleteActivities(stageId: StageId, deleteIds: string[]): Promise<void> {
+  async deleteActivities(stageId: StageId, variantId: string, deleteIds: string[]): Promise<void> {
     if (!this.isEnabled || !deleteIds.length) {
       return;
     }
@@ -515,9 +545,10 @@ export class PlanningStageRepository {
       `
         DELETE FROM planning_activity
         WHERE stage_id = $1
-          AND id = ANY($2::text[])
+          AND variant_id = $2
+          AND id = ANY($3::text[])
       `,
-      [stageId, deleteIds],
+      [stageId, variantId, deleteIds],
     );
   }
 
@@ -598,6 +629,7 @@ export class PlanningStageRepository {
   private async prepareServiceMetadata(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     activity: Activity,
   ): Promise<Activity> {
     const role = this.resolveServiceRole(activity);
@@ -610,6 +642,7 @@ export class PlanningStageRepository {
       await this.enforceWithinPreference(
         client,
         stageId,
+        variantId,
         ownerId,
         activity,
         withinPref,
@@ -620,16 +653,18 @@ export class PlanningStageRepository {
       const match = await this.findLatestServiceStart(
         client,
         stageId,
+        variantId,
         ownerId,
         activity.start,
       );
       const serviceId =
         match?.serviceId ??
         this.computeServiceId(stageId, ownerId, match?.start ?? activity.start);
-      await this.ensureNoDuplicate(client, stageId, serviceId, 'end', activity.id);
+      await this.ensureNoDuplicate(client, stageId, variantId, serviceId, 'end', activity.id);
       await this.enforceWithinPreference(
         client,
         stageId,
+        variantId,
         ownerId,
         activity,
         withinPref,
@@ -643,11 +678,12 @@ export class PlanningStageRepository {
     }
     // role === 'start'
     const serviceId = this.computeServiceId(stageId, ownerId, activity.start);
-    await this.ensureNoDuplicate(client, stageId, serviceId, 'start', activity.id);
-    await this.attachPendingEnd(client, stageId, ownerId, serviceId, activity.start);
+    await this.ensureNoDuplicate(client, stageId, variantId, serviceId, 'start', activity.id);
+    await this.attachPendingEnd(client, stageId, variantId, ownerId, serviceId, activity.start);
     await this.enforceWithinPreference(
       client,
       stageId,
+      variantId,
       ownerId,
       activity,
       withinPref,
@@ -730,23 +766,30 @@ export class PlanningStageRepository {
   private async findLatestServiceStart(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     ownerId: string,
     beforeIso: string,
     serviceId?: string,
   ): Promise<{ id: string; start: string; serviceId: string | null } | null> {
-    const params: any[] = [stageId, beforeIso, JSON.stringify([{ resourceId: ownerId }])];
+    const params: any[] = [
+      stageId,
+      variantId,
+      beforeIso,
+      JSON.stringify([{ resourceId: ownerId }]),
+    ];
     let serviceFilter = '';
     if (serviceId) {
       params.push(serviceId);
-      serviceFilter = 'AND service_id = $4';
+      serviceFilter = 'AND service_id = $5';
     }
     const sql = `
       SELECT id, start, service_id
       FROM planning_activity
       WHERE stage_id = $1
+        AND variant_id = $2
         AND service_role = 'start'
-        AND start <= $2
-        AND participants @> $3::jsonb
+        AND start <= $3
+        AND participants @> $4::jsonb
         ${serviceFilter}
       ORDER BY start DESC
       LIMIT 1
@@ -762,6 +805,7 @@ export class PlanningStageRepository {
   private async ensureNoDuplicate(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     serviceId: string,
     role: 'start' | 'end',
     selfId: string,
@@ -771,12 +815,13 @@ export class PlanningStageRepository {
         SELECT id
         FROM planning_activity
         WHERE stage_id = $1
-          AND service_id = $2
-          AND service_role = $3
-          AND id <> $4
+          AND variant_id = $2
+          AND service_id = $3
+          AND service_role = $4
+          AND id <> $5
         LIMIT 1
       `,
-      [stageId, serviceId, role, selfId],
+      [stageId, variantId, serviceId, role, selfId],
     );
     if (result.rows.length) {
       throw new ConflictException(`Service ${serviceId} hat bereits ein ${role}.`);
@@ -786,6 +831,7 @@ export class PlanningStageRepository {
   private async attachPendingEnd(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     ownerId: string,
     serviceId: string,
     startIso: string,
@@ -795,20 +841,28 @@ export class PlanningStageRepository {
         UPDATE planning_activity
         SET service_id = $3
         WHERE stage_id = $1
+          AND variant_id = $2
           AND service_role = 'end'
           AND service_id IS NULL
-          AND start >= $2
-          AND participants @> $4::jsonb
+          AND start >= $4
+          AND participants @> $5::jsonb
         ORDER BY start
         LIMIT 1
       `,
-      [stageId, startIso, serviceId, JSON.stringify([{ resourceId: ownerId }])],
+      [
+        stageId,
+        variantId,
+        serviceId,
+        startIso,
+        JSON.stringify([{ resourceId: ownerId }]),
+      ],
     );
   }
 
   private async enforceWithinPreference(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     ownerId: string,
     activity: Activity,
     pref: 'within' | 'outside' | 'both',
@@ -820,6 +874,7 @@ export class PlanningStageRepository {
     const latestStart = await this.findLatestServiceStart(
       client,
       stageId,
+      variantId,
       ownerId,
       activity.start,
     );
@@ -830,6 +885,7 @@ export class PlanningStageRepository {
     const window = await this.findServiceWindow(
       client,
       stageId,
+      variantId,
       ownerId,
       serviceId,
       latestStart?.start ?? activity.start,
@@ -850,6 +906,7 @@ export class PlanningStageRepository {
   private async findServiceWindow(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     ownerId: string,
     serviceId: string,
     referenceIso: string,
@@ -858,10 +915,12 @@ export class PlanningStageRepository {
       (await this.findLatestServiceStart(
         client,
         stageId,
+        variantId,
         ownerId,
         referenceIso,
         serviceId,
-      )) ?? (await this.findLatestServiceStart(client, stageId, ownerId, referenceIso));
+      )) ??
+      (await this.findLatestServiceStart(client, stageId, variantId, ownerId, referenceIso));
     if (!startRow) {
       return null;
     }
@@ -869,6 +928,7 @@ export class PlanningStageRepository {
     const endRow = await this.findFirstServiceEnd(
       client,
       stageId,
+      variantId,
       ownerId,
       effectiveServiceId,
       startRow.start,
@@ -881,6 +941,7 @@ export class PlanningStageRepository {
   private async findFirstServiceEnd(
     client: PoolClient,
     stageId: StageId,
+    variantId: string,
     ownerId: string,
     serviceId: string,
     afterIso: string,
@@ -890,14 +951,15 @@ export class PlanningStageRepository {
         SELECT id, start
         FROM planning_activity
         WHERE stage_id = $1
+          AND variant_id = $2
           AND service_role = 'end'
-          AND service_id = $2
-          AND start >= $3
-          AND participants @> $4::jsonb
+          AND service_id = $3
+          AND start >= $4
+          AND participants @> $5::jsonb
         ORDER BY start ASC
         LIMIT 1
       `,
-      [stageId, serviceId, afterIso, JSON.stringify([{ resourceId: ownerId }])],
+      [stageId, variantId, serviceId, afterIso, JSON.stringify([{ resourceId: ownerId }])],
     );
     return result.rows[0] ?? null;
   }
@@ -994,4 +1056,3 @@ export class PlanningStageRepository {
     return result;
   }
 }
-

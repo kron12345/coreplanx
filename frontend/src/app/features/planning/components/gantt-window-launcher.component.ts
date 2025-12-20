@@ -18,6 +18,8 @@ export class GanttWindowLauncherComponent {
   @Input() stageId: PlanningStageId | null = null;
   @Input() boardId: string | null = null;
   @Input() resourceIds: string[] | null = null;
+  @Input() variantId: string | null = null;
+  @Input() timetableYearLabel: string | null = null;
 
   openExternalBoard(): void {
     if (!this.stageId || typeof window === 'undefined') {
@@ -28,6 +30,8 @@ export class GanttWindowLauncherComponent {
         stage: this.stageId,
         board: this.boardId ?? undefined,
         resources: this.resourceIds && this.resourceIds.length > 0 ? this.resourceIds.join(',') : undefined,
+        variantId: this.variantId ?? undefined,
+        timetableYearLabel: this.timetableYearLabel ?? undefined,
       },
     });
     const url = this.router.serializeUrl(urlTree);

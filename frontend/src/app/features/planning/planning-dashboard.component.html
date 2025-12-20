@@ -38,6 +38,32 @@
             Zeiträume bearbeiten
           </button>
         }
+        @if (activeStageId() === 'base' && planningVariant()?.type === 'simulation') {
+          <button
+            mat-flat-button
+            color="primary"
+            class="planning-toolbar__base-toggle"
+            (click)="publishBasePlanningToProductive()"
+            [disabled]="!canPublishBasePlanning()"
+            matTooltip="Übernimmt diese Basisplanung als neue produktive Basis (alte Basis wird archiviert)."
+          >
+            <mat-icon fontIcon="published_with_changes"></mat-icon>
+            Als Produktiv veröffentlichen
+          </button>
+        }
+        @if (activeStageId() === 'operations' && planningVariant()?.type === 'productive') {
+          <button
+            mat-flat-button
+            color="primary"
+            class="planning-toolbar__base-toggle"
+            (click)="snapshotOperationsFromBase()"
+            [disabled]="!canSnapshotOperationsFromBase()"
+            matTooltip="Erstellt (oder überschreibt) die Betriebsplanung als Snapshot aus der produktiven Basis."
+          >
+            <mat-icon fontIcon="move_down"></mat-icon>
+            Snapshot aus Basis
+          </button>
+        }
       </div>
 
       <div class="planning-filter-bar">
@@ -248,6 +274,8 @@
                     [stageId]="activeStageId()"
                     [boardId]="board.id"
                     [resourceIds]="board.resourceIds"
+                    [variantId]="planningVariant()?.id ?? null"
+                    [timetableYearLabel]="planningVariant()?.timetableYearLabel ?? null"
                   />
                   @if (boards().length > 1) {
                     <button

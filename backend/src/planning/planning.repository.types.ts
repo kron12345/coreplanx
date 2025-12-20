@@ -32,6 +32,8 @@ import type {
 
 export interface StageData {
   stageId: StageId;
+  variantId: string;
+  timetableYearLabel?: string | null;
   timelineRange?: TimelineRange;
   version?: string | null;
   resources: Resource[];
@@ -68,4 +70,3 @@ export interface ActivityCatalogData {
   layerGroups: LayerGroup[];
   translations: TranslationState;
 }
-

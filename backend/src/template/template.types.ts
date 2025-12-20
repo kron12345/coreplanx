@@ -3,6 +3,14 @@ export interface ActivityTemplateSet {
   name: string;
   description?: string | null;
   tableName: string;
+  variantId: string;
+  timetableYearLabel?: string | null;
+  isArchived?: boolean;
+  archivedAt?: string | null;
+  archivedReason?: string | null;
+  publishedFromVariantId?: string | null;
+  publishedFromTemplateId?: string | null;
+  publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   periods?: TemplatePeriod[];

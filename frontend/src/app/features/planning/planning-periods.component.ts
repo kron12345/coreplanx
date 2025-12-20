@@ -12,6 +12,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { PlanningDataService } from './planning-data.service';
 
 function normalizeDate(value: string | null | undefined): string | null {
   if (!value) {
@@ -37,6 +38,7 @@ export class PlanningPeriodsComponent {
   private readonly store = inject(TemplateTimelineStoreService);
   private readonly fb = inject(FormBuilder);
   private readonly timetableYearService = inject(TimetableYearService);
+  private readonly data = inject(PlanningDataService);
 
   readonly templateId = signal<string | null>(null);
   readonly selectedTemplate = computed(() => this.store.selectedTemplate());
@@ -67,6 +69,19 @@ export class PlanningPeriodsComponent {
       const template = params.get('template');
       const dateParam = normalizeDate(params.get('date'));
       const specialParam = normalizeDate(params.get('special'));
+      const variantId = params.get('variantId');
+      const yearLabel = params.get('timetableYearLabel') ?? undefined;
+      if (variantId) {
+        const inferredYear =
+          yearLabel ??
+          (variantId.startsWith('PROD-') ? variantId.slice('PROD-'.length) : undefined);
+        this.data.setPlanningVariant({
+          id: variantId,
+          label: variantId,
+          type: variantId.startsWith('PROD-') ? 'productive' : 'simulation',
+          timetableYearLabel: inferredYear,
+        });
+      }
       if (dateParam) {
         try {
           const year = this.timetableYearService.getYearBounds(dateParam);
@@ -88,30 +103,24 @@ export class PlanningPeriodsComponent {
       }
     });
 
-    effect(
-      () => {
-        const year = this.selectedYear();
-        const currentStart = this.periodForm.get('start')?.value;
-        const currentEnd = this.periodForm.get('end')?.value;
-        if (!currentStart && !currentEnd) {
-          this.periodForm.patchValue(
-            { start: year.startIso, end: year.endIso },
-            { emitEvent: false, onlySelf: true },
-          );
-        }
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const year = this.selectedYear();
+      const currentStart = this.periodForm.get('start')?.value;
+      const currentEnd = this.periodForm.get('end')?.value;
+      if (!currentStart && !currentEnd) {
+        this.periodForm.patchValue(
+          { start: year.startIso, end: year.endIso },
+          { emitEvent: false, onlySelf: true },
+        );
+      }
+    });
 
-    effect(
-      () => {
-        const template = this.selectedTemplate();
-        if (!template && this.templates().length > 0) {
-          this.store.selectTemplate(this.templates()[0].id);
-        }
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const template = this.selectedTemplate();
+      if (!template && this.templates().length > 0) {
+        this.store.selectTemplate(this.templates()[0].id);
+      }
+    });
   }
 
   onTemplateChange(templateId: string | null): void {

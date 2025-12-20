@@ -23,6 +23,7 @@ export class TimelineService {
     to: string,
     lod: Lod,
     stage: 'base' | 'operations',
+    variantId?: string,
   ): Promise<TimelineResponse> {
     if (!this.repository.isEnabled) {
       if (!this.loggedDbWarning) {
@@ -36,13 +37,14 @@ export class TimelineService {
         : { lod, services: [] };
     }
     if (lod === 'activity') {
-      const activities = await this.repository.listActivities(from, to, stage);
+      const activities = await this.repository.listActivities(from, to, stage, variantId);
       return { lod, activities };
     }
     const services = await this.repository.listAggregatedServices(
       from,
       to,
       stage,
+      variantId,
     );
     return { lod, services };
   }

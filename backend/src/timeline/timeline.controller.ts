@@ -12,12 +12,13 @@ export class TimelineController {
     @Query('to') to?: string,
     @Query('lod') lod: Lod = 'activity',
     @Query('stage') stage: 'base' | 'operations' = 'base',
+    @Query('variantId') variantId?: string,
   ): Promise<TimelineResponse> {
     if (!from || !to) {
       throw new BadRequestException(
         'Query params "from" and "to" are required.',
       );
     }
-    return this.timelineService.getTimeline(from, to, lod, stage);
+    return this.timelineService.getTimeline(from, to, lod, stage, variantId);
   }
 }

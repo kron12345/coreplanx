@@ -7,6 +7,7 @@ import { PlanningTimelineRange } from './planning-data.types';
 import { Resource } from '../../models/resource';
 import { Activity } from '../../models/activity';
 import { ClientIdentityService } from '../../core/services/client-identity.service';
+import { PlanningApiContext } from '../../core/api/planning-api-context';
 
 export type PlanningRealtimeScope = 'resources' | 'activities' | 'timeline';
 
@@ -26,20 +27,26 @@ export class PlanningRealtimeService {
   private readonly config = inject(API_CONFIG);
   private readonly identity = inject(ClientIdentityService);
 
-  private readonly eventStreams = new Map<PlanningStageId, Observable<PlanningRealtimeEvent>>();
+  private readonly eventStreams = new Map<string, Observable<PlanningRealtimeEvent>>();
 
-  events(stageId: PlanningStageId): Observable<PlanningRealtimeEvent> {
-    if (!this.eventStreams.has(stageId)) {
-      this.eventStreams.set(stageId, this.createStageStream(stageId));
+  events(stageId: PlanningStageId, context?: PlanningApiContext): Observable<PlanningRealtimeEvent> {
+    const variantId = context?.variantId?.trim() || 'default';
+    const timetableYearLabel = context?.timetableYearLabel?.trim() || '';
+    const key = `${stageId}::${variantId}::${timetableYearLabel}`;
+    if (!this.eventStreams.has(key)) {
+      this.eventStreams.set(key, this.createStageStream(stageId, { variantId, timetableYearLabel }));
     }
-    return this.eventStreams.get(stageId)!;
+    return this.eventStreams.get(key)!;
   }
 
   clientId(): string {
     return this.identity.id();
   }
 
-  private createStageStream(stageId: PlanningStageId): Observable<PlanningRealtimeEvent> {
+  private createStageStream(
+    stageId: PlanningStageId,
+    context: { variantId: string; timetableYearLabel?: string },
+  ): Observable<PlanningRealtimeEvent> {
     const subjectFactory = () => new Subject<PlanningRealtimeEvent>();
     return new Observable<PlanningRealtimeEvent>((observer) => {
       if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
@@ -52,7 +59,11 @@ export class PlanningRealtimeService {
         userId: this.identity.userId(),
         clientId: this.identity.userId(),
         connectionId: this.identity.connectionId(),
+        variantId: context.variantId,
       });
+      if (context.timetableYearLabel) {
+        params.set('timetableYearLabel', context.timetableYearLabel);
+      }
       const url = `${base}/planning/stages/${stageId}/events?${params.toString()}`;
       const eventSource = new EventSource(url, { withCredentials: true });
 

@@ -8,6 +8,8 @@ export interface TimelineQuery {
   stage?: PlanningStageId;
   lod?: TimelineLod;
   resourceIds?: string[];
+  variantId?: string;
+  timetableYearLabel?: string;
 }
 
 export interface TimelineActivityResourceAssignmentDto {

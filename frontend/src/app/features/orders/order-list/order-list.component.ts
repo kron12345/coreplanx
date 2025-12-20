@@ -131,19 +131,16 @@ export class OrderListComponent {
       this.persistPresets(this.savedPresets());
     });
 
-    effect(
-      () => {
-        const activeId = this.activePresetId();
-        if (!activeId) {
-          return;
-        }
-        const preset = this.savedPresets().find((entry) => entry.id === activeId);
-        if (!preset || !this.presetsMatchCurrent(preset)) {
-          this.activePresetId.set(null);
-        }
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const activeId = this.activePresetId();
+      if (!activeId) {
+        return;
+      }
+      const preset = this.savedPresets().find((entry) => entry.id === activeId);
+      if (!preset || !this.presetsMatchCurrent(preset)) {
+        this.activePresetId.set(null);
+      }
+    });
   }
 
   readonly heroMetricList = computed(() => [

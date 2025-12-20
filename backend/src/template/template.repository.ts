@@ -15,6 +15,14 @@ interface TemplateSetRow {
   name: string;
   description: string | null;
   table_name: string;
+  variant_id: string;
+  timetable_year_label: string | null;
+  is_archived: boolean;
+  archived_at: string | null;
+  archived_reason: string | null;
+  published_from_variant_id: string | null;
+  published_from_template_id: string | null;
+  published_at: string | null;
   created_at: string;
   updated_at: string;
   periods: any | null;
@@ -40,10 +48,12 @@ export class TemplateRepository {
     return this.database.enabled;
   }
 
-  async listTemplateSets(): Promise<ActivityTemplateSet[]> {
+  async listTemplateSets(variantId?: string, includeArchived = false): Promise<ActivityTemplateSet[]> {
     if (!this.isEnabled) {
       return [];
     }
+    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
+    const archiveFilter = includeArchived ? '' : 'AND is_archived = FALSE';
     const result = await this.database.query<TemplateSetRow>(
       `
         SELECT
@@ -51,22 +61,34 @@ export class TemplateRepository {
           name,
           description,
           table_name,
+          variant_id,
+          timetable_year_label,
+          is_archived,
+          archived_at,
+          archived_reason,
+          published_from_variant_id,
+          published_from_template_id,
+          published_at,
           created_at,
           updated_at,
           periods,
           special_days,
           attributes
         FROM activity_template_set
+        WHERE variant_id = $1
+          ${archiveFilter}
         ORDER BY name
       `,
+      [normalizedVariantId],
     );
     return result.rows.map((row) => this.mapTemplateSet(row));
   }
 
-  async getTemplateSet(id: string): Promise<ActivityTemplateSet | null> {
+  async getTemplateSet(id: string, variantId?: string): Promise<ActivityTemplateSet | null> {
     if (!this.isEnabled) {
       return null;
     }
+    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
     const result = await this.database.query<TemplateSetRow>(
       `
         SELECT
@@ -74,6 +96,14 @@ export class TemplateRepository {
           name,
           description,
           table_name,
+          variant_id,
+          timetable_year_label,
+          is_archived,
+          archived_at,
+          archived_reason,
+          published_from_variant_id,
+          published_from_template_id,
+          published_at,
           created_at,
           updated_at,
           periods,
@@ -81,8 +111,9 @@ export class TemplateRepository {
           attributes
         FROM activity_template_set
         WHERE id = $1
+          AND variant_id = $2
       `,
-      [id],
+      [id, normalizedVariantId],
     );
     const row = result.rows[0];
     return row ? this.mapTemplateSet(row) : null;
@@ -98,15 +129,39 @@ export class TemplateRepository {
         await client.query(
           `
             INSERT INTO activity_template_set (
-              id, name, description, table_name, created_at, updated_at, periods, special_days, attributes
+              id,
+              name,
+              description,
+              table_name,
+              variant_id,
+              timetable_year_label,
+              is_archived,
+              archived_at,
+              archived_reason,
+              published_from_variant_id,
+              published_from_template_id,
+              published_at,
+              created_at,
+              updated_at,
+              periods,
+              special_days,
+              attributes
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           `,
           [
             set.id,
             set.name,
             set.description ?? null,
             set.tableName,
+            set.variantId,
+            set.timetableYearLabel ?? null,
+            set.isArchived ?? false,
+            set.archivedAt ?? null,
+            set.archivedReason ?? null,
+            set.publishedFromVariantId ?? null,
+            set.publishedFromTemplateId ?? null,
+            set.publishedAt ?? null,
             set.createdAt,
             set.updatedAt,
             JSON.stringify(set.periods ?? []),
@@ -150,20 +205,158 @@ export class TemplateRepository {
     );
   }
 
-  async deleteTemplateSet(id: string): Promise<void> {
+  async publishTemplateSet(options: {
+    sourceTableName: string;
+    target: ActivityTemplateSet;
+    archiveReason?: string | null;
+  }): Promise<void> {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
     }
-    const row = await this.getTemplateSet(id);
+    const safeSource = this.tableUtil.sanitize(options.sourceTableName);
+    const safeTarget = this.tableUtil.sanitize(options.target.tableName);
+    await this.database.withClient(async (client) => {
+      await client.query('BEGIN');
+      try {
+        await client.query(
+          `
+            UPDATE activity_template_set
+            SET is_archived = TRUE,
+                archived_at = now(),
+                archived_reason = $2,
+                updated_at = now()
+            WHERE variant_id = $1
+              AND is_archived = FALSE
+          `,
+          [options.target.variantId, options.archiveReason ?? 'published'],
+        );
+
+        await client.query(
+          `
+            INSERT INTO activity_template_set (
+              id,
+              name,
+              description,
+              table_name,
+              variant_id,
+              timetable_year_label,
+              is_archived,
+              archived_at,
+              archived_reason,
+              published_from_variant_id,
+              published_from_template_id,
+              published_at,
+              created_at,
+              updated_at,
+              periods,
+              special_days,
+              attributes
+            )
+            VALUES (
+              $1, $2, $3, $4, $5, $6,
+              FALSE, NULL, NULL,
+              $7, $8, $9,
+              $10, $11, $12, $13, $14
+            )
+          `,
+          [
+            options.target.id,
+            options.target.name,
+            options.target.description ?? null,
+            options.target.tableName,
+            options.target.variantId,
+            options.target.timetableYearLabel ?? null,
+            options.target.publishedFromVariantId ?? null,
+            options.target.publishedFromTemplateId ?? null,
+            options.target.publishedAt ?? null,
+            options.target.createdAt,
+            options.target.updatedAt,
+            JSON.stringify(options.target.periods ?? []),
+            JSON.stringify(options.target.specialDays ?? []),
+            options.target.attributes ?? null,
+          ],
+        );
+
+        await client.query(
+          `
+            CREATE TABLE IF NOT EXISTS ${safeTarget} (
+              id TEXT PRIMARY KEY,
+              type TEXT NOT NULL,
+              stage TEXT NOT NULL DEFAULT 'base',
+              deleted BOOLEAN NOT NULL DEFAULT FALSE,
+              deleted_at TIMESTAMPTZ,
+              start_time TIMESTAMPTZ NOT NULL,
+              end_time TIMESTAMPTZ,
+              is_open_ended BOOLEAN NOT NULL DEFAULT FALSE,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+              attributes JSONB NOT NULL,
+              audit_trail JSONB NOT NULL DEFAULT '[]'::jsonb
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_${safeTarget}_timerange
+              ON ${safeTarget} (stage, start_time, end_time)
+              WHERE deleted = FALSE;
+          `,
+        );
+
+        await client.query(
+          `
+            INSERT INTO ${safeTarget} (
+              id,
+              type,
+              stage,
+              deleted,
+              deleted_at,
+              start_time,
+              end_time,
+              is_open_ended,
+              created_at,
+              updated_at,
+              attributes,
+              audit_trail
+            )
+            SELECT
+              id,
+              type,
+              stage,
+              deleted,
+              deleted_at,
+              start_time,
+              end_time,
+              is_open_ended,
+              now(),
+              now(),
+              attributes,
+              audit_trail
+            FROM ${safeSource}
+          `,
+        );
+
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
+    });
+  }
+
+  async deleteTemplateSet(id: string, variantId?: string): Promise<void> {
+    if (!this.isEnabled) {
+      throw new Error('Database connection not configured');
+    }
+    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
+    const row = await this.getTemplateSet(id, normalizedVariantId);
     if (!row) {
       return;
     }
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
       try {
-        await client.query(`DELETE FROM activity_template_set WHERE id = $1`, [
-          id,
-        ]);
+        await client.query(
+          `DELETE FROM activity_template_set WHERE id = $1 AND variant_id = $2`,
+          [id, normalizedVariantId],
+        );
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
@@ -399,6 +592,7 @@ export class TemplateRepository {
     tableName: string,
     targetStage: 'base' | 'operations',
     anchorStart?: string,
+    variantId?: string,
   ): Promise<ActivityDto[]> {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
@@ -463,6 +657,7 @@ export class TemplateRepository {
         id: newId,
         type: activity.type,
         stage: targetStage,
+        variant_id: (variantId?.trim().length ? variantId.trim() : 'default'),
         start_time: shiftedStart,
         end_time: shiftedEnd,
         is_open_ended: isOpenEnded,
@@ -473,12 +668,13 @@ export class TemplateRepository {
     await this.database.query(
       `
         INSERT INTO activities (
-          id, type, stage, deleted, start_time, end_time, is_open_ended, attributes, audit_trail
+          id, type, stage, variant_id, deleted, start_time, end_time, is_open_ended, attributes, audit_trail
         )
         SELECT
           id,
           type,
           stage,
+          variant_id,
           FALSE,
           start_time,
           end_time,
@@ -489,6 +685,7 @@ export class TemplateRepository {
           id TEXT,
           type TEXT,
           stage TEXT,
+          variant_id TEXT,
           start_time TIMESTAMPTZ,
           end_time TIMESTAMPTZ,
           is_open_ended BOOLEAN,
@@ -588,6 +785,14 @@ export class TemplateRepository {
       name: row.name,
       description: row.description ?? undefined,
       tableName: row.table_name,
+      variantId: row.variant_id,
+      timetableYearLabel: row.timetable_year_label ?? undefined,
+      isArchived: row.is_archived,
+      archivedAt: row.archived_at,
+      archivedReason: row.archived_reason,
+      publishedFromVariantId: row.published_from_variant_id,
+      publishedFromTemplateId: row.published_from_template_id,
+      publishedAt: row.published_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       periods: Array.isArray(row.periods) ? row.periods : [],

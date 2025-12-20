@@ -6,6 +6,8 @@ export function isStageId(value: string): value is StageId {
   return (STAGE_IDS as string[]).includes(value);
 }
 
+export type PlanningVariantId = string;
+
 export interface TimelineRange {
   start: string;
   end: string;
@@ -546,6 +548,7 @@ export type PlanningStageRealtimeScope =
 
 export interface PlanningStageRealtimeEvent {
   stageId: StageId;
+  variantId: PlanningVariantId;
   scope: PlanningStageRealtimeScope;
   version?: string | null;
   sourceClientId?: string | null;
@@ -723,6 +726,8 @@ export interface Activity {
 
 export interface PlanningStageSnapshot {
   stageId: StageId;
+  variantId: PlanningVariantId;
+  timetableYearLabel?: string | null;
   resources: Resource[];
   activities: Activity[];
   trainRuns?: TrainRun[];

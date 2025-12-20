@@ -40,6 +40,8 @@ import { SimulationService } from '../../core/services/simulation.service';
 import { SimulationRecord } from '../../core/models/simulation.model';
 import { ActivityLinkRole, ActivityLinkRoleDialogComponent, ActivityLinkRoleDialogResult } from './activity-link-role-dialog.component';
 import { TemplateTimelineStoreService } from './template-timeline-store.service';
+import { TimelineApiService } from '../../core/api/timeline-api.service';
+import { ActivityApiService } from '../../core/api/activity-api.service';
 import { PlanningBoard, PlanningStageStore, StageRuntimeState } from './stores/planning-stage.store';
 import { PlanningDashboardBoardFacade } from './planning-dashboard-board.facade';
 import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
@@ -94,6 +96,9 @@ import { PlanningDashboardRoutingFacade } from './planning-dashboard-routing.fac
 import { PlanningDashboardSimulationFacade } from './planning-dashboard-simulation.facade';
 import { PlanningDashboardOperationsHandlers } from './planning-dashboard-operations.handlers';
 import { PlanningDashboardFormFacade } from './planning-dashboard-form.facade';
+import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { EMPTY } from 'rxjs';
+import { catchError, finalize, take, tap } from 'rxjs/operators';
 import { PlanningDashboardAssignmentFacade } from './planning-dashboard-assignment.facade';
 import { PlanningDashboardActivityOpsFacade } from './planning-dashboard-activity-ops.facade';
 import { PlanningDashboardSelectionState } from './planning-dashboard-selection.state';
@@ -131,8 +136,12 @@ export class PlanningDashboardComponent {
   private readonly timetableYearService = inject(TimetableYearService);
   private readonly managedTimetableYearBounds = this.timetableYearService.managedYearBoundsSignal();
   private readonly templateStore = inject(TemplateTimelineStoreService);
+  private readonly timelineApi = inject(TimelineApiService);
+  private readonly activityApi = inject(ActivityApiService);
   private readonly templateMetaLoad = signal(false);
   private readonly simulationService = inject(SimulationService);
+  private readonly publishInProgress = signal(false);
+  private readonly snapshotInProgress = signal(false);
 
   readonly stages = PLANNING_STAGE_METAS;
   private readonly stageMetaMap: Record<PlanningStageId, PlanningStageMeta> = buildStageMetaMap(this.stages);
@@ -704,8 +713,19 @@ export class PlanningDashboardComponent {
     if (typeof window === 'undefined') {
       return;
     }
+    const variant = this.planningVariant();
+    const queryParams: Record<string, string> = {};
+    if (templateId) {
+      queryParams['template'] = templateId;
+    }
+    if (variant?.id) {
+      queryParams['variantId'] = variant.id;
+    }
+    if (variant?.timetableYearLabel) {
+      queryParams['timetableYearLabel'] = variant.timetableYearLabel;
+    }
     const urlTree = this.router.createUrlTree(['/planning/periods'], {
-      queryParams: templateId ? { template: templateId } : undefined,
+      queryParams: Object.keys(queryParams).length ? queryParams : undefined,
     });
     const url = this.router.serializeUrl(urlTree);
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -718,6 +738,160 @@ export class PlanningDashboardComponent {
   protected selectActivityTypeFromPicker(optionId: string): void { this.uiFacade.selectActivityTypeFromPicker(optionId); }
 
   protected toggleActivityDetails(): void { this.uiFacade.toggleActivityDetails(); }
+
+  protected canPublishBasePlanning(): boolean {
+    if (this.publishInProgress()) {
+      return false;
+    }
+    if (this.activeStageSignal() !== 'base') {
+      return false;
+    }
+    const variant = this.planningVariant();
+    if (!variant || variant.type !== 'simulation') {
+      return false;
+    }
+    return !!this.selectedTemplateId();
+  }
+
+  protected publishBasePlanningToProductive(): void {
+    if (!this.canPublishBasePlanning()) {
+      return;
+    }
+    const variant = this.planningVariant();
+    if (!variant) {
+      return;
+    }
+    const timetableYearLabel = variant.timetableYearLabel?.trim();
+    if (!timetableYearLabel) {
+      console.warn('[PlanningDashboard] Missing timetableYearLabel for publish.');
+      return;
+    }
+    const templateId = this.selectedTemplateId();
+    if (!templateId) {
+      return;
+    }
+    const targetVariantId = `PROD-${timetableYearLabel}`;
+    const confirm: ConfirmDialogData = {
+      title: 'Basisplanung veröffentlichen',
+      message:
+        `Diese Basisplanung aus "${variant.label}" als neue produktive Basis für ${timetableYearLabel} übernehmen?\n` +
+        'Die bisherige produktive Basis wird archiviert.',
+      confirmLabel: 'Veröffentlichen',
+      cancelLabel: 'Abbrechen',
+    };
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      data: confirm,
+      width: '520px',
+    });
+    dialogRef.afterClosed().subscribe((accepted) => {
+      if (!accepted) {
+        return;
+      }
+      this.publishInProgress.set(true);
+      this.timelineApi
+        .publishTemplateSet(
+          templateId,
+          targetVariantId,
+          {
+            variantId: variant.id,
+            timetableYearLabel,
+          },
+        )
+        .pipe(
+          take(1),
+          tap(() => {
+            this.onSimulationSelect(targetVariantId);
+            this.templateStore.loadTemplates(true);
+          }),
+          catchError((error) => {
+            console.error('[PlanningDashboard] Failed to publish base planning', error);
+            if (typeof window !== 'undefined') {
+              window.alert('Veröffentlichen fehlgeschlagen. Details siehe Konsole.');
+            }
+            return EMPTY;
+          }),
+          finalize(() => this.publishInProgress.set(false)),
+        )
+        .subscribe();
+    });
+  }
+
+  protected canSnapshotOperationsFromBase(): boolean {
+    if (this.snapshotInProgress()) {
+      return false;
+    }
+    if (this.activeStageSignal() !== 'operations') {
+      return false;
+    }
+    const variant = this.planningVariant();
+    if (!variant || variant.type !== 'productive') {
+      return false;
+    }
+    return !!this.selectedTemplateId();
+  }
+
+  protected snapshotOperationsFromBase(): void {
+    if (!this.canSnapshotOperationsFromBase()) {
+      return;
+    }
+    const variant = this.planningVariant();
+    if (!variant) {
+      return;
+    }
+    const timetableYearLabel = variant.timetableYearLabel?.trim();
+    if (!timetableYearLabel) {
+      console.warn('[PlanningDashboard] Missing timetableYearLabel for snapshot.');
+      return;
+    }
+    const templateId = this.selectedTemplateId();
+    if (!templateId) {
+      return;
+    }
+    const hasExisting = this.stageActivitySignals.operations().length > 0;
+    const confirm: ConfirmDialogData = hasExisting
+      ? {
+          title: 'Snapshot überschreiben',
+          message:
+            'Im Betrieb existieren bereits Aktivitäten.\n' +
+            `Soll die Basisplanung aus "${variant.label}" als Snapshot neu übernommen und die bestehende Betriebsplanung überschrieben werden?`,
+          confirmLabel: 'Überschreiben',
+          cancelLabel: 'Abbrechen',
+        }
+      : {
+          title: 'Snapshot erstellen',
+          message: `Basisplanung aus "${variant.label}" als Snapshot in den Betrieb übernehmen?`,
+          confirmLabel: 'Übernehmen',
+          cancelLabel: 'Abbrechen',
+        };
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      data: confirm,
+      width: '520px',
+    });
+    dialogRef.afterClosed().subscribe((accepted) => {
+      if (!accepted) {
+        return;
+      }
+      this.snapshotInProgress.set(true);
+      this.activityApi
+        .snapshotOperationsFromBase(
+          { templateId, replaceExisting: hasExisting },
+          { variantId: variant.id, timetableYearLabel },
+        )
+        .pipe(
+          take(1),
+          tap(() => this.data.refreshStage('operations')),
+          catchError((error) => {
+            console.error('[PlanningDashboard] Failed to create operations snapshot', error);
+            if (typeof window !== 'undefined') {
+              window.alert('Snapshot fehlgeschlagen. Details siehe Konsole.');
+            }
+            return EMPTY;
+          }),
+          finalize(() => this.snapshotInProgress.set(false)),
+        )
+        .subscribe();
+    });
+  }
 
   protected onStageChange(stage: PlanningStageId | null | undefined): void {
     if (!stage || !(stage in this.stageMetaMap)) {

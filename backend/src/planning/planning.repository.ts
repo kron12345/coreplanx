@@ -46,36 +46,40 @@ export class PlanningRepository {
     return this.stageRepository.isEnabled;
   }
 
-  loadStageData(stageId: StageId): Promise<StageData | null> {
-    return this.stageRepository.loadStageData(stageId);
+  loadStageData(stageId: StageId, variantId: string): Promise<StageData | null> {
+    return this.stageRepository.loadStageData(stageId, variantId);
   }
 
   updateStageMetadata(
     stageId: StageId,
+    variantId: string,
     timeline: TimelineRange,
     version?: string | null,
+    timetableYearLabel?: string | null,
   ): Promise<void> {
-    return this.stageRepository.updateStageMetadata(stageId, timeline, version);
+    return this.stageRepository.updateStageMetadata(stageId, variantId, timeline, version, timetableYearLabel);
   }
 
   applyResourceMutations(
     stageId: StageId,
+    variantId: string,
     upserts: Resource[],
     deleteIds: string[],
   ): Promise<void> {
-    return this.stageRepository.applyResourceMutations(stageId, upserts, deleteIds);
+    return this.stageRepository.applyResourceMutations(stageId, variantId, upserts, deleteIds);
   }
 
   applyActivityMutations(
     stageId: StageId,
+    variantId: string,
     upserts: Activity[],
     deleteIds: string[],
   ): Promise<void> {
-    return this.stageRepository.applyActivityMutations(stageId, upserts, deleteIds);
+    return this.stageRepository.applyActivityMutations(stageId, variantId, upserts, deleteIds);
   }
 
-  deleteActivities(stageId: StageId, deleteIds: string[]): Promise<void> {
-    return this.stageRepository.deleteActivities(stageId, deleteIds);
+  deleteActivities(stageId: StageId, variantId: string, deleteIds: string[]): Promise<void> {
+    return this.stageRepository.deleteActivities(stageId, variantId, deleteIds);
   }
 
   loadMasterData(): Promise<MasterDataSets> {
@@ -162,4 +166,3 @@ export class PlanningRepository {
     return this.catalogRepository.replaceActivityCatalog(catalog);
   }
 }
-

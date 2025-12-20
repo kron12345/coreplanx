@@ -110,6 +110,13 @@ export class GanttViewportFacade {
     if (!this.viewportReady()) {
       return;
     }
+    if (!Number.isFinite(scrollLeft)) {
+      return;
+    }
+    const current = this.viewport.scrollX();
+    if (Math.abs(current - scrollLeft) <= 0.5) {
+      return;
+    }
     this.viewport.setScrollPx(scrollLeft);
   }
 
@@ -346,7 +353,7 @@ export class GanttViewportFacade {
 
   private computeInitialRange(start: Date, end: Date, requested: number): number {
     const duration = Math.max(1, end.getTime() - start.getTime());
-    return Math.max(requested, duration);
+    return Math.min(requested, duration);
   }
 
   private clampCenter(center: Date, start: Date, end: Date): Date {
@@ -433,4 +440,3 @@ export class GanttViewportFacade {
     this.mousePanMoved = false;
   }
 }
-

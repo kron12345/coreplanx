@@ -45,3 +45,16 @@ export interface ActivityValidationResponse {
   generatedAt: string;
   issues: ActivityValidationIssue[];
 }
+
+export interface OperationsSnapshotRequest {
+  templateId: string;
+  replaceExisting?: boolean;
+}
+
+export interface OperationsSnapshotResponse {
+  variantId: string;
+  templateId: string;
+  created: number;
+  deleted: number;
+  version?: string | null;
+}

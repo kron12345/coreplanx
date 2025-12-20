@@ -12,14 +12,11 @@ export class SimulationService {
   constructor() {
     // seed mocks plus productive defaults
     this._records.set(this.withProductiveDefaults(MOCK_SIMULATIONS));
-    effect(
-      () => {
-        // Track timetable years reactively so every year always owns a productive variant.
-        const labels = this.timetableYearBounds().map((year) => year.label);
-        this._records.update((current) => this.withProductiveDefaults(current, labels));
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      // Track timetable years reactively so every year always owns a productive variant.
+      const labels = this.timetableYearBounds().map((year) => year.label);
+      this._records.update((current) => this.withProductiveDefaults(current, labels));
+    });
   }
 
   readonly records = computed(() => this._records());

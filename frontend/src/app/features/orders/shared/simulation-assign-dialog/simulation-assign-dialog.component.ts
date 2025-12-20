@@ -59,21 +59,18 @@ export class SimulationAssignDialogComponent {
   readonly selectedId = signal<string | null>(this.data.selectedId ?? null);
 
   constructor() {
-    effect(
-      () => {
-        const current = this.selectedId();
-        const available = this.records();
-        if (!available.length) {
-          this.selectedId.set(null);
-          return;
-        }
-        const fallback = available[0].id;
-        if (!current || !available.some((rec) => rec.id === current)) {
-          this.selectedId.set(this.data.selectedId ?? fallback);
-        }
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const current = this.selectedId();
+      const available = this.records();
+      if (!available.length) {
+        this.selectedId.set(null);
+        return;
+      }
+      const fallback = available[0].id;
+      if (!current || !available.some((rec) => rec.id === current)) {
+        this.selectedId.set(this.data.selectedId ?? fallback);
+      }
+    });
   }
 
   select(change: MatRadioChange | string) {

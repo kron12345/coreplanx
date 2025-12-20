@@ -1,7 +1,9 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { catchError, EMPTY, take, tap } from 'rxjs';
 import { TimelineApiService } from '../../core/api/timeline-api.service';
 import { TemplateSetDto } from '../../core/api/timeline-api.types';
+import { PlanningApiContext } from '../../core/api/planning-api-context';
+import { PlanningDataService } from './planning-data.service';
 
 interface TemplateStoreState {
   templates: TemplateSetDto[];
@@ -22,9 +24,13 @@ const INITIAL_STATE: TemplateStoreState = {
 @Injectable({ providedIn: 'root' })
 export class TemplateTimelineStoreService {
   private readonly api = inject(TimelineApiService);
+  private readonly planningData = inject(PlanningDataService);
+  private readonly planningVariant = this.planningData.planningVariant();
   private readonly state = signal<TemplateStoreState>({ ...INITIAL_STATE });
   private templatesLoaded = false;
   private lastSelectedId: string | null = null;
+  private activeVariantId: string = 'default';
+  private readonly selectedTemplatePerVariant = new Map<string, string | null>();
 
   readonly templates = computed(() => this.state().templates);
   readonly selectedTemplate = computed(() => {
@@ -39,13 +45,34 @@ export class TemplateTimelineStoreService {
   private syntheticTemplate: TemplateSetDto | null = null;
   private syntheticPersisted = false;
 
+  constructor() {
+    effect(() => {
+      const variant = this.planningVariant();
+      const nextVariantId = variant?.id?.trim() || 'default';
+      if (nextVariantId === this.activeVariantId) {
+        return;
+      }
+      this.selectedTemplatePerVariant.set(this.activeVariantId, this.state().selectedTemplateId);
+      this.activeVariantId = nextVariantId;
+      this.templatesLoaded = false;
+      this.lastSelectedId = null;
+      this.setState({
+        templates: [],
+        selectedTemplateId: this.selectedTemplatePerVariant.get(nextVariantId) ?? null,
+        loading: false,
+        error: null,
+      });
+      this.loadTemplates(true);
+    });
+  }
+
   loadTemplates(force = false): void {
     if (!force && (this.templatesLoaded || this.state().loading)) {
       return;
     }
     this.setState({ loading: true, error: null });
     this.api
-      .listTemplateSets()
+      .listTemplateSets(this.currentApiContext())
       .pipe(
         take(1),
         tap((templates) => {
@@ -105,7 +132,7 @@ export class TemplateTimelineStoreService {
     if (this.syntheticTemplate && template.id === this.syntheticTemplate.id) {
       if (!this.syntheticPersisted) {
         this.api
-          .createTemplate(template)
+          .createTemplate(template, this.currentApiContext())
           .pipe(
             take(1),
             tap((saved) => {
@@ -124,7 +151,7 @@ export class TemplateTimelineStoreService {
               // Fallback: try update in case the template already exists
               if (error?.status === 409 || error?.status === 500) {
                 return this.api
-                  .updateTemplate(template)
+                  .updateTemplate(template, this.currentApiContext())
                   .pipe(
                     take(1),
                     tap((saved) => {
@@ -158,7 +185,7 @@ export class TemplateTimelineStoreService {
     }
 
     this.api
-      .updateTemplate(template)
+      .updateTemplate(template, this.currentApiContext())
       .pipe(
         take(1),
         tap((saved) => {
@@ -180,7 +207,7 @@ export class TemplateTimelineStoreService {
 
   private loadTemplateDetail(templateId: string): void {
     this.api
-      .getTemplate(templateId)
+      .getTemplate(templateId, this.currentApiContext())
       .pipe(
         take(1),
         tap((tpl) => {
@@ -196,5 +223,13 @@ export class TemplateTimelineStoreService {
         }),
       )
       .subscribe();
+  }
+
+  private currentApiContext(): PlanningApiContext {
+    const variant = this.planningVariant();
+    return {
+      variantId: variant?.id ?? 'default',
+      timetableYearLabel: variant?.timetableYearLabel ?? null,
+    };
   }
 }

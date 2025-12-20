@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TemplateModule } from '../template/template.module';
 import { PlanningController } from './planning.controller';
 import { PlanningCatalogController } from './planning-catalog.controller';
 import { PlanningService } from './planning.service';
@@ -19,8 +20,10 @@ import { PlanningStageService } from './planning-stage.service';
 import { PlanningMasterDataService } from './planning-master-data.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { PlanningTopologyImportService } from './planning-topology-import.service';
+import { PlanningSnapshotService } from './planning-snapshot.service';
 
 @Module({
+  imports: [TemplateModule],
   controllers: [
     PlanningController,
     PlanningCatalogController,
@@ -35,6 +38,7 @@ import { PlanningTopologyImportService } from './planning-topology-import.servic
     PlanningStageService,
     PlanningMasterDataService,
     PlanningActivityCatalogService,
+    PlanningSnapshotService,
     PlanningTopologyImportService,
     PlanningStageRepository,
     PlanningMasterDataReadRepository,

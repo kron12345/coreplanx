@@ -122,19 +122,16 @@ export class CustomerListComponent {
       this.persistPresets(this.savedPresets());
     });
 
-    effect(
-      () => {
-        const activeId = this.activePresetId();
-        if (!activeId) {
-          return;
-        }
-        const preset = this.savedPresets().find((entry) => entry.id === activeId);
-        if (!preset || preset.search !== this.searchTerm()) {
-          this.activePresetId.set(null);
-        }
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      const activeId = this.activePresetId();
+      if (!activeId) {
+        return;
+      }
+      const preset = this.savedPresets().find((entry) => entry.id === activeId);
+      if (!preset || preset.search !== this.searchTerm()) {
+        this.activePresetId.set(null);
+      }
+    });
   }
 
   readonly form = this.fb.group({

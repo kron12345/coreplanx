@@ -72,6 +72,15 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     return Math.max(0, (startTime - baseTime) * pxPerMs);
   });
 
+  function setViewStartIfChanged(next: Date): void {
+    const currentTime = viewStart().getTime();
+    const nextTime = next.getTime();
+    if (currentTime === nextTime) {
+      return;
+    }
+    viewStart.set(next);
+  }
+
   function zoomIn(center?: Date) {
     zoomBy(ZOOM_IN_FACTOR, center);
   }
@@ -107,7 +116,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     const halfRange = rangeSignal() / 2;
     const nextStart = new Date(target.getTime() - halfRange);
     const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, rangeSignal());
-    viewStart.set(clamped);
+    setViewStartIfChanged(clamped);
   }
 
   function viewCenter(): Date {
@@ -131,7 +140,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     const nextStartTime = timelineStart.getTime() + px / pxPerMs;
     const nextStart = new Date(nextStartTime);
     const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, rangeSignal());
-    viewStart.set(clamped);
+    setViewStartIfChanged(clamped);
   }
 
   function goto(time: Date) {
@@ -146,7 +155,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     const currentStart = viewStart();
     const nextStart = new Date(currentStart.getTime() + deltaMs);
     const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, rangeSignal());
-    viewStart.set(clamped);
+    setViewStartIfChanged(clamped);
   }
 
   return {

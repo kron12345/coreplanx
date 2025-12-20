@@ -118,21 +118,18 @@ export class OrderCardComponent {
     private readonly timetableService: TimetableService,
     private readonly snackBar: MatSnackBar,
   ) {
-    effect(
-      () => {
-        const active = this.filtersActive();
-        if (active) {
-          if (!this.expanded()) {
-            this.expanded.set(true);
-            this.autoExpandedByFilter.set(true);
-          }
-        } else if (this.autoExpandedByFilter()) {
-          this.expanded.set(false);
-          this.autoExpandedByFilter.set(false);
+    effect(() => {
+      const active = this.filtersActive();
+      if (active) {
+        if (!this.expanded()) {
+          this.expanded.set(true);
+          this.autoExpandedByFilter.set(true);
         }
-      },
-      { allowSignalWrites: true },
-    );
+      } else if (this.autoExpandedByFilter()) {
+        this.expanded.set(false);
+        this.autoExpandedByFilter.set(false);
+      }
+    });
   }
 
   openPositionDialog(event: MouseEvent) {
