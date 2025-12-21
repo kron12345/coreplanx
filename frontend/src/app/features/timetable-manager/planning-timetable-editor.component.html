@@ -1,0 +1,294 @@
+<section class="planning-timetable-editor">
+  <mat-card class="toolbar">
+    <div class="toolbar__row">
+      <mat-form-field appearance="outline" class="toolbar__field">
+        <mat-label>Simulation / Variante</mat-label>
+        <mat-select [value]="selectedVariantId()" (selectionChange)="setVariant($event.value)">
+          @for (variant of variants(); track variant.id) {
+            <mat-option [value]="variant.id">
+              {{ variant.productive ? 'PROD' : 'SIM' }} · {{ variant.timetableYearLabel }} · {{ variant.label }}
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="toolbar__field toolbar__field--stage">
+        <mat-label>Stage</mat-label>
+        <mat-select [value]="stageId()" (selectionChange)="setStage($event.value)">
+          <mat-option value="base">Basis</mat-option>
+          <mat-option value="operations">Betrieb</mat-option>
+          <mat-option value="dispatch">Disposition</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <span class="spacer"></span>
+
+      <button mat-raised-button color="primary" type="button" (click)="loadSnapshot()" [disabled]="loading()">
+        Laden
+      </button>
+      <button
+        mat-raised-button
+        color="accent"
+        type="button"
+        (click)="saveSnapshot()"
+        [disabled]="loading() || !dirty()"
+      >
+        Speichern
+      </button>
+
+      <button mat-button type="button" (click)="downloadSnapshot()" [disabled]="!trainRuns().length && !trainSegments().length">
+        Export JSON
+      </button>
+
+      <label class="toolbar__import">
+        <input type="file" accept="application/json" (change)="importSnapshotFile($event)" />
+        <span>Import JSON</span>
+      </label>
+    </div>
+
+    <div class="toolbar__meta">
+      <span>Zugläufe: {{ trainRuns().length }}</span>
+      <span>Segmente: {{ trainSegments().length }}</span>
+      <span>Zugleistungen: {{ serviceParts().length }}</span>
+      @if (dirty()) {
+        <mat-chip color="warn" selected>ungespeichert</mat-chip>
+      }
+    </div>
+
+    @if (error(); as err) {
+      <p class="toolbar__error">{{ err }}</p>
+    }
+    @if (message(); as msg) {
+      <p class="toolbar__message">{{ msg }}</p>
+    }
+  </mat-card>
+
+  <mat-tab-group class="tabs">
+    <mat-tab label="Zugläufe & Segmente">
+      <div class="grid grid--runs">
+        <mat-card class="panel">
+          <mat-card-title>Zugläufe</mat-card-title>
+
+          <mat-form-field appearance="outline" class="panel__search">
+            <mat-label>Suche</mat-label>
+            <input matInput [formControl]="runSearchControl" placeholder="Zugnummer oder ID" />
+            @if (runSearchControl.value) {
+              <button mat-icon-button matSuffix type="button" (click)="runSearchControl.setValue('')" aria-label="Suche löschen">
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+          </mat-form-field>
+
+          <div class="list">
+            @for (run of filteredTrainRuns(); track run.id) {
+              <button
+                type="button"
+                class="list-item"
+                [class.active]="selectedRunId() === run.id"
+                (click)="selectRun(run.id)"
+              >
+                <div class="list-item__title">{{ run.trainNumber }}</div>
+                <div class="list-item__subtitle">{{ run.id }}</div>
+              </button>
+            }
+            @if (!filteredTrainRuns().length) {
+              <p class="hint">Keine Zugläufe geladen.</p>
+            }
+          </div>
+
+          <div class="panel__actions">
+            <button mat-stroked-button color="primary" type="button" (click)="addTrainRun()">Neu</button>
+            <button mat-stroked-button color="warn" type="button" (click)="deleteSelectedRun()" [disabled]="!selectedRunId()">
+              Löschen
+            </button>
+          </div>
+        </mat-card>
+
+        <mat-card class="panel">
+          <mat-card-title>Details</mat-card-title>
+
+          @if (selectedTrainRun(); as run) {
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>TrainRun ID</mat-label>
+                <input matInput [value]="run.id" disabled />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Zugnummer</mat-label>
+                <input matInput [value]="run.trainNumber" (input)="updateTrainRun(run.id, { trainNumber: $any($event.target).value })" />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Timetable ID</mat-label>
+                <input matInput [value]="run.timetableId ?? ''" (input)="updateTrainRun(run.id, { timetableId: $any($event.target).value || null })" />
+              </mat-form-field>
+            </div>
+
+            <mat-divider></mat-divider>
+
+            <div class="segment-toolbar">
+              <h3>Segmente</h3>
+              <span class="spacer"></span>
+              <button mat-stroked-button color="primary" type="button" (click)="addSegment(run.id)">Segment hinzufügen</button>
+              <button mat-stroked-button color="warn" type="button" (click)="deleteSelectedSegment()" [disabled]="!selectedSegmentId()">
+                Segment löschen
+              </button>
+            </div>
+
+            <div class="segments">
+              @for (segment of segmentsForSelectedRun(); track segment.id) {
+                <button
+                  type="button"
+                  class="segment-item"
+                  [class.active]="selectedSegmentId() === segment.id"
+                  (click)="selectSegment(segment.id)"
+                >
+                  <div class="segment-item__main">
+                    <span class="segment-item__index">#{{ segment.sectionIndex }}</span>
+                    <span class="segment-item__route">{{ segment.fromLocationId }} → {{ segment.toLocationId }}</span>
+                  </div>
+                  <div class="segment-item__time">{{ segment.startTime }} – {{ segment.endTime }}</div>
+                </button>
+              }
+              @if (!segmentsForSelectedRun().length) {
+                <p class="hint">Keine Segmente für diesen Zuglauf.</p>
+              }
+            </div>
+
+            @if (selectedSegment(); as seg) {
+              <mat-divider></mat-divider>
+              <h3>Segment bearbeiten</h3>
+
+              <div class="form-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Segment ID</mat-label>
+                  <input matInput [value]="seg.id" disabled />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Index</mat-label>
+                  <input matInput type="number" [value]="seg.sectionIndex" (input)="updateSegment(seg.id, { sectionIndex: $any($event.target).valueAsNumber })" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Von</mat-label>
+                  <input matInput [value]="seg.fromLocationId" (input)="updateSegment(seg.id, { fromLocationId: $any($event.target).value })" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Nach</mat-label>
+                  <input matInput [value]="seg.toLocationId" (input)="updateSegment(seg.id, { toLocationId: $any($event.target).value })" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Start (ISO)</mat-label>
+                  <input matInput [value]="seg.startTime" (input)="updateSegment(seg.id, { startTime: $any($event.target).value })" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Ende (ISO)</mat-label>
+                  <input matInput [value]="seg.endTime" (input)="updateSegment(seg.id, { endTime: $any($event.target).value })" />
+                </mat-form-field>
+              </div>
+            }
+          } @else {
+            <p class="hint">Zuglauf auswählen oder neu anlegen.</p>
+          }
+        </mat-card>
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Zugleistungen (Split/Merge)">
+      <div class="grid grid--parts">
+        <mat-card class="panel">
+          <mat-card-title>Zugleistungen</mat-card-title>
+
+          <div class="panel__actions panel__actions--row">
+            <button mat-raised-button color="primary" type="button" (click)="loadServiceParts()" [disabled]="servicePartsLoading()">
+              Aktualisieren
+            </button>
+            <button mat-raised-button color="accent" type="button" (click)="rebuildServiceParts()" [disabled]="servicePartsLoading()">
+              Auto Zerlegung
+            </button>
+          </div>
+
+          @if (servicePartsError(); as err) {
+            <p class="panel__error">{{ err }}</p>
+          }
+
+          <div class="list">
+            @for (part of servicePartsForSelectedRun(); track part.id) {
+              <button
+                type="button"
+                class="list-item"
+                [class.active]="selectedServicePartId() === part.id"
+                (click)="selectServicePart(part.id)"
+              >
+                <div class="list-item__title">{{ part.trainNumber || part.trainRunId }}</div>
+                <div class="list-item__subtitle">
+                  {{ part.fromLocationId }} → {{ part.toLocationId }} · {{ part.segmentIds.length }} Seg.
+                </div>
+                <div class="list-item__subtitle">{{ part.startTime }} – {{ part.endTime }}</div>
+              </button>
+            }
+            @if (!servicePartsForSelectedRun().length) {
+              <p class="hint">Keine Zugleistungen. Auto Zerlegung erzeugt 1 pro Zuglauf.</p>
+            }
+          </div>
+        </mat-card>
+
+        <mat-card class="panel">
+          <mat-card-title>Bearbeiten</mat-card-title>
+
+          @if (selectedServicePart(); as part) {
+            <p class="subtitle">
+              {{ part.fromLocationId }} → {{ part.toLocationId }} · {{ part.segmentIds.length }} Segmente
+            </p>
+
+            <div class="part-actions">
+              <mat-form-field appearance="outline" class="part-actions__select">
+                <mat-label>Split nach Segment</mat-label>
+                <mat-select [value]="splitAfterSegmentId()" (selectionChange)="splitAfterSegmentId.set($event.value)">
+                  @for (candidate of splitCandidates(); track candidate.segmentId) {
+                    <mat-option [value]="candidate.segmentId">{{ candidate.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <button mat-stroked-button color="primary" type="button" (click)="splitSelectedServicePart()" [disabled]="!splitAfterSegmentId()">
+                Split
+              </button>
+            </div>
+
+            <div class="part-actions part-actions--merge">
+              <button mat-stroked-button color="primary" type="button" (click)="mergeWithPrevious()" [disabled]="!canMergePrevious()">
+                Merge vorher
+              </button>
+              <button mat-stroked-button color="primary" type="button" (click)="mergeWithNext()" [disabled]="!canMergeNext()">
+                Merge nachher
+              </button>
+            </div>
+
+            <mat-divider></mat-divider>
+            <h3>Segmente in dieser Leistung</h3>
+            <div class="segments segments--static">
+              @for (seg of segmentsForSelectedPart(); track seg.id) {
+                <div class="segment-item segment-item--static">
+                  <div class="segment-item__main">
+                    <span class="segment-item__index">#{{ seg.sectionIndex }}</span>
+                    <span class="segment-item__route">{{ seg.fromLocationId }} → {{ seg.toLocationId }}</span>
+                  </div>
+                  <div class="segment-item__time">{{ seg.startTime }} – {{ seg.endTime }}</div>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="hint">Zuglauf auswählen und Zugleistung anklicken.</p>
+          }
+        </mat-card>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</section>
+

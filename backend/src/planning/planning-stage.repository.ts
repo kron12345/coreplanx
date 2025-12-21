@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service';
+import { VariantPartitionService } from '../database/variant-partition.service';
 import type { Activity, Resource, StageId, TimelineRange, TrainRun, TrainSegment } from './planning.types';
 import type { StageData } from './planning.repository.types';
 
@@ -61,7 +62,10 @@ interface ActivityRow {
 export class PlanningStageRepository {
   private readonly logger = new Logger(PlanningStageRepository.name);
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly partitions: VariantPartitionService,
+  ) {}
 
   get isEnabled(): boolean {
     return this.database.enabled;
@@ -150,11 +154,10 @@ export class PlanningStageRepository {
       `
         SELECT id, train_number, timetable_id, attributes
         FROM train_run
-        WHERE stage_id = $1
-          AND variant_id = $2
+        WHERE variant_id = $1
         ORDER BY train_number, id
       `,
-      [stageId, variantId],
+      [variantId],
     );
 
     const trainSegmentsResult = await this.database.query<{
@@ -182,11 +185,10 @@ export class PlanningStageRepository {
           distance_km,
           attributes
         FROM train_segment
-        WHERE stage_id = $1
-          AND variant_id = $2
+        WHERE variant_id = $1
         ORDER BY train_run_id, section_index, id
       `,
-      [stageId, variantId],
+      [variantId],
     );
 
     const trainRuns: TrainRun[] = trainRunsResult.rows.map((row) => ({
@@ -236,6 +238,7 @@ export class PlanningStageRepository {
     if (!this.isEnabled) {
       return;
     }
+    await this.partitions.ensurePlanningPartitions(variantId);
     const resolvedVersion = version ?? new Date().toISOString();
     await this.database.query(
       `
@@ -270,6 +273,7 @@ export class PlanningStageRepository {
     if (!upserts.length && !deleteIds.length) {
       return;
     }
+    await this.partitions.ensurePlanningPartitions(variantId);
 
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
@@ -300,7 +304,7 @@ export class PlanningStageRepository {
                 "dailyServiceCapacity",
                 attributes
               FROM payload
-              ON CONFLICT (id) DO UPDATE SET
+              ON CONFLICT (id, variant_id) DO UPDATE SET
                 stage_id = EXCLUDED.stage_id,
                 variant_id = EXCLUDED.variant_id,
                 name = EXCLUDED.name,
@@ -349,6 +353,7 @@ export class PlanningStageRepository {
     if (!upserts.length && !deleteIds.length) {
       return;
     }
+    await this.partitions.ensurePlanningPartitions(variantId);
 
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
@@ -475,7 +480,7 @@ export class PlanningStageRepository {
                 attributes,
                 meta
               FROM payload
-              ON CONFLICT (id) DO UPDATE SET
+              ON CONFLICT (id, variant_id) DO UPDATE SET
                 stage_id = EXCLUDED.stage_id,
                 variant_id = EXCLUDED.variant_id,
                 client_id = EXCLUDED.client_id,

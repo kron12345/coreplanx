@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Delete,
   Get,
@@ -19,6 +20,10 @@ import type {
   TimelineResponse,
   ActivityDto,
 } from '../timeline/timeline.types';
+import {
+  deriveTimetableYearLabelFromVariantId,
+  normalizeVariantId,
+} from '../shared/variant-scope';
 
 @Controller('templates')
 export class TemplateController {
@@ -40,7 +45,18 @@ export class TemplateController {
     @Query('timetableYearLabel') timetableYearLabel: string | undefined,
     @Body() payload: CreateTemplateSetPayload,
   ): Promise<ActivityTemplateSet> {
-    return this.templateService.createTemplateSet(payload, variantId, timetableYearLabel ?? null);
+    const normalizedVariantId = normalizeVariantId(variantId);
+    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+      throw new BadRequestException(
+        `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
+      );
+    }
+    return this.templateService.createTemplateSet(
+      payload,
+      normalizedVariantId,
+      derivedYear ?? timetableYearLabel ?? null,
+    );
   }
 
   @Get(':templateId')
@@ -133,11 +149,23 @@ export class TemplateController {
     @Query('targetVariantId') targetVariantId: string | undefined,
     @Query('timetableYearLabel') timetableYearLabel: string | undefined,
   ): Promise<ActivityTemplateSet> {
+    const normalizedSourceVariantId = normalizeVariantId(variantId);
+    const normalizedTargetVariantId = targetVariantId?.trim().length
+      ? targetVariantId.trim()
+      : undefined;
+    const derivedTargetYear = normalizedTargetVariantId
+      ? deriveTimetableYearLabelFromVariantId(normalizedTargetVariantId)
+      : null;
+    if (derivedTargetYear && timetableYearLabel && timetableYearLabel.trim() !== derivedTargetYear) {
+      throw new BadRequestException(
+        `timetableYearLabel (${timetableYearLabel}) passt nicht zu targetVariantId (${normalizedTargetVariantId}).`,
+      );
+    }
     return this.templateService.publishTemplateSet({
       templateId,
-      sourceVariantId: variantId,
-      targetVariantId,
-      timetableYearLabel: timetableYearLabel ?? null,
+      sourceVariantId: normalizedSourceVariantId,
+      targetVariantId: normalizedTargetVariantId,
+      timetableYearLabel: derivedTargetYear ?? timetableYearLabel ?? null,
     });
   }
 }

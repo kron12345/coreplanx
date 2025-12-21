@@ -112,9 +112,6 @@ export class TimelineApiService {
     if (query.variantId) {
       params = params.set('variantId', query.variantId);
     }
-    if (query.timetableYearLabel) {
-      params = params.set('timetableYearLabel', query.timetableYearLabel);
-    }
     return params;
   }
 
@@ -123,10 +120,6 @@ export class TimelineApiService {
     const variantId = context?.variantId?.trim();
     if (variantId) {
       params = params.set('variantId', variantId);
-    }
-    const year = context?.timetableYearLabel?.trim();
-    if (year) {
-      params = params.set('timetableYearLabel', year);
     }
     return params;
   }

@@ -14,8 +14,10 @@ interface MigrationFile {
 @Injectable()
 export class MigrationService implements OnModuleInit {
   private readonly logger = new Logger(MigrationService.name);
-  private readonly migrationsDir = path.join(
-    process.cwd(),
+  private readonly migrationsDir = path.resolve(
+    __dirname,
+    '..',
+    '..',
     'sql',
     'migrations',
   );
@@ -183,6 +185,12 @@ export class MigrationService implements OnModuleInit {
       // Plan week
       'train_segment',
       'train_run',
+      // Train service parts (Zugleistungen)
+      'train_service_part_link',
+      'train_service_part_segment',
+      'train_service_part',
+      // Timetable revisions
+      'timetable_revision',
       'service_assignment',
       'scheduled_service',
       'week_instance',
@@ -220,6 +228,9 @@ export class MigrationService implements OnModuleInit {
       'planning_activity',
       'planning_resource',
       'planning_stage',
+      // Variant/year metadata
+      'planning_variant',
+      'timetable_year',
       this.tableName,
     ];
 

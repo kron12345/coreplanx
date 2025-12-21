@@ -4,35 +4,55 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS planning_stage (
-  stage_id TEXT PRIMARY KEY,
+  stage_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL DEFAULT 'default',
+  timetable_year_label TEXT,
   version TIMESTAMPTZ NOT NULL DEFAULT now(),
   timeline_start TIMESTAMPTZ NOT NULL,
   timeline_end TIMESTAMPTZ NOT NULL
-);
+  ,
+  PRIMARY KEY (stage_id, variant_id)
+) PARTITION BY LIST (variant_id);
 
-INSERT INTO planning_stage (stage_id, timeline_start, timeline_end)
+-- Ensure default partition exists so the API keeps working without a variant setup step.
+CREATE TABLE IF NOT EXISTS planning_stage_default
+  PARTITION OF planning_stage
+  FOR VALUES IN ('default');
+
+INSERT INTO planning_stage (stage_id, variant_id, timeline_start, timeline_end)
 VALUES
-  ('base', '2025-03-01T06:00:00Z', '2025-03-01T18:00:00Z'),
-  ('operations', '2025-03-01T06:00:00Z', '2025-03-01T18:00:00Z'),
-  ('dispatch', '2025-03-01T06:00:00Z', '2025-03-01T18:00:00Z')
-ON CONFLICT (stage_id) DO NOTHING;
+  ('base', 'default', '2025-03-01T06:00:00Z', '2025-03-01T18:00:00Z'),
+  ('operations', 'default', '2025-03-01T06:00:00Z', '2025-03-01T18:00:00Z'),
+  ('dispatch', 'default', '2025-03-01T06:00:00Z', '2025-03-01T18:00:00Z')
+ON CONFLICT (stage_id, variant_id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS planning_resource (
-  id TEXT PRIMARY KEY,
-  stage_id TEXT NOT NULL REFERENCES planning_stage(stage_id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  stage_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL DEFAULT 'default',
   name TEXT NOT NULL,
   kind TEXT NOT NULL,
   daily_service_capacity INTEGER,
   attributes JSONB,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (id, variant_id),
+  CONSTRAINT planning_resource_stage_variant_fkey
+    FOREIGN KEY (stage_id, variant_id)
+    REFERENCES planning_stage(stage_id, variant_id)
+    ON DELETE CASCADE
+) PARTITION BY LIST (variant_id);
 
-CREATE INDEX IF NOT EXISTS idx_planning_resource_stage
-  ON planning_resource(stage_id);
+CREATE TABLE IF NOT EXISTS planning_resource_default
+  PARTITION OF planning_resource
+  FOR VALUES IN ('default');
+
+CREATE INDEX IF NOT EXISTS idx_planning_resource_stage_variant
+  ON planning_resource(stage_id, variant_id);
 
 CREATE TABLE IF NOT EXISTS planning_activity (
-  id TEXT PRIMARY KEY,
-  stage_id TEXT NOT NULL REFERENCES planning_stage(stage_id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  stage_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL DEFAULT 'default',
   client_id TEXT,
   title TEXT NOT NULL,
   start TIMESTAMPTZ NOT NULL,
@@ -64,11 +84,20 @@ CREATE TABLE IF NOT EXISTS planning_activity (
   train_run_id TEXT,
   train_segment_ids TEXT[],
   attributes JSONB,
-  meta JSONB
-);
+  meta JSONB,
+  PRIMARY KEY (id, variant_id),
+  CONSTRAINT planning_activity_stage_variant_fkey
+    FOREIGN KEY (stage_id, variant_id)
+    REFERENCES planning_stage(stage_id, variant_id)
+    ON DELETE CASCADE
+) PARTITION BY LIST (variant_id);
 
-CREATE INDEX IF NOT EXISTS idx_planning_activity_stage
-  ON planning_activity(stage_id);
+CREATE TABLE IF NOT EXISTS planning_activity_default
+  PARTITION OF planning_activity
+  FOR VALUES IN ('default');
+
+CREATE INDEX IF NOT EXISTS idx_planning_activity_stage_variant
+  ON planning_activity(stage_id, variant_id);
 
 CREATE TABLE IF NOT EXISTS personnel_service_pool (
   id TEXT PRIMARY KEY,
@@ -154,18 +183,29 @@ CREATE TABLE IF NOT EXISTS vehicle_composition_entry (
 );
 
 CREATE TABLE IF NOT EXISTS train_run (
-  id TEXT PRIMARY KEY,
-  stage_id TEXT NOT NULL REFERENCES planning_stage(stage_id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  stage_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL DEFAULT 'default',
   train_number TEXT NOT NULL,
   timetable_id TEXT,
   attributes JSONB,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (id, variant_id),
+  CONSTRAINT train_run_stage_variant_fkey
+    FOREIGN KEY (stage_id, variant_id)
+    REFERENCES planning_stage(stage_id, variant_id)
+    ON DELETE CASCADE
+) PARTITION BY LIST (variant_id);
+
+CREATE TABLE IF NOT EXISTS train_run_default
+  PARTITION OF train_run
+  FOR VALUES IN ('default');
 
 CREATE TABLE IF NOT EXISTS train_segment (
-  id TEXT PRIMARY KEY,
-  stage_id TEXT NOT NULL REFERENCES planning_stage(stage_id) ON DELETE CASCADE,
-  train_run_id TEXT NOT NULL REFERENCES train_run(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  stage_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL DEFAULT 'default',
+  train_run_id TEXT NOT NULL,
   section_index INTEGER NOT NULL,
   start_time TIMESTAMPTZ NOT NULL,
   end_time TIMESTAMPTZ NOT NULL,
@@ -174,11 +214,27 @@ CREATE TABLE IF NOT EXISTS train_segment (
   path_id TEXT,
   distance_km NUMERIC,
   attributes JSONB,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (id, variant_id),
+  CONSTRAINT train_segment_stage_variant_fkey
+    FOREIGN KEY (stage_id, variant_id)
+    REFERENCES planning_stage(stage_id, variant_id)
+    ON DELETE CASCADE,
+  CONSTRAINT train_segment_train_run_variant_fkey
+    FOREIGN KEY (train_run_id, variant_id)
+    REFERENCES train_run(id, variant_id)
+    ON DELETE CASCADE
+) PARTITION BY LIST (variant_id);
 
-CREATE INDEX IF NOT EXISTS idx_train_segment_stage
-  ON train_segment(stage_id);
+CREATE TABLE IF NOT EXISTS train_segment_default
+  PARTITION OF train_segment
+  FOR VALUES IN ('default');
 
-CREATE INDEX IF NOT EXISTS idx_train_segment_train_run
-  ON train_segment(train_run_id);
+CREATE INDEX IF NOT EXISTS idx_train_run_stage_variant
+  ON train_run(stage_id, variant_id);
+
+CREATE INDEX IF NOT EXISTS idx_train_segment_stage_variant
+  ON train_segment(stage_id, variant_id);
+
+CREATE INDEX IF NOT EXISTS idx_train_segment_train_run_variant
+  ON train_segment(train_run_id, variant_id);

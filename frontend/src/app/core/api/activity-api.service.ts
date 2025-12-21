@@ -91,10 +91,6 @@ export class ActivityApiService {
     if (variantId) {
       params = params.set('variantId', variantId);
     }
-    const year = context?.timetableYearLabel?.trim();
-    if (year) {
-      params = params.set('timetableYearLabel', year);
-    }
     return params;
   }
 }

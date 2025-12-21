@@ -26,6 +26,27 @@ function normalizeDate(value: string | null | undefined): string | null {
   return Number.isFinite(date.getTime()) ? trimmed.slice(0, 10) : null;
 }
 
+function deriveYearLabelFromVariantId(variantId: string): string | undefined {
+  const trimmed = variantId?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const upper = trimmed.toUpperCase();
+  if (upper.startsWith('PROD-')) {
+    return trimmed.slice('PROD-'.length).trim() || undefined;
+  }
+  if (upper.startsWith('SIM-')) {
+    const rest = trimmed.slice('SIM-'.length).trim();
+    const match = /^(\d{4}[/-]\d{2})(?:-|$)/.exec(rest);
+    return match?.[1] ?? undefined;
+  }
+  return undefined;
+}
+
+function deriveVariantType(variantId: string): 'productive' | 'simulation' {
+  return variantId.trim().toUpperCase().startsWith('PROD-') ? 'productive' : 'simulation';
+}
+
 @Component({
     selector: 'app-planning-periods',
     imports: [CommonModule, MatCardModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatIconModule, ReactiveFormsModule],
@@ -73,12 +94,11 @@ export class PlanningPeriodsComponent {
       const yearLabel = params.get('timetableYearLabel') ?? undefined;
       if (variantId) {
         const inferredYear =
-          yearLabel ??
-          (variantId.startsWith('PROD-') ? variantId.slice('PROD-'.length) : undefined);
+          yearLabel ?? deriveYearLabelFromVariantId(variantId);
         this.data.setPlanningVariant({
           id: variantId,
           label: variantId,
-          type: variantId.startsWith('PROD-') ? 'productive' : 'simulation',
+          type: deriveVariantType(variantId),
           timetableYearLabel: inferredYear,
         });
       }

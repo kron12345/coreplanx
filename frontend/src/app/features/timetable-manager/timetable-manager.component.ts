@@ -13,7 +13,7 @@ import {
 } from '../../core/services/timetable-hub.service';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 import { TimetableService } from '../../core/services/timetable.service';
@@ -27,7 +27,7 @@ type DialogStopValue = TimetableTestTrainDialogResult['stops'][number];
 
 @Component({
     selector: 'app-timetable-manager',
-    imports: [CommonModule, ReactiveFormsModule, ...MATERIAL_IMPORTS],
+    imports: [CommonModule, ReactiveFormsModule, RouterLink, ...MATERIAL_IMPORTS],
     templateUrl: './timetable-manager.component.html',
     styleUrl: './timetable-manager.component.scss'
 })

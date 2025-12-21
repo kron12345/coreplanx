@@ -52,9 +52,22 @@ export const routes: Routes = [
   },
   {
     path: 'fahrplanmanager',
-    component: TimetableManagerComponent,
     title: 'Fahrplanmanager',
     data: { section: 'timetable' },
+    children: [
+      {
+        path: '',
+        component: TimetableManagerComponent,
+      },
+      {
+        path: 'trains',
+        loadComponent: () =>
+          import('./features/timetable-manager/planning-timetable-editor.component').then(
+            (m) => m.PlanningTimetableEditorComponent,
+          ),
+        title: 'Fahrplanmanager · Zugläufe',
+      },
+    ],
   },
   {
     path: 'plans',

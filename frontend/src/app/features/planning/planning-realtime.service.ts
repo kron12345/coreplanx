@@ -31,10 +31,9 @@ export class PlanningRealtimeService {
 
   events(stageId: PlanningStageId, context?: PlanningApiContext): Observable<PlanningRealtimeEvent> {
     const variantId = context?.variantId?.trim() || 'default';
-    const timetableYearLabel = context?.timetableYearLabel?.trim() || '';
-    const key = `${stageId}::${variantId}::${timetableYearLabel}`;
+    const key = `${stageId}::${variantId}`;
     if (!this.eventStreams.has(key)) {
-      this.eventStreams.set(key, this.createStageStream(stageId, { variantId, timetableYearLabel }));
+      this.eventStreams.set(key, this.createStageStream(stageId, variantId));
     }
     return this.eventStreams.get(key)!;
   }
@@ -45,7 +44,7 @@ export class PlanningRealtimeService {
 
   private createStageStream(
     stageId: PlanningStageId,
-    context: { variantId: string; timetableYearLabel?: string },
+    variantId: string,
   ): Observable<PlanningRealtimeEvent> {
     const subjectFactory = () => new Subject<PlanningRealtimeEvent>();
     return new Observable<PlanningRealtimeEvent>((observer) => {
@@ -59,11 +58,8 @@ export class PlanningRealtimeService {
         userId: this.identity.userId(),
         clientId: this.identity.userId(),
         connectionId: this.identity.connectionId(),
-        variantId: context.variantId,
+        variantId,
       });
-      if (context.timetableYearLabel) {
-        params.set('timetableYearLabel', context.timetableYearLabel);
-      }
       const url = `${base}/planning/stages/${stageId}/events?${params.toString()}`;
       const eventSource = new EventSource(url, { withCredentials: true });
 

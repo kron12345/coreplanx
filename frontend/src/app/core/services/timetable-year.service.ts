@@ -1,5 +1,8 @@
-import { Injectable, Signal, computed, signal } from '@angular/core';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { TimetableYearBounds, TimetableYearRecord } from '../models/timetable-year.model';
+import { TimetableYearApiService } from '../api/timetable-year-api.service';
+import { EMPTY, forkJoin } from 'rxjs';
+import { catchError, finalize, take, tap } from 'rxjs/operators';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const STORAGE_KEY = 'order-management.timetable-years';
@@ -37,13 +40,19 @@ function toIsoDate(value: Date): string {
 
 @Injectable({ providedIn: 'root' })
 export class TimetableYearService {
+  private readonly api = inject(TimetableYearApiService);
   private readonly managedRecords = signal<TimetableYearRecord[]>(this.loadManagedRecords());
+  private readonly backendYearLabels = signal<Set<string> | null>(null);
   private readonly managedBoundsSignal = computed(() =>
     this.managedRecords()
       .map((record) => this.recordToBounds(record))
       .filter((value): value is TimetableYearBounds => value !== null)
       .sort((a, b) => a.start.getTime() - b.start.getTime()),
   );
+
+  constructor() {
+    this.refreshFromBackend();
+  }
 
   /**
    * Returns raw timetable-year records for the Stammdaten UI.
@@ -59,6 +68,7 @@ export class TimetableYearService {
     const normalized = records.map((record, index) => this.normalizeRecord(record, index));
     this.managedRecords.set(normalized);
     this.persistManagedRecords();
+    this.syncBackendYears(normalized);
   }
 
   /**
@@ -343,6 +353,97 @@ export class TimetableYearService {
     }
   }
 
+  private refreshFromBackend(): void {
+    this.api
+      .listYears()
+      .pipe(
+        take(1),
+        tap((labels) => this.applyBackendYearLabels(labels)),
+        catchError((error) => {
+          console.warn('[TimetableYearService] Failed to load timetable years from backend', error);
+          return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
+
+  private applyBackendYearLabels(labels: string[]): void {
+    const cleaned = Array.from(
+      new Set(
+        (labels ?? [])
+          .map((label) => (label ?? '').trim())
+          .filter((label) => label.length > 0),
+      ),
+    ).sort();
+
+    const existingByLabel = new Map(
+      this.managedRecords().map((record) => [record.label, record] as const),
+    );
+
+    const next = cleaned.map((label, index) => {
+      const existing = existingByLabel.get(label);
+      if (existing) {
+        return this.normalizeRecord(existing, index);
+      }
+      return this.normalizeRecord(this.buildRecordFromLabel(label), index);
+    });
+
+    this.backendYearLabels.set(new Set(cleaned));
+    this.managedRecords.set(next);
+    this.persistManagedRecords();
+  }
+
+  private syncBackendYears(records: TimetableYearRecord[]): void {
+    const desiredLabels = Array.from(
+      new Set(
+        records
+          .map((record) => (record.label ?? '').trim())
+          .filter((label) => label.length > 0),
+      ),
+    );
+
+    this.api
+      .listYears()
+      .pipe(
+        take(1),
+        tap((current) => {
+          const currentLabels = Array.from(
+            new Set((current ?? []).map((label) => (label ?? '').trim()).filter(Boolean)),
+          );
+          const currentSet = new Set(currentLabels);
+          const desiredSet = new Set(desiredLabels);
+
+          const creates = desiredLabels
+            .filter((label) => !currentSet.has(label))
+            .map((label) => this.api.createYear(label));
+          const deletes = currentLabels
+            .filter((label) => !desiredSet.has(label))
+            .map((label) => this.api.deleteYear(label));
+
+          if (!creates.length && !deletes.length) {
+            this.backendYearLabels.set(currentSet);
+            return;
+          }
+
+          forkJoin([...creates, ...deletes])
+            .pipe(
+              take(1),
+              finalize(() => this.refreshFromBackend()),
+              catchError((error) => {
+                console.warn('[TimetableYearService] Failed to sync timetable years to backend', error);
+                return EMPTY;
+              }),
+            )
+            .subscribe();
+        }),
+        catchError((error) => {
+          console.warn('[TimetableYearService] Failed to fetch backend timetable years', error);
+          return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
+
   private generateRecordId(): string {
     return `ty-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   }
@@ -350,6 +451,26 @@ export class TimetableYearService {
   private generateRecordIdForLabel(label: string): string {
     const slug = label.replace(/[^0-9]/g, '');
     return slug.length ? `ty-${slug}` : this.generateRecordId();
+  }
+
+  private buildRecordFromLabel(label: string): TimetableYearRecord {
+    const trimmed = label.trim();
+    try {
+      const bounds = this.buildBoundsForLabel(trimmed);
+      return {
+        id: this.generateRecordIdForLabel(trimmed),
+        label: bounds.label,
+        startIso: bounds.startIso,
+        endIso: bounds.endIso,
+      };
+    } catch {
+      return {
+        id: this.generateRecordIdForLabel(trimmed),
+        label: trimmed,
+        startIso: '',
+        endIso: '',
+      };
+    }
   }
 
   private addDays(date: Date, days: number): Date {

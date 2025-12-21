@@ -57,7 +57,10 @@ export class SimulationMasterEditorComponent {
   readonly error = signal<string | null>(null);
 
   readonly records = computed<AttributeEntityRecord[]>(() =>
-    this.simulations.list().map((record) => this.toAttributeRecord(record)),
+    this.simulations
+      .list()
+      .filter((record) => !record.productive)
+      .map((record) => this.toAttributeRecord(record)),
   );
 
   readonly createDefaultsFactory = () => ({ ...DEFAULT_VALUES });
@@ -74,19 +77,48 @@ export class SimulationMasterEditorComponent {
       this.error.set('Fahrplanjahr ist erforderlich.');
       return;
     }
-    const payload: SimulationRecord = {
-      id: event.entityId ?? this.generateId(),
-      label,
-      timetableYearLabel,
-      description: this.clean(values['description']),
-    };
-    this.simulations.upsert(payload);
-    this.error.set(null);
+    const description = this.clean(values['description']);
+
+    if (!event.entityId) {
+      this.simulations
+        .create({ label, timetableYearLabel, description })
+        .subscribe({
+          next: () => this.error.set(null),
+          error: (err) => {
+            console.warn('[SimulationMasterEditor] Failed to create simulation', err);
+            this.error.set('Simulation konnte nicht gespeichert werden. Details siehe Konsole.');
+          },
+        });
+      return;
+    }
+
+    const current = this.simulations.list().find((rec) => rec.id === event.entityId);
+    if (current && current.timetableYearLabel !== timetableYearLabel) {
+      this.error.set(
+        'Fahrplanjahr kann nach dem Anlegen nicht geändert werden. Bitte eine neue Simulation anlegen.',
+      );
+      return;
+    }
+
+    this.simulations
+      .update(event.entityId, { label, description })
+      .subscribe({
+        next: () => this.error.set(null),
+        error: (err) => {
+          console.warn('[SimulationMasterEditor] Failed to update simulation', err);
+          this.error.set('Simulation konnte nicht gespeichert werden. Details siehe Konsole.');
+        },
+      });
   }
 
   handleDelete(ids: string[]): void {
-    this.simulations.remove(ids);
-    this.error.set(null);
+    this.simulations.remove(ids).subscribe({
+      next: () => this.error.set(null),
+      error: (err) => {
+        console.warn('[SimulationMasterEditor] Failed to delete simulations', err);
+        this.error.set('Simulation(en) konnten nicht gelöscht werden. Details siehe Konsole.');
+      },
+    });
   }
 
   private toAttributeRecord(record: SimulationRecord): AttributeEntityRecord {
@@ -108,10 +140,5 @@ export class SimulationMasterEditorComponent {
     return trimmed.length ? trimmed : undefined;
   }
 
-  private generateId(): string {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-      return `sim-${crypto.randomUUID()}`;
-    }
-    return `sim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  }
+  // IDs are generated on the backend so they encode the timetable year scope.
 }

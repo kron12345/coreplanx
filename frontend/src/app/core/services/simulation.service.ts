@@ -1,93 +1,126 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { EMPTY, Observable, forkJoin, of } from 'rxjs';
+import { catchError, finalize, map, take, tap } from 'rxjs/operators';
+import { TimetableYearApiService } from '../api/timetable-year-api.service';
 import { SimulationRecord } from '../models/simulation.model';
-import { MOCK_SIMULATIONS } from '../mock/mock-simulations.mock';
 import { TimetableYearService } from './timetable-year.service';
 
 @Injectable({ providedIn: 'root' })
 export class SimulationService {
+  private readonly api = inject(TimetableYearApiService);
   private readonly _records = signal<SimulationRecord[]>([]);
+  private readonly loadingSignal = signal(false);
+  private readonly errorSignal = signal<string | null>(null);
   private readonly timetableYears = inject(TimetableYearService);
   private readonly timetableYearBounds = this.timetableYears.managedYearBoundsSignal();
 
   constructor() {
-    // seed mocks plus productive defaults
-    this._records.set(this.withProductiveDefaults(MOCK_SIMULATIONS));
     effect(() => {
-      // Track timetable years reactively so every year always owns a productive variant.
-      const labels = this.timetableYearBounds().map((year) => year.label);
-      this._records.update((current) => this.withProductiveDefaults(current, labels));
+      // Refresh variants when timetable years change (productives are created per year).
+      this.timetableYearBounds();
+      this.refresh();
     });
+    this.refresh();
   }
 
   readonly records = computed(() => this._records());
+  readonly loading = computed(() => this.loadingSignal());
+  readonly error = computed(() => this.errorSignal());
 
   list(): SimulationRecord[] {
     return this._records();
   }
 
   byTimetableYear(label: string): SimulationRecord[] {
-    return this._records().filter(
-      (sim) => sim.timetableYearLabel?.toLowerCase() === label.toLowerCase(),
-    );
-  }
-
-  upsert(record: SimulationRecord): void {
-    if (record.productive) {
-      // productive entry is normalized to fixed id per year
-      record.id = this.productiveId(record.timetableYearLabel);
-      record.label = record.label || this.productiveLabel(record.timetableYearLabel);
+    const needle = label?.trim().toLowerCase();
+    if (!needle) {
+      return [];
     }
-    const next = this.mergeRecords([record], this._records());
-    this._records.set(this.withProductiveDefaults(next));
+    return this._records().filter((sim) => sim.timetableYearLabel?.toLowerCase() === needle);
   }
 
-  remove(ids: string[]): void {
-    const protectedIds = new Set(
-      this.timetableYears.listManagedYearRecords().map((y) => this.productiveId(y.label ?? '')),
+  refresh(): void {
+    if (this.loadingSignal()) {
+      return;
+    }
+    this.loadingSignal.set(true);
+    this.api
+      .listVariants()
+      .pipe(
+        take(1),
+        map((variants) => variants.map((variant) => this.mapVariant(variant))),
+        tap((records) => {
+          this._records.set(records);
+          this.errorSignal.set(null);
+        }),
+        catchError((error) => {
+          console.warn('[SimulationService] Failed to load variants', error);
+          this.errorSignal.set('Simulationen konnten nicht geladen werden.');
+          return EMPTY;
+        }),
+        finalize(() => this.loadingSignal.set(false)),
+      )
+      .subscribe();
+  }
+
+  create(payload: { timetableYearLabel: string; label: string; description?: string }): Observable<SimulationRecord> {
+    return this.api
+      .createVariant({
+        timetableYearLabel: payload.timetableYearLabel,
+        label: payload.label,
+        description: payload.description ?? null,
+      })
+      .pipe(
+        take(1),
+        map((variant) => this.mapVariant(variant)),
+        tap(() => this.refresh()),
+      );
+  }
+
+  update(id: string, payload: { label?: string; description?: string }): Observable<SimulationRecord> {
+    return this.api
+      .updateVariant(id, { label: payload.label, description: payload.description ?? null })
+      .pipe(
+        take(1),
+        map((variant) => this.mapVariant(variant)),
+        tap(() => this.refresh()),
+      );
+  }
+
+  remove(ids: string[]): Observable<void> {
+    if (!ids.length) {
+      return of(undefined);
+    }
+    const recordMap = new Map(this._records().map((record) => [record.id, record] as const));
+    const targets = ids
+      .map((id) => recordMap.get(id))
+      .filter((record): record is SimulationRecord => !!record)
+      .filter((record) => !record.productive)
+      .map((record) => record.id);
+    if (!targets.length) {
+      return of(undefined);
+    }
+
+    return forkJoin(targets.map((id) => this.api.deleteVariant(id))).pipe(
+      take(1),
+      tap(() => this.refresh()),
+      map(() => undefined),
     );
-    const set = new Set(ids);
-    this._records.update((current) =>
-      this.withProductiveDefaults(
-        current.filter((record) => !(set.has(record.id) && !protectedIds.has(record.id))),
-      ),
-    );
   }
 
-  private withProductiveDefaults(
-    records: SimulationRecord[],
-    timetableYearLabels?: readonly (string | undefined)[],
-  ): SimulationRecord[] {
-    const yearLabels =
-      timetableYearLabels ??
-      this.timetableYears.listManagedYearRecords().map((year) => year.label ?? '');
-    const existing = new Map(records.map((rec) => [rec.id, rec]));
-    yearLabels.forEach((label) => {
-      const id = this.productiveId(label ?? '');
-      if (!existing.has(id)) {
-        existing.set(id, {
-          id,
-          label: this.productiveLabel(label ?? ''),
-          timetableYearLabel: label ?? '',
-          description: 'Produktive Variante für dieses Fahrplanjahr.',
-          productive: true,
-        });
-      }
-    });
-    return Array.from(existing.values());
-  }
-
-  private productiveId(yearLabel: string): string {
-    return `PROD-${yearLabel || 'unknown'}`;
-  }
-
-  private productiveLabel(yearLabel: string): string {
-    return `Produktiv ${yearLabel}`;
-  }
-
-  private mergeRecords(nextRecords: SimulationRecord[], current: SimulationRecord[]): SimulationRecord[] {
-    const map = new Map<string, SimulationRecord>();
-    current.forEach((rec) => map.set(rec.id, rec));
-    nextRecords.forEach((rec) => map.set(rec.id, rec));
-    return Array.from(map.values());
+  private mapVariant(variant: {
+    id: string;
+    timetableYearLabel: string;
+    kind: 'productive' | 'simulation';
+    label: string;
+    description?: string | null;
+  }): SimulationRecord {
+    return {
+      id: variant.id,
+      label: variant.label,
+      timetableYearLabel: variant.timetableYearLabel,
+      description: variant.description ?? undefined,
+      productive: variant.kind === 'productive',
+    };
   }
 }

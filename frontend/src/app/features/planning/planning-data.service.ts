@@ -68,6 +68,8 @@ export class PlanningDataService {
   private baseTimelineLoading = false;
   private lastBaseTimelineSignature: string | null = null;
   private readonly planningVariantContext = signal<PlanningVariantContext | null>(null);
+  private readonly clonedResourceCache = new WeakMap<Resource[], Resource[]>();
+  private readonly clonedActivityCache = new WeakMap<Activity[], Activity[]>();
 
   private readonly stageDataSignal = signal<Record<PlanningStageId, PlanningStageData>>(
     STAGE_IDS.reduce((record, stage) => {
@@ -149,13 +151,13 @@ export class PlanningDataService {
   }
 
   stageResources(stage: PlanningStageId): Signal<Resource[]> {
-    return computed(() => cloneResources(this.stageDataSignal()[stage].resources), {
+    return computed(() => this.cloneResourcesCached(this.stageDataSignal()[stage].resources), {
       equal: resourceListsEqual,
     });
   }
 
   stageActivities(stage: PlanningStageId): Signal<Activity[]> {
-    return computed(() => cloneActivities(this.stageDataSignal()[stage].activities));
+    return computed(() => this.cloneActivitiesCached(this.stageDataSignal()[stage].activities));
   }
 
   stageTimelineRange(stage: PlanningStageId): Signal<PlanningTimelineRange> {
@@ -185,6 +187,10 @@ export class PlanningDataService {
   }
 
   setPlanningVariant(context: PlanningVariantContext | null): void {
+    const current = this.planningVariantContext();
+    if (this.areVariantContextsEqual(current, context)) {
+      return;
+    }
     this.planningVariantContext.set(context);
     if (context?.timetableYearLabel) {
       try {
@@ -197,6 +203,41 @@ export class PlanningDataService {
       }
     }
     this.refreshStage('operations');
+  }
+
+  private areVariantContextsEqual(a: PlanningVariantContext | null, b: PlanningVariantContext | null): boolean {
+    if (a === b) {
+      return true;
+    }
+    if (!a || !b) {
+      return !a && !b;
+    }
+    return (
+      a.id === b.id &&
+      a.type === b.type &&
+      (a.timetableYearLabel ?? null) === (b.timetableYearLabel ?? null) &&
+      (a.label ?? '') === (b.label ?? '')
+    );
+  }
+
+  private cloneResourcesCached(resources: Resource[]): Resource[] {
+    const cached = this.clonedResourceCache.get(resources);
+    if (cached) {
+      return cached;
+    }
+    const cloned = cloneResources(resources);
+    this.clonedResourceCache.set(resources, cloned);
+    return cloned;
+  }
+
+  private cloneActivitiesCached(activities: Activity[]): Activity[] {
+    const cached = this.clonedActivityCache.get(activities);
+    if (cached) {
+      return cached;
+    }
+    const cloned = cloneActivities(activities);
+    this.clonedActivityCache.set(activities, cloned);
+    return cloned;
   }
 
   setBaseTemplateContext(
