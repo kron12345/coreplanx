@@ -118,6 +118,19 @@
             </div>
           </div>
         }
+        @if (conflictEntries.length) {
+          <div class="gantt-activity-popover__section">
+            <div class="gantt-activity-popover__section-title">Konflikte</div>
+            <div class="gantt-activity-popover__conflicts">
+              @for (entry of conflictEntries; track entry.code) {
+                <div class="gantt-activity-popover__conflict">
+                  <span class="gantt-activity-popover__conflict-kind">{{ entry.categoryLabel }}</span>
+                  <span class="gantt-activity-popover__conflict-text">{{ entry.label }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
       </div>
       <div class="gantt-activity-popover__actions">
         <button type="button" class="gantt-activity-popover__action" (click)="enableCopyMode()">

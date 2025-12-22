@@ -745,7 +745,42 @@ export interface ActivityMutationRequest {
 export interface ActivityMutationResponse {
   appliedUpserts: string[];
   deletedIds: string[];
+  upserts?: Activity[];
   version?: string | null;
+}
+
+export type PlanningRuleKind = 'generator' | 'constraint';
+export type PlanningRuleFormat = 'yaml' | 'json';
+
+export interface PlanningRule {
+  id: string;
+  stageId: StageId;
+  variantId: PlanningVariantId;
+  timetableYearLabel?: string | null;
+  kind: PlanningRuleKind;
+  executor: string;
+  enabled: boolean;
+  format: PlanningRuleFormat;
+  raw: string;
+  params: Record<string, unknown>;
+  definition?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface PlanningRuleListResponse {
+  items: PlanningRule[];
+}
+
+export interface PlanningRuleMutationRequest {
+  upserts?: PlanningRule[];
+  deleteIds?: string[];
+  clientRequestId?: string;
+}
+
+export interface PlanningRuleMutationResponse {
+  appliedUpserts: string[];
+  deletedIds: string[];
 }
 
 export interface ResourceMutationRequest {

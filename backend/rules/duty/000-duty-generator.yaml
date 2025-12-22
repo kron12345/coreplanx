@@ -1,0 +1,13 @@
+id: duty.generator
+kind: generator
+executor: duty/autopilot
+enabled: true
+params:
+  serviceStartTypeId: service-start
+  serviceEndTypeId: service-end
+  breakTypeIds:
+    - break
+  conflictAttributeKey: service_conflict_level
+  conflictCodesAttributeKey: service_conflict_codes
+  maxConflictLevel: 2
+

@@ -843,24 +843,25 @@ export class PlanningStageRepository {
   ): Promise<void> {
     await client.query(
       `
-        UPDATE planning_activity
+        WITH candidate AS (
+          SELECT id
+          FROM planning_activity
+          WHERE stage_id = $1
+            AND variant_id = $2
+            AND service_role = 'end'
+            AND service_id IS NULL
+            AND start >= $4
+            AND participants @> $5::jsonb
+          ORDER BY start
+          LIMIT 1
+        )
+        UPDATE planning_activity AS a
         SET service_id = $3
-        WHERE stage_id = $1
-          AND variant_id = $2
-          AND service_role = 'end'
-          AND service_id IS NULL
-          AND start >= $4
-          AND participants @> $5::jsonb
-        ORDER BY start
-        LIMIT 1
+        FROM candidate
+        WHERE a.id = candidate.id
+          AND a.variant_id = $2
       `,
-      [
-        stageId,
-        variantId,
-        serviceId,
-        startIso,
-        JSON.stringify([{ resourceId: ownerId }]),
-      ],
+      [stageId, variantId, serviceId, startIso, JSON.stringify([{ resourceId: ownerId }])],
     );
   }
 
@@ -873,39 +874,16 @@ export class PlanningStageRepository {
     pref: 'within' | 'outside' | 'both',
     predefinedServiceId?: string,
   ): Promise<void> {
-    if (pref === 'both') {
-      return;
-    }
-    const latestStart = await this.findLatestServiceStart(
-      client,
-      stageId,
-      variantId,
-      ownerId,
-      activity.start,
-    );
-    const serviceId =
-      predefinedServiceId ??
-      latestStart?.serviceId ??
-      this.computeServiceId(stageId, ownerId, latestStart?.start ?? activity.start);
-    const window = await this.findServiceWindow(
-      client,
-      stageId,
-      variantId,
-      ownerId,
-      serviceId,
-      latestStart?.start ?? activity.start,
-    );
-    const inWindow = window ? this.isWithinWindow(activity.start, window) : false;
-    if (pref === 'within' && !inWindow) {
-      throw new ConflictException(
-        'Aktivität muss innerhalb eines Dienstes liegen, aber kein Dienstfenster gefunden.',
-      );
-    }
-    if (pref === 'outside' && inWindow) {
-      throw new ConflictException(
-        'Aktivität muss außerhalb eines Dienstes liegen, liegt aber in einem Dienstfenster.',
-      );
-    }
+    // Within/outside preferences are validated by backend rule evaluation and surfaced as UI conflicts.
+    // The persistence layer should not hard-fail activity mutations for those constraints.
+    void client;
+    void stageId;
+    void variantId;
+    void ownerId;
+    void activity;
+    void pref;
+    void predefinedServiceId;
+    return;
   }
 
   private async findServiceWindow(

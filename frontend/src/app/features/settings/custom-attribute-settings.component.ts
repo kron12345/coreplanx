@@ -6,6 +6,7 @@ import { ActivityCatalogSettingsComponent } from './activity-catalog-settings.co
 import { TranslationSettingsComponent } from './translation-settings.component';
 import { ActivityTypeSettingsComponent } from './activity-type-settings.component';
 import { LayerGroupSettingsComponent } from './layer-group-settings.component';
+import { PlanningRuleSettingsComponent } from './planning-rule-settings.component';
 
 @Component({
     selector: 'app-custom-attribute-settings',
@@ -17,6 +18,7 @@ import { LayerGroupSettingsComponent } from './layer-group-settings.component';
         TranslationSettingsComponent,
         ActivityTypeSettingsComponent,
         LayerGroupSettingsComponent,
+        PlanningRuleSettingsComponent,
     ],
     templateUrl: './custom-attribute-settings.component.html',
     styleUrl: './custom-attribute-settings.component.scss',

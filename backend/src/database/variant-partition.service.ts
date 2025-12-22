@@ -6,6 +6,7 @@ const PLANNING_PARTITIONED_TABLES = [
   'planning_stage',
   'planning_resource',
   'planning_activity',
+  'planning_rule',
   'train_run',
   'train_segment',
   'train_service_part',

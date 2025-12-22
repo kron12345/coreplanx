@@ -26,6 +26,7 @@ import type {
 } from './planning.types';
 import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
+import { DutyAutopilotService } from './duty-autopilot.service';
 
 const DEFAULT_VARIANT_ID: PlanningVariantId = 'default';
 
@@ -56,7 +57,10 @@ export class PlanningStageService implements OnModuleInit {
 
   private readonly usingDatabase: boolean;
 
-  constructor(private readonly repository: PlanningRepository) {
+  constructor(
+    private readonly repository: PlanningRepository,
+    private readonly dutyAutopilot: DutyAutopilotService,
+  ) {
     this.usingDatabase = this.repository.isEnabled;
     if (!this.usingDatabase) {
       STAGE_IDS.forEach((stageId) => {
@@ -126,10 +130,12 @@ export class PlanningStageService implements OnModuleInit {
     const deleteIds = new Set(request?.deleteIds ?? []);
     const appliedUpserts: string[] = [];
     const deletedIds: string[] = [];
+    const changedUpsertIds = new Set<string>();
 
     upserts.forEach((incoming) => {
       this.upsertActivity(stage, incoming);
       appliedUpserts.push(incoming.id);
+      changedUpsertIds.add(incoming.id);
       deleteIds.delete(incoming.id);
     });
 
@@ -143,18 +149,36 @@ export class PlanningStageService implements OnModuleInit {
       });
     }
 
+    const autopilot = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
+    if (autopilot.upserts.length) {
+      autopilot.upserts.forEach((activity) => {
+        this.upsertActivity(stage, activity);
+        changedUpsertIds.add(activity.id);
+      });
+    }
+    if (autopilot.deletedIds.length) {
+      const toDelete = new Set(autopilot.deletedIds);
+      stage.activities = stage.activities.filter((activity) => {
+        if (toDelete.has(activity.id)) {
+          deletedIds.push(activity.id);
+          return false;
+        }
+        return true;
+      });
+    }
+
     stage.version = this.nextVersion();
     stage.timelineRange = this.computeTimelineRange(stage.activities, stage.timelineRange);
     const timelineChanged =
       previousTimeline.start !== stage.timelineRange.start ||
       previousTimeline.end !== stage.timelineRange.end;
 
-    const activitySnapshots = appliedUpserts.length
-      ? this.collectActivitySnapshots(stage, appliedUpserts)
+    const activitySnapshots = changedUpsertIds.size
+      ? this.collectActivitySnapshots(stage, Array.from(changedUpsertIds))
       : [];
 
     const sourceContext = this.extractSourceContext(request?.clientRequestId);
-    if (appliedUpserts.length || deletedIds.length) {
+    if (changedUpsertIds.size || deletedIds.length) {
       this.emitStageEvent(stage, {
         scope: 'activities',
         version: stage.version,
@@ -186,6 +210,7 @@ export class PlanningStageService implements OnModuleInit {
     return {
       appliedUpserts,
       deletedIds,
+      upserts: activitySnapshots.length ? activitySnapshots : undefined,
       version: stage.version,
     };
   }

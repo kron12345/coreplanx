@@ -1,0 +1,87 @@
+<section class="rule-settings">
+  <header class="rule-settings__header">
+    <div class="rule-settings__title">
+      <h2>Planungsregeln (YAML)</h2>
+      <p>Diese Regeln werden im Backend geparst und als JSONB gespeichert.</p>
+    </div>
+    <div class="rule-settings__actions">
+      <mat-form-field appearance="outline" class="rule-settings__variant">
+        <mat-label>Variante</mat-label>
+        <mat-select [value]="selectedVariantId()" (selectionChange)="handleVariantChange($event.value)">
+          @for (variant of variantOptions(); track variant.id) {
+            <mat-option [value]="variant.id">
+              {{ variant.timetableYearLabel }} · {{ variant.label }}
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <button mat-stroked-button type="button" (click)="reload()" [disabled]="loading() || saving()">
+        <mat-icon>refresh</mat-icon>
+        Neu laden
+      </button>
+      <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="!isDirty() || saving()">
+        <mat-icon>save</mat-icon>
+        Speichern
+      </button>
+    </div>
+  </header>
+
+  @if (error()) {
+    <mat-card class="rule-settings__error">
+      <mat-icon>error</mat-icon>
+      <span>{{ error() }}</span>
+    </mat-card>
+  }
+
+  <div class="rule-settings__grid">
+    <mat-card class="rule-settings__list">
+      <div class="rule-settings__list-header">
+        <span>Regeln</span>
+        <span class="rule-settings__meta">{{ rules().length }} Einträge</span>
+      </div>
+      <mat-divider></mat-divider>
+      <mat-nav-list>
+        @for (rule of rules(); track rule.id) {
+          <a
+            mat-list-item
+            (click)="selectRule(rule)"
+            [class.rule-settings__row--active]="selectedRuleId() === rule.id"
+          >
+            <span matListItemTitle>{{ rule.id }}</span>
+            <span matListItemLine>
+              {{ rule.kind }} · {{ rule.enabled ? 'aktiv' : 'inaktiv' }}
+            </span>
+          </a>
+        }
+      </mat-nav-list>
+    </mat-card>
+
+    <mat-card class="rule-settings__editor">
+      <div class="rule-settings__editor-header">
+        <div class="rule-settings__editor-title">
+          <span>{{ selectedRule()?.id ?? '—' }}</span>
+          @if (isDirty()) {
+            <span class="rule-settings__dirty">● geändert</span>
+          }
+        </div>
+        <div class="rule-settings__editor-meta">
+          <span>{{ selectedRule()?.executor ?? '' }}</span>
+        </div>
+      </div>
+      <mat-divider></mat-divider>
+      <mat-form-field appearance="outline" class="rule-settings__textarea">
+        <mat-label>YAML</mat-label>
+        <textarea
+          matInput
+          [disabled]="!selectedRule()"
+          [value]="editorValue()"
+          (input)="handleEditorInput($event)"
+          spellcheck="false"
+        ></textarea>
+      </mat-form-field>
+      <div class="rule-settings__hint">
+        <span>Hinweis: Defaults werden automatisch angelegt, wenn noch keine Regeln existieren.</span>
+      </div>
+    </mat-card>
+  </div>
+</section>

@@ -14,6 +14,7 @@ import { PlanningOperationsController } from './planning-operations.controller';
 import { PlanningTopologyController } from './planning-topology.controller';
 import { PlanningResourcesController } from './planning-resources.controller';
 import { PlanningMasterDataController } from './planning-master-data.controller';
+import { PlanningRulesController } from './planning-rules.controller';
 import { PlanWeekService } from './plan-week.service';
 import { PlanWeekRepository } from './plan-week.repository';
 import { PlanningStageService } from './planning-stage.service';
@@ -21,6 +22,9 @@ import { PlanningMasterDataService } from './planning-master-data.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { PlanningTopologyImportService } from './planning-topology-import.service';
 import { PlanningSnapshotService } from './planning-snapshot.service';
+import { PlanningRuleRepository } from './planning-rule.repository';
+import { PlanningRuleService } from './planning-rule.service';
+import { DutyAutopilotService } from './duty-autopilot.service';
 
 @Module({
   imports: [TemplateModule],
@@ -32,6 +36,7 @@ import { PlanningSnapshotService } from './planning-snapshot.service';
     PlanningOperationsController,
     PlanningTopologyController,
     PlanningResourcesController,
+    PlanningRulesController,
   ],
   providers: [
     PlanningService,
@@ -46,6 +51,9 @@ import { PlanningSnapshotService } from './planning-snapshot.service';
     PlanningMasterDataRepository,
     PlanningActivityCatalogRepository,
     PlanningRepository,
+    PlanningRuleRepository,
+    PlanningRuleService,
+    DutyAutopilotService,
     PlanWeekService,
     PlanWeekRepository,
   ],

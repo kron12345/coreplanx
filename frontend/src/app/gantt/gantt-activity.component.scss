@@ -34,6 +34,8 @@
   gap: 2px;
   line-height: 1.25;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .gantt-activity__row {
@@ -155,6 +157,68 @@
 
 .gantt-activity--outside-service .gantt-activity__route {
   opacity: 0.9;
+}
+
+.gantt-activity--conflict-warn {
+  filter: saturate(1.35);
+}
+
+.gantt-activity--conflict-error {
+  filter: saturate(1.9);
+}
+
+.gantt-activity--conflict-pattern {
+  position: relative;
+}
+
+.gantt-activity--conflict-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    var(--gantt-conflict-pattern-1, none),
+    var(--gantt-conflict-pattern-2, none),
+    var(--gantt-conflict-pattern-3, none);
+  opacity: 0.36;
+}
+
+.gantt-activity--conflict-capacity {
+  --gantt-conflict-pattern-1: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.55) 0,
+    rgba(255, 255, 255, 0.55) 3px,
+    transparent 3px,
+    transparent 10px
+  );
+}
+
+.gantt-activity--conflict-location {
+  --gantt-conflict-pattern-2: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.45) 0,
+    rgba(255, 255, 255, 0.45) 3px,
+    transparent 3px,
+    transparent 10px
+  );
+}
+
+.gantt-activity--conflict-worktime {
+  --gantt-conflict-pattern-3:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.24) 0,
+      rgba(255, 255, 255, 0.24) 2px,
+      transparent 2px,
+      transparent 10px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.24) 0,
+      rgba(255, 255, 255, 0.24) 2px,
+      transparent 2px,
+      transparent 10px
+    );
 }
 
 .gantt-activity--ghost {
@@ -500,4 +564,35 @@
 .gantt-activity-popover__value {
   font-weight: 500;
   text-align: right;
+}
+
+.gantt-activity-popover__conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.gantt-activity-popover__conflict {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.gantt-activity-popover__conflict-kind {
+  flex: 0 0 auto;
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 1px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(148, 163, 184, 0.14);
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.gantt-activity-popover__conflict-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  opacity: 0.92;
 }

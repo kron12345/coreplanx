@@ -1,0 +1,7 @@
+id: duty.max_work_minutes
+kind: constraint
+executor: duty/max-work-minutes
+enabled: true
+params:
+  maxMinutes: 600 # 10h
+

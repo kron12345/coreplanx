@@ -415,6 +415,38 @@ export class GanttRowBuilderFacade {
     } else {
       classes.push('gantt-activity--outside-service');
     }
+
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const rawLevel = attrs?.['service_conflict_level'];
+    const level =
+      typeof rawLevel === 'number'
+        ? rawLevel
+        : typeof rawLevel === 'string'
+          ? Number.parseInt(rawLevel, 10)
+          : 0;
+    if (Number.isFinite(level) && level >= 2) {
+      classes.push('gantt-activity--conflict-error');
+    } else if (Number.isFinite(level) && level >= 1) {
+      classes.push('gantt-activity--conflict-warn');
+    }
+
+    const rawCodes = attrs?.['service_conflict_codes'];
+    const codes = Array.isArray(rawCodes)
+      ? rawCodes.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
+      : [];
+    if (codes.length) {
+      const set = new Set(codes);
+      classes.push('gantt-activity--conflict-pattern');
+      if (set.has('CAPACITY_OVERLAP')) {
+        classes.push('gantt-activity--conflict-capacity');
+      }
+      if (set.has('LOCATION_SEQUENCE')) {
+        classes.push('gantt-activity--conflict-location');
+      }
+      if (set.has('MAX_DUTY_SPAN') || set.has('MAX_WORK') || set.has('MAX_CONTINUOUS') || set.has('NO_BREAK_WINDOW')) {
+        classes.push('gantt-activity--conflict-worktime');
+      }
+    }
     return classes;
   }
 
@@ -493,4 +525,3 @@ export class GanttRowBuilderFacade {
     return { label, showRoute };
   }
 }
-

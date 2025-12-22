@@ -1,0 +1,8 @@
+id: duty.one_per_day
+kind: constraint
+executor: duty/one-per-day
+enabled: true
+params:
+  stageIds:
+    - base
+

@@ -11,6 +11,7 @@ export interface ActivityBatchMutationRequest {
 export interface ActivityBatchMutationResponse {
   appliedUpserts: string[];
   deletedIds: string[];
+  upserts?: Activity[];
   version?: string | null;
 }
 

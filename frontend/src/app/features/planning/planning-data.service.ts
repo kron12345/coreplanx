@@ -1,6 +1,6 @@
 import { DestroyRef, Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
 import { EMPTY, Observable } from 'rxjs';
-import { catchError, finalize, take, tap } from 'rxjs/operators';
+import { catchError, finalize, switchMap, take, tap } from 'rxjs/operators';
 import { Activity, ServiceRole, type ActivityParticipant } from '../../models/activity';
 import { Resource } from '../../models/resource';
 import { ActivityApiService } from '../../core/api/activity-api.service';
@@ -327,6 +327,22 @@ export class PlanningDataService {
       .pipe(
         take(1),
         tap((response) => this.applyTimelineActivities('base', response.activities ?? [])),
+        switchMap(() =>
+          this.api
+            .listActivities(
+              'base',
+              { from: range.from, to: range.to },
+              this.currentApiContext(),
+            )
+            .pipe(
+              take(1),
+              tap((planningActivities) => this.mergeBasePlanningActivities(planningActivities)),
+              catchError((error) => {
+                console.warn('[PlanningDataService] Failed to merge base activities from planning stage', error);
+                return EMPTY;
+              }),
+            ),
+        ),
         finalize(() => {
           this.baseTimelineLoading = false;
         }),
@@ -361,6 +377,14 @@ export class PlanningDataService {
   }
 
   deleteTemplateActivity(templateId: string, activityId: string): void {
+    const baseId = activityId.split('@')[0] ?? activityId;
+    const planningDeleteIds = Array.from(
+      new Set(
+        this.stageDataSignal()
+          .base.activities.filter((activity) => (activity.id.split('@')[0] ?? activity.id) === baseId)
+          .map((activity) => activity.id),
+      ),
+    );
     this.timelineApi
       .deleteTemplateActivity(templateId, activityId, this.currentApiContext())
       .pipe(
@@ -385,6 +409,27 @@ export class PlanningDataService {
           });
           this.lastBaseTimelineSignature = null;
           this.reloadBaseTimeline();
+
+          if (planningDeleteIds.length) {
+            this.api
+              .batchMutateActivities(
+                'base',
+                {
+                  deleteIds: planningDeleteIds,
+                  clientRequestId: this.decorateClientRequestId(`template-delete:${baseId}`),
+                },
+                this.currentApiContext(),
+              )
+              .pipe(
+                take(1),
+                tap((response) => this.applyMutationResponse('base', response)),
+                catchError((error) => {
+                  console.warn('[PlanningDataService] Failed to delete planning-stage base instances', error);
+                  return EMPTY;
+                }),
+              )
+              .subscribe();
+          }
         }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to delete template activity', error);
@@ -452,6 +497,27 @@ export class PlanningDataService {
         activities: normalized,
       },
     }));
+  }
+
+  private mergeBasePlanningActivities(activities: Activity[]): void {
+    if (!activities.length) {
+      return;
+    }
+    this.stageDataSignal.update((record) => {
+      const baseStage = record.base;
+      const normalizedUpserts = normalizeActivityParticipants(activities, baseStage.resources);
+      const merged = mergeActivityList(baseStage.activities, normalizedUpserts, []);
+      if (merged === baseStage.activities) {
+        return record;
+      }
+      return {
+        ...record,
+        base: {
+          ...baseStage,
+          activities: merged,
+        },
+      };
+    });
   }
 
   private applyTemplateActivity(entry: TimelineActivityDto): void {
@@ -742,10 +808,16 @@ export class PlanningDataService {
     if (!response.version) {
       return;
     }
+    const upserts = response.upserts ?? [];
     this.stageDataSignal.update((record) => ({
       ...record,
       [stage]: {
         ...record[stage],
+        activities: mergeActivityList(
+          record[stage].activities,
+          upserts.length ? normalizeActivityParticipants(upserts, record[stage].resources) : [],
+          response.deletedIds ?? [],
+        ),
         version: response.version ?? record[stage].version,
       },
     }));

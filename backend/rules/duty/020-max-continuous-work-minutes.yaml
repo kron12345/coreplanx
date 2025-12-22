@@ -1,0 +1,7 @@
+id: duty.max_continuous_work_minutes
+kind: constraint
+executor: duty/max-continuous-work-minutes
+enabled: true
+params:
+  maxMinutes: 300 # 5h
+

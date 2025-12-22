@@ -1,0 +1,7 @@
+id: duty.min_break_minutes
+kind: constraint
+executor: duty/min-break-minutes
+enabled: true
+params:
+  minMinutes: 30
+

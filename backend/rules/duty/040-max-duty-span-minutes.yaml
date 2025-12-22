@@ -1,0 +1,7 @@
+id: duty.max_duty_span_minutes
+kind: constraint
+executor: duty/max-duty-span-minutes
+enabled: true
+params:
+  maxMinutes: 720 # 12h
+

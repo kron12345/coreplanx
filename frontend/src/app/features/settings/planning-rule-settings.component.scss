@@ -1,0 +1,134 @@
+.rule-settings {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rule-settings__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.rule-settings__title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.rule-settings__title p {
+  margin: 6px 0 0;
+  opacity: 0.75;
+}
+
+.rule-settings__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rule-settings__variant {
+  min-width: 320px;
+}
+
+.rule-settings__grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 14px;
+  min-height: 420px;
+}
+
+.rule-settings__list {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.rule-settings__list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  font-weight: 600;
+}
+
+.rule-settings__meta {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.rule-settings__row--active {
+  background: rgba(25, 118, 210, 0.12);
+}
+
+.rule-settings__editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.rule-settings__editor-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 10px;
+}
+
+.rule-settings__editor-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.rule-settings__dirty {
+  color: #f57c00;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.rule-settings__editor-meta {
+  opacity: 0.75;
+  font-size: 0.85rem;
+}
+
+.rule-settings__textarea {
+  padding: 12px 14px 6px;
+  width: 100%;
+}
+
+.rule-settings__textarea textarea {
+  min-height: 340px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.rule-settings__hint {
+  padding: 0 14px 14px;
+  opacity: 0.75;
+  font-size: 0.85rem;
+}
+
+.rule-settings__error {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  color: #b71c1c;
+  background: rgba(244, 67, 54, 0.12);
+}
+
+@media (max-width: 940px) {
+  .rule-settings__grid {
+    grid-template-columns: 1fr;
+  }
+  .rule-settings__variant {
+    min-width: 240px;
+  }
+}
+
