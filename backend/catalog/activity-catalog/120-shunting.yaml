@@ -1,0 +1,23 @@
+id: shunting
+label: Rangieren
+description: Rangierbewegungen inkl. Quelle und Ziel.
+appliesTo:
+  - vehicle
+  - vehicle-service
+relevantFor:
+  - vehicle
+  - vehicle-service
+category: movement
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+defaultDurationMinutes: 60
+attributes:
+  is_within_service: yes
+  is_shunting: true
+  consider_location_conflicts: true
+  color: '#00838f'

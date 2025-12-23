@@ -6,7 +6,10 @@
 
 header {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 mat-button-toggle-group {

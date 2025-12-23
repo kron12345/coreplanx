@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import {
@@ -20,6 +21,7 @@ import {
   VehicleServicePool,
   VehicleType,
 } from '../../../../models/master-data';
+import { PlanningDataService } from '../../../planning/planning-data.service';
 
 type VehicleEditorMode =
   | 'servicePools'
@@ -225,7 +227,7 @@ function mergeDefinitions(
 
 @Component({
     selector: 'app-vehicle-master-editor',
-    imports: [CommonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
+    imports: [CommonModule, MatButtonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
     templateUrl: './vehicle-master-editor.component.html',
     styleUrl: './vehicle-master-editor.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -234,6 +236,7 @@ export class VehicleMasterEditorComponent {
   private readonly collections = inject(MasterDataCollectionsStoreService);
   private readonly resources = inject(MasterDataResourceStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
+  private readonly planningData = inject(PlanningDataService);
 
   readonly viewMode = signal<VehicleEditorMode>('servicePools');
 
@@ -599,6 +602,13 @@ export class VehicleMasterEditorComponent {
     this.detachVehiclesFromPools(ids);
   }
 
+  resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Fahrzeug-Stammdaten')) {
+      return;
+    }
+    this.planningData.resetResourceSnapshotToDefaults('vehicles');
+  }
+
   handleVehicleTypeSave(event: EntitySaveEvent): void {
     const id = event.entityId ?? this.generateId('VT');
     const values = event.payload.values;
@@ -806,5 +816,14 @@ export class VehicleMasterEditorComponent {
       return `${prefix}-${crypto.randomUUID()}`;
     }
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }

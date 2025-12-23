@@ -81,6 +81,38 @@ export class PlanningRuleSettingsComponent {
     this.loadRules();
   }
 
+  protected resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Planungsregeln')) {
+      return;
+    }
+    this.loading.set(true);
+    this.error.set(null);
+    this.api
+      .resetRules(this.stageId, this.apiContext())
+      .pipe(
+        take(1),
+        tap((response) => {
+          const items = response?.items ?? [];
+          this.rules.set(items);
+          const next = items[0]?.id ?? null;
+          this.selectedRuleId.set(next);
+          const selected = next ? items.find((rule) => rule.id === next) ?? null : null;
+          this.editorValue.set(selected?.raw ?? '');
+          this.originalValue.set(selected?.raw ?? '');
+        }),
+        catchError((error) => {
+          console.warn('[PlanningRuleSettings] Failed to reset rules', error);
+          const message =
+            error?.error?.message ?? error?.message ?? 'Regeln konnten nicht zurückgesetzt werden.';
+          this.error.set(String(message));
+          return EMPTY;
+        }),
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+
   protected selectRule(rule: PlanningRuleDto): void {
     this.selectedRuleId.set(rule.id);
     this.editorValue.set(rule.raw ?? '');
@@ -202,5 +234,14 @@ export class PlanningRuleSettingsComponent {
     const desiredYear = this.yearBounds.defaultYearBounds().label;
     const match = productive.find((variant) => variant.timetableYearLabel === desiredYear);
     return match?.id ?? productive[productive.length - 1].id;
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }

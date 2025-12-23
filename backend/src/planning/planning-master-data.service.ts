@@ -1,4 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { join } from 'path';
+import yaml from 'js-yaml';
 import type {
   LatLng,
   OperationalPoint,
@@ -53,6 +56,20 @@ import type {
 } from './planning.types';
 import { PlanningRepository } from './planning.repository';
 
+interface MasterDataDefaultsFile {
+  resources?: Partial<ResourceSnapshot>;
+  topology?: Partial<{
+    operationalPoints: OperationalPoint[];
+    sectionsOfLine: SectionOfLine[];
+    personnelSites: PersonnelSite[];
+    replacementStops: ReplacementStop[];
+    replacementRoutes: ReplacementRoute[];
+    replacementEdges: ReplacementEdge[];
+    opReplacementStopLinks: OpReplacementStopLink[];
+    transferEdges: TransferEdge[];
+  }>;
+}
+
 @Injectable()
 export class PlanningMasterDataService implements OnModuleInit {
   private readonly logger = new Logger(PlanningMasterDataService.name);
@@ -76,6 +93,9 @@ export class PlanningMasterDataService implements OnModuleInit {
   private transferEdges: TransferEdge[] = [];
 
   private readonly usingDatabase: boolean;
+  private defaultsLoaded = false;
+  private defaultResources: ResourceSnapshot | null = null;
+  private defaultTopology: NonNullable<MasterDataDefaultsFile['topology']> | null = null;
 
   constructor(private readonly repository: PlanningRepository) {
     this.usingDatabase = this.repository.isEnabled;
@@ -86,6 +106,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       return;
     }
     await this.initializeMasterDataFromDatabase();
+    await this.seedDefaultsIfEmpty();
   }
 
   listPersonnelServicePools(): PersonnelServicePoolListResponse {
@@ -373,21 +394,463 @@ export class PlanningMasterDataService implements OnModuleInit {
     );
 
     if (this.usingDatabase) {
+      const persisted = this.prepareSnapshotForPersistence(this.getResourceSnapshot());
       await Promise.all([
-        this.repository.replacePersonnel(this.personnels),
-        this.repository.replacePersonnelServices(this.personnelServices),
-        this.repository.replacePersonnelServicePools(this.personnelServicePools),
-        this.repository.replacePersonnelPools(this.personnelPools),
-        this.repository.replaceVehicles(this.vehicles),
-        this.repository.replaceVehicleServices(this.vehicleServices),
-        this.repository.replaceVehicleServicePools(this.vehicleServicePools),
-        this.repository.replaceVehiclePools(this.vehiclePools),
-        this.repository.replaceVehicleTypes(this.vehicleTypes),
-        this.repository.replaceVehicleCompositions(this.vehicleCompositions),
+        this.repository.replacePersonnel(persisted.personnel),
+        this.repository.replacePersonnelServices(persisted.personnelServices),
+        this.repository.replacePersonnelServicePools(persisted.personnelServicePools),
+        this.repository.replacePersonnelPools(persisted.personnelPools),
+        this.repository.replaceVehicles(persisted.vehicles),
+        this.repository.replaceVehicleServices(persisted.vehicleServices),
+        this.repository.replaceVehicleServicePools(persisted.vehicleServicePools),
+        this.repository.replaceVehiclePools(persisted.vehiclePools),
+        this.repository.replaceVehicleTypes(persisted.vehicleTypes),
+        this.repository.replaceVehicleCompositions(persisted.vehicleCompositions),
       ]);
     }
 
     return this.getResourceSnapshot();
+  }
+
+  async resetResourcesToDefaults(): Promise<ResourceSnapshot> {
+    const defaults = this.getDefaults();
+    if (!defaults) {
+      throw new Error('Master data defaults not configured');
+    }
+    await this.replaceResourceSnapshot(defaults.resources);
+    return this.getResourceSnapshot();
+  }
+
+  async resetPersonnelToDefaults(): Promise<ResourceSnapshot> {
+    const defaults = this.getDefaults();
+    if (!defaults) {
+      throw new Error('Master data defaults not configured');
+    }
+    const current = this.getResourceSnapshot();
+    await this.replaceResourceSnapshot({
+      ...current,
+      personnelServicePools: defaults.resources.personnelServicePools,
+      personnelPools: defaults.resources.personnelPools,
+      personnelServices: defaults.resources.personnelServices,
+      personnel: defaults.resources.personnel,
+    });
+    return this.getResourceSnapshot();
+  }
+
+  async resetVehiclesToDefaults(): Promise<ResourceSnapshot> {
+    const defaults = this.getDefaults();
+    if (!defaults) {
+      throw new Error('Master data defaults not configured');
+    }
+    const current = this.getResourceSnapshot();
+    await this.replaceResourceSnapshot({
+      ...current,
+      vehicleServicePools: defaults.resources.vehicleServicePools,
+      vehiclePools: defaults.resources.vehiclePools,
+      vehicleServices: defaults.resources.vehicleServices,
+      vehicles: defaults.resources.vehicles,
+      vehicleTypes: defaults.resources.vehicleTypes,
+      vehicleCompositions: defaults.resources.vehicleCompositions,
+    });
+    return this.getResourceSnapshot();
+  }
+
+  async resetTopologyToDefaults(): Promise<void> {
+    const defaults = this.getDefaults();
+    if (!defaults) {
+      throw new Error('Topology defaults not configured');
+    }
+    const topology = defaults.topology;
+
+    this.operationalPoints = (topology.operationalPoints ?? []).map((item) =>
+      this.cloneOperationalPoint(item),
+    );
+    this.sectionsOfLine = (topology.sectionsOfLine ?? []).map((item) =>
+      this.cloneSectionOfLine(item),
+    );
+    this.personnelSites = (topology.personnelSites ?? []).map((item) =>
+      this.clonePersonnelSite(item),
+    );
+    this.replacementStops = (topology.replacementStops ?? []).map((item) =>
+      this.cloneReplacementStop(item),
+    );
+    this.replacementRoutes = (topology.replacementRoutes ?? []).map((item) =>
+      this.cloneReplacementRoute(item),
+    );
+    this.replacementEdges = (topology.replacementEdges ?? []).map((item) =>
+      this.cloneReplacementEdge(item),
+    );
+    this.opReplacementStopLinks = (topology.opReplacementStopLinks ?? []).map(
+      (item) => this.cloneOpReplacementStopLink(item),
+    );
+    this.transferEdges = (topology.transferEdges ?? []).map((item) =>
+      this.cloneTransferEdge(item),
+    );
+
+    if (this.usingDatabase) {
+      await Promise.all([
+        this.repository.replaceOperationalPoints(this.operationalPoints),
+        this.repository.replaceSectionsOfLine(this.sectionsOfLine),
+        this.repository.replacePersonnelSites(this.personnelSites),
+        this.repository.replaceReplacementStops(this.replacementStops),
+        this.repository.replaceReplacementRoutes(this.replacementRoutes),
+        this.repository.replaceReplacementEdges(this.replacementEdges),
+        this.repository.replaceOpReplacementStopLinks(this.opReplacementStopLinks),
+        this.repository.replaceTransferEdges(this.transferEdges),
+      ]);
+    }
+  }
+
+  private getDefaults(): { resources: ResourceSnapshot; topology: NonNullable<MasterDataDefaultsFile['topology']> } | null {
+    this.loadDefaultsOnce();
+    if (!this.defaultResources || !this.defaultTopology) {
+      return null;
+    }
+    return { resources: this.defaultResources, topology: this.defaultTopology };
+  }
+
+  private loadDefaultsOnce(): void {
+    if (this.defaultsLoaded) {
+      return;
+    }
+    this.defaultsLoaded = true;
+
+    const defaultsLocation = this.resolveDefaultsLocation();
+    if (!defaultsLocation) {
+      this.logger.warn('Master data defaults not found; skipping seeding.');
+      return;
+    }
+    const doc = this.loadDefaultsDocument(defaultsLocation);
+    if (!doc) {
+      return;
+    }
+    this.defaultResources = {
+      personnel: (doc.resources?.personnel ?? []) as Personnel[],
+      personnelServices: (doc.resources?.personnelServices ?? []) as PersonnelService[],
+      personnelServicePools: (doc.resources?.personnelServicePools ?? []) as PersonnelServicePool[],
+      personnelPools: (doc.resources?.personnelPools ?? []) as PersonnelPool[],
+      vehicles: (doc.resources?.vehicles ?? []) as Vehicle[],
+      vehicleServices: (doc.resources?.vehicleServices ?? []) as VehicleService[],
+      vehicleServicePools: (doc.resources?.vehicleServicePools ?? []) as VehicleServicePool[],
+      vehiclePools: (doc.resources?.vehiclePools ?? []) as VehiclePool[],
+      vehicleTypes: (doc.resources?.vehicleTypes ?? []) as VehicleType[],
+      vehicleCompositions: (doc.resources?.vehicleCompositions ?? []) as VehicleComposition[],
+    };
+
+    this.defaultTopology = {
+      operationalPoints: (doc.topology?.operationalPoints ?? []) as OperationalPoint[],
+      sectionsOfLine: (doc.topology?.sectionsOfLine ?? []) as SectionOfLine[],
+      personnelSites: (doc.topology?.personnelSites ?? []) as PersonnelSite[],
+      replacementStops: (doc.topology?.replacementStops ?? []) as ReplacementStop[],
+      replacementRoutes: (doc.topology?.replacementRoutes ?? []) as ReplacementRoute[],
+      replacementEdges: (doc.topology?.replacementEdges ?? []) as ReplacementEdge[],
+      opReplacementStopLinks: (doc.topology?.opReplacementStopLinks ?? []) as OpReplacementStopLink[],
+      transferEdges: (doc.topology?.transferEdges ?? []) as TransferEdge[],
+    };
+  }
+
+  private loadDefaultsDocument(location: string): MasterDataDefaultsFile | null {
+    let stat: ReturnType<typeof statSync> | null = null;
+    try {
+      stat = statSync(location);
+    } catch {
+      stat = null;
+    }
+    if (stat?.isDirectory()) {
+      return this.loadDefaultsFromDirectory(location);
+    }
+    return this.loadDefaultsFromFile(location);
+  }
+
+  private loadDefaultsFromFile(path: string): MasterDataDefaultsFile | null {
+    const raw = readFileSync(path, 'utf-8');
+    try {
+      return (yaml.load(raw) ?? {}) as MasterDataDefaultsFile;
+    } catch (error) {
+      this.logger.error(
+        `Failed to parse master data defaults file ${path}`,
+        (error as Error).stack ?? String(error),
+      );
+      return null;
+    }
+  }
+
+  private loadDefaultsFromDirectory(dir: string): MasterDataDefaultsFile | null {
+    let files: string[] = [];
+    try {
+      files = readdirSync(dir)
+        .filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'))
+        .sort((a, b) => a.localeCompare(b));
+    } catch (error) {
+      this.logger.error(
+        `Failed to read master data defaults directory ${dir}`,
+        (error as Error).stack ?? String(error),
+      );
+      return null;
+    }
+    const merged: MasterDataDefaultsFile = {};
+    for (const filename of files) {
+      const fullPath = join(dir, filename);
+      let raw: string;
+      try {
+        raw = readFileSync(fullPath, 'utf-8');
+      } catch {
+        continue;
+      }
+      const format = filename.endsWith('.json') ? 'json' : 'yaml';
+      let parsed: any;
+      try {
+        parsed = format === 'json' ? JSON.parse(raw) : yaml.load(raw);
+      } catch (error) {
+        this.logger.error(
+          `Failed to parse master data defaults file ${fullPath}`,
+          (error as Error).stack ?? String(error),
+        );
+        continue;
+      }
+      this.deepMergeDefaults(merged, (parsed ?? {}) as MasterDataDefaultsFile);
+    }
+    return merged;
+  }
+
+  private deepMergeDefaults(target: any, source: any): any {
+    if (!source || typeof source !== 'object') {
+      return target;
+    }
+    if (!target || typeof target !== 'object') {
+      return source;
+    }
+    if (Array.isArray(target) && Array.isArray(source)) {
+      target.push(...source);
+      return target;
+    }
+    if (Array.isArray(target) || Array.isArray(source)) {
+      return source;
+    }
+    Object.entries(source).forEach(([key, value]) => {
+      if (!(key in target)) {
+        target[key] = value;
+        return;
+      }
+      const current = target[key];
+      if (Array.isArray(current) && Array.isArray(value)) {
+        target[key] = [...current, ...value];
+        return;
+      }
+      if (
+        current &&
+        value &&
+        typeof current === 'object' &&
+        typeof value === 'object' &&
+        !Array.isArray(current) &&
+        !Array.isArray(value)
+      ) {
+        target[key] = this.deepMergeDefaults({ ...current }, value);
+        return;
+      }
+      target[key] = value;
+    });
+    return target;
+  }
+
+  private resolveDefaultsLocation(): string | null {
+    const candidates = [
+      join(process.cwd(), 'catalog', 'master-data', 'defaults'),
+      join(process.cwd(), 'backend', 'catalog', 'master-data', 'defaults'),
+      join(__dirname, '..', '..', '..', 'catalog', 'master-data', 'defaults'),
+      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'master-data', 'defaults'),
+      join(process.cwd(), 'catalog', 'master-data', 'defaults.yaml'),
+      join(process.cwd(), 'backend', 'catalog', 'master-data', 'defaults.yaml'),
+      join(__dirname, '..', '..', '..', 'catalog', 'master-data', 'defaults.yaml'),
+      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'master-data', 'defaults.yaml'),
+    ];
+    for (const candidate of candidates) {
+      try {
+        const stat = statSync(candidate);
+        if (stat.isDirectory()) {
+          const entries = readdirSync(candidate).filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'));
+          if (entries.length) {
+            return candidate;
+          }
+          continue;
+        }
+        if (stat.isFile()) {
+          readFileSync(candidate, 'utf-8');
+          return candidate;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  }
+
+  private async seedDefaultsIfEmpty(): Promise<void> {
+    if (!this.usingDatabase) {
+      return;
+    }
+    const hasAny =
+      this.personnelServicePools.length > 0 ||
+      this.personnelPools.length > 0 ||
+      this.personnels.length > 0 ||
+      this.personnelServices.length > 0 ||
+      this.vehicleServicePools.length > 0 ||
+      this.vehiclePools.length > 0 ||
+      this.vehicles.length > 0 ||
+      this.vehicleServices.length > 0 ||
+      this.vehicleTypes.length > 0 ||
+      this.vehicleCompositions.length > 0 ||
+      this.operationalPoints.length > 0 ||
+      this.sectionsOfLine.length > 0 ||
+      this.personnelSites.length > 0 ||
+      this.replacementStops.length > 0 ||
+      this.replacementRoutes.length > 0 ||
+      this.replacementEdges.length > 0 ||
+      this.opReplacementStopLinks.length > 0 ||
+      this.transferEdges.length > 0;
+    if (hasAny) {
+      return;
+    }
+
+    const defaults = this.getDefaults();
+    if (!defaults) {
+      return;
+    }
+    await this.replaceResourceSnapshot(defaults.resources);
+    await this.resetTopologyToDefaults();
+    this.logger.log('Seeded master data & topology with factory defaults.');
+  }
+
+  private prepareSnapshotForPersistence(snapshot: ResourceSnapshot): ResourceSnapshot {
+    return {
+      ...snapshot,
+      personnel: snapshot.personnel.map((p) => this.preparePersonnelForPersistence(p)),
+      vehicles: snapshot.vehicles.map((v) => this.prepareVehicleForPersistence(v)),
+      personnelServices: snapshot.personnelServices.map((s) => this.prepareServiceForPersistence(s)),
+      vehicleServices: snapshot.vehicleServices.map((s) => this.prepareServiceForPersistence(s)),
+      personnelServicePools: snapshot.personnelServicePools.map((p) => this.preparePoolForPersistence(p)),
+      personnelPools: snapshot.personnelPools.map((p) => this.preparePoolForPersistence(p)),
+      vehicleServicePools: snapshot.vehicleServicePools.map((p) => this.preparePoolForPersistence(p)),
+      vehiclePools: snapshot.vehiclePools.map((p) => this.preparePoolForPersistence(p)),
+      vehicleTypes: snapshot.vehicleTypes.map((t) => this.cloneVehicleType(t)),
+      vehicleCompositions: snapshot.vehicleCompositions.map((c) => this.cloneVehicleComposition(c)),
+    };
+  }
+
+  private preparePersonnelForPersistence(person: Personnel): Personnel {
+    const record = person as unknown as Record<string, unknown>;
+    const id = String(record['id'] ?? '').trim();
+    const nameRaw = typeof record['name'] === 'string' ? (record['name'] as string).trim() : '';
+    const derived = nameRaw || this.derivePersonnelName(record) || id;
+    const externalRef = typeof record['externalRef'] === 'string' ? (record['externalRef'] as string) : undefined;
+    const homeBase = typeof record['homeBase'] === 'string' ? (record['homeBase'] as string) : undefined;
+    const attributes = this.mergeAttributes(record, ['id', 'name', 'externalRef', 'homeBase']);
+    return {
+      ...(person as any),
+      id,
+      name: derived,
+      externalRef,
+      homeBase,
+      attributes,
+    } as any;
+  }
+
+  private prepareVehicleForPersistence(vehicle: Vehicle): Vehicle {
+    const record = vehicle as unknown as Record<string, unknown>;
+    const id = String(record['id'] ?? '').trim();
+    const nameRaw = typeof record['name'] === 'string' ? (record['name'] as string).trim() : '';
+    const vehicleNumber =
+      typeof record['vehicleNumber'] === 'string' ? (record['vehicleNumber'] as string).trim() : '';
+    const derived = nameRaw || vehicleNumber || id;
+    const externalRef = typeof record['externalRef'] === 'string' ? (record['externalRef'] as string) : undefined;
+    const homeDepot =
+      typeof record['homeDepot'] === 'string'
+        ? (record['homeDepot'] as string)
+        : typeof record['depot'] === 'string'
+          ? (record['depot'] as string)
+          : undefined;
+    const typeId = typeof record['typeId'] === 'string' ? (record['typeId'] as string) : undefined;
+    const attributes = this.mergeAttributes(record, ['id', 'name', 'typeId', 'externalRef', 'homeDepot']);
+    return {
+      ...(vehicle as any),
+      id,
+      name: derived,
+      typeId,
+      externalRef,
+      homeDepot,
+      attributes,
+    } as any;
+  }
+
+  private prepareServiceForPersistence(service: PersonnelService | VehicleService): any {
+    const record = service as unknown as Record<string, unknown>;
+    const id = String(record['id'] ?? '').trim();
+    const name = typeof record['name'] === 'string' ? (record['name'] as string).trim() : id;
+    const poolId = typeof record['poolId'] === 'string' ? (record['poolId'] as string) : undefined;
+    const attributes = this.mergeAttributes(record, ['id', 'name', 'poolId']);
+    return {
+      ...(service as any),
+      id,
+      name,
+      poolId,
+      attributes,
+    };
+  }
+
+  private preparePoolForPersistence(pool: any): any {
+    const record = pool as unknown as Record<string, unknown>;
+    const id = String(record['id'] ?? '').trim();
+    const name = typeof record['name'] === 'string' ? (record['name'] as string).trim() : id;
+    const description = typeof record['description'] === 'string' ? (record['description'] as string) : undefined;
+    const attributes = this.mergeAttributes(record, ['id', 'name', 'description']);
+    return {
+      ...(pool as any),
+      id,
+      name,
+      description,
+      attributes,
+    };
+  }
+
+  private mergeAttributes(record: Record<string, unknown>, excludeKeys: string[]): Record<string, unknown> {
+    const existing = record['attributes'];
+    const base =
+      existing && typeof existing === 'object' && !Array.isArray(existing)
+        ? { ...(existing as Record<string, unknown>) }
+        : {};
+    Object.entries(record).forEach(([key, value]) => {
+      if (key === 'attributes' || excludeKeys.includes(key)) {
+        return;
+      }
+      if (value === undefined) {
+        return;
+      }
+      base[key] = value;
+    });
+    return base;
+  }
+
+  private derivePersonnelName(record: Record<string, unknown>): string {
+    const first = this.resolveTemporalText(record['firstName']);
+    const last = typeof record['lastName'] === 'string' ? (record['lastName'] as string).trim() : '';
+    const preferred = this.resolveTemporalText(record['preferredName']);
+    const candidate = [first, last].filter(Boolean).join(' ').trim();
+    if (preferred && candidate) {
+      return `${preferred} (${candidate})`;
+    }
+    return preferred || candidate;
+  }
+
+  private resolveTemporalText(value: unknown): string {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    if (Array.isArray(value) && value.length) {
+      const first = value[0] as any;
+      const candidate = typeof first?.value === 'string' ? first.value : '';
+      return candidate.trim();
+    }
+    return '';
   }
 
   private async initializeMasterDataFromDatabase(): Promise<void> {
@@ -642,4 +1105,3 @@ export class PlanningMasterDataService implements OnModuleInit {
     return attributes?.map((attribute) => ({ ...attribute }));
   }
 }
-

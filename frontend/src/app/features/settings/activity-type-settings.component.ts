@@ -212,8 +212,20 @@ export class ActivityTypeSettingsComponent {
   }
 
   protected resetToDefaults(): void {
-    this.activityTypes.reset();
+    if (!this.confirmFactoryReset('Aktivitätstypen')) {
+      return;
+    }
+    this.activityTypes.resetToDefaults();
     this.cancelEdit();
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 
   protected resourceLabel(value: ResourceKind): string {

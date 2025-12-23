@@ -132,6 +132,7 @@ export class ActivityCatalogSettingsComponent {
       'field:remark': { datatype: 'string', oncreate: 'edit', onupdate: 'edit' },
       color: { datatype: 'color', value: '#1976d2' },
       consider_capacity_conflicts: { datatype: 'boolean', value: 'true' },
+      consider_location_conflicts: { datatype: 'boolean', value: 'true' },
       is_short_break: { datatype: 'boolean', value: 'true' },
       is_break: { datatype: 'boolean', value: 'true' },
       is_service_start: { datatype: 'boolean', value: 'true' },
@@ -303,6 +304,15 @@ export class ActivityCatalogSettingsComponent {
     if (this.templateEditId() === template.id) {
       this.cancelTemplateEdit();
     }
+  }
+
+  protected resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Activity-Katalog')) {
+      return;
+    }
+    this.catalog.resetToDefaults();
+    this.cancelTemplateEdit();
+    this.cancelActivityEdit();
   }
 
   protected startActivityEdit(activity: ActivityDefinition): void {
@@ -567,5 +577,14 @@ export class ActivityCatalogSettingsComponent {
   protected updateRelevantForMeta(attrGroup: AbstractControl, values: string[]): void {
     const ctrl = this.metaValueControl(attrGroup);
     ctrl.setValue(values.join(','));
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }

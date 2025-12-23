@@ -1,0 +1,114 @@
+topology:
+  operationalPoints:
+    - opId: OP-BER-HBF
+      uniqueOpId: DE:BER-HBF
+      countryCode: DE
+      name: Berlin Hbf
+      opType: STATION
+      position: { lat: 52.52508, lng: 13.36940 }
+      attributes: []
+    - opId: OP-POT-HBF
+      uniqueOpId: DE:POT-HBF
+      countryCode: DE
+      name: Potsdam Hbf
+      opType: STATION
+      position: { lat: 52.39127, lng: 13.06618 }
+      attributes: []
+    - opId: OP-HAN-HBF
+      uniqueOpId: DE:HAN-HBF
+      countryCode: DE
+      name: Hannover Hbf
+      opType: STATION
+      position: { lat: 52.37654, lng: 9.74149 }
+      attributes: []
+    - opId: OP-HH-HBF
+      uniqueOpId: DE:HH-HBF
+      countryCode: DE
+      name: Hamburg Hbf
+      opType: STATION
+      position: { lat: 53.55262, lng: 10.00687 }
+      attributes: []
+
+  sectionsOfLine:
+    - solId: SOL-BER-POT
+      startUniqueOpId: DE:BER-HBF
+      endUniqueOpId: DE:POT-HBF
+      nature: REGULAR
+      lengthKm: 31.5
+      attributes: []
+    - solId: SOL-BER-HAN
+      startUniqueOpId: DE:BER-HBF
+      endUniqueOpId: DE:HAN-HBF
+      nature: REGULAR
+      lengthKm: 264.0
+      attributes: []
+    - solId: SOL-HAN-HH
+      startUniqueOpId: DE:HAN-HBF
+      endUniqueOpId: DE:HH-HBF
+      nature: REGULAR
+      lengthKm: 153.0
+      attributes: []
+
+  personnelSites:
+    - siteId: SITE-BER-PAUSE
+      siteType: PAUSENRAUM
+      name: Pausenraum Berlin Hbf
+      uniqueOpId: DE:BER-HBF
+      position: { lat: 52.52525, lng: 13.36990 }
+      attributes: []
+
+  replacementStops:
+    - replacementStopId: SEV-BER-NORD
+      name: SEV Berlin Hbf (Nord)
+      stopCode: SEV-BER-N
+      position: { lat: 52.52610, lng: 13.36910 }
+      nearestUniqueOpId: DE:BER-HBF
+      attributes: []
+    - replacementStopId: SEV-POT-VORP
+      name: SEV Potsdam Hbf (Vorplatz)
+      stopCode: SEV-POT-V
+      position: { lat: 52.39090, lng: 13.06560 }
+      nearestUniqueOpId: DE:POT-HBF
+      attributes: []
+
+  replacementRoutes:
+    - replacementRouteId: SEV-RE1-BER-POT
+      name: SEV RE1 Berlin–Potsdam
+      operator: DemoBus
+      attributes: []
+
+  replacementEdges:
+    - replacementEdgeId: SEV-EDGE-RE1-001
+      replacementRouteId: SEV-RE1-BER-POT
+      fromStopId: SEV-BER-NORD
+      toStopId: SEV-POT-VORP
+      seq: 1
+      avgDurationSec: 2700
+      distanceM: 32000
+      attributes: []
+
+  opReplacementStopLinks:
+    - linkId: LINK-BER-SEV
+      uniqueOpId: DE:BER-HBF
+      replacementStopId: SEV-BER-NORD
+      relationType: PRIMARY_SEV_STOP
+      walkingTimeSec: 240
+      distanceM: 250
+      attributes: []
+    - linkId: LINK-POT-SEV
+      uniqueOpId: DE:POT-HBF
+      replacementStopId: SEV-POT-VORP
+      relationType: PRIMARY_SEV_STOP
+      walkingTimeSec: 180
+      distanceM: 180
+      attributes: []
+
+  transferEdges:
+    - transferId: TR-BER-PAUSE
+      from: { kind: OP, uniqueOpId: DE:BER-HBF }
+      to: { kind: PERSONNEL_SITE, siteId: SITE-BER-PAUSE }
+      mode: WALK
+      avgDurationSec: 180
+      distanceM: 160
+      bidirectional: true
+      attributes: []

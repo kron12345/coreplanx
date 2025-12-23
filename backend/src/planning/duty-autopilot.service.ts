@@ -153,22 +153,27 @@ export class DutyAutopilotService {
     const dutyStartMs = payloadIntervals.minStartMs;
     const dutyEndMs = payloadIntervals.maxEndMs;
 
-    const existingStart =
-      dutyActivities.find(
-        (a) => this.resolveServiceRole(a) === 'start' || a.type === config.serviceStartTypeId,
-      ) ?? null;
-    const existingEnd =
-      dutyActivities.find(
-        (a) => this.resolveServiceRole(a) === 'end' || a.type === config.serviceEndTypeId,
-      ) ?? null;
-    const startId = existingStart?.id ?? `svcstart:${serviceId}`;
-    const endId = existingEnd?.id ?? `svcend:${serviceId}`;
-    const managedIds: string[] = [];
+    const startCandidates = dutyActivities.filter(
+      (a) => this.resolveServiceRole(a) === 'start' || a.type === config.serviceStartTypeId,
+    );
+    const endCandidates = dutyActivities.filter(
+      (a) => this.resolveServiceRole(a) === 'end' || a.type === config.serviceEndTypeId,
+    );
+    const startId = `svcstart:${serviceId}`;
+    const endId = `svcend:${serviceId}`;
+    const managedIds: string[] = [startId, endId];
+
+    const boundaryDeletedIds = Array.from(
+      new Set([
+        ...startCandidates.map((a) => a.id).filter((id) => id !== startId),
+        ...endCandidates.map((a) => a.id).filter((id) => id !== endId),
+      ]),
+    );
 
     const serviceStart: Activity = this.buildBoundaryActivity({
       id: startId,
-      title: existingStart?.title ?? 'Dienstanfang',
-      type: existingStart?.type ?? config.serviceStartTypeId,
+      title: startCandidates.find((a) => a.id === startId)?.title ?? startCandidates[0]?.title ?? 'Dienstanfang',
+      type: config.serviceStartTypeId,
       role: 'start',
       startMs: dutyStartMs,
       owner,
@@ -178,8 +183,8 @@ export class DutyAutopilotService {
     });
     const serviceEnd: Activity = this.buildBoundaryActivity({
       id: endId,
-      title: existingEnd?.title ?? 'Dienstende',
-      type: existingEnd?.type ?? config.serviceEndTypeId,
+      title: endCandidates.find((a) => a.id === endId)?.title ?? endCandidates[0]?.title ?? 'Dienstende',
+      type: config.serviceEndTypeId,
       role: 'end',
       startMs: dutyEndMs,
       owner,
@@ -326,13 +331,6 @@ export class DutyAutopilotService {
       ),
     ];
 
-    if (this.isManagedId(serviceStart.id)) {
-      managedIds.push(serviceStart.id);
-    }
-    if (this.isManagedId(serviceEnd.id)) {
-      managedIds.push(serviceEnd.id);
-    }
-
     const updatedBreaks = generatedBreaks.map((b) =>
       this.applyDutyMeta(
         b,
@@ -347,9 +345,14 @@ export class DutyAutopilotService {
     const upserts = [...updatedPayload, ...updatedBoundaries, ...updatedBreaks];
 
     const desiredManaged = new Set(managedIds);
-    const deletedIds = group.activities
-      .map((a) => a.id)
-      .filter((id) => this.isManagedId(id) && this.belongsToService(id, serviceId) && !desiredManaged.has(id));
+    const deletedIds = Array.from(
+      new Set([
+        ...boundaryDeletedIds,
+        ...group.activities
+          .map((a) => a.id)
+          .filter((id) => this.isManagedId(id) && this.belongsToService(id, serviceId) && !desiredManaged.has(id)),
+      ]),
+    );
 
     return { upserts, deletedIds, managedIds };
   }
@@ -541,6 +544,7 @@ export class DutyAutopilotService {
           from: this.normalizeLocation(activity.from),
           to: this.normalizeLocation(activity.to),
           considerCapacity: this.considerCapacityConflicts(activity),
+          considerLocation: this.considerLocationConflicts(activity),
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
@@ -569,6 +573,9 @@ export class DutyAutopilotService {
     for (let i = 0; i < normalized.length - 1; i += 1) {
       const prev = normalized[i];
       const next = normalized[i + 1];
+      if (!prev.considerLocation || !next.considerLocation) {
+        continue;
+      }
       if (prev.to && next.from && prev.to !== next.from) {
         add(prev.id, 'LOCATION_SEQUENCE');
         add(next.id, 'LOCATION_SEQUENCE');
@@ -581,6 +588,18 @@ export class DutyAutopilotService {
   private considerCapacityConflicts(activity: Activity): boolean {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const raw = attrs?.['consider_capacity_conflicts'];
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      return raw.trim().toLowerCase() === 'true';
+    }
+    return true;
+  }
+
+  private considerLocationConflicts(activity: Activity): boolean {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['consider_location_conflicts'];
     if (typeof raw === 'boolean') {
       return raw;
     }

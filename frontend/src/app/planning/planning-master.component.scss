@@ -3,6 +3,24 @@
   padding: 16px;
 }
 
+.planning-master__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.planning-master__header h2 {
+  margin: 0;
+}
+
+.planning-master__header p {
+  margin: 6px 0 0;
+  opacity: 0.8;
+  max-width: 62ch;
+}
+
 mat-tab-group {
   background: var(--mat-form-field-filled-container-color, #fff);
   border-radius: 12px;

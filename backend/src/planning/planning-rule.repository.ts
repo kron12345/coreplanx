@@ -212,4 +212,18 @@ export class PlanningRuleRepository {
       [stageId, variantId, deleteIds],
     );
   }
+
+  async deleteAllRules(stageId: StageId, variantId: string): Promise<void> {
+    if (!this.isEnabled) {
+      throw new Error('Database connection not configured');
+    }
+    await this.database.query(
+      `
+        DELETE FROM planning_rule
+        WHERE stage_id = $1
+          AND variant_id = $2
+      `,
+      [stageId, variantId],
+    );
+  }
 }

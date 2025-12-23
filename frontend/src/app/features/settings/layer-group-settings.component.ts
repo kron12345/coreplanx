@@ -59,6 +59,14 @@ export class LayerGroupSettingsComponent {
     });
   }
 
+  protected resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Layer-Gruppen')) {
+      return;
+    }
+    this.service.resetToDefaults();
+    this.newGroup();
+  }
+
   protected save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -88,5 +96,14 @@ export class LayerGroupSettingsComponent {
 
   protected move(group: LayerGroup, dir: 'up' | 'down'): void {
     this.service.move(group.id, dir);
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }

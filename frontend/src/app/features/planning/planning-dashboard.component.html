@@ -461,51 +461,149 @@
         <form [formGroup]="activityForm" class="planning-side-panels__form" (ngSubmit)="saveSelectedActivityEdits()">
           <input type="hidden" formControlName="type" />
 
-          <div class="planning-type-summary planning-side-panels__full">
-            <div class="planning-type-summary__row">
-              <span class="planning-type-summary__chip">
-                {{ selectedCatalogOption()?.label ?? selectedActivityDefinition()?.label ?? 'Aktivitätstyp wählen' }}
-              </span>
-              <button
-                type="button"
-                class="planning-type-summary__change"
-                (click)="openTypePicker()"
-              >
-                Typ ändern…
-              </button>
-            </div>
-          </div>
+	          <div class="planning-type-summary planning-side-panels__full">
+	            <div class="planning-type-summary__row">
+	              <span class="planning-type-summary__chip">
+	                <span
+	                  class="planning-type-summary__swatch"
+	                  [style.background]="activityTypeOptionColor(selectedCatalogOption())"
+	                ></span>
+	                {{ selectedCatalogOption()?.label ?? selectedActivityDefinition()?.label ?? 'Aktivitätstyp wählen' }}
+	              </span>
+	              <div class="planning-type-summary__actions">
+	                <mat-button-toggle-group
+	                  class="planning-type-summary__mode"
+	                  [value]="activityDetailsOpen() ? 'advanced' : 'basic'"
+	                  (valueChange)="setActivityEditorMode($event)"
+	                  aria-label="Editor-Modus"
+	                >
+	                  <mat-button-toggle value="basic">Basic</mat-button-toggle>
+	                  <mat-button-toggle value="advanced">Erweitert</mat-button-toggle>
+	                </mat-button-toggle-group>
+	                <button
+	                  #typeMenuTrigger="matMenuTrigger"
+	                  type="button"
+	                  class="planning-type-summary__change"
+	                  [matMenuTriggerFor]="activityTypeMenu"
+	                  (menuOpened)="onActivityTypeMenuOpened()"
+	                >
+	                  Typ wählen…
+	                </button>
+	              </div>
+	            </div>
+	          </div>
 
-          @if (isSelectedActivityPending() && quickActivityTypes().length > 0) {
-            <section class="planning-type-quick planning-side-panels__full">
-              <div class="planning-type-quick__label">
-                Typ-Schnellauswahl
+	          <mat-menu #activityTypeMenu="matMenu" class="planning-type-menu" xPosition="after" yPosition="below">
+	            <div
+	              class="planning-type-menu__search"
+	              (click)="$event.stopPropagation()"
+	              (keydown)="$event.stopPropagation()"
+	            >
+	              <mat-form-field appearance="outline" class="planning-type-menu__search-field">
+	                <mat-label>Suchen</mat-label>
+	                <mat-icon matPrefix fontIcon="search"></mat-icon>
+	                <input
+	                  #typeSearchInput
+	                  matInput
+	                  autocomplete="off"
+	                  [value]="activityTypeSearchQuery()"
+	                  (input)="setActivityTypeSearchQuery($any($event.target).value)"
+	                />
+	                @if (activityTypeSearchQuery().trim().length) {
+	                  <button
+	                    mat-icon-button
+	                    matSuffix
+	                    type="button"
+	                    aria-label="Suche löschen"
+	                    (click)="$event.stopPropagation(); setActivityTypeSearchQuery('')"
+	                  >
+	                    <mat-icon fontIcon="close"></mat-icon>
+	                  </button>
+	                }
+	              </mat-form-field>
+	            </div>
+	            <mat-divider></mat-divider>
+
+	            @for (group of filteredActivityTypePickerGroups(); track group.id) {
+	              <button mat-menu-item type="button" disabled class="planning-type-menu__header">
+	                <mat-icon [fontIcon]="group.icon"></mat-icon>
+	                <span>{{ group.label }}</span>
+	              </button>
+	              @for (option of group.items; track option.id) {
+	                <button mat-menu-item type="button" (click)="selectCatalogActivity(option.id)">
+	                  <span class="planning-type-menu__item">
+	                    <span
+	                      class="planning-type-menu__swatch"
+	                      [style.background]="activityTypeOptionColor(option)"
+	                    ></span>
+	                    <span class="planning-type-menu__text">
+	                      <span class="planning-type-menu__label">{{ option.label }}</span>
+	                      <span class="planning-type-menu__description">
+	                        {{ option.description ?? '' }}
+	                      </span>
+	                    </span>
+	                  </span>
+	                </button>
+	              }
+	              <mat-divider></mat-divider>
+	            }
+	          </mat-menu>
+
+	          @if (isSelectedActivityPending() && quickActivityTypes().length > 0) {
+	            <section class="planning-type-quick planning-side-panels__full">
+	              <div class="planning-type-quick__label">
+	                Typ-Schnellauswahl
+	              </div>
+	              <div class="planning-type-quick__chips">
+	                @for (option of quickActivityTypes(); track option.id) {
+	                  <button
+	                    type="button"
+	                    class="planning-type-quick__chip"
+	                    [class.is-selected]="isActivityOptionSelected(option.id)"
+	                    (click)="selectCatalogActivity(option.id)"
+	                  >
+	                    <span
+	                      class="planning-type-quick__swatch"
+	                      [style.background]="activityTypeOptionColor(option)"
+	                    ></span>
+	                    <span class="planning-type-quick__chip-label">
+	                      {{ option.label }}
+	                    </span>
+	                  </button>
+	                }
+	                <button
+	                  type="button"
+	                  class="planning-type-quick__chip planning-type-quick__chip--all"
+	                  [matMenuTriggerFor]="activityTypeMenu"
+	                  (menuOpened)="onActivityTypeMenuOpened()"
+	                >
+	                  Alle Typen…
+	                </button>
+	              </div>
+	            </section>
+	          }
+
+          @if (isSelectedActivityPending()) {
+            <div class="planning-banner planning-banner--draft planning-side-panels__full">
+              <mat-icon fontIcon="edit_note"></mat-icon>
+              <div>
+                <div class="planning-banner__title">Entwurf</div>
+                <div class="planning-banner__text">
+                  Noch nicht gespeichert. Nach dem Speichern berechnet das Backend Dienst und Konflikte neu.
+                </div>
               </div>
-              <div class="planning-type-quick__chips">
-                @for (option of quickActivityTypes(); track option.id) {
-                  <button
-                    type="button"
-                    class="planning-type-quick__chip"
-                    [class.is-selected]="isActivityOptionSelected(option.id)"
-                    (click)="selectCatalogActivity(option.id)"
-                  >
-                    <span class="planning-type-quick__chip-label">
-                      {{ option.label }}
-                    </span>
-                  </button>
-                }
-                <button
-                  type="button"
-                  class="planning-type-quick__chip planning-type-quick__chip--all"
-                  (click)="openTypePicker()"
-                >
-                  Alle Typen…
-                </button>
+            </div>
+          } @else if (activityForm.dirty) {
+            <div class="planning-banner planning-banner--dirty planning-side-panels__full">
+              <mat-icon fontIcon="warning"></mat-icon>
+              <div>
+                <div class="planning-banner__title">Ungespeicherte Änderungen</div>
+                <div class="planning-banner__text">Speichern oder mit „Abbrechen“ verwerfen.</div>
               </div>
-            </section>
+            </div>
           }
 
-          <section class="planning-section planning-section--time planning-side-panels__full">
+	          <section class="planning-section planning-section--time planning-side-panels__full">
             <header class="planning-section__header">
               <div class="planning-section__title">Zeit</div>
               <div class="planning-section__subtitle">
@@ -513,7 +611,7 @@
               </div>
             </header>
             <div class="planning-type-editor__fields planning-type-editor__fields--full">
-              <div class="planning-attribute-grid">
+              <div class="planning-attribute-grid planning-attribute-grid--time">
                 <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                   <mat-label>Start</mat-label>
                   <input matInput type="datetime-local" formControlName="start" />
@@ -527,19 +625,125 @@
                 @if (shouldShowEndField(selectedActivityDefinition())) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Ende</mat-label>
-                    <input matInput type="datetime-local" formControlName="end" />
+                    <input
+                      matInput
+                      type="datetime-local"
+                      formControlName="end"
+                      (focus)="markTimeSyncSource('end')"
+                    />
                   </mat-form-field>
                 }
                 @if (definitionHasField(selectedActivityDefinition(), 'from')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Von</mat-label>
-                    <input matInput formControlName="from" />
+                    <input matInput formControlName="from" [matAutocomplete]="fromLocationAuto" autocomplete="off" />
+                    @if (fromLocationSuggestion(); as suggestion) {
+                      <button
+                        mat-icon-button
+                        matSuffix
+                        type="button"
+                        [matTooltip]="'Wie vorher: ' + suggestion"
+                        aria-label="Von wie vorher übernehmen"
+                        (click)="applyFromLocationSuggestion()"
+                      >
+                        <mat-icon fontIcon="subdirectory_arrow_left"></mat-icon>
+                      </button>
+                    }
+                    <mat-autocomplete #fromLocationAuto="matAutocomplete" autoActiveFirstOption>
+                      <mat-optgroup label="Betriebspunkte">
+                        @for (option of fromOperationalPointOptions(); track option.key) {
+                          <mat-option [value]="option.value">
+                            <span>{{ option.label }}</span>
+                            @if (option.description) {
+                              <small class="planning-location-option__hint">{{ option.description }}</small>
+                            }
+                          </mat-option>
+                        }
+                      </mat-optgroup>
+                      @if (includePersonnelSitesInLocationLookup() && fromPersonnelSiteOptions().length > 0) {
+                        <mat-optgroup label="Personnel Sites">
+                          @for (option of fromPersonnelSiteOptions(); track option.key) {
+                            <mat-option [value]="option.value">
+                              <span>{{ option.label }}</span>
+                              @if (option.description) {
+                                <small class="planning-location-option__hint">{{ option.description }}</small>
+                              }
+                            </mat-option>
+                          }
+                        </mat-optgroup>
+                      }
+                    </mat-autocomplete>
+                    @if (
+                      activityForm.controls.from.invalid &&
+                      (activityForm.controls.from.dirty || activityForm.controls.from.touched)
+                    ) {
+                      <mat-error>Ort ist erforderlich.</mat-error>
+                    }
                   </mat-form-field>
                 }
                 @if (definitionHasField(selectedActivityDefinition(), 'to')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Nach</mat-label>
-                    <input matInput formControlName="to" />
+                    <input matInput formControlName="to" [matAutocomplete]="toLocationAuto" autocomplete="off" />
+                    @if (toLocationSuggestion(); as suggestion) {
+                      <button
+                        mat-icon-button
+                        matSuffix
+                        type="button"
+                        [matTooltip]="'Wie nachher: ' + suggestion"
+                        aria-label="Nach wie nachher übernehmen"
+                        (click)="applyToLocationSuggestion()"
+                      >
+                        <mat-icon fontIcon="subdirectory_arrow_right"></mat-icon>
+                      </button>
+                    }
+                    <mat-autocomplete #toLocationAuto="matAutocomplete" autoActiveFirstOption>
+                      <mat-optgroup label="Betriebspunkte">
+                        @for (option of toOperationalPointOptions(); track option.key) {
+                          <mat-option [value]="option.value">
+                            <span>{{ option.label }}</span>
+                            @if (option.description) {
+                              <small class="planning-location-option__hint">{{ option.description }}</small>
+                            }
+                          </mat-option>
+                        }
+                      </mat-optgroup>
+                      @if (includePersonnelSitesInLocationLookup() && toPersonnelSiteOptions().length > 0) {
+                        <mat-optgroup label="Personnel Sites">
+                          @for (option of toPersonnelSiteOptions(); track option.key) {
+                            <mat-option [value]="option.value">
+                              <span>{{ option.label }}</span>
+                              @if (option.description) {
+                                <small class="planning-location-option__hint">{{ option.description }}</small>
+                              }
+                            </mat-option>
+                          }
+                        </mat-optgroup>
+                      }
+                    </mat-autocomplete>
+                    @if (
+                      activityForm.controls.to.invalid &&
+                      (activityForm.controls.to.dirty || activityForm.controls.to.touched)
+                    ) {
+                      <mat-error>Ort ist erforderlich.</mat-error>
+                    }
+                  </mat-form-field>
+                }
+                @if (shouldShowEndField(selectedActivityDefinition())) {
+                  <mat-form-field
+                    appearance="outline"
+                    class="planning-attribute-grid__item planning-attribute-grid__item--span-2"
+                  >
+                    <mat-label>Dauer</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="1"
+                      step="5"
+                      formControlName="durationMinutes"
+                      (focus)="markTimeSyncSource('duration')"
+                    />
+                    <span matTextSuffix>min</span>
                   </mat-form-field>
                 }
               </div>
@@ -606,36 +810,64 @@
             </div>
           </section>
 
-          <section class="planning-section planning-section--details planning-side-panels__full">
-            <header class="planning-section__header planning-section__header--clickable" (click)="toggleActivityDetails()">
-              <div class="planning-section__title">Details</div>
-              <div class="planning-section__subtitle">
-                Von/Nach und Bemerkung.
-              </div>
-              <button
-                type="button"
-                class="planning-section__toggle"
-                [attr.aria-expanded]="activityDetailsOpen()"
-              >
-                <mat-icon
-                  class="planning-section__toggle-icon"
-                  [fontIcon]="activityDetailsOpen() ? 'expand_less' : 'expand_more'"
-                ></mat-icon>
-              </button>
-            </header>
-            <div
-              class="planning-section__body"
-              [class.is-collapsed]="!activityDetailsOpen()"
-            >
-              @if (definitionHasField(selectedActivityDefinition(), 'remark')) {
-                <mat-form-field appearance="outline" class="planning-type-editor__remark">
-                  <mat-label>Bemerkung</mat-label>
-                  <textarea matInput rows="2" formControlName="remark"></textarea>
-                </mat-form-field>
-              }
+          @if (activityDetailsOpen()) {
+            <section class="planning-section planning-section--status planning-side-panels__full">
+              <header class="planning-section__header">
+                <div class="planning-section__title">Übersicht</div>
+                <div class="planning-section__subtitle">
+                  Dienstzuordnung und Konflikte (werden nach Speichern neu berechnet).
+                </div>
+              </header>
+              <div class="planning-section__body">
+                @if (selectedServicePreview(); as svc) {
+                  <div class="planning-status">
+                    <div class="planning-status__row">
+                      <span class="planning-status__label">Dienst</span>
+                      <span class="planning-status__value">{{ svc.label }}</span>
+                    </div>
+                    <div class="planning-status__row">
+                      <span class="planning-status__label">Service ID</span>
+                      <span class="planning-status__value planning-status__mono">{{ svc.serviceId }}</span>
+                    </div>
+                  </div>
+                }
 
-            </div>
-          </section>
+                @if (selectedActivityConflicts().length) {
+                  <div class="planning-status__conflicts">
+                    <div class="planning-status__conflicts-title">Konflikte</div>
+                    @for (entry of selectedActivityConflicts(); track entry.code) {
+                      <div class="planning-status__conflict">
+                        <span class="planning-status__conflict-kind">{{ entry.categoryLabel }}</span>
+                        <span class="planning-status__conflict-text">{{ entry.label }}</span>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="planning-status__conflicts planning-status__conflicts--empty">
+                    <div class="planning-status__conflicts-title">Konflikte</div>
+                    <div class="planning-status__conflict-text">Keine Konflikte.</div>
+                  </div>
+                }
+              </div>
+            </section>
+
+            <section class="planning-section planning-section--details planning-side-panels__full">
+              <header class="planning-section__header">
+                <div class="planning-section__title">Details</div>
+                <div class="planning-section__subtitle">
+                  Bemerkung und Zusatzinfos.
+                </div>
+              </header>
+              <div class="planning-section__body">
+                @if (definitionHasField(selectedActivityDefinition(), 'remark')) {
+                  <mat-form-field appearance="outline" class="planning-type-editor__remark">
+                    <mat-label>Bemerkung</mat-label>
+                    <textarea matInput rows="2" formControlName="remark"></textarea>
+                  </mat-form-field>
+                }
+              </div>
+            </section>
+          }
           <div class="planning-panel__actions planning-side-panels__full">
             @if (isSelectedActivityPending()) {
               <button mat-button type="button" (click)="resetPendingActivityEdits()">
@@ -644,6 +876,22 @@
             }
             <button mat-button type="button" (click)="clearSelectedActivity()">
               {{ isSelectedActivityPending() ? 'Panel schließen' : 'Abbrechen' }}
+            </button>
+            <button
+              mat-button
+              type="button"
+              (click)="duplicateSelectedActivity()"
+              [disabled]="isSelectedActivityPending()"
+            >
+              Duplizieren
+            </button>
+            <button
+              mat-button
+              type="button"
+              (click)="saveSelectedActivityToTemplate()"
+              [disabled]="isSelectedActivityPending() || !selectedTemplateId()"
+            >
+              Als Vorlage
             </button>
             <button mat-button color="warn" type="button" (click)="deleteSelectedActivity()">
               Löschen
@@ -657,96 +905,10 @@
               {{ isSelectedActivityPending() ? 'Anlegen' : 'Speichern' }}
             </button>
           </div>
-        </form>
-
-        @if (isTypePickerOpen()) {
-          <div class="planning-type-overlay">
-            <div class="planning-type-overlay__backdrop" (click)="closeTypePicker()"></div>
-            <section class="planning-type-overlay__panel">
-              <header class="planning-type-overlay__header">
-                <div>
-                  <div class="planning-type-overlay__title">Aktivitätstyp wählen</div>
-                  <div class="planning-type-overlay__subtitle">
-                    Für {{ selected.resource.name }}
-                  </div>
-                </div>
-                <button
-                  mat-icon-button
-                  type="button"
-                  aria-label="Typauswahl schließen"
-                  (click)="closeTypePicker()"
-                >
-                  <mat-icon fontIcon="close"></mat-icon>
-                </button>
-              </header>
-              <div class="planning-type-overlay__content">
-                <ng-template [ngTemplateOutlet]="typePickerContent"></ng-template>
-              </div>
-            </section>
-          </div>
-        }
-
-        <ng-template #typePickerContent>
-          @if (activeTypePickerGroup(); as activeGroup) {
-            <div class="planning-type-picker">
-              <div class="planning-type-picker__header">
-                <span class="planning-type-picker__title">Typ</span>
-                <span class="planning-type-picker__current">
-                  {{ selectedCatalogOption()?.label ?? 'Bitte wählen' }}
-                </span>
-              </div>
-              @if (activityTypePickerGroups().length > 1) {
-                <div class="planning-type-picker__tabs">
-                  @for (group of activityTypePickerGroups(); track group.id) {
-                    <button
-                      type="button"
-                      class="planning-type-picker__tab"
-                      [class.is-active]="group.id === activeGroup.id"
-                      (click)="setActivityTypePickerGroup(group.id)"
-                    >
-                      <mat-icon [fontIcon]="group.icon"></mat-icon>
-                      <span>{{ group.label }}</span>
-                      <small>{{ group.items.length }}</small>
-                    </button>
-                  }
-                </div>
-              }
-              <div class="planning-type-picker__list" role="listbox" aria-label="Aktivitätstyp auswählen">
-                @for (option of activeGroup.items; track option.id) {
-                  <button
-                    type="button"
-                    class="planning-type-picker__list-item"
-                    [class.is-selected]="isActivityOptionSelected(option.id)"
-                    (click)="selectActivityTypeFromPicker(option.id)"
-                  >
-                    <span class="planning-type-picker__option-title">{{ option.label }}</span>
-                    <span class="planning-type-picker__option-description">
-                      {{ option.description ?? 'Ohne Beschreibung' }}
-                    </span>
-                  </button>
-                }
-              </div>
-            </div>
-          } @else {
-            <ng-template [ngTemplateOutlet]="fallbackTypeSelect"></ng-template>
-          }
-        </ng-template>
-
-        <ng-template #fallbackTypeSelect>
-          <mat-form-field appearance="outline" class="planning-type-editor__fallback">
-            <mat-label>Typ</mat-label>
-            <mat-select [value]="activityCreationTool()" (valueChange)="selectCatalogActivity($event)">
-              @for (option of activityCreationOptions(); track option.id) {
-                <mat-option [value]="option.id">
-                  {{ option.label }}
-                </mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        </ng-template>
-      </div>
-    </div>
-    }
-  </section>
+	        </form>
+	      </div>
+	    </div>
+	    }
+	  </section>
 
 </section>

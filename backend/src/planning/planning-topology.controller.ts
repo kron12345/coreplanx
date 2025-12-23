@@ -131,6 +131,12 @@ export class PlanningTopologyController {
     return this.planningService.publishTopologyImportEvent(request);
   }
 
+  @Post('reset')
+  async resetToDefaults() {
+    await this.planningService.resetTopologyToDefaults();
+    return { ok: true };
+  }
+
   @Sse('import/events')
   streamImportEvents(): Observable<MessageEvent> {
     return this.planningService

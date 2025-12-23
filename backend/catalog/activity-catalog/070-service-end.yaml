@@ -1,0 +1,26 @@
+id: service-end
+label: Dienstende
+description: Abschlussleistung mit Ziel und Bemerkung.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: service
+timeMode: point
+fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+defaultDurationMinutes: 45
+attributes:
+  is_service_end: true
+  is_within_service: yes
+  color: '#c62828'

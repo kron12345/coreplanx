@@ -358,8 +358,25 @@ export class PlanningStageRepository {
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
       try {
+        const deleteIdSet = new Set(deleteIds);
+        const effectiveUpserts = deleteIdSet.size
+          ? upserts.filter((activity) => !deleteIdSet.has(activity.id))
+          : upserts;
+
+        if (deleteIds.length) {
+          await client.query(
+            `
+              DELETE FROM planning_activity
+              WHERE stage_id = $1
+                AND variant_id = $2
+                AND id = ANY($3::text[])
+            `,
+            [stageId, variantId, deleteIds],
+          );
+        }
+
         const normalizedUpserts: Activity[] = [];
-        for (const activity of upserts) {
+        for (const activity of effectiveUpserts) {
           normalizedUpserts.push(
             await this.prepareServiceMetadata(client, stageId, variantId, activity),
           );
@@ -518,18 +535,6 @@ export class PlanningStageRepository {
           );
         }
 
-        if (deleteIds.length) {
-          await client.query(
-            `
-              DELETE FROM planning_activity
-              WHERE stage_id = $1
-                AND variant_id = $2
-                AND id = ANY($3::text[])
-            `,
-            [stageId, variantId, deleteIds],
-          );
-        }
-
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
@@ -655,14 +660,18 @@ export class PlanningStageRepository {
       return activity;
     }
     if (role === 'end') {
-      const match = await this.findLatestServiceStart(
-        client,
-        stageId,
-        variantId,
-        ownerId,
-        activity.start,
-      );
+      const predefinedServiceId = activity.serviceId?.trim() || null;
+      const match = predefinedServiceId
+        ? null
+        : await this.findLatestServiceStart(
+            client,
+            stageId,
+            variantId,
+            ownerId,
+            activity.start,
+          );
       const serviceId =
+        predefinedServiceId ??
         match?.serviceId ??
         this.computeServiceId(stageId, ownerId, match?.start ?? activity.start);
       await this.ensureNoDuplicate(client, stageId, variantId, serviceId, 'end', activity.id);

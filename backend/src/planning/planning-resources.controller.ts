@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put } from '@nestjs/common';
 import { PlanningService } from './planning.service';
 import type { ResourceSnapshot } from './planning.types';
 
@@ -16,5 +16,20 @@ export class PlanningResourcesController {
     @Body() payload: ResourceSnapshot,
   ): Promise<ResourceSnapshot> {
     return this.planningService.replaceResourceSnapshot(payload);
+  }
+
+  @Post('reset')
+  resetToDefaults(): Promise<ResourceSnapshot> {
+    return this.planningService.resetResourcesToDefaults();
+  }
+
+  @Post('reset/personnel')
+  resetPersonnelToDefaults(): Promise<ResourceSnapshot> {
+    return this.planningService.resetPersonnelToDefaults();
+  }
+
+  @Post('reset/vehicles')
+  resetVehiclesToDefaults(): Promise<ResourceSnapshot> {
+    return this.planningService.resetVehiclesToDefaults();
   }
 }

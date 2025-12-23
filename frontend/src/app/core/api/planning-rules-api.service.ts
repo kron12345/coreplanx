@@ -31,6 +31,12 @@ export class PlanningRulesApiService {
     });
   }
 
+  resetRules(stageId: PlanningStageId, context?: PlanningApiContext): Observable<PlanningRuleListResponse> {
+    return this.http.post<PlanningRuleListResponse>(`${this.stageUrl(stageId)}/rules/reset`, {}, {
+      params: this.buildContextParams(context),
+    });
+  }
+
   private stageUrl(stageId: PlanningStageId): string {
     const base = this.config.baseUrl.replace(/\/$/, '');
     return `${base}/planning/stages/${stageId}`;
@@ -45,4 +51,3 @@ export class PlanningRulesApiService {
     return params;
   }
 }
-

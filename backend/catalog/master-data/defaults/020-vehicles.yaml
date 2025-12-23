@@ -1,0 +1,85 @@
+resources:
+  vehicleServicePools:
+    - id: VSP-RE1
+      name: RE1 Fahrzeugdienste
+      description: Fahrzeugumlauf-Templates für RE1.
+      dispatcher: Dispo RE1
+      serviceIds:
+        - VS-001
+        - VS-002
+
+  vehicleServices:
+    - id: VS-001
+      name: RE1 Umlauf Früh
+      description: Fahrzeugumlauf für den ersten Tagesumlauf.
+      poolId: VSP-RE1
+      startTime: '04:00'
+      endTime: '12:30'
+      requiredVehicleTypeIds:
+        - VT-EMU-RE1
+      maxDailyInstances: 1
+      maxResourcesPerInstance: 1
+    - id: VS-002
+      name: RE1 Umlauf Spät
+      description: Fahrzeugumlauf für den zweiten Tagesumlauf.
+      poolId: VSP-RE1
+      startTime: '13:30'
+      endTime: '22:45'
+      requiredVehicleTypeIds:
+        - VT-EMU-RE1
+      maxDailyInstances: 1
+      maxResourcesPerInstance: 1
+
+  vehicleTypes:
+    - id: VT-EMU-RE1
+      label: EMU Regional 160
+      category: EMU
+      capacity: 420
+      maxSpeed: 160
+      energyType: electric
+      manufacturer: DemoRail
+      trainTypeCode: EMU-RE1
+      lengthMeters: 105.3
+      weightTons: 190
+      brakeType: EP
+      brakePercentage: 140
+      tiltingCapability: none
+      trainProtectionSystems:
+        - PZB
+        - LZB
+        - ETCS
+      etcsLevel: 2
+
+  vehicles:
+    - id: VEH-001
+      vehicleNumber: '4010 001-5'
+      typeId: VT-EMU-RE1
+      depot: DE:BER-HBF
+      poolId: VP-BER
+      description: Stammfahrzeug RE1
+      hasWifi: true
+    - id: VEH-002
+      vehicleNumber: '4010 002-3'
+      typeId: VT-EMU-RE1
+      depot: DE:POT-HBF
+      poolId: VP-BER
+      description: Reservefahrzeug RE1
+      hasWifi: true
+
+  vehiclePools:
+    - id: VP-BER
+      name: Fahrzeugpool Berlin
+      description: Fahrzeuge mit Ausgang Berlin.
+      depotManager: Werk Berlin
+      vehicleIds:
+        - VEH-001
+        - VEH-002
+
+  vehicleCompositions:
+    - id: VC-RE1-SINGLE
+      name: RE1 Einfachtraktion
+      entries:
+        - typeId: VT-EMU-RE1
+          quantity: 1
+      turnaroundBuffer: 00:10:00
+      remark: Standardpuffer für Wende.

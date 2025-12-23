@@ -27,7 +27,7 @@ async function bootstrap() {
   });
   app.setGlobalPrefix(apiPrefix);
   const allowedOrigins = [
-    /^https?:\/\/localhost(?::\d+)?$/,
+    /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$/,
     /\.animeland\.de$/,
     /^https:\/\/qnamic\.ortwein\.chat$/,
   ];

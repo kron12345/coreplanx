@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, Signal, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, Signal, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
+import { MatMenuTrigger } from '@angular/material/menu';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import { GanttComponent } from '../../gantt/gantt.component';
@@ -47,6 +48,7 @@ import { PlanningDashboardBoardFacade } from './planning-dashboard-board.facade'
 import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
 import {
   buildAttributesFromCatalog,
+  defaultColorForType,
   defaultTemplatePeriod,
   findNeighborActivities,
   isActivityOwnedBy,
@@ -97,8 +99,10 @@ import { PlanningDashboardSimulationFacade } from './planning-dashboard-simulati
 import { PlanningDashboardOperationsHandlers } from './planning-dashboard-operations.handlers';
 import { PlanningDashboardFormFacade } from './planning-dashboard-form.facade';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { PlanningStoreService } from '../../shared/planning-store.service';
 import { EMPTY } from 'rxjs';
-import { catchError, finalize, take, tap } from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, finalize, map, startWith, take, tap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PlanningDashboardAssignmentFacade } from './planning-dashboard-assignment.facade';
 import { PlanningDashboardActivityOpsFacade } from './planning-dashboard-activity-ops.facade';
 import { PlanningDashboardSelectionState } from './planning-dashboard-selection.state';
@@ -106,12 +110,21 @@ import { PlanningDashboardFilterHandlers } from './planning-dashboard-filter.han
 import { PlanningDashboardCopyHandlers } from './planning-dashboard-copy.handlers';
 import { applyActivityTypeConstraints as applyActivityTypeConstraintsUtil, normalizeActivityList } from './planning-dashboard-activity-normalize.utils';
 import { normalizeStageId, updateStageQueryParam } from './planning-dashboard-stage.utils';
-import { fromLocalDateTime, toLocalDateTime } from './planning-dashboard-time.utils';
+import { fromLocalDateTime, toIsoDate, toLocalDateTime } from './planning-dashboard-time.utils';
 import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facade';
 import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.facade';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { findActivityTypeById, definitionHasField, shouldShowEndField } from './planning-dashboard-activity.helpers';
 import { STAGE_RESOURCE_GROUPS, TYPE_PICKER_META, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
+import { ConflictEntry, mapConflictCodes } from '../../shared/planning-conflicts';
+
+type LocationAutocompleteOption = {
+  key: string;
+  value: string;
+  label: string;
+  description?: string;
+  search: string;
+};
 
 @Component({
     selector: 'app-planning-dashboard',
@@ -142,6 +155,10 @@ export class PlanningDashboardComponent {
   private readonly simulationService = inject(SimulationService);
   private readonly publishInProgress = signal(false);
   private readonly snapshotInProgress = signal(false);
+  private readonly planningStore = inject(PlanningStoreService);
+
+  private readonly fromLocationQuerySignal = signal('');
+  private readonly toLocationQuerySignal = signal('');
 
   readonly stages = PLANNING_STAGE_METAS;
   private readonly stageMetaMap: Record<PlanningStageId, PlanningStageMeta> = buildStageMetaMap(this.stages);
@@ -267,8 +284,15 @@ export class PlanningDashboardComponent {
   private readonly stageYearSelectionState = this.filterFacade.stageYearSelectionState;
   private readonly pendingActivitySignal = signal<PendingActivityState | null>(null);
   private readonly pendingActivityOriginal = signal<Activity | null>(null);
-  private readonly typePickerOpenSignal = signal(false);
   private readonly activityDetailsOpenSignal = signal(true);
+  private readonly timeSyncSourceSignal = signal<'end' | 'duration'>('end');
+  private readonly activityTypeSearchQuerySignal = signal('');
+  private readonly favoriteActivityTypeOptionIdsSignal = signal<string[]>(
+    this.loadActivityTypePickerState().favorites,
+  );
+  private readonly recentActivityTypeOptionIdsSignal = signal<string[]>(
+    this.loadActivityTypePickerState().recents,
+  );
   private readonly dialog = inject(MatDialog);
   private readonly activityEditPreviewSignal = signal<ActivityEditPreviewState | null>(null);
   protected readonly selectedTemplateId = computed(() => this.templateStore.selectedTemplateWithFallback()?.id ?? null);
@@ -287,10 +311,84 @@ export class PlanningDashboardComponent {
   protected readonly activityForm = this.fb.group({
     start: ['', Validators.required],
     end: [''],
+    durationMinutes: [''],
     type: [''],
     from: [''],
     to: [''],
     remark: [''],
+  });
+
+  protected readonly includePersonnelSitesInLocationLookup = computed(() => {
+    const selection = this.activitySelection.selectedActivityState();
+    const kind = selection?.resource.kind ?? null;
+    return kind === 'personnel' || kind === 'personnel-service';
+  });
+
+  private readonly operationalPointLocationOptions = computed<LocationAutocompleteOption[]>(() => {
+    const ops = this.planningStore.operationalPoints();
+    const mapped = ops
+      .filter((op) => op.uniqueOpId?.trim().length)
+      .map((op) => {
+        const uniqueId = op.uniqueOpId.trim();
+        const name = (op.name ?? '').trim();
+        return {
+          key: `op:${uniqueId}`,
+          value: uniqueId,
+          label: uniqueId,
+          description: name,
+          search: `${uniqueId} ${name}`.toLowerCase(),
+        } satisfies LocationAutocompleteOption;
+      });
+    mapped.sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    return mapped;
+  });
+
+  private readonly personnelSiteLocationOptions = computed<LocationAutocompleteOption[]>(() => {
+    const sites = this.planningStore.personnelSites();
+    const opMap = this.planningStore.operationalPointMap();
+    const mapped = sites
+      .filter((site) => site.uniqueOpId?.trim().length)
+      .map((site) => {
+        const uniqueId = site.uniqueOpId?.trim() ?? '';
+        const opName = uniqueId ? (opMap.get(uniqueId)?.name ?? '').trim() : '';
+        const siteName = (site.name ?? '').trim();
+        const siteType = (site.siteType ?? '').trim();
+        const descriptionParts = [
+          siteType,
+          opName ? opName : null,
+          uniqueId ? `(${uniqueId})` : null,
+        ].filter(Boolean) as string[];
+        return {
+          key: `site:${site.siteId}`,
+          value: uniqueId,
+          label: siteName || uniqueId,
+          description: descriptionParts.join(' · '),
+          search: `${siteName} ${siteType} ${uniqueId} ${opName}`.toLowerCase(),
+        } satisfies LocationAutocompleteOption;
+      })
+      .filter((entry) => entry.value.length > 0);
+    mapped.sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    return mapped;
+  });
+
+  protected readonly fromOperationalPointOptions = computed(() =>
+    this.filterLocationOptions(this.fromLocationQuerySignal(), this.operationalPointLocationOptions(), 60),
+  );
+  protected readonly toOperationalPointOptions = computed(() =>
+    this.filterLocationOptions(this.toLocationQuerySignal(), this.operationalPointLocationOptions(), 60),
+  );
+
+  protected readonly fromPersonnelSiteOptions = computed(() => {
+    if (!this.includePersonnelSitesInLocationLookup()) {
+      return [];
+    }
+    return this.filterLocationOptions(this.fromLocationQuerySignal(), this.personnelSiteLocationOptions(), 30);
+  });
+  protected readonly toPersonnelSiteOptions = computed(() => {
+    if (!this.includePersonnelSitesInLocationLookup()) {
+      return [];
+    }
+    return this.filterLocationOptions(this.toLocationQuerySignal(), this.personnelSiteLocationOptions(), 30);
   });
   private readonly routingFacade = new PlanningDashboardRoutingFacade({
     route: this.route,
@@ -358,7 +456,30 @@ export class PlanningDashboardComponent {
     { resourceIdsRef: string[]; stageActivitiesRef: Activity[]; result: Activity[] }
   >();
 
+  @ViewChild('typeSearchInput') private readonly typeSearchInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('typeMenuTrigger') private readonly typeMenuTrigger?: MatMenuTrigger;
+
   constructor() {
+    this.planningStore.ensureInitialized();
+    this.activityForm.controls['from'].valueChanges
+      .pipe(
+        startWith(this.activityForm.controls['from'].value ?? ''),
+        map((value) => (value ?? '').toString()),
+        debounceTime(80),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => this.fromLocationQuerySignal.set(value));
+    this.activityForm.controls['to'].valueChanges
+      .pipe(
+        startWith(this.activityForm.controls['to'].value ?? ''),
+        map((value) => (value ?? '').toString()),
+        debounceTime(80),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => this.toLocationQuerySignal.set(value));
+
     this.templateStore.loadTemplates();
     this.routingFacade.init();
 
@@ -371,6 +492,7 @@ export class PlanningDashboardComponent {
           queryFrom: this.queryFrom(),
           queryTo: this.queryTo(),
         }),
+      currentVariantId: () => this.planningVariant()?.id ?? 'default',
       data: this.data,
     });
 
@@ -417,7 +539,8 @@ export class PlanningDashboardComponent {
       activityTypeCandidates: this.activityTypeCandidates,
       quickActivityTypes: this.quickActivityTypes,
       activityTypeMenuSelection: this.activityTypeMenuSelection,
-      typePickerOpenSignal: this.typePickerOpenSignal,
+      timeSyncSource: () => this.timeSyncSourceSignal(),
+      setTimeSyncSource: (value) => this.timeSyncSourceSignal.set(value),
     });
 
     initTimetableYearEffects({
@@ -539,8 +662,6 @@ export class PlanningDashboardComponent {
     activityCreationToolSignal: this.activityCreationToolSignal,
     activityFormTypeSignal: this.activityFormTypeSignal,
     activityTypeMenuSelection: this.activityTypeMenuSelection,
-    typePickerOpenSignal: this.typePickerOpenSignal,
-    activityDetailsOpenSignal: this.activityDetailsOpenSignal,
     activityForm: this.activityForm,
   });
   private readonly baseHandlers = new PlanningDashboardBaseHandlers({
@@ -593,8 +714,34 @@ export class PlanningDashboardComponent {
     return info;
   });
 
-  protected readonly activeTypePickerGroup = computed<ActivityTypePickerGroup | null>(() => {
+  protected readonly activityTypeSearchQuery = computed(() => this.activityTypeSearchQuerySignal());
+
+  protected readonly favoriteActivityTypeOptions = computed<ActivityCatalogOption[]>(() =>
+    this.mapActivityTypeOptionIds(this.favoriteActivityTypeOptionIdsSignal(), 12),
+  );
+
+  protected readonly recentActivityTypeOptions = computed<ActivityCatalogOption[]>(() =>
+    this.mapActivityTypeOptionIds(this.recentActivityTypeOptionIdsSignal(), 12),
+  );
+
+  protected readonly filteredActivityTypePickerGroups = computed<ActivityTypePickerGroup[]>(() => {
+    const query = this.activityTypeSearchQuerySignal().trim().toLowerCase();
     const groups = this.activityTypePickerGroups();
+    if (!query) {
+      return groups;
+    }
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const matches = (option: ActivityCatalogOption) => {
+      const haystack = `${option.label} ${option.description ?? ''} ${option.id} ${option.activityTypeId}`.toLowerCase();
+      return tokens.every((t) => haystack.includes(t));
+    };
+    return groups
+      .map((group) => ({ ...group, items: group.items.filter(matches) }))
+      .filter((group) => group.items.length > 0);
+  });
+
+  protected readonly activeTypePickerGroup = computed<ActivityTypePickerGroup | null>(() => {
+    const groups = this.filteredActivityTypePickerGroups();
     if (!groups.length) {
       return null;
     }
@@ -675,7 +822,6 @@ export class PlanningDashboardComponent {
   protected readonly pendingActivity = computed<Activity | null>(() =>
     this.pendingFacade.pendingActivityForStage(this.activeStageSignal()),
   );
-  protected readonly isTypePickerOpen = computed(() => this.typePickerOpenSignal());
   protected readonly activityDetailsOpen = computed(() => this.activityDetailsOpenSignal());
 
   protected readonly isSelectedActivityPending = computed(() => {
@@ -707,7 +853,10 @@ export class PlanningDashboardComponent {
 
   protected isActivityOptionSelected(optionId: string): boolean { return this.uiFacade.isActivityOptionSelected(optionId); }
 
-  protected selectCatalogActivity(optionId: string): void { this.uiFacade.selectCatalogActivity(optionId); }
+  protected selectCatalogActivity(optionId: string): void {
+    this.recordRecentActivityType(optionId);
+    this.uiFacade.selectCatalogActivity(optionId);
+  }
 
   protected openPeriodsWindow(): void {
     let templateId = this.selectedTemplateId();
@@ -739,13 +888,147 @@ export class PlanningDashboardComponent {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  protected openTypePicker(): void { this.uiFacade.openTypePicker(); }
+  protected setActivityTypeSearchQuery(query: string): void {
+    this.activityTypeSearchQuerySignal.set((query ?? '').toString());
+  }
 
-  protected closeTypePicker(): void { this.uiFacade.closeTypePicker(); }
+  protected onActivityTypeMenuOpened(): void {
+    setTimeout(() => {
+      const input = this.typeSearchInput?.nativeElement;
+      input?.focus();
+      input?.select();
+    }, 0);
+  }
 
-  protected selectActivityTypeFromPicker(optionId: string): void { this.uiFacade.selectActivityTypeFromPicker(optionId); }
+  protected isActivityTypeFavorite(optionId: string): boolean {
+    return this.favoriteActivityTypeOptionIdsSignal().includes(optionId);
+  }
 
-  protected toggleActivityDetails(): void { this.uiFacade.toggleActivityDetails(); }
+  protected toggleActivityTypeFavorite(optionId: string): void {
+    const trimmed = (optionId ?? '').trim();
+    if (!trimmed) {
+      return;
+    }
+    const current = this.favoriteActivityTypeOptionIdsSignal();
+    const next = current.includes(trimmed)
+      ? current.filter((id) => id !== trimmed)
+      : [trimmed, ...current];
+    this.favoriteActivityTypeOptionIdsSignal.set(next.slice(0, 32));
+    this.persistActivityTypePickerState();
+  }
+
+  protected activityTypeOptionColor(option: ActivityCatalogOption | null | undefined): string | null {
+    if (!option) {
+      return null;
+    }
+    const keys = ['color', 'bar_color', 'display_color', 'main_color'];
+    for (const key of keys) {
+      const raw = option.attributes.find((attr) => attr.key === key)?.meta?.['value'];
+      if (typeof raw === 'string' && raw.trim().length > 0) {
+        return raw.trim();
+      }
+    }
+    return defaultColorForType(option.activityTypeId, option.typeDefinition.category);
+  }
+
+  protected selectedServicePreview(): { label: string; serviceId: string; date: string } | null {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return null;
+    }
+    const resource = selection.resource;
+    if (resource.kind !== 'personnel-service' && resource.kind !== 'vehicle-service') {
+      return null;
+    }
+    const rawStart = this.activityForm.controls['start'].value as string | null | undefined;
+    const startDate = typeof rawStart === 'string' ? fromLocalDateTime(rawStart) : null;
+    const date = startDate ? toIsoDate(startDate) : toIsoDate(new Date(selection.activity.start));
+    const stage = this.activeStageSignal();
+    const serviceId = `svc:${stage}:${resource.id}:${date}`;
+    return {
+      label: `${resource.name} · ${date}`,
+      serviceId,
+      date,
+    };
+  }
+
+  protected selectedActivityConflicts(): ConflictEntry[] {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return [];
+    }
+    return mapConflictCodes(selection.activity.attributes);
+  }
+
+  private mapActivityTypeOptionIds(ids: string[], limit: number): ActivityCatalogOption[] {
+    const map = this.activityCatalogOptionMap();
+    const result: ActivityCatalogOption[] = [];
+    for (const id of ids) {
+      const option = map.get(id);
+      if (!option) {
+        continue;
+      }
+      result.push(option);
+      if (result.length >= limit) {
+        break;
+      }
+    }
+    return result;
+  }
+
+  private recordRecentActivityType(optionId: string): void {
+    const trimmed = (optionId ?? '').trim();
+    if (!trimmed) {
+      return;
+    }
+    const current = this.recentActivityTypeOptionIdsSignal();
+    const next = [trimmed, ...current.filter((id) => id !== trimmed)].slice(0, 32);
+    this.recentActivityTypeOptionIdsSignal.set(next);
+    this.persistActivityTypePickerState();
+  }
+
+  private loadActivityTypePickerState(): { favorites: string[]; recents: string[] } {
+    if (typeof window === 'undefined') {
+      return { favorites: [], recents: [] };
+    }
+    try {
+      const raw = window.localStorage.getItem('coreplanx:planning:type-picker:v1');
+      if (!raw) {
+        return { favorites: [], recents: [] };
+      }
+      const parsed = JSON.parse(raw) as any;
+      const favorites = Array.isArray(parsed?.favorites) ? parsed.favorites.map(String) : [];
+      const recents = Array.isArray(parsed?.recents) ? parsed.recents.map(String) : [];
+      return { favorites, recents };
+    } catch {
+      return { favorites: [], recents: [] };
+    }
+  }
+
+  private persistActivityTypePickerState(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        'coreplanx:planning:type-picker:v1',
+        JSON.stringify({
+          favorites: this.favoriteActivityTypeOptionIdsSignal(),
+          recents: this.recentActivityTypeOptionIdsSignal(),
+        }),
+      );
+    } catch {
+      // ignore storage issues
+    }
+  }
+
+  protected setActivityEditorMode(mode: 'basic' | 'advanced'): void {
+    this.activityDetailsOpenSignal.set(mode === 'advanced');
+  }
+
+  protected markTimeSyncSource(source: 'end' | 'duration'): void {
+    this.timeSyncSourceSignal.set(source);
+  }
 
   protected canPublishBasePlanning(): boolean {
     if (this.publishInProgress()) {
@@ -936,7 +1219,19 @@ export class PlanningDashboardComponent {
     activity: Activity;
     selectionMode: 'set' | 'toggle';
   }): void {
-    this.selectionHandlers.toggleSelection(event);
+    const current = this.activitySelection.selectedActivityState();
+    if (!current || event.selectionMode === 'toggle' || current.activity.id === event.activity.id) {
+      this.selectionHandlers.toggleSelection(event);
+      return;
+    }
+    if (!this.hasUnsavedActivityEdits(current.activity.id)) {
+      this.selectionHandlers.toggleSelection(event);
+      return;
+    }
+    this.confirmDiscardActivityEdits(() => {
+      this.selectionHandlers.clearSelectedActivity();
+      this.selectionHandlers.toggleSelection(event);
+    });
   }
 
   protected handleActivityReposition(event: {
@@ -963,11 +1258,135 @@ export class PlanningDashboardComponent {
 
   protected clearActivitySelection(): void { this.selectionHandlers.clearActivitySelection(); }
 
-  protected clearSelectedActivity(): void { this.selectionHandlers.clearSelectedActivity(); }
+  protected clearSelectedActivity(): void {
+    this.confirmDiscardActivityEdits(() => this.selectionHandlers.clearSelectedActivity());
+  }
 
   protected saveSelectedActivityEdits(): void { this.selectionHandlers.saveSelectedActivityEdits(); }
 
   protected deleteSelectedActivity(): void { this.selectionHandlers.deleteSelectedActivity(); }
+
+  protected duplicateSelectedActivity(): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
+    if (this.pendingFacade.isPendingSelection(selection.activity.id)) {
+      return;
+    }
+    const source = selection.activity;
+    const stage = this.activeStageSignal();
+    const resource = selection.resource;
+    const sourceStart = new Date(source.start);
+    const sourceEnd = source.end ? new Date(source.end) : null;
+    const durationMs =
+      sourceEnd && sourceEnd.getTime() > sourceStart.getTime()
+        ? sourceEnd.getTime() - sourceStart.getTime()
+        : Math.max(
+            1,
+            (this.selectedCatalogOption()?.defaultDurationMinutes ??
+              this.selectedActivityDefinition()?.defaultDurationMinutes ??
+              30),
+          ) * 60_000;
+    const nextStart = (sourceEnd ?? sourceStart);
+    const nextEnd = durationMs > 0 ? new Date(nextStart.getTime() + durationMs) : null;
+
+    const duplicated: Activity = {
+      ...source,
+      id: this.activityOpsFacade.generateActivityId('dup'),
+      clientId: null,
+      start: nextStart.toISOString(),
+      end: nextEnd ? nextEnd.toISOString() : null,
+      rowVersion: null,
+      createdAt: null,
+      createdBy: null,
+      updatedAt: null,
+      updatedBy: null,
+      serviceRole: null,
+    };
+    this.pendingFacade.startPendingActivity(stage, resource, this.applyActivityTypeConstraints(duplicated));
+  }
+
+  protected saveSelectedActivityToTemplate(): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
+    if (this.pendingFacade.isPendingSelection(selection.activity.id)) {
+      return;
+    }
+    this.saveTemplateActivity(selection.activity);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  protected handleGlobalKeydown(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      const selection = this.activitySelection.selectedActivityState();
+      if (!selection) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.typeMenuTrigger?.openMenu();
+      return;
+    }
+    if (event.key === 'Escape') {
+      const trigger = this.typeMenuTrigger;
+      if (trigger?.menuOpen) {
+        event.preventDefault();
+        event.stopPropagation();
+        trigger.closeMenu();
+        return;
+      }
+      const selection = this.activitySelection.selectedActivityState();
+      if (!selection) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.clearSelectedActivity();
+    }
+  }
+
+  private hasUnsavedActivityEdits(activityId: string | null | undefined): boolean {
+    if (!activityId) {
+      return false;
+    }
+    if (this.pendingFacade.isPendingSelection(activityId)) {
+      return true;
+    }
+    return this.activityForm.dirty;
+  }
+
+  private confirmDiscardActivityEdits(onConfirm: () => void): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      onConfirm();
+      return;
+    }
+    const isPending = this.pendingFacade.isPendingSelection(selection.activity.id);
+    const isDirty = this.activityForm.dirty;
+    if (!isPending && !isDirty) {
+      onConfirm();
+      return;
+    }
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '520px',
+      data: {
+        title: isPending ? 'Entwurf verwerfen?' : 'Änderungen verwerfen?',
+        message: isPending
+          ? 'Diese Aktivität ist noch nicht gespeichert. Entwurf wirklich verwerfen?'
+          : 'Ungespeicherte Änderungen gehen verloren. Fortfahren?',
+        confirmLabel: 'Verwerfen',
+        cancelLabel: 'Abbrechen',
+      } satisfies ConfirmDialogData,
+    });
+    dialogRef.afterClosed().subscribe((accepted) => {
+      if (accepted) {
+        onConfirm();
+      }
+    });
+  }
 
   protected handleServiceAssignRequest(resource: Resource): void { this.assignmentFacade.handleServiceAssignRequest(resource); }
 
@@ -1030,6 +1449,60 @@ export class PlanningDashboardComponent {
     this.fillGapForSelectedActivity();
   }
 
+  protected fromLocationSuggestion(): string | null {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return null;
+    }
+    const { previous } = findNeighborActivities(
+      selection.activity,
+      this.normalizedStageActivitySignals[this.activeStageSignal()](),
+      this.activityOwnerId(selection.activity),
+    );
+    const suggestion = (previous?.to ?? previous?.from ?? '').toString().trim();
+    if (!suggestion) {
+      return null;
+    }
+    const current = (this.activityForm.controls['from'].value ?? '').toString().trim();
+    return suggestion !== current ? suggestion : null;
+  }
+
+  protected applyFromLocationSuggestion(): void {
+    const suggestion = this.fromLocationSuggestion();
+    if (!suggestion) {
+      return;
+    }
+    this.activityForm.controls['from'].setValue(suggestion);
+    this.activityForm.controls['from'].markAsDirty();
+  }
+
+  protected toLocationSuggestion(): string | null {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return null;
+    }
+    const { next } = findNeighborActivities(
+      selection.activity,
+      this.normalizedStageActivitySignals[this.activeStageSignal()](),
+      this.activityOwnerId(selection.activity),
+    );
+    const suggestion = (next?.from ?? next?.to ?? '').toString().trim();
+    if (!suggestion) {
+      return null;
+    }
+    const current = (this.activityForm.controls['to'].value ?? '').toString().trim();
+    return suggestion !== current ? suggestion : null;
+  }
+
+  protected applyToLocationSuggestion(): void {
+    const suggestion = this.toLocationSuggestion();
+    if (!suggestion) {
+      return;
+    }
+    this.activityForm.controls['to'].setValue(suggestion);
+    this.activityForm.controls['to'].markAsDirty();
+  }
+
   protected addParticipantsToActiveBoard(): void {
     const participantIds = this.selectedActivityParticipantIds();
     if (participantIds.length === 0) {
@@ -1084,6 +1557,34 @@ export class PlanningDashboardComponent {
 
   private applyActivityTypeConstraints(activity: Activity): Activity {
     return applyActivityTypeConstraintsUtil(activity, () => this.activityTypeMap());
+  }
+
+  private filterLocationOptions(
+    query: string,
+    options: LocationAutocompleteOption[],
+    limit: number,
+  ): LocationAutocompleteOption[] {
+    if (!options.length) {
+      return [];
+    }
+    const tokens = (query ?? '')
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (tokens.length === 0) {
+      return options.slice(0, limit);
+    }
+    const result: LocationAutocompleteOption[] = [];
+    for (const option of options) {
+      if (tokens.every((token) => option.search.includes(token))) {
+        result.push(option);
+      }
+      if (result.length >= limit) {
+        break;
+      }
+    }
+    return result;
   }
 
   private activityOwnerId(activity: Activity): string | null {

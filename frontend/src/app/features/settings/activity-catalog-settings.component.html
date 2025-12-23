@@ -11,6 +11,9 @@
     <div class="activity-catalog__badges">
       <span class="pill pill--ghost">Activities: {{ activities().length }}</span>
       <span class="pill">Templates: {{ templates().length }}</span>
+      <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
+        Werkseinstellungen
+      </button>
     </div>
   </header>
 

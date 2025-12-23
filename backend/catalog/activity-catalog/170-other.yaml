@@ -1,0 +1,25 @@
+id: other
+label: Sonstige
+description: Freie Aktivität mit allen Angaben.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: other
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+defaultDurationMinutes: 60
+attributes:
+  is_within_service: yes
+  color: '#4a148c'

@@ -1,0 +1,104 @@
+resources:
+  personnelServicePools:
+    - id: PSP-RE1
+      name: RE1 Lokführer Dienste
+      description: Standardisierte Dienste für den Regionalexpress 1.
+      serviceIds:
+        - PS-001
+        - PS-002
+      shiftCoordinator: Heike Sommer
+      contactEmail: koordination-re1@coreplanx.local
+    - id: PSP-IC
+      name: IC Tagesdienste
+      description: Fernverkehrsdienste für durchgehende Tagesumläufe.
+      serviceIds:
+        - PS-010
+      shiftCoordinator: Dirk Vogt
+      contactEmail: ic-dispo@coreplanx.local
+
+  personnelServices:
+    - id: PS-001
+      name: Frühschicht RE1 Berlin
+      description: Lokführer-Dienst für die Frühschicht ab Berlin Hbf.
+      poolId: PSP-RE1
+      startTime: '03:45'
+      endTime: '12:05'
+      requiredQualifications:
+        - Triebfahrzeugführer Klasse 3
+        - ETCS Level 2
+      isNightService: false
+      maxDailyInstances: 1
+      maxResourcesPerInstance: 1
+    - id: PS-002
+      name: Spätschicht RE1 Potsdam
+      description: Übernahme des RE1 am frühen Abend inkl. Übergabe in Potsdam.
+      poolId: PSP-RE1
+      startTime: '13:55'
+      endTime: '22:30'
+      requiredQualifications:
+        - Triebfahrzeugführer Klasse 3
+      isNightService: false
+      maxDailyInstances: 1
+      maxResourcesPerInstance: 1
+    - id: PS-010
+      name: IC Nord-Süd Tagesumlauf
+      description: Fernverkehrsdienst auf der Nord-Süd-Achse mit zwei Umläufen.
+      poolId: PSP-IC
+      startTime: '05:50'
+      endTime: '19:45'
+      requiredQualifications:
+        - Triebfahrzeugführer Klasse 4
+        - Zugchef Berechtigung
+      isNightService: false
+      maxDailyInstances: 1
+      maxResourcesPerInstance: 1
+
+  personnelPools:
+    - id: PP-BER
+      name: Personalpool Berlin
+      description: Stammpersonal und Reserve Berlin.
+      locationCode: DE:BER-HBF
+      personnelIds:
+        - P-001
+        - P-002
+    - id: PP-POT
+      name: Personalpool Potsdam
+      description: Regionalpersonal Potsdam.
+      locationCode: DE:POT-HBF
+      personnelIds:
+        - P-010
+
+  personnel:
+    - id: P-001
+      firstName: Max
+      lastName: Mustermann
+      preferredName: Max
+      poolId: PP-BER
+      homeStation: DE:BER-HBF
+      qualifications:
+        - Triebfahrzeugführer Klasse 3
+        - ETCS Level 2
+      serviceIds:
+        - PS-001
+    - id: P-002
+      firstName: Jana
+      lastName: Becker
+      preferredName: Jana
+      poolId: PP-BER
+      homeStation: DE:BER-HBF
+      qualifications:
+        - Triebfahrzeugführer Klasse 3
+      serviceIds:
+        - PS-002
+      isReserve: true
+    - id: P-010
+      firstName: Thomas
+      lastName: König
+      preferredName: Tom
+      poolId: PP-POT
+      homeStation: DE:POT-HBF
+      qualifications:
+        - Triebfahrzeugführer Klasse 4
+        - Zugchef Berechtigung
+      serviceIds:
+        - PS-010

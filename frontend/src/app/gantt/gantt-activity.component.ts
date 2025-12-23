@@ -6,6 +6,7 @@ import { CdkDragEnd, CdkDragMove, CdkDragStart, DragDropModule } from '@angular/
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivityParticipantCategory } from '../models/activity-ownership';
+import { ConflictEntry, mapConflictCodes } from '../shared/planning-conflicts';
 
 const DATE_TIME_FORMAT = new Intl.DateTimeFormat('de-DE', {
   weekday: 'short',
@@ -40,24 +41,6 @@ const TYPE_SHORT_LABELS: Record<string, string> = {
   travel: 'TR',
   transfer: 'TF',
   other: 'AKT',
-};
-
-type ConflictCategory = 'capacity' | 'location' | 'worktime' | 'unknown';
-
-const CONFLICT_CATEGORY_LABELS: Record<ConflictCategory, string> = {
-  capacity: 'Kapazität',
-  location: 'Ort',
-  worktime: 'Arbeitszeit',
-  unknown: 'Konflikt',
-};
-
-const CONFLICT_DEFINITIONS: Record<string, { category: ConflictCategory; label: string }> = {
-  CAPACITY_OVERLAP: { category: 'capacity', label: 'Leistungen überlappen sich.' },
-  LOCATION_SEQUENCE: { category: 'location', label: 'Ortsabfolge ist nicht konsistent.' },
-  MAX_DUTY_SPAN: { category: 'worktime', label: 'Maximale Dienstspanne überschritten.' },
-  MAX_WORK: { category: 'worktime', label: 'Maximale Arbeitszeit im Dienst überschritten.' },
-  MAX_CONTINUOUS: { category: 'worktime', label: 'Maximale zusammenhängende Arbeitszeit überschritten.' },
-  NO_BREAK_WINDOW: { category: 'worktime', label: 'Keine gültige Pause (Mindestdauer) möglich.' },
 };
 
 const POPOVER_POSITIONS: ConnectedPosition[] = [
@@ -279,25 +262,8 @@ export class GanttActivityComponent {
     return DURATION_PIPE.transform(this.activity.start, this.activity.end);
   }
 
-  get conflictEntries(): Array<{ code: string; category: ConflictCategory; categoryLabel: string; label: string }> {
-    const codes = this.extractConflictCodes();
-    if (!codes.length) {
-      return [];
-    }
-    const entries = codes.map((code) => {
-      const normalized = code.trim();
-      const def = CONFLICT_DEFINITIONS[normalized];
-      const category = def?.category ?? 'unknown';
-      return {
-        code: normalized,
-        category,
-        categoryLabel: CONFLICT_CATEGORY_LABELS[category],
-        label: def?.label ?? normalized,
-      };
-    });
-    return entries.sort(
-      (a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.label.localeCompare(b.label),
-    );
+  get conflictEntries(): ConflictEntry[] {
+    return mapConflictCodes(this.activity?.attributes);
   }
 
   get ariaLabel(): string {
@@ -371,21 +337,6 @@ export class GanttActivityComponent {
       return firstWord;
     }
     return upper.slice(0, 10);
-  }
-
-  private extractConflictCodes(): string[] {
-    const attrs = (this.activity?.attributes ?? {}) as Record<string, unknown>;
-    const raw = attrs['service_conflict_codes'];
-    if (Array.isArray(raw)) {
-      return raw
-        .map((entry) => (entry ?? '').toString().trim())
-        .filter((entry) => entry.length > 0);
-    }
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      return trimmed ? [trimmed] : [];
-    }
-    return [];
   }
 
   protected handleClick(event: MouseEvent): void {

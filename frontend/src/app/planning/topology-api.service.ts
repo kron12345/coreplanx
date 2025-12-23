@@ -88,6 +88,10 @@ export class TopologyApiService {
     return this.putList('/planning/topology/transfer-edges', items);
   }
 
+  resetToDefaults(): Observable<{ ok: true }> {
+    return this.http.post<{ ok: true }>(this.url('/planning/topology/reset'), {});
+  }
+
   importOperationalPoints(): Observable<TopologyImportResponse> {
     return this.triggerTopologyImport(['operational-points']);
   }

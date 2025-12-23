@@ -1,0 +1,23 @@
+id: maintenance
+label: Werkstattbuchung
+description: Werkstattaufenthalt inkl. Ort und Zeitraum.
+appliesTo:
+  - vehicle
+  - vehicle-service
+relevantFor:
+  - vehicle
+  - vehicle-service
+category: movement
+timeMode: range
+fields:
+  - from
+  - start
+  - end
+  - remark
+defaultDurationMinutes: 480
+attributes:
+  is_within_service: no
+  is_maintenance: true
+  consider_capacity_conflicts: false
+  consider_location_conflicts: false
+  color: '#455a64'

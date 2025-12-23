@@ -36,4 +36,20 @@ export class PlanningMasterComponent implements OnInit {
   ngOnInit(): void {
     this.store.ensureInitialized();
   }
+
+  resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Topologie')) {
+      return;
+    }
+    void this.store.resetToDefaults();
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
+  }
 }

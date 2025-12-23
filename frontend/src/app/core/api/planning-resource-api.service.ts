@@ -28,6 +28,8 @@ export interface ResourceSnapshotDto {
   vehicleCompositions: VehicleComposition[];
 }
 
+export type ResourceSnapshotResetScope = 'personnel' | 'vehicles';
+
 @Injectable({ providedIn: 'root' })
 export class PlanningResourceApiService {
   private readonly http = inject(HttpClient);
@@ -39,6 +41,16 @@ export class PlanningResourceApiService {
 
   replaceSnapshot(snapshot: ResourceSnapshotDto): Observable<ResourceSnapshotDto> {
     return this.http.put<ResourceSnapshotDto>(`${this.baseUrl()}/planning/resources`, snapshot);
+  }
+
+  resetSnapshot(scope?: ResourceSnapshotResetScope): Observable<ResourceSnapshotDto> {
+    const suffix =
+      scope === 'personnel'
+        ? '/reset/personnel'
+        : scope === 'vehicles'
+          ? '/reset/vehicles'
+          : '/reset';
+    return this.http.post<ResourceSnapshotDto>(`${this.baseUrl()}/planning/resources${suffix}`, {});
   }
 
   private baseUrl(): string {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import {
@@ -12,6 +13,7 @@ import { MasterDataCollectionsStoreService } from '../../master-data-collections
 import { MasterDataResourceStoreService } from '../../master-data-resource.store';
 import { CustomAttributeDefinition, CustomAttributeService } from '../../../../core/services/custom-attribute.service';
 import { Personnel, PersonnelPool, PersonnelService, PersonnelServicePool } from '../../../../models/master-data';
+import { PlanningDataService } from '../../../planning/planning-data.service';
 
 type PersonnelEditorMode = 'servicePools' | 'services' | 'personnelPools' | 'personnel';
 
@@ -253,7 +255,7 @@ const PERSONNEL_POOL_DEFAULTS = {
 
 @Component({
     selector: 'app-personnel-master-editor',
-    imports: [CommonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
+    imports: [CommonModule, MatButtonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
     templateUrl: './personnel-master-editor.component.html',
     styleUrl: './personnel-master-editor.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -262,6 +264,7 @@ export class PersonnelMasterEditorComponent {
   private readonly collections = inject(MasterDataCollectionsStoreService);
   private readonly resources = inject(MasterDataResourceStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
+  private readonly planningData = inject(PlanningDataService);
 
   readonly viewMode = signal<PersonnelEditorMode>('servicePools');
 
@@ -602,6 +605,13 @@ export class PersonnelMasterEditorComponent {
     this.detachPersonFromPools(ids);
   }
 
+  resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Personal-Stammdaten')) {
+      return;
+    }
+    this.planningData.resetResourceSnapshotToDefaults('personnel');
+  }
+
   private detachServicesFromPools(poolIds: string[]): void {
     const list = this.resources.personnelServices();
     let changed = false;
@@ -686,5 +696,14 @@ export class PersonnelMasterEditorComponent {
       return `${prefix}-${crypto.randomUUID()}`;
     }
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }

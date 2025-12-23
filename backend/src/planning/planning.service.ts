@@ -289,6 +289,22 @@ export class PlanningService {
     return this.masterDataService.replaceResourceSnapshot(snapshot);
   }
 
+  resetResourcesToDefaults(): Promise<ResourceSnapshot> {
+    return this.masterDataService.resetResourcesToDefaults();
+  }
+
+  resetPersonnelToDefaults(): Promise<ResourceSnapshot> {
+    return this.masterDataService.resetPersonnelToDefaults();
+  }
+
+  resetVehiclesToDefaults(): Promise<ResourceSnapshot> {
+    return this.masterDataService.resetVehiclesToDefaults();
+  }
+
+  resetTopologyToDefaults(): Promise<void> {
+    return this.masterDataService.resetTopologyToDefaults();
+  }
+
   getActivityCatalog(): ActivityCatalogSnapshot {
     return this.catalogService.getActivityCatalog();
   }

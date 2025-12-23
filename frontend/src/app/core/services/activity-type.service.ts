@@ -16,6 +16,8 @@ export interface ActivityTypeDefinition {
   timeMode: ActivityTimeMode;
   fields: ActivityFieldKey[];
   defaultDurationMinutes: number;
+  attributes?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
 }
 
 export interface ActivityTypeInput {
@@ -28,6 +30,8 @@ export interface ActivityTypeInput {
   timeMode?: ActivityTimeMode;
   fields: ActivityFieldKey[];
   defaultDurationMinutes: number;
+  attributes?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
 }
 
 const STORAGE_KEY = 'activity-type-definitions.v1';
@@ -41,8 +45,9 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
     category: 'service',
     timeMode: 'duration',
-    fields: ['start', 'end', 'remark'],
+    fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 120,
+    attributes: { is_within_service: 'yes', consider_location_conflicts: true, color: '#1976d2' },
   },
   {
     id: 'rest-day',
@@ -54,6 +59,13 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'range',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 24 * 60,
+    attributes: {
+      is_within_service: 'no',
+      is_absence: true,
+      consider_capacity_conflicts: false,
+      consider_location_conflicts: false,
+      color: '#8d6e63',
+    },
   },
   {
     id: 'vacation',
@@ -65,6 +77,13 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'range',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 24 * 60,
+    attributes: {
+      is_within_service: 'no',
+      is_absence: true,
+      consider_capacity_conflicts: false,
+      consider_location_conflicts: false,
+      color: '#6d4c41',
+    },
   },
   {
     id: 'maintenance',
@@ -76,6 +95,13 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'range',
     fields: ['from', 'start', 'end', 'remark'],
     defaultDurationMinutes: 8 * 60,
+    attributes: {
+      is_within_service: 'no',
+      is_maintenance: true,
+      consider_capacity_conflicts: false,
+      consider_location_conflicts: false,
+      color: '#455a64',
+    },
   },
   {
     id: 'service-start',
@@ -87,6 +113,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'point',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 45,
+    attributes: { is_service_start: true, is_within_service: 'yes', color: '#43a047' },
   },
   {
     id: 'crew-change',
@@ -98,6 +125,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'remark'],
     defaultDurationMinutes: 20,
+    attributes: { is_within_service: 'yes', is_crew_change: true, color: '#5e35b1' },
   },
   {
     id: 'service-end',
@@ -109,6 +137,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'point',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 45,
+    attributes: { is_service_end: true, is_within_service: 'yes', color: '#c62828' },
   },
   {
     id: 'break',
@@ -120,6 +149,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 30,
+    attributes: { is_break: true, is_within_service: 'yes', consider_capacity_conflicts: true, color: '#ffb74d' },
   },
   {
     id: 'briefing',
@@ -131,6 +161,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 20,
+    attributes: { is_within_service: 'yes', is_briefing: true, color: '#3949ab' },
   },
   {
     id: 'standby',
@@ -142,6 +173,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'remark'],
     defaultDurationMinutes: 60,
+    attributes: { is_within_service: 'yes', is_standby: true, color: '#6a1b9a' },
   },
   {
     id: 'commute',
@@ -153,6 +185,13 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 45,
+    attributes: {
+      is_within_service: 'yes',
+      is_travel: true,
+      is_commute: true,
+      consider_location_conflicts: true,
+      color: '#0288d1',
+    },
   },
   {
     id: 'shunting',
@@ -164,6 +203,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 60,
+    attributes: { is_within_service: 'yes', is_shunting: true, consider_location_conflicts: true, color: '#00838f' },
   },
   {
     id: 'fuelling',
@@ -175,6 +215,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'remark'],
     defaultDurationMinutes: 30,
+    attributes: { is_within_service: 'yes', is_fuelling: true, color: '#e64a19' },
   },
   {
     id: 'cleaning',
@@ -186,6 +227,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 45,
+    attributes: { is_within_service: 'yes', is_cleaning: true, color: '#00897b' },
   },
   {
     id: 'transfer',
@@ -197,6 +239,13 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 90,
+    attributes: {
+      is_within_service: 'yes',
+      is_transfer: true,
+      is_travel: true,
+      consider_location_conflicts: true,
+      color: '#0097a7',
+    },
   },
   {
     id: 'travel',
@@ -208,6 +257,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 60,
+    attributes: { is_within_service: 'yes', is_travel: true, consider_location_conflicts: true, color: '#00796b' },
   },
   {
     id: 'other',
@@ -219,6 +269,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'from', 'to', 'remark'],
     defaultDurationMinutes: 60,
+    attributes: { is_within_service: 'yes', color: '#4a148c' },
   },
   {
     id: 'training',
@@ -230,6 +281,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'range',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 4 * 60,
+    attributes: { is_within_service: 'yes', is_training: true, color: '#7b1fa2' },
   },
   {
     id: 'reserve-buffer',
@@ -241,6 +293,7 @@ const DEFAULT_TYPES: ActivityTypeDefinition[] = [
     timeMode: 'duration',
     fields: ['start', 'end', 'remark'],
     defaultDurationMinutes: 30,
+    attributes: { is_within_service: 'yes', is_reserve: true, color: '#546e7a' },
   },
 ];
 
@@ -286,6 +339,10 @@ export class ActivityTypeService {
     void this.persist();
   }
 
+  resetToDefaults(): void {
+    this.reset();
+  }
+
   private normalizeDefinition(input: ActivityTypeInput): ActivityTypeDefinition {
     const fields = Array.from(
       new Set<ActivityFieldKey>(['start', 'end', ...input.fields.filter((field) => field !== 'start' && field !== 'end')]),
@@ -302,6 +359,12 @@ export class ActivityTypeService {
     const timeMode: ActivityTimeMode =
       input.timeMode === 'range' ? 'range' : input.timeMode === 'point' ? 'point' : 'duration';
     const defaultDurationMinutes = Math.max(1, Math.trunc(input.defaultDurationMinutes ?? 60));
+    const attributes =
+      input.attributes && typeof input.attributes === 'object' && !Array.isArray(input.attributes)
+        ? input.attributes
+        : undefined;
+    const meta =
+      input.meta && typeof input.meta === 'object' && !Array.isArray(input.meta) ? input.meta : undefined;
     return {
       id: this.slugify(input.id || input.label),
       label: input.label.trim(),
@@ -312,6 +375,8 @@ export class ActivityTypeService {
       timeMode,
       fields,
       defaultDurationMinutes,
+      attributes,
+      meta,
     };
   }
 

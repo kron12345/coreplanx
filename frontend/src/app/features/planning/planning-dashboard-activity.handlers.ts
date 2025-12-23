@@ -17,6 +17,7 @@ export function buildActivityFromForm(
   formValue: {
     start?: string | null;
     end?: string | null;
+    durationMinutes?: string | number | null;
     type?: string | null;
     from?: string | null;
     to?: string | null;
@@ -35,8 +36,22 @@ export function buildActivityFromForm(
   const definition = deps.findActivityType(desiredType) ?? deps.findActivityType(selection.activity.type ?? null);
   const catalog = deps.selectedCatalogOption();
   const isPoint = definition?.timeMode === 'point';
+  const parseDuration = () => {
+    const raw = formValue.durationMinutes;
+    const val = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN;
+    if (!Number.isFinite(val)) {
+      return null;
+    }
+    const minutes = Math.trunc(val);
+    return minutes > 0 ? minutes : null;
+  };
+  const durationMinutes = parseDuration();
+
   const endDateRaw = !isPoint && formValue.end ? fromLocalDateTime(formValue.end) : null;
-  const endDateValid = endDateRaw && endDateRaw.getTime() > startDate.getTime() ? endDateRaw : null;
+  const endFromDuration =
+    !isPoint && durationMinutes ? new Date(startDate.getTime() + durationMinutes * 60_000) : null;
+  const endCandidate = endDateRaw ?? endFromDuration;
+  const endDateValid = endCandidate && endCandidate.getTime() > startDate.getTime() ? endCandidate : null;
   const mergedAttributes = catalog
     ? { ...(selection.activity.attributes ?? {}), ...(buildAttributesFromCatalog(catalog) ?? {}) }
     : selection.activity.attributes;

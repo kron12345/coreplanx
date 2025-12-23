@@ -19,6 +19,10 @@
         <mat-icon>refresh</mat-icon>
         Neu laden
       </button>
+      <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()" [disabled]="loading() || saving()">
+        <mat-icon>settings_backup_restore</mat-icon>
+        Werkseinstellungen
+      </button>
       <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="!isDirty() || saving()">
         <mat-icon>save</mat-icon>
         Speichern

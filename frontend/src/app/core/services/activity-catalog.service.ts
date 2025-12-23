@@ -187,6 +187,13 @@ export class ActivityCatalogService {
     this.persist();
   }
 
+  resetToDefaults(): void {
+    this.definitionsSignal.set(DEFAULT_DEFINITIONS.map((def) => this.normalizeDefinition(def)));
+    this.templatesSignal.set(DEFAULT_TEMPLATES.map((tpl) => this.normalizeTemplate(tpl)));
+    this.persist();
+    this.mergeMissingFromActivityTypes();
+  }
+
   private normalizeDefinition(input: ActivityDefinitionInput): ActivityDefinition {
     const id = this.slugify(input.id || input.label);
     const attributes = this.normalizeAttributes(input.attributes);
@@ -324,15 +331,37 @@ export class ActivityCatalogService {
       return;
     }
     const existing = this.definitionsSignal();
+    const typeMap = new Map(typeDefinitions.map((type) => [type.id, type] as const));
+    let changed = false;
+    const updatedExisting = existing.map((definition) => {
+      const type = typeMap.get(definition.id);
+      if (!type) {
+        return definition;
+      }
+      if (definition.activityType !== type.id) {
+        return definition;
+      }
+      const extras = this.mapTypeAttributes(type);
+      if (!extras.length) {
+        return definition;
+      }
+      const keys = new Set((definition.attributes ?? []).map((attr) => attr.key));
+      const toAppend = extras.filter((attr) => !keys.has(attr.key));
+      if (!toAppend.length) {
+        return definition;
+      }
+      changed = true;
+      return { ...definition, attributes: [...(definition.attributes ?? []), ...toAppend] };
+    });
     const toAdd: ActivityDefinition[] = [];
     typeDefinitions.forEach((type) => {
-      if (existing.some((def) => def.id === type.id)) {
+      if (updatedExisting.some((def) => def.id === type.id)) {
         return;
       }
       toAdd.push(this.mapTypeToActivityDefinition(type));
     });
-    if (toAdd.length) {
-      this.definitionsSignal.set([...existing, ...toAdd]);
+    if (toAdd.length || changed) {
+      this.definitionsSignal.set([...updatedExisting, ...toAdd]);
       this.persist();
     }
   }
@@ -346,8 +375,18 @@ export class ActivityCatalogService {
         meta: FIELD_META[field] ?? {},
       })),
     ];
+    const typeAttrs = this.mapTypeAttributes(type);
+    const seen = new Set(baseAttrs.map((attr) => attr.key));
+    const mergedAttrs = [...baseAttrs];
+    typeAttrs.forEach((attr) => {
+      if (!attr.key || seen.has(attr.key)) {
+        return;
+      }
+      seen.add(attr.key);
+      mergedAttrs.push(attr);
+    });
     const attrs = this.ensureBehaviorAttributes(
-      baseAttrs,
+      mergedAttrs,
       type.defaultDurationMinutes,
       type.relevantFor,
     );
@@ -361,6 +400,33 @@ export class ActivityCatalogService {
       relevantFor: type.relevantFor,
       attributes: attrs,
     };
+  }
+
+  private mapTypeAttributes(type: ActivityTypeDefinition): ActivityAttributeValue[] {
+    const attrs = type.attributes;
+    if (!attrs || typeof attrs !== 'object' || Array.isArray(attrs)) {
+      return [];
+    }
+    const result: ActivityAttributeValue[] = [];
+    Object.entries(attrs).forEach(([key, value]) => {
+      const trimmedKey = (key ?? '').trim();
+      if (!trimmedKey) {
+        return;
+      }
+      const meta: Record<string, string> = {};
+      const lowered = trimmedKey.toLowerCase();
+      const isColorKey = lowered === 'color' || lowered.endsWith('_color') || lowered.endsWith('color');
+      if (isColorKey) {
+        meta['datatype'] = 'color';
+      } else if (typeof value === 'boolean') {
+        meta['datatype'] = 'boolean';
+      } else if (typeof value === 'number') {
+        meta['datatype'] = 'number';
+      }
+      meta['value'] = value === null || value === undefined ? '' : String(value);
+      result.push({ key: trimmedKey, meta });
+    });
+    return result;
   }
 
   private normalizeRelevantFor(values: ResourceKind[] | undefined): ResourceKind[] | undefined {

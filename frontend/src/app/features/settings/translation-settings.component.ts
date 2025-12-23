@@ -148,6 +148,14 @@ export class TranslationSettingsComponent {
     this.i18n.clearLocale(this.activeLocale());
   }
 
+  protected resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Übersetzungen')) {
+      return;
+    }
+    this.i18n.resetToDefaults();
+    this.newLocaleValue = this.activeLocale();
+  }
+
   protected applyPreset(key: string | null): void {
     if (!key) {
       return;
@@ -176,5 +184,14 @@ export class TranslationSettingsComponent {
       label: '',
       abbreviation: '',
     });
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }

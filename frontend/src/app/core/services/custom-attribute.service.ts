@@ -144,6 +144,11 @@ export class CustomAttributeService {
     this.dirty.set(false);
   }
 
+  resetToDefaults(): void {
+    this.state.set(structuredClone(DEFAULT_CUSTOM_ATTRIBUTE_STATE));
+    this.dirty.set(false);
+  }
+
   private markDirty(): void {
     if (!this.dirty()) {
       this.dirty.set(true);

@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
-import { EMPTY, Observable } from 'rxjs';
+import { EMPTY, Observable, of } from 'rxjs';
 import { catchError, finalize, switchMap, take, tap } from 'rxjs/operators';
 import { Activity, ServiceRole, type ActivityParticipant } from '../../models/activity';
 import { Resource } from '../../models/resource';
@@ -17,7 +17,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimelineApiService } from '../../core/api/timeline-api.service';
 import { TemplatePeriod, TimelineActivityDto } from '../../core/api/timeline-api.types';
-import { PlanningResourceApiService, ResourceSnapshotDto } from '../../core/api/planning-resource-api.service';
+import {
+  PlanningResourceApiService,
+  ResourceSnapshotDto,
+  ResourceSnapshotResetScope,
+} from '../../core/api/planning-resource-api.service';
 import type { PlanningStageData, PlanningTimelineRange, PlanningVariantContext } from './planning-data.types';
 import {
   cloneActivities,
@@ -107,6 +111,26 @@ export class PlanningDataService {
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to load resource snapshot', error);
           this.resourceErrorSignal.set('Ressourcen konnten nicht geladen werden.');
+          return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
+
+  resetResourceSnapshotToDefaults(scope?: ResourceSnapshotResetScope): void {
+    this.resourceApi
+      .resetSnapshot(scope)
+      .pipe(
+        take(1),
+        tap((snapshot) => {
+          const clone = cloneResourceSnapshot(snapshot);
+          this.resourceSnapshotSignal.set(cloneResourceSnapshot(clone));
+          this.applyResourceSnapshot(clone);
+          this.resourceErrorSignal.set(null);
+        }),
+        catchError((error) => {
+          console.warn('[PlanningDataService] Failed to reset resource snapshot', error);
+          this.resourceErrorSignal.set('Werkseinstellungen konnten nicht geladen werden.');
           return EMPTY;
         }),
       )
@@ -357,13 +381,50 @@ export class PlanningDataService {
   }
 
   upsertTemplateActivity(templateId: string, activity: Activity): void {
-    const dto = this.activityToTimelineDto('base', activity);
+    const baseId = activity.id.split('@')[0] ?? activity.id;
+    const startDate = new Date(activity.start);
+    const isoDay = Number.isFinite(startDate.getTime()) ? startDate.toISOString().slice(0, 10) : null;
+    const stageActivityId = isoDay ? `${baseId}@${isoDay}` : null;
+    const stageUpsert = stageActivityId
+      ? normalizeActivityParticipants(
+          [{ ...activity, id: stageActivityId }],
+          this.stageDataSignal().base.resources,
+        )[0]
+      : undefined;
+    const dto = this.activityToTimelineDto('base', { ...activity, id: baseId });
+    const context = this.currentApiContext();
+
     this.timelineApi
-      .upsertTemplateActivity(templateId, dto, this.currentApiContext())
+      .upsertTemplateActivity(templateId, dto, context)
       .pipe(
         take(1),
-        tap((saved) => {
-          this.applyTemplateActivity(saved);
+        tap((saved) => this.applyTemplateActivity(saved)),
+        switchMap(() => {
+          if (!stageUpsert || !stageActivityId) {
+            return of(null);
+          }
+          return this.api
+            .batchMutateActivities(
+              'base',
+              {
+                upserts: [stageUpsert],
+                clientRequestId: this.decorateClientRequestId(`template-upsert:${stageActivityId}`),
+              },
+              context,
+            )
+            .pipe(
+              take(1),
+              tap((response) => this.applyMutationResponse('base', response)),
+              catchError((error) => {
+                console.warn(
+                  '[PlanningDataService] Failed to sync planning-stage base instance after template upsert',
+                  error,
+                );
+                return of(null);
+              }),
+            );
+        }),
+        tap(() => {
           // Force a fresh timeline load so the UI immediately reflects the change.
           this.lastBaseTimelineSignature = null;
           this.reloadBaseTimeline();
@@ -524,10 +585,10 @@ export class PlanningDataService {
     if (!this.baseTemplateId) {
       return;
     }
-    const [activity] = this.mapTimelineActivities([entry], 'base');
+    const activities = this.mapTimelineActivities([entry], 'base');
     this.stageDataSignal.update((record) => {
       const baseStage = record.base;
-      const next = mergeActivityList(baseStage.activities, [activity], []);
+      const next = mergeActivityList(baseStage.activities, activities, []);
       return {
         ...record,
         base: {

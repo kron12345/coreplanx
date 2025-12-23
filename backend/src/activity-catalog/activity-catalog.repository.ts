@@ -50,42 +50,7 @@ export class ActivityCatalogRepository {
     await this.database.withClient(async (client) => {
       await client.query('BEGIN');
       try {
-        for (const entry of entries) {
-          await client.query(
-            `
-              INSERT INTO activity_catalog_entry (
-                id, label, description, applies_to, relevant_for, category, time_mode,
-                fields, default_duration_minutes, attributes, meta, created_at, updated_at
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, now(), now())
-              ON CONFLICT (id) DO UPDATE SET
-                label = EXCLUDED.label,
-                description = EXCLUDED.description,
-                applies_to = EXCLUDED.applies_to,
-                relevant_for = EXCLUDED.relevant_for,
-                category = EXCLUDED.category,
-                time_mode = EXCLUDED.time_mode,
-                fields = EXCLUDED.fields,
-                default_duration_minutes = EXCLUDED.default_duration_minutes,
-                attributes = EXCLUDED.attributes,
-                meta = EXCLUDED.meta,
-                updated_at = now()
-            `,
-            [
-              entry.id,
-              entry.label,
-              entry.description ?? null,
-              entry.appliesTo ?? [],
-              entry.relevantFor ?? [],
-              entry.category,
-              entry.timeMode,
-              entry.fields ?? [],
-              entry.defaultDurationMinutes ?? 0,
-              entry.attributes ?? null,
-              entry.meta ?? null,
-            ],
-          );
-        }
+        await this.upsertManyWithClient(client, entries);
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
@@ -104,16 +69,85 @@ export class ActivityCatalogRepository {
       try {
         await client.query('TRUNCATE activity_catalog_entry');
         if (entries.length) {
-          await this.upsertMany(entries);
-        } else {
-          await client.query('COMMIT');
+          await this.upsertManyWithClient(client, entries);
         }
+        await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
         this.logger.error('Failed to replace activity catalog entries', error as any);
         throw error;
       }
     });
+  }
+
+  private async upsertManyWithClient(client: { query: (text: string, params?: any[]) => Promise<any> }, entries: ActivityCatalogEntry[]): Promise<void> {
+    if (!entries.length) {
+      return;
+    }
+    await client.query(
+      `
+        WITH payload AS (
+          SELECT *
+          FROM jsonb_to_recordset($1::jsonb)
+               AS e(
+                 id TEXT,
+                 label TEXT,
+                 description TEXT,
+                 "appliesTo" TEXT[],
+                 "relevantFor" TEXT[],
+                 category TEXT,
+                 "timeMode" TEXT,
+                 fields TEXT[],
+                 "defaultDurationMinutes" INTEGER,
+                 attributes JSONB,
+                 meta JSONB
+               )
+        )
+        INSERT INTO activity_catalog_entry (
+          id,
+          label,
+          description,
+          applies_to,
+          relevant_for,
+          category,
+          time_mode,
+          fields,
+          default_duration_minutes,
+          attributes,
+          meta,
+          created_at,
+          updated_at
+        )
+        SELECT
+          id,
+          label,
+          NULLIF(description, ''),
+          COALESCE("appliesTo", '{}'::text[]),
+          COALESCE("relevantFor", '{}'::text[]),
+          category,
+          "timeMode",
+          COALESCE(fields, '{}'::text[]),
+          COALESCE("defaultDurationMinutes", 0),
+          attributes,
+          meta,
+          now(),
+          now()
+        FROM payload
+        ON CONFLICT (id) DO UPDATE SET
+          label = EXCLUDED.label,
+          description = EXCLUDED.description,
+          applies_to = EXCLUDED.applies_to,
+          relevant_for = EXCLUDED.relevant_for,
+          category = EXCLUDED.category,
+          time_mode = EXCLUDED.time_mode,
+          fields = EXCLUDED.fields,
+          default_duration_minutes = EXCLUDED.default_duration_minutes,
+          attributes = EXCLUDED.attributes,
+          meta = EXCLUDED.meta,
+          updated_at = now()
+      `,
+      [JSON.stringify(entries)],
+    );
   }
 
   private mapRow(row: ActivityCatalogRow): ActivityCatalogEntry {

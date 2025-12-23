@@ -1,0 +1,21 @@
+id: fuelling
+label: Betankung
+description: Betankung oder Stromaufnahme eines Fahrzeugs.
+appliesTo:
+  - vehicle
+  - vehicle-service
+relevantFor:
+  - vehicle
+  - vehicle-service
+category: movement
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - remark
+defaultDurationMinutes: 30
+attributes:
+  is_within_service: yes
+  is_fuelling: true
+  color: '#e64a19'

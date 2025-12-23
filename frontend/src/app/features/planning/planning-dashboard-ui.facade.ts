@@ -10,8 +10,6 @@ export class PlanningDashboardUiFacade {
       activityCreationToolSignal: { (): string; set: (val: string) => void };
       activityFormTypeSignal: { set: (val: string) => void };
       activityTypeMenuSelection: { (): ActivityCategory | null; set: (val: ActivityCategory | null) => void };
-      typePickerOpenSignal: { set: (val: boolean) => void };
-      activityDetailsOpenSignal: { update: (fn: (current: boolean) => boolean) => void };
       activityForm: FormGroup;
     },
   ) {}
@@ -35,23 +33,6 @@ export class PlanningDashboardUiFacade {
     this.deps.activityForm.controls['type'].setValue(option.activityTypeId);
     this.deps.activityForm.controls['type'].markAsDirty();
     this.deps.activityFormTypeSignal.set(option.activityTypeId);
-  }
-
-  openTypePicker(): void {
-    this.deps.typePickerOpenSignal.set(true);
-  }
-
-  closeTypePicker(): void {
-    this.deps.typePickerOpenSignal.set(false);
-  }
-
-  selectActivityTypeFromPicker(optionId: string): void {
-    this.selectCatalogActivity(optionId);
-    this.closeTypePicker();
-  }
-
-  toggleActivityDetails(): void {
-    this.deps.activityDetailsOpenSignal.update((current) => !current);
   }
 
   setActivityTypePickerGroup(groupId: ActivityCategory): void {

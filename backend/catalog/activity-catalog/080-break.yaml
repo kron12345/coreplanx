@@ -1,0 +1,25 @@
+id: break
+label: Pause
+description: Reguläre Pause innerhalb eines Dienstes.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: service
+timeMode: duration
+fields:
+  - start
+  - end
+  - remark
+defaultDurationMinutes: 30
+attributes:
+  is_break: true
+  is_within_service: yes
+  consider_capacity_conflicts: true
+  color: '#ffb74d'

@@ -418,7 +418,9 @@ export class PlanningMasterDataReadRepository {
   }
 
   private mapPersonnel(row: PersonnelRow): Personnel {
+    const attrs = this.ensureRecord(row.attributes);
     return {
+      ...attrs,
       id: row.id,
       name: row.name,
       externalRef: row.external_ref ?? undefined,
@@ -428,7 +430,9 @@ export class PlanningMasterDataReadRepository {
   }
 
   private mapPersonnelService(row: PersonnelServiceRow): PersonnelService {
+    const attrs = this.ensureRecord(row.attributes);
     return {
+      ...attrs,
       id: row.id,
       name: row.label,
       poolId: row.pool_id ?? undefined,
@@ -437,7 +441,9 @@ export class PlanningMasterDataReadRepository {
   }
 
   private mapVehicle(row: VehicleRow): Vehicle {
+    const attrs = this.ensureRecord(row.attributes);
     return {
+      ...attrs,
       id: row.id,
       name: row.label,
       typeId: row.type_id ?? undefined,
@@ -448,7 +454,9 @@ export class PlanningMasterDataReadRepository {
   }
 
   private mapVehicleService(row: VehicleServiceRow): VehicleService {
+    const attrs = this.ensureRecord(row.attributes);
     return {
+      ...attrs,
       id: row.id,
       name: row.label,
       poolId: row.pool_id ?? undefined,
@@ -466,14 +474,24 @@ export class PlanningMasterDataReadRepository {
       list.push(row.personnel_id);
       membersByPool.set(row.pool_id, list);
     });
-    return poolRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description ?? undefined,
-      personnelIds: membersByPool.get(row.id) ?? [],
-      locationCode: undefined,
-      attributes: row.attributes ?? undefined,
-    }));
+    return poolRows.map((row) => {
+      const attrs = this.ensureRecord(row.attributes);
+      const locationCode =
+        typeof attrs['locationCode'] === 'string'
+          ? (attrs['locationCode'] as string)
+          : typeof row.location_code === 'string'
+            ? row.location_code
+            : undefined;
+      return {
+        ...attrs,
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
+        personnelIds: membersByPool.get(row.id) ?? [],
+        locationCode,
+        attributes: row.attributes ?? undefined,
+      };
+    });
   }
 
   private mapPersonnelServicePoolsWithMembers(
@@ -486,15 +504,23 @@ export class PlanningMasterDataReadRepository {
       list.push(row.service_id);
       membersByPool.set(row.pool_id, list);
     });
-    return poolRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description ?? undefined,
-      serviceIds: membersByPool.get(row.id) ?? [],
-      shiftCoordinator: undefined,
-      contactEmail: undefined,
-      attributes: row.attributes ?? undefined,
-    }));
+    return poolRows.map((row) => {
+      const attrs = this.ensureRecord(row.attributes);
+      const shiftCoordinator =
+        typeof attrs['shiftCoordinator'] === 'string' ? (attrs['shiftCoordinator'] as string) : undefined;
+      const contactEmail =
+        typeof attrs['contactEmail'] === 'string' ? (attrs['contactEmail'] as string) : undefined;
+      return {
+        ...attrs,
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
+        serviceIds: membersByPool.get(row.id) ?? [],
+        shiftCoordinator,
+        contactEmail,
+        attributes: row.attributes ?? undefined,
+      };
+    });
   }
 
   private mapVehiclePoolsWithMembers(
@@ -507,14 +533,19 @@ export class PlanningMasterDataReadRepository {
       list.push(row.vehicle_id);
       membersByPool.set(row.pool_id, list);
     });
-    return poolRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description ?? undefined,
-      vehicleIds: membersByPool.get(row.id) ?? [],
-      depotManager: undefined,
-      attributes: row.attributes ?? undefined,
-    }));
+    return poolRows.map((row) => {
+      const attrs = this.ensureRecord(row.attributes);
+      const depotManager = typeof attrs['depotManager'] === 'string' ? (attrs['depotManager'] as string) : undefined;
+      return {
+        ...attrs,
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
+        vehicleIds: membersByPool.get(row.id) ?? [],
+        depotManager,
+        attributes: row.attributes ?? undefined,
+      };
+    });
   }
 
   private mapVehicleServicePoolsWithMembers(
@@ -527,14 +558,26 @@ export class PlanningMasterDataReadRepository {
       list.push(row.service_id);
       membersByPool.set(row.pool_id, list);
     });
-    return poolRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description ?? undefined,
-      serviceIds: membersByPool.get(row.id) ?? [],
-      dispatcher: undefined,
-      attributes: row.attributes ?? undefined,
-    }));
+    return poolRows.map((row) => {
+      const attrs = this.ensureRecord(row.attributes);
+      const dispatcher = typeof attrs['dispatcher'] === 'string' ? (attrs['dispatcher'] as string) : undefined;
+      return {
+        ...attrs,
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
+        serviceIds: membersByPool.get(row.id) ?? [],
+        dispatcher,
+        attributes: row.attributes ?? undefined,
+      };
+    });
+  }
+
+  private ensureRecord(value: Record<string, unknown> | null | undefined): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+    return value;
   }
 
   private mapVehicleType(row: VehicleTypeRow): VehicleType {
@@ -675,4 +718,3 @@ export class PlanningMasterDataReadRepository {
     return code === '42703' || code === '42P01';
   }
 }
-

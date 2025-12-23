@@ -25,6 +25,16 @@
         <mat-icon fontIcon="restart_alt"></mat-icon>
         Locale zurücksetzen
       </button>
+      <button
+        mat-stroked-button
+        type="button"
+        color="warn"
+        (click)="resetToDefaults()"
+        matTooltip="Alle Übersetzungen löschen und Locale zurücksetzen"
+      >
+        <mat-icon fontIcon="settings_backup_restore"></mat-icon>
+        Werkseinstellungen
+      </button>
     </div>
   </header>
 

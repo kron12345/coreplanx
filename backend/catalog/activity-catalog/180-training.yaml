@@ -1,0 +1,20 @@
+id: training
+label: Schulung
+description: Schulung oder Fortbildung während des Dienstplans.
+appliesTo:
+  - personnel
+  - personnel-service
+relevantFor:
+  - personnel
+  - personnel-service
+category: other
+timeMode: range
+fields:
+  - start
+  - end
+  - remark
+defaultDurationMinutes: 240
+attributes:
+  is_within_service: yes
+  is_training: true
+  color: '#7b1fa2'

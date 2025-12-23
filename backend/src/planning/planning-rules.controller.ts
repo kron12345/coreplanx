@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Put,
   Query,
 } from '@nestjs/common';
@@ -58,5 +59,24 @@ export class PlanningRulesController {
     }
     return this.rules.mutateRules(stageId, normalizedVariantId, request ?? undefined);
   }
-}
 
+  @Post(':stageId/rules/reset')
+  async resetRulesToDefaults(
+    @Param('stageId') stageId: string,
+    @Query('variantId') variantId?: string,
+    @Query('timetableYearLabel') timetableYearLabel?: string,
+  ) {
+    if (!isStageId(stageId)) {
+      throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
+    }
+    const normalizedVariantId = normalizeVariantId(variantId);
+    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+      throw new BadRequestException(
+        `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
+      );
+    }
+    const items = await this.rules.resetRulesToDefaults(stageId, normalizedVariantId);
+    return { items };
+  }
+}

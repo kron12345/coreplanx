@@ -103,6 +103,15 @@ export class LayerGroupService {
     this.persist(nextState);
   }
 
+  resetToDefaults(): void {
+    const next: Record<string, LayerGroup> = {};
+    DEFAULT_GROUPS.forEach((group) => {
+      next[group.id] = group;
+    });
+    this.groupsState.set(next);
+    this.persist(next);
+  }
+
   private ensureDefaults(): void {
     const current = { ...this.groupsState() };
     DEFAULT_GROUPS.forEach((group) => {

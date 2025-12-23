@@ -8,6 +8,9 @@
         Backend-Service übertragen werden.
       </p>
     </div>
+    <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
+      Werkseinstellungen
+    </button>
     @if (isDirty()) {
       <span class="custom-attributes__badge">Änderungen nicht gespeichert</span>
     }

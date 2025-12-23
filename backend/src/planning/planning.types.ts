@@ -29,9 +29,27 @@ export interface Resource {
   attributes?: Record<string, unknown>;
 }
 
+export interface TemporalValue<T = unknown> {
+  value: T;
+  validFrom: string;
+  validTo?: string | null;
+}
+
 export interface Personnel {
   id: string;
-  name: string;
+  firstName?: string | TemporalValue<string>[];
+  lastName?: string;
+  preferredName?: string | TemporalValue<string>[];
+  qualifications?: string[];
+  serviceIds?: string[];
+  poolId?: string;
+  homeStation?: string;
+  availabilityStatus?: string;
+  qualificationExpires?: string;
+  isReserve?: boolean;
+
+  /** Legacy/DB display name (derived from first/last). */
+  name?: string;
   externalRef?: string | null;
   homeBase?: string | null;
   attributes?: Record<string, unknown>;
@@ -43,7 +61,14 @@ export type PersonnelListResponse = Personnel[];
 export interface PersonnelService {
   id: string;
   name: string;
+  description?: string;
+  requiredQualifications?: string[];
   poolId?: string | null;
+  startTime?: string;
+  endTime?: string;
+  isNightService?: boolean;
+  maxDailyInstances?: number;
+  maxResourcesPerInstance?: number;
   attributes?: Record<string, unknown>;
 }
 
@@ -52,8 +77,20 @@ export type PersonnelServiceListResponse = PersonnelService[];
 
 export interface Vehicle {
   id: string;
-  name: string;
+  vehicleNumber?: string;
   typeId?: string | null;
+  depot?: string | null;
+  serviceIds?: string[];
+  description?: string;
+  poolId?: string;
+  hasWifi?: boolean;
+  fleetStatus?: string;
+  lastInspectionDate?: string;
+  rangeKm?: number;
+  seatReservation?: boolean;
+
+  /** Legacy/DB display label (derived from vehicleNumber). */
+  name?: string;
   externalRef?: string | null;
   homeDepot?: string | null;
   attributes?: Record<string, unknown>;
@@ -65,7 +102,15 @@ export type VehicleListResponse = Vehicle[];
 export interface VehicleService {
   id: string;
   name: string;
+  description?: string;
+  requiredVehicleTypeIds?: string[];
   poolId?: string | null;
+  startTime?: string;
+  endTime?: string;
+  isOvernight?: boolean;
+  primaryRoute?: string;
+  maxDailyInstances?: number;
+  maxResourcesPerInstance?: number;
   attributes?: Record<string, unknown>;
 }
 

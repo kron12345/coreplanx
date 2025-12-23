@@ -96,6 +96,26 @@ export class PlanningRuleService {
     return { appliedUpserts: normalizedUpserts.map((r) => r.id), deletedIds: allDeleteIds };
   }
 
+  async resetRulesToDefaults(stageId: StageId, variantId: string): Promise<PlanningRule[]> {
+    if (!this.repository.isEnabled) {
+      const rules = stageId === 'base' ? this.materializeDefaults(stageId, variantId) : [];
+      this.cache.set(`${stageId}:${variantId}`, rules);
+      return rules;
+    }
+    await this.partitions.ensurePlanningPartitions(variantId);
+
+    await this.repository.deleteAllRules(stageId, variantId);
+    if (stageId === 'base') {
+      const defaults = this.materializeDefaults(stageId, variantId);
+      if (defaults.length) {
+        await this.repository.upsertRules(stageId, variantId, defaults);
+      }
+    }
+
+    this.cache.delete(`${stageId}:${variantId}`);
+    return this.listRules(stageId, variantId);
+  }
+
   async getDutyAutopilotConfig(
     stageId: StageId,
     variantId: string,

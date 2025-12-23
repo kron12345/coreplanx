@@ -93,6 +93,16 @@ export class PlanningStoreService {
     }
   }
 
+  async resetToDefaults(): Promise<void> {
+    try {
+      await firstValueFrom(this.api.resetToDefaults());
+      await this.refreshAllFromApi();
+    } catch (error) {
+      console.error('[PlanningStoreService] Failed to reset topology defaults', error);
+      this.syncErrorSignal.set(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async refreshOperationalPointsFromApi(): Promise<void> {
     await this.loadEntity(
       this.api.listOperationalPoints(),

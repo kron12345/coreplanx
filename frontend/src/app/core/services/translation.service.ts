@@ -88,6 +88,13 @@ export class TranslationService {
     this.persist({});
   }
 
+  resetToDefaults(): void {
+    this.activeLocaleSignal.set(DEFAULT_LOCALE);
+    this.persistLocale(DEFAULT_LOCALE);
+    this.state.set({});
+    this.persist({});
+  }
+
   private getValue(
     key: string | null | undefined,
     entryKey: keyof TranslationEntry,

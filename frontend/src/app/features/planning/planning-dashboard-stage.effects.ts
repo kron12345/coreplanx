@@ -13,15 +13,21 @@ export function initTemplateTimelineEffects(deps: {
   templateStore: TemplateTimelineStoreService;
   computeBaseTimelineRange: () => any;
   data: PlanningDataService;
+  currentVariantId: () => string;
 }): void {
   effect(() => {
     const template = deps.templateStore.selectedTemplateWithFallback();
-    const templateId = template?.id ?? null;
+    const currentVariantId = (deps.currentVariantId() ?? '').trim() || 'default';
+    const rawTemplateVariantId = (template?.variantId ?? '').trim();
+    const templateVariantId = rawTemplateVariantId.length ? rawTemplateVariantId : currentVariantId;
+    const effectiveTemplate =
+      template?.id && templateVariantId === currentVariantId ? template : null;
+    const templateId = effectiveTemplate?.id ?? null;
     const range = deps.computeBaseTimelineRange();
     deps.data.setBaseTimelineRange(range);
     deps.data.setBaseTemplateContext(templateId, {
-      periods: template?.periods ?? null,
-      specialDays: template?.specialDays ?? null,
+      periods: effectiveTemplate?.periods ?? null,
+      specialDays: effectiveTemplate?.specialDays ?? null,
     });
     if (templateId) {
       deps.data.reloadBaseTimeline();

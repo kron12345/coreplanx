@@ -1,0 +1,28 @@
+id: transfer
+label: Transfer
+description: Überführung von Ressourcen zu einem anderen Ort.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: movement
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+defaultDurationMinutes: 90
+attributes:
+  is_within_service: yes
+  is_transfer: true
+  is_travel: true
+  consider_location_conflicts: true
+  color: '#0097a7'

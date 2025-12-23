@@ -1,4 +1,13 @@
 <div class="planning-master">
+  <header class="planning-master__header">
+    <div>
+      <h2>Topologie</h2>
+      <p>Werkseinstellungen stellen Beispiel-Daten für Haltepunkte, Strecken und SEV wieder her.</p>
+    </div>
+    <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
+      Werkseinstellungen
+    </button>
+  </header>
   <mat-tab-group color="primary">
     <mat-tab label="Operational Points">
       <app-operational-point-editor />

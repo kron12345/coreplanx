@@ -168,6 +168,15 @@ export class AttributeDefinitionEditorComponent implements OnDestroy {
     }
   }
 
+  protected resetToDefaults(): void {
+    if (!this.confirmFactoryReset('Attribut-Editor')) {
+      return;
+    }
+    this.customAttributes.resetToDefaults();
+    this.cancelEdit();
+    this.newAttributeForm.reset(ATTRIBUTE_FORM_DEFAULTS);
+  }
+
   protected create(): void {
     if (this.newAttributeForm.invalid) {
       this.newAttributeForm.markAllAsTouched();
@@ -215,5 +224,14 @@ export class AttributeDefinitionEditorComponent implements OnDestroy {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .replace(/-{2,}/g, '-');
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
   }
 }
