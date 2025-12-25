@@ -52,6 +52,55 @@
   height: 36px;
 }
 
+.gantt-menu__mode-button--active {
+  background: rgba(25, 118, 210, 0.12);
+  color: rgba(25, 118, 210, 1);
+}
+
+.gantt-menu__mode-button--active:hover,
+.gantt-menu__mode-button--active:focus-visible {
+  background: rgba(25, 118, 210, 0.18);
+}
+
+.gantt-shortcuts {
+  padding: 10px 14px;
+  max-width: 360px;
+}
+
+.gantt-shortcuts__title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 8px;
+  color: rgba(0, 0, 0, 0.78);
+}
+
+.gantt-shortcuts__row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: 0.78rem;
+  color: rgba(0, 0, 0, 0.72);
+}
+
+.gantt-shortcuts__keys {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: rgba(0, 0, 0, 0.78);
+}
+
+.gantt-shortcuts kbd {
+  font-family: var(--font-compact);
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
 @media (max-width: 720px) {
   .gantt-menu {
     flex-wrap: wrap;

@@ -38,6 +38,27 @@
       <mat-icon fontIcon="event"></mat-icon>
     </button>
 
+    <button
+      mat-icon-button
+      type="button"
+      aria-label="Markierungsmodus"
+      title="Markierungsmodus (M / Strg halten)"
+      [class.gantt-menu__mode-button--active]="markingMode"
+      (click)="toggleMarkingMode()"
+    >
+      <mat-icon [fontIcon]="markingMode ? 'select_all' : 'crop_free'"></mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
+      type="button"
+      aria-label="Shortcuts"
+      title="Shortcuts"
+      [matMenuTriggerFor]="shortcutsMenu"
+    >
+      <mat-icon fontIcon="keyboard"></mat-icon>
+    </button>
+
     <span class="gantt-menu__extra-actions">
       <ng-content></ng-content>
     </span>
@@ -45,5 +66,39 @@
 
   <mat-menu #dateMenu="matMenu">
     <mat-calendar (selectedChange)="onDatePicked($event)" [selected]="today"></mat-calendar>
+  </mat-menu>
+
+  <mat-menu #shortcutsMenu="matMenu" class="gantt-shortcuts-menu" xPosition="before" yPosition="below">
+    <div class="gantt-shortcuts" (click)="$event.stopPropagation()">
+      <div class="gantt-shortcuts__title">Shortcuts</div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>M</kbd></span>
+        <span class="gantt-shortcuts__desc">Markierungsmodus umschalten</span>
+      </div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>Strg</kbd></span>
+        <span class="gantt-shortcuts__desc">Modus temporär umschalten (halten)</span>
+      </div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>Shift</kbd> + Drag</span>
+        <span class="gantt-shortcuts__desc">Auswahl hinzufügen (Lasso)</span>
+      </div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>Shift</kbd>/<kbd>Strg</kbd> + Klick</span>
+        <span class="gantt-shortcuts__desc">Mehrfachauswahl (Aktivität)</span>
+      </div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>H</kbd></span>
+        <span class="gantt-shortcuts__desc">Heute</span>
+      </div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>+</kbd>/<kbd>-</kbd></span>
+        <span class="gantt-shortcuts__desc">Zoom</span>
+      </div>
+      <div class="gantt-shortcuts__row">
+        <span class="gantt-shortcuts__keys"><kbd>Entf</kbd></span>
+        <span class="gantt-shortcuts__desc">Auswahl löschen</span>
+      </div>
+    </div>
   </mat-menu>
 </nav>

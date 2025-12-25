@@ -106,12 +106,29 @@ export function isActivityOwnedBy(activity: Activity, resourceId: string): boole
   return owner?.resourceId === resourceId;
 }
 
+export function serviceIdForOwner(activity: Activity, ownerId: string | null | undefined): string | null {
+  const trimmedOwner = (ownerId ?? '').trim();
+  if (!trimmedOwner) {
+    return activity.serviceId ?? null;
+  }
+  const attrs = activity.attributes as Record<string, unknown> | undefined;
+  const rawMap = attrs?.['service_by_owner'];
+  if (rawMap && typeof rawMap === 'object' && !Array.isArray(rawMap)) {
+    const entry = (rawMap as Record<string, any>)[trimmedOwner];
+    const rawServiceId = entry?.serviceId;
+    if (typeof rawServiceId === 'string' && rawServiceId.trim().length) {
+      return rawServiceId.trim();
+    }
+  }
+  return activity.serviceId ?? null;
+}
+
 export function findNeighborActivities(
   activity: Activity,
   activities: Activity[],
   ownerId: string | null,
 ): { previous: Activity | null; next: Activity | null } {
-  const serviceId = activity.serviceId ?? null;
+  const serviceId = serviceIdForOwner(activity, ownerId);
   const role = activity.serviceRole ?? null;
   const type = activity.type ?? '';
   const isServiceBoundary = role === 'start' || role === 'end' || type === 'service-start' || type === 'service-end';
@@ -137,7 +154,7 @@ export function findNeighborActivities(
     if (!isActivityOwnedBy(entry, ownerId)) {
       return;
     }
-    if (requireServiceMatch && entry.serviceId !== serviceId) {
+    if (requireServiceMatch && serviceIdForOwner(entry, ownerId) !== serviceId) {
       return;
     }
     const startMs = new Date(entry.start).getTime();

@@ -1,0 +1,8 @@
+id: azg.break_forbidden_night
+kind: constraint
+executor: azg/break-forbidden-night
+enabled: true
+params:
+  startHour: 23
+  endHour: 5
+

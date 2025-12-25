@@ -1,0 +1,794 @@
+                                                                                         ARBEITSZEITGESETZ
+
+                                                                                         Synopse
+
+
+
+
+                                                                                         01.01.2018
+
+
+
+Diese Synopse ist eine Zusammenstellung von Gesetz und Verordnung. Sie darf als Hilfsmittel dienen. Die Synopse hat keinen rechtsgültigen Charakter.
+Bundesgesetz                                                                    Verordnung
+über die Arbeit in Unternehmen                                                  über die Arbeit in Unternehmen
+des öffentlichen Verkehrs (SR 822.21)                                           des öffentlichen Verkehrs (SR 822.211)
+
+Arbeitszeitgesetz AZG vom 8. Oktober 1971                                       Verordnung zum Arbeitszeitgesetz, AZGV vom 26. Januar
+(Stand am 1. Januar 2018)                                                       1972 (Stand am 1. Dezember 2014)
+I. Geltungsbereich                                                              I. Geltungsbereich
+Art. 1      Unternehmen                                                         Art. 1       Unternehmen
+1 Dem Gesetz sind unterstellt:                                                  1 Als konzessionierte Eisenbahnunternehmen gelten Unternehmen, die auf Grund einer eidgenössi-
+a.   aufgehoben                                                                 schen Konzession Normal- und Schmalspurbahnen, Zahnradbahnen, Strassenbahnen oder Standseil-
+                                                                                bahnen betreiben.
+b.   die konzessionierten Eisenbahn- und Trolleybusunternehmen;
+                                                                                2 Als konzessionierte Automobilunternehmen gelten Unternehmen, die auf Grund einer
+c.   die konzessionierten Automobilunternehmen;
+                                                                                Personenbeförderungskonzession Fahrten mit Strassenfahrzeugen ausführen.
+d.   die konzessionierten Schifffahrtsunternehmen;
+                                                                                3 Als konzessionierte Luftseilbahnunternehmen gelten Unternehmen, die auf Grund einer eidgenössi-
+e.   die konzessionierten Luftseilbahnunternehmen;
+                                                                                schen Konzession eine Luftseilbahn betreiben. Als Luftseilbahnen gelten Pendel-, Umlauf- und Sessel-
+f.   die Unternehmen, die im Auftrag eines unter den Buchstaben a–e             bahnen, auch solche, die im Winter als Skilifte betrieben werden, sowie Schlittenseilbahnen, Aufzüge
+     genannten Unternehmens regelmässige und gewerbsmässige Fahrten             und ähnliche Transportanlagen.
+     ausführen.
+1bis Als konzessioniert gelten Eisenbahnunternehmen, die über eine Kon-         Art. 1a      Nah- und Vorortsverkehrsbetriebe
+zession nach Artikel 5 des Eisenbahngesetzes vom 20. Dezember 1957 o-           Als Nah- und Vorortsverkehrsbetriebe gelten Betriebsteile, die Linien in städtischen Gebieten betreiben
+der über eine Konzession oder Bewilligung nach den Artikeln 6–8 des Per-        oder Vorortsgemeinden mit städtischen Zentren verbinden.
+sonenbeförderungsgesetzes vom 20. März 2009 verfügen. Den konzessio-
+nierten Eisenbahnunternehmen gleichgestellt sind Unternehmen, die im            Art. 2     Nebenbetriebe
+Netzzugang oder auf ausschliesslich vertraglicher Basis auf der Infrastruktur   1 Dem Gesetz sind folgende Nebenbetriebe unterstellt:
+eines konzessionierten Eisenbahnunternehmens verkehren.
+                                                                                a. Schlafwagenbetriebe;
+2 Wenn nur einzelne Teile eines Unternehmens dem öffentlichen Verkehr
+                                                                                b. Speisewagenbetriebe;
+dienen, sind nur diese dem Gesetz unterstellt.
+                                                                                c. Ambulante Verpflegungsdienste in Zügen;
+3 Dem Gesetz sind auch Unternehmen mit Sitz im Ausland unterstellt, wenn
+                                                                                d. Skilifte, die von einem dem Gesetz unterstellten Unternehmen betrieben werden.
+deren Arbeitnehmer in der Schweiz eine unter das Gesetz fallende Tätigkeit
+ausüben. Die Konzessionen können die Vorschriften näher bestimmen, die          2 Wo in dieser Verordnung von Unternehmen die Rede ist, sind darunter auch die Nebenbetriebe nach
+jeweils zu beachten sind.                                                       Absatz 1 zu verstehen.
+4 Durch Verordnung können dem Gesetz Nebenbetriebe, die eine notwen-
+dige oder zweckmässige Ergänzung eines in Absatz 1 genannten Unterneh-
+mens bilden, unterstellt werden.
+                               Gesetz (AZG)                                                                              Verordnung (AZGV)
+
+Art. 2        Arbeitnehmer                                                      Art. 3         Arbeitnehmer
+1 Das Gesetz ist anwendbar auf Arbeitnehmer, die von einem nach Artikel 1       1 Als Arbeitnehmer gilt jede Person, die zu persönlicher Dienstleistung in einem Unternehmen verpflich-
+erfassten Unternehmen beschäftigt werden und zu ausschliesslich persönli-       tet ist.
+cher Dienstleistung verpflichtet sind. Das Gesetz gilt auch für Beschäftigung   2 Als Arbeitnehmer gelten auch Lehrlinge, Praktikanten, Volontäre und andere Personen, die zur Ausbil-
+im Ausland, wobei zwischenstaatliche Vereinbarungen sowie strengere aus-
+                                                                                dung im Unternehmen tätig sind.
+ländische Vorschriften vorbehalten sind.
+                                                                                3 Zu persönlicher Dienstleistung verpflichtet sind Arbeitnehmer, die auf Grund ihres Dienstverhältnisses
+2 Das Gesetz ist auf Postautounternehmer und andere Transportbeauf-
+                                                                                die Arbeit weder ganz noch teilweise durch Dritte verrichten lassen dürfen.
+tragte sowie auf Inhaber von konzessionierten Transportunternehmen so
+weit anwendbar, als sie selber konzessionspflichtige Fahrten ausführen.         4 Ein Arbeitnehmer ist nur in geringem Ausmass nach Artikel 2 Absatz 3 des AZG beschäftigt, wenn
+3 Die Anwendbarkeit des Gesetzes auf Arbeitnehmer, die nur in geringem          seine tägliche Arbeitszeit im Durchschnitt von 28 Tagen höchstens drei Stunden beträgt. Für solche Ar-
+                                                                                beitnehmer gelten die Vorschriften des AZG sinngemäss.
+Ausmass in einem Unternehmen nach Artikel 1 beschäftigt werden, und auf
+Arbeitnehmer, die von Postagenturen beschäftigt werden, wird in einer           5 Die Anwendbarkeit des AZG auf Arbeitnehmer, die im Auftrag eines Dritten in einem Unternehmen
+Verordnung geregelt.                                                            arbeiten, ist durch die in Artikel 27 genannten Aufsichtsbehörden zu ordnen.
+4 Dieses Gesetz ist nicht anwendbar auf Arbeitnehmerinnen und Arbeitneh-
+                                                                                Art. 4         Private Hilfskräfte
+mer im Verwaltungsdienst.
+                                                                                1 Das AZG ist unter Vorbehalt der in den Artikeln 5 ff. dieser Verordnung genannten Ausnahmen
+                                                                                anwendbar auf private Hilfskräfte, die von Postagenturen beschäftigt werden.
+                                                                                2 Die in den Artikeln 5 ff. genannten Ausnahmen sind mit den privaten Hilfskräften zu vereinbaren und
+                                                                                von der Aufsichtsbehörde im Voraus zu genehmigen.
+                                                                                3 Die Vorschriften in Artikel 7 Absätze 2 und 3 AZG sind auf private Hilfskräfte, die von Postagenturen
+                                                                                beschäftigt werden, nicht anwendbar.
+                                                                                4 Das AZG ist nicht anwendbar auf Familienangehörige und Ablöser von Postagenturinhabern. Ebenso
+                                                                                ist es nicht anwendbar auf Verwandte, die mit Postagenturinhabern im gleichen Haushalt leben.
+                             Gesetz (AZG)                                                                        Verordnung (AZGV)
+
+                                                                         Art. 5      Betriebs- und Verwaltungsdienst
+                                                                         1 Das Unternehmen wird unterteilt in Betriebsdienst und Verwaltungsdienst.
+                                                                         2 Zum Betriebsdienst gehören die Dienststellen eines Unternehmens, denen insbesondere obliegen:
+                                                                         a.    –   Beförderung von Reisenden inkl. Billettverkauf;
+                                                                               –   Bahnbewachung;
+                                                                               –   Annahme, Lagerung, Beförderung und Auslieferung von Gütern im Rahmen des
+                                                                                   Personenverkehrs und von Postsendungen;
+                                                                               – Beförderung und Disposition von Gütern des Güterverkehrs;
+                                                                               – Abwicklung des Geldverkehrs;
+                                                                               – Nachrichtenübermittlung in allen Formen;
+                                                                               – Reinigungsarbeiten;
+                                                                         b.    Bau und Unterhalt der Anlagen, Einrichtungen, Fahrzeuge und Komponenten, die von den
+                                                                               Dienststellen, welche die Leistungen nach Buchstabe a erbringen, verwendet werden;
+                                                                         c.    Erzeugung, Umwandlung, Steuerung und Übertragung von Energie in den eigenen
+                                                                               Elektrizitätswerken, Unterwerken und Umformerstationen des Unternehmens;
+                                                                         d.    Dienstleistungen in Nebenbetrieben gemäss Artikel 2.
+                                                                         3 Der Verwaltungsdienst umfasst die Unternehmensführung und die dazugehörenden administrativen
+                                                                         und technischen Dienste des Unternehmens und der Nebenbetriebe.
+
+II. Arbeits- und Ruhezeit                                                II. Arbeits- und Ruhezeit
+1. Arbeitnehmer im Betriebsdienst
+Art. 3        Arbeitstag
+Der Arbeitstag im Sinne des Gesetzes besteht aus der Dienstschicht und   ===
+aus der Ruheschicht.
+                              Gesetz (AZG)                                                                            Verordnung (AZGV)
+
+Art. 4        Arbeitszeit                                                    Art. 6        Arbeitszeit
+1 Die tägliche Arbeitszeit beträgt im Jahresdurchschnitt höchstens sieben    1 Als Arbeitszeit gilt die Zeit, während der ein Arbeitnehmer im Sinne von Artikel 4 Absätze 1 und 2 des
+Stunden.                                                                     AZG beim Unternehmen beschäftigt ist.
+2 Für Dienste, deren Arbeitszeit mehr als 2 Stunden Präsenzzeit umfasst,     2 Ausserdem werden als Arbeitszeit angerechnet:
+kann die durchschnittliche tägliche Arbeitszeit um höchstens 40 Minuten      a.   Reisezeiten ohne Arbeitsleistung;
+verlängert werden. Diese Dienste sind in der Verordnung zu bezeichnen.
+                                                                             b.   Pausenanteile nach Artikel 7 Absatz 3 des AZG;
+3 Die Höchstarbeitszeit innerhalb einer einzelnen Dienstschicht beträgt 10
+                                                                             c.   der Zeitzuschlag nach Artikel 4bis des AZG von mindestens:
+Stunden, sie darf jedoch im Durchschnitt von 7 aufeinanderfolgenden Ar-
+beitstagen 9 Stunden nicht überschreiten.                                         – 10 Prozent für den Dienst zwischen 22 und 24 Uhr;
+Art. 4bis     Gewährung eines Zeitzuschlages                                      – 30 Prozent für den Dienst zwischen 24 und 4 Uhr sowie zwischen 4 und 5 Uhr, wenn der Ar-
+                                                                                       beitnehmer den Dienst vor 4 Uhr angetreten hat;
+Für den Dienst zwischen 22 und 6 Uhr ist grundsätzlich ein Zeitzuschlag zu
+gewähren. Der Bundesrat bestimmt die massgebenden Zeiten sowie den                – 40 Prozent statt 30 Prozent ab Beginn des Kalenderjahres, in dem der Arbeitnehmer das
+Umfang des Zeitzuschlages und regelt den Ausgleich.                                    55. Altersjahr vollendet;
+                                                                             d.   bei Interventionszentren für den Einsatz von Lösch- und Rettungszügen: die Anwesenheitszeiten
+                                                                                  ohne Arbeitsleistung, wenn dafür eine schriftliche Vereinbarung zwischen dem Unternehmen und
+                                                                                  den Arbeitnehmern oder deren Vertreter vorliegt. Die Vereinbarung muss eine Angabe zum Umfang
+                                                                                  der als Arbeitszeit anzurechnenden Anwesenheitszeit ohne Arbeitsleistung enthalten.
+                                                                             2bis Das Unternehmen vereinbart mit den Arbeitnehmern oder ihren Vertretern, wie die Arbeitszeit aus
+                                                                             dem Zeitzuschlag nach Absatz 2 Buchstabe c ausgeglichen wird.
+                                                                             3 Dienstfreie Tage, die dem Arbeitnehmer zu gewähren sind, damit die Bestimmungen über die Arbeits-
+                                                                             zeit eingehalten werden, sind in dieser Verordnung als Ausgleichstage bezeichnet. Ausgleichstage sind
+                                                                             in der Regel zusammen mit Ruhetagen zuzuteilen. Der Ausgleichstag umfasst mindestens 24 aufeinan-
+                                                                             derfolgende Stunden. Abweichungen können zwischen der Unternehmung und den Arbeitnehmern oder
+                                                                             ihren Vertretern vereinbart werden.
+                                                                             4 Sofern es die betrieblichen Verhältnisse erlauben, ist die Fünftagewoche einzuhalten. In den übrigen
+                                                                             Fällen sollen Ausgleichstage soweit möglich so zugeteilt werden, dass eine gegenüber der Fünftagewo-
+                                                                             che gleichwertige Lösung erreicht wird.
+                                                                             5 Die Höchstarbeitszeit nach Artikel 4 Absatz 3 des AZG kann in Ausnahmefällen und sofern betrieblich
+                                                                             notwendig um Reisezeit ohne Arbeitsleistung, jedoch höchstens um 40 Minuten überschritten werden.
+                                                                             5bis Bei Unternehmen nach Artikel 1 Absatz 1 Buchstaben a–c sowie f AZG kann für angeordnete Aus-
+                                                                             oder Weiterbildungstage die tägliche Höchstarbeitszeit nach Artikel 4 Absatz 3 AZG um höchstens zwei
+                                                                             Stunden Reisezeit ohne Arbeitsleistung überschritten werden.
+                                                                             6 Wird infolge Anrechnung von Reisezeiten ohne Arbeitsleistung die Höchstarbeitszeit überschritten, so
+                                                                             richtet sich der Ausgleich nach Artikel 5 Absatz 2 des AZG.
+                                                                             7 Zur Bewältigung des Sommersaisonverkehrs vom 1. Mai bis zum 31. Oktober können Schifffahrtsun-
+                                                                             ternehmen und Arbeitnehmervertreter schriftliche Vereinbarungen abschliessen, wonach die Höchstar-
+                                                                             beitszeit nach Artikel 4 Absatz 3 des AZG innerhalb einer einzelnen Dienstschicht um höchstens drei
+                                                                             Stunden überschritten werden darf. Innerhalb von sieben aufeinander folgenden Arbeitstagen darf die
+                                                                             Höchstarbeitszeit 72 Stunden jedoch nicht überschreiten.
+Gesetz (AZG)                                            Verordnung (AZGV)
+
+               8 Bei Interventionszentren für den Einsatz von Lösch- und Rettungszügen kann die Höchstarbeitszeit
+               nach Artikel 4 Absatz 3 des AZG um die anrechenbare Arbeitszeit nach Absatz 2 Buchstabe d
+               überschritten werden.
+               9 Die Dienste werden wie folgt eingeteilt:
+               a.   Frühdienst: Dienst, der zwischen 4 Uhr und 6 Uhr beginnt;
+               b.   Mitteldienst: Dienst, der ganz in den Zeitraum fällt, der um 6 Uhr beginnt und um 20 Uhr endet;
+               c.   Spätdienst: Dienst, der zwischen 20 Uhr und 24 Uhr endet;
+               d.   Nachtdienst: Dienst, der ganz oder teilweise in den Zeitraum fällt, der um 24 Uhr beginnt und um 4
+                    Uhr endet.
+
+               Art. 7         Durchschnittliche tägliche Arbeitszeit
+               1 Die durchschnittliche tägliche Arbeitszeit nach Artikel 4 Absätze 1 und 2 AZG wird errechnet, indem
+               die in einem Abschnitt von 365 Tagen geleistete Arbeitszeit zusammengezählt und durch die Zahl der
+               Arbeitstage geteilt wird. Werden zur Erreichung des vorgeschriebenen Durchschnitts Ausgleichstage
+               eingeteilt, so zählen diese nicht als Ruhe-, sondern als Arbeitstage.
+               2 Die Ausgestaltung der unterjährigen Arbeitszeit muss vom Unternehmen mit den Arbeitnehmern oder
+               ihren Vertretern schriftlich vereinbart werden. Im Stundenlohn beschäftigte Arbeitnehmer können davon
+               ausgenommen werden.
+Gesetz (AZG)                                            Verordnung (AZGV)
+
+               Art. 8         Präsenzzeit
+               1 Als Präsenzzeit gilt die Zeit, die am zugewiesenen Arbeitsplatz ohne Arbeitsleistung zugebracht wer-
+               den muss.
+               2 Es werden nur zusammenhängende Präsenzzeiten von wenigstens 30 Minuten und im Barrierenwär-
+               terdienst solche von wenigstens 20 Minuten berücksichtigt.
+               3 Fallen Präsenzzeiten und Reisezeiten gemäss Artikel 6 Absatz 2 Buchstabe a in die gleiche Dienst-
+               schicht, kann die durchschnittliche tägliche Arbeitszeit insgesamt um höchstens 40 Minuten verlängert
+               werden.
+               4 Die Zuteilung einer nach Artikel 4 Absatz 2 des AZG verlängerten Arbeitszeit ist in folgenden Diensten
+               zulässig:
+               a. bei Eisenbahnen
+                    im Stationsdienst
+                    im Reservedienst beim Fahrpersonal
+                    im Barrierenwärterdienst
+                    im Fahrdienst der Zahnradbahnen
+                    im Fahrdienst der Standseilbahnen
+               b. bei Schifffahrtsunternehmen
+                    in allen Diensten
+               c. bei Luftseilbahnunternehmen
+                    in allen Diensten
+               d. bei Automobilunternehmen
+                    im Fahrdienst
+               e. bei Nebenbetrieben
+                    im Dienst in Speisewagen
+                    im Verpflegungsdienst in Zügen
+                    in allen Diensten bei Skiliften.
+Gesetz (AZG)                                             Verordnung (AZGV)
+
+               Art. 8a        Pikettdienst
+               1 Als Pikettdienst gilt ein Dienst, in dem sich der Arbeitnehmer ausserhalb der geplanten Arbeits- oder
+               Präsenzzeit für allfällige Arbeitseinsätze zur Behebung von Störungen oder ähnliche Sonderereignisse
+               sowie für damit verbundene Kontrollgänge bereithält.
+               2 Pikettdienst darf nur verlangt werden, wenn dies zwischen dem Unternehmen und den Arbeitnehmern
+               oder ihren Vertretern schriftlich vereinbart worden ist.
+               Art. 8b        Einteilung zum Pikettdienst
+               1 Ein Arbeitnehmer darf im Zeitraum von 28 Tagen an höchstens sieben Tagen zum Pikettdienst einge-
+               teilt werden. Sobald die Höchstzahl erreicht ist, darf der Arbeitnehmer während den zwei darauf folgen-
+               den Wochen nicht mehr zum Pikettdienst eingeteilt werden.
+               2 In Abweichung von Absatz 1 darf ein Arbeitnehmer im Zeitraum von 28 Tagen an höchstens 14 Tagen
+               zum Pikettdienst eingeteilt werden, wenn aufgrund der betrieblichen Grösse oder Struktur nicht genü-
+               gend Personal für einen Pikettdienst nach Absatz 1 zur Verfügung steht und für den Arbeitnehmer:
+               a. im Kalenderjahr höchstens 20 Wochen von Pikettdienst betroffen sind und nach sieben Piketttagen
+                    jeweils mindestens sieben pikettfreie Tage folgen; oder
+               b. im Kalenderjahr höchstens 90 Tage von Pikettdienst betroffen sind.
+               3 Zur Bewältigung von winterlichen Verhältnissen darf ein Arbeitnehmer innerhalb von sechs Monaten
+               während 16 Wochen, im Kalenderjahr jedoch während nicht mehr als 20 Wochen und insgesamt höchs-
+               tens an 77 Tagen zum Pikettdienst eingeteilt werden.
+               4 Eine Woche nach Absatz 2 Buchstabe a und Absatz 3 umfasst sieben Tage und beginnt jeweils am
+               Montag.
+               5 Bei Arbeitnehmern mit Familienpflichten dürfen kurzfristige Änderungen in der Einteilung der Pikett-
+               dienste nur mit deren Einverständnis vorgenommen werden.
+               6 Ein Arbeitnehmer darf nicht an einem Ruhetag, während der Ruheschicht nach Artikel 10 Absatz 4
+               des AZG oder an einem Tag, an dem er Nachtdienst leistet, zum Pikettdienst eingeteilt werden.
+               Art. 8c        Arbeitszeit bei Pikettdienst
+               1 Bei einem Einsatz während des Pikettdienstes werden die gesamte Einsatzzeit sowie die Wegzeit
+               zum und vom Einsatzort als Arbeitszeit angerechnet und die Zeitzuschläge nach Artikel 6 Absatz 2 ge-
+               währt.
+               2 Bei einem an die im Dienstplan vorgeschriebene Dienstschicht anschliessenden, unaufschiebbaren
+               Piketteinsatz ist eine ununterbrochene Arbeitszeit von mehr als fünf Stunden zulässig.
+               3 Wird infolge Piketteinsätzen die Höchstarbeitszeit überschritten, so richtet sich der Ausgleich nach Ar-
+               tikel 5 Absatz 2 des AZG.
+                               Gesetz (AZG)                                                                               Verordnung (AZGV)
+
+                                                                                Art. 8d       Verhältnis zwischen Piketteinsatz und Dienstschicht oder Arbeitstag
+                                                                                1 Piketteinsätze gelten nicht als zu einer Dienstschicht oder zu einem Arbeitstag gehörend.
+                                                                                2 Durch einen Piketteinsatz wird ein Ausgleichstag nicht zu einem Arbeitstag.
+                                                                                Art. 8e       Ruheschicht bei Pikettdienst
+                                                                                Die Ruheschicht zwischen zwei Dienstschichten darf durch Einsätze während des Pikettdienstes unter-
+                                                                                brochen werden. Die verbleibende Ruheschicht vor und nach den Einsätzen muss zusammen mindes-
+                                                                                tens elf Stunden betragen; davon müssen mindestens sechs Stunden zusammenhängen.
+
+Art. 5         Überzeitarbeit                                                   Art. 9         Überzeitarbeit
+1 Wird die im Dienstplan vorgeschriebene Arbeitszeit aus dienstlichen Grün-     1 Überzeitarbeit ist in der Regel innert 56 Tagen durch Freizeit von gleicher Dauer auszugleichen. Das
+den überschritten, so gilt die über den Dienstplan hinausgehende Arbeits-       Unternehmen und der Arbeitnehmer vereinbaren den Zeitpunkt des Ausgleichs; sie können wenn nötig
+zeit grundsätzlich als Überzeitarbeit.                                          die Frist erstrecken. Kann der Ausgleich nicht innert der vereinbarten Frist erfolgen, so ist Barvergütung
+2 Überzeitarbeit ist in der Regel durch Freizeit von gleicher Dauer auszu-      zu leisten.
+gleichen. Ist der Ausgleich innerhalb eines angemessenen Zeitraumes nicht       2 Die während eines Zeitabschnittes von 28 Tagen geleistete Überzeitarbeit ist zusammenzuzählen und
+möglich, so ist für die Überzeitarbeit Barvergütung zu leisten. Die Barvergü-   dann gemäss Absatz 1 auszugleichen. Bei geringfügiger Überschreitung der im Dienstplan vorgeschrie-
+tung ist auf Grund des Lohnes mit einem Zuschlag von wenigstens 25 Pro-         benen Arbeitszeit kann zwischen den Unternehmen und den Arbeitnehmern oder deren Vertretern eine
+zent zu berechnen. Im Kalenderjahr dürfen höchstens 150 Stunden Über-           andere Form des Ausgleichs vereinbart werden.
+zeitarbeit durch Geldleistungen abgegolten werden.                              3 Die Barvergütung wird auf Grund des Stundenlohnes mit einem Zuschlag von wenigstens 25 Prozent
+3 Erfordern zwingende Gründe, wie höhere Gewalt oder Betriebsstörungen,         berechnet.
+eine Überschreitung der in Artikel 4 Absatz 3 festgesetzten Höchstarbeits-      4 Der Stundenlohn ist auf Grund von 300 Arbeitstagen zu 7 Stunden zu berechnen.
+zeit um mehr als zehn Minuten, so ist die gesamte über 10 bzw. 63 Stunden
+hinausgehende Arbeitszeit innerhalb der folgenden drei Arbeitstage durch        5 Den privaten Hilfskräften, die von Postagenturinhabern beschäftigt werden, dürfen im Kalenderjahr
+Freizeit von gleicher Dauer auszugleichen; ferner ist eine Barvergütung ge-     höchstens 300 Stunden Überzeitarbeit durch Geldleistungen abgegolten werden.
+mäss Absatz 2 auszurichten.                                                     6 Motorfahrzeugführern, die in einem konzessionierten Automobilunternehmen (ohne Nah- und
+                                                                                Vorortsverkehrsbetriebe) oder einem Unternehmen nach Artikel 1 Absatz 1 Buchstabe f AZG
+                                                                                beschäftigt werden, dürfen im Kalenderjahr höchstens 300 Stunden Überzeitarbeit durch Geldleistungen
+                                                                                abgegolten werden.
+                              Gesetz (AZG)                                                                            Verordnung (AZGV)
+
+Art. 6       Dienstschicht                                                    Art. 10        Dienstschicht
+1 Die Dienstschicht besteht aus der Arbeitszeit und den Pausen; sie darf im   1 Ausgleichstage, die zur Erreichung der vorgeschriebenen durchschnittlichen Arbeitszeit gewährt wer-
+Durchschnitt von 28 Tagen 12 Stunden nicht überschreiten. An einzelnen        den, sind bei der Berechnung der durchschnittlichen Dienstschicht nicht mitzuzählen.
+Tagen kann die Dienstschicht bis auf 13 Stunden verlängert werden.            2 Die Dienstschicht kann mit Zustimmung der beteiligten Arbeitnehmer oder deren Vertreter ausnahms-
+2 Wo besondere, durch Verordnung festzustellende Verhältnisse vorliegen,      weise bis auf 15 Stunden ausgedehnt werden:
+kann die Dienstschicht bis auf 15 Stunden verlängert werden, doch darf sie    a. wegen Personalmangels als Folge von Militär- oder Zivilschutzdienst, Krankheit oder Unfall;
+im Durchschnitt von 3 aufeinanderfolgenden Arbeitstagen 12 Stunden nicht
+                                                                              b. zur Bewältigung ausserordentlicher und vorübergehender Aufgaben;
+überschreiten.
+                                                                              2bis Bei Schifffahrtsunternehmen kann die Dienstschicht auf 15 Stunden ausgedehnt werden, wenn
+3 Erfordern zwingende Gründe, wie höhere Gewalt oder Betriebsstörungen,
+eine Überschreitung der in Absatz 2 festgelegten Höchstdienstschicht um       dies für die Bewältigung des Sommersaisonverkehrs vom 1. Mai bis zum 31. Oktober nötig ist und wenn
+mehr als zehn Minuten, so hat innerhalb der nächsten 3 Arbeitstage ein        dafür eine schriftliche Vereinbarung zwischen dem Unternehmen und den Arbeitnehmervertretern vor-
+Ausgleich stattzufinden.                                                      liegt.
+                                                                              3 In den nachstehenden Fällen kann die Dienstschicht mit Zustimmung der beteiligten Arbeitnehmer
+                                                                              oder ihrer Vertreter ausgedehnt werden, sofern sie im Durchschnitt von 28 Tagen 13 Stunden nicht
+                                                                              überschreitet und an einzelnen Tagen höchstens 14 Stunden beträgt:
+                                                                              a. auf einzelnen Linien von Unternehmen, deren ordentliche tägliche Betriebsdauer mehr als 12, aber
+                                                                                   höchstens 14 Stunden beträgt;
+                                                                              b. bei Nah- und Vorortsverkehrsbetrieben für die Bewältigung des Morgen- und Abendspitzenver-
+                                                                                   kehrs mit dem gleichen Personal;
+                                                                              c. bei Kleinbetrieben für die Aufrechterhaltung unentbehrlicher Morgen und Abendverbindungen. Als
+                                                                                   Kleinbetriebe gelten Unternehmen, die im öffentlichen Linienverkehr nicht mehr als drei Jahresar-
+                                                                                   beitskräfte für den Fahrdienst benötigen;
+                                                                              d. für Arbeitnehmer in Postagenturen, zur Sicherstellung der Zufuhr der Postsachen am Morgen und
+                                                                                   der Abfuhr am Abend mit dem gleichen Personal, sofern die Fahrplangestaltung dazu zwingt.
+                                                                              e. aufgehoben
+                                                                              3bis Bei konzessionierten Automobilunternehmen, mit Ausnahme von Nah- und Vorortsverkehrsbetrie-
+                                                                              ben, und Automobilunternehmen nach Artikel 1 Absatz 1 Buchstabe f AZG kann die Dienstschicht mit
+                                                                              Zustimmung der beteiligten Arbeitnehmer oder ihrer Vertreter einmal zwischen zwei dienstfreien Tagen
+                                                                              bis auf 14 Stunden ausgedehnt werden, sofern sie im Durchschnitt von 28 Tagen 12 Stunden nicht
+                                                                              überschreitet und der Arbeitnehmer in der bis auf 14 Stunden verlängerten Dienstschicht ausschliess-
+                                                                              lich auf Linien ohne durchgehenden Stundentakt eingesetzt wird.
+                                                                              4 Unternehmen mit Früh-, Mittel-, Spät- und Nachtdienstschichten haben unter den Arbeitnehmern für
+                                                                              einen angemessenen Wechsel der Schichten zu sorgen. Diese Bestimmung findet keine Anwendung
+                                                                              auf Arbeitnehmer, die nur für Nachtarbeit angestellt sind.
+                                                                              5 Die anrechenbare Arbeitszeit nach Artikel 6 Absatz 2 Buchstaben b, c und d sind bei der Berechnung
+                                                                              der Dienstschicht nicht anzurechnen.
+                              Gesetz (AZG)                                                                            Verordnung (AZGV)
+
+Art. 7        Pausen                                                          Art. 11        Pausen
+1 Nach ungefähr der Hälfte der Arbeitszeit ist eine Pause zu gewähren, wel-   1 Eine Verkürzung der Pausen gemäss Artikel 7 Absatz 1 des AZG auf weniger als eine Stunde kann
+che die Einnahme einer Mahlzeit erlaubt. Sie soll in der Regel wenigstens     zwischen den Unternehmen und den Arbeitnehmern oder deren Vertretern vereinbart werden.
+eine Stunde betragen und, soweit es der Dienst gestattet, am Wohnort zu-      2 Der Arbeitnehmer soll seine Mahlzeiten wenn möglich zur ortsüblichen Zeit und zu Hause einnehmen
+gebracht werden können.
+                                                                              können. Auf Wunsch der Arbeitnehmer oder ihrer Vertreter sind Pausen am Wohnort um die Mittagszeit
+2 In einer Dienstschicht sind drei Pausen zulässig; wo durch Verordnung zu    wenn möglich auf mehr als eine Stunde zu verlängern.
+umschreibende, aussergewöhnliche Verhältnisse vorliegen, kann diese Zahl      3 Zwischen 23 und 5 Uhr darf mit Ausnahme der Pause gemäss Artikel 7 Absatz 1 des AZG oder zum
+auf vier erhöht werden. Eine Pause soll mindestens 30 Minuten dauern.
+                                                                              Zwecke der Übernachtung ohne Zustimmung der Arbeitnehmer oder ihrer Vertreter keine Pause einge-
+3 Pausen ausserhalb des Dienstortes sind zu wenigstens 30 Prozent als Ar-     teilt werden.
+beitszeit anzurechnen. Pausen am Dienstort sind zu wenigstens 20 Prozent      4 Die ununterbrochene Arbeitszeit darf fünf Stunden nicht überschreiten. Vorbehalten bleibt Artikel 7
+anzurechnen, sofern in einer Dienstschicht mehr als zwei Pausen zugeteilt
+                                                                              Absatz 4 AZG. Einmal zwischen zwei dienstfreien Tagen kann die maximale ununterbrochene
+werden.
+                                                                              Arbeitszeit um bis zu zehn Minuten überschritten werden. In Fällen von höherer Gewalt oder bei
+4 Auf die Gewährung einer Pause kann nach Anhören der Arbeitnehmer o-         Betriebsstörungen darf die ununterbrochene Arbeitszeit fünf Stunden überschreiten.
+der ihrer Vertreter verzichtet werden, wenn die Dienstschicht neun Stunden    4bis Bei Schifffahrtsunternehmen kann mit Zustimmung der beteiligten Arbeitnehmer oder deren
+nicht überschreitet und der Arbeitnehmer die Möglichkeit hat, eine Zwi-
+                                                                              Vertreter die ununterbrochene Arbeitszeit von höchstens fünf Stunden um bis zu 30 Minuten
+schenverpflegung einzunehmen; dafür ist eine Arbeitsunterbrechung von 20
+                                                                              überschritten werden.
+Minuten einzuräumen, die als Arbeitszeit gilt.
+                                                                              5 Schifffahrtsunternehmen dürfen innerhalb einer Dienstschicht an Bord im Einvernehmen mit den Ar-
+                                                                              beitnehmern oder ihren Vertretern zur Einnahme der Hauptmahlzeiten Pausen von wenigstens 30 Minu-
+                                                                              ten und gesamthaft höchstens einer Stunde zuteilen.
+                                                                              6 Aussergewöhnliche Verhältnisse im Sinne von Artikel 7 Absatz 2 des AZG, die zur Einteilung von vier
+                                                                              Pausen Anlass geben können, liegen vor:
+                                                                              a. im Fahrdienst der Zahnradbahnen mit ausgesprochen touristischem Charakter, der Standseilbah-
+                                                                                    nen, Luftseilbahnen, Skilifte, Schifffahrtsunternehmen und konzessionierten Automobilunternehmen
+                                                                                    (ohne Nah- und Vorortsverkehrsbetriebe), wenn die Fahrplangestaltung dazu zwingt;
+                                                                              b. bei kleinen Dienststellen der Eisenbahnunternehmen mit geringem Verkehrsaufkommen zur Auf-
+                                                                                    rechterhaltung des Morgen- und Abendverkehrs mit dem gleichen Personal, wenn fahrplanbe-
+                                                                                    dingte, ausgedehnte Besetzungszeiten dazu zwingen;
+                                                                              c. im Barrierenwärterdienst, wenn fahrplanbedingte, ausgedehnte Besetzungszeiten dazu zwingen.
+                                                                              7 Als Dienstort im Sinne von Artikel 7 Absatz 3 AZG gilt der Ort, der dem Arbeitnehmer vom
+                                                                              Unternehmen zugewiesen wird. Bei mehreren auseinanderliegenden Dienststellen muss das
+                                                                              Unternehmen eine Dienststelle als Dienstort bezeichnen. Für Unternehmen mit gesamtarbeitsvertraglich
+                                                                              oder öffentlich-rechtlich geregelten Anstellungsverhältnissen kann zwischen dem Unternehmen und den
+                                                                              Arbeitnehmervertretern vereinbart werden, dass der Dienstort mehrere Dienststellen umfasst.
+                                                                              8 Sofern die Voraussetzungen von Artikel 7 Absatz 4 des AZG erfüllt sind, kann für die Einnahme einer
+                                                                              Zwischenverpflegung auf Wunsch der Arbeitnehmer oder ihrer Vertreter eine Arbeitsunterbrechung von
+                                                                              mehr als 20 Minuten eingeräumt werden. Dabei gelten wenigstens 20 Minuten dieser Arbeitsunterbre-
+                                                                              chung als Arbeitszeit. Diese Bestimmung ist auch anwendbar, wenn aus betrieblichen Gründen Arbeits-
+                                                                              unterbrechungen von mehr als 20 Minuten zugeteilt werden müssen, sofern die Pause nicht wenigstens
+                                                                              eine Stunde beträgt.
+                             Gesetz (AZG)                                                                           Verordnung (AZGV)
+
+Art. 8        Ruheschicht                                                  Art. 12       Ruheschicht
+1 Die Ruheschicht umfasst den Zeitraum zwischen zwei Dienstschichten       1 Ausgleichstage, die zur Erreichung der vorgeschriebenen durchschnittlichen Arbeitszeit gewährt wer-
+und beträgt im Durchschnitt von 28 Tagen mindestens zwölf Stunden. Sie     den, sind bei der Berechnung der durchschnittlichen Ruheschicht nicht mitzuzählen.
+darf an einzelnen Tagen auf elf Stunden herabgesetzt werden.               2 Die Ruheschicht kann mit Zustimmung der beteiligten Arbeitnehmer oder ihrer Vertreter in folgenden
+2 Wo besondere, durch Verordnung festzustellende Verhältnisse vorliegen,   Fällen bis auf neun Stunden verkürzt werden:
+kann die Ruheschicht auf neun Stunden herabgesetzt werden, doch muss       a. einmal in der Woche beim Übergang:
+sie im Durchschnitt von 3 aufeinanderfolgenden Arbeitstagen mindestens
+                                                                                1. vom Nacht- zum Mittel- oder Spätdienst, sofern der Nachtdienst nicht länger als bis 2 Uhr
+zwölf Stunden betragen.
+                                                                                     dauert, oder
+3 Die Ruheschicht soll, soweit es der Dienst gestattet, am Wohnort
+                                                                                2. vom Spät- zum Früh-, Mittel- oder Spätdienst, oder
+zugebracht werden können.
+                                                                                3. vom Mittel- zum Früh- oder Mitteldienst, oder
+                                                                                4. vom Früh- zum Frühdienst;
+                                                                           b. bei auswärtigen Ruheschichten;
+                                                                           c. bei Personalmangel als Folge von Militär- oder Zivilschutzdienst, Krankheit oder Unfall;
+                                                                           d. zur Bewältigung ausserordentlicher und vorübergehender Aufgaben;
+                                                                           2bis Bei Schifffahrtsunternehmen kann die Ruheschicht an einzelnen Tagen auf neun Stunden
+                                                                           herabgesetzt werden, wenn dies für die Bewältigung des Sommersaisonverkehrs vom 1. Mai bis zum
+                                                                           31. Oktober nötig ist und wenn dafür eine schriftliche Vereinbarung zwischen dem Unternehmen und
+                                                                           den Arbeitnehmervertretern vorliegt. Im Durchschnitt von fünf aufeinanderfolgenden Arbeitstagen muss
+                                                                           die Ruheschicht aber mindestens zwölf Stunden betragen.
+                                                                           2ter Im Baudienst kann die Ruheschicht ausserhalb der Übergänge nach Absatz 2 Buchstabe a einmal
+                                                                           in der Woche mit Zustimmung der beteiligten Arbeitnehmer oder ihrer Vertreter bis auf zehn Stunden
+                                                                           gekürzt werden.
+                                                                           3 Wird die Dienstschicht gemäss Artikel 10 Absatz 3 verlängert, so darf die Ruheschicht im Durchschnitt
+                                                                           von 28 Tagen elf Stunden betragen und an einzelnen Tagen auf zehn Stunden verkürzt werden.
+                                                                           4 Im Fahrdienst von Nah- und Vorortsverkehrsbetrieben kann die Ruheschicht im Rahmen von Absatz 2
+                                                                           auf neun Stunden herabgesetzt werden, doch muss sie im Durchschnitt von 5 aufeinanderfolgenden Ar-
+                                                                           beitstagen mindestens zwölf Stunden betragen.
+                                                                           5 Erfordern zwingende Gründe, wie höhere Gewalt oder Betriebsstörungen, eine Unterschreitung der in
+                                                                           Artikel 8 Absatz 2 des AZG festgelegten Mindestruheschicht um mehr als zehn Minuten, so ist ein Aus-
+                                                                           gleich innerhalb der nächsten drei Ruheschichten vorzunehmen.
+                               Gesetz (AZG)                                                                              Verordnung (AZGV)
+
+Art. 9       Nachtarbeit                                                        Art. 13       Nachtarbeit
+1 Als Nachtarbeit gilt die Beschäftigung zwischen 24 und 4 Uhr.                 Für Bauarbeiten und Bauunterhaltsarbeiten, die aus betrieblichen Gründen nur während der Nacht aus-
+                                                                                geführt werden können, darf ausnahmsweise höchstens vier Wochen nacheinander Nachtarbeit zuge-
+2 aufgehoben
+                                                                                teilt werden, wobei dem Arbeitsnehmer wöchentlich ein Ruhetag und ein Ausgleichstag zusammenhän-
+3 Nachtarbeit darf dem Arbeitnehmer nicht mehr als siebenmal hintereinan-       gend zu gewähren sind. Die Arbeitnehmer sind mindestens drei Wochen vor der ersten Nachtschicht
+der und innerhalb von 28 Tagen an höchstens 14 Tagen zugeteilt werden.          über Beginn und voraussehbares Ende der länger dauernden Nachtarbeit zu verständigen. Werden
+4 Die Vorschriften von Absatz 3 sind nicht anwendbar auf Arbeitnehmer, die      zwei oder mehr Wochen Nachtarbeit nacheinander zugeteilt, so darf der Arbeitnehmer während der fol-
+                                                                                genden 14 Tage keine Nachtarbeit leisten.
+nur für Nachtarbeit angestellt sind.
+5 Für Bauarbeiten, die aus betrieblichen Gründen nur nachts ausgeführt
+werden können, darf ausnahmsweise von Absatz 3 abgewichen werden.
+
+Art. 10        Ruhetage                                                         Art. 14       Anspruch auf Ruhetage
+1 Der Arbeitnehmer hat je Kalenderjahr Anspruch auf 62 bezahlte Ruhe-           1 Für Arbeitnehmer, die nicht dauernd oder nicht während der ganzen Arbeitszeit von einem Unterneh-
+tage. Diese sind angemessen auf das Jahr zu verteilen. Mindestens 20 Ru-        men beschäftigt werden, richtet sich die Dauer der in Artikel 10 Absatz 1 des AZG vorgeschriebenen
+hetage müssen auf einen Sonntag fallen. Als Sonntage gelten auch Neu-           Ruhetage nach der durchschnittlichen täglichen Arbeitszeit.
+jahr, Auffahrt und Weihnachten, ferner bis zu fünf kantonale Feiertage.         2 Die kantonalen Feiertage, die gemäss Artikel 10 Absatz 1 des AZG als Sonntage gelten, sind von je-
+2 Für einzelne Gruppen von Arbeitnehmern der Nebenbahnen, Luftseilbah-          dem Unternehmen im Einvernehmen mit den Arbeitnehmern oder ihren Vertretern generell festzulegen.
+nen sowie Schifffahrts- und Automobilunternehmen kann die Zahl der Ruhe-        3 In die Ferien fallende Sonntage und Feiertage gelten nicht als Ruhesonntage im Sinne von Artikel 10
+sonntage durch Verordnung auf zwölf herabgesetzt werden.
+                                                                                Absätze 1 und 2 des AZG.
+3 Der Ruhetag umfasst 24 aufeinanderfolgende Stunden und muss am
+                                                                                4 Erstreckt sich die Nachtarbeit in den Sonn- oder Feiertag hinein, so darf dieser Tag nicht als Ruhe-
+Wohnort zugebracht werden können.
+                                                                                sonntag angerechnet werden.
+4 Dem Ruhetag hat eine Ruheschicht voranzugehen, die im Durchschnitt
+                                                                                5 Zuviel bezogene Ruhetage dürfen nur mit noch nicht bezogenen Ferien verrechnet werden, wenn der
+von 42 Tagen mindestens zwölf Stunden beträgt; sie darf aber nicht weniger
+                                                                                Arbeitnehmer freiwillig oder aus eigenem Verschulden aus dem Unternehmen ausscheidet.
+als neun Stunden dauern. Werden zwei oder mehr aufeinanderfolgende Ru-
+hetage gewährt, so bezieht sich diese Vorschrift nur auf den ersten Ruhe-       6 Bei Abwesenheit der arbeitnehmenden Person infolge von Krankheit, Unfall, unbezahltem Urlaub oder
+tag.                                                                            Mutterschaft sowie bei Abwesenheiten infolge von Militärdienst, Zivildienst oder Zivilschutzdienst, die
+5 Die Verordnung regelt die Anrechnung von Dienstaussetzungen als Folge         mehr als sechs zusammenhängende Tage umfassen, wird der Anspruch auf Ruhetage auf eine der
+                                                                                folgenden Arten herabgesetzt:
+von Krankheit, Unfall, Militär- und Zivilschutzdienst, Urlaub oder aus andern
+Gründen auf die Ruhetage.                                                       a. Für je 7 Abwesenheitstage wird ein Ruhetag und für je 72 Abwesenheitstage im Kalenderjahr wer-
+                                                                                     den zwei weitere Ruhetage angerechnet.
+                                                                                b. Die in die Dienstaussetzung fallenden Sonntage und die nach Artikel 10 Absatz 1 des AZG als
+                                                                                     Sonntage geltenden Feiertage zählen als bezogene Ruhetage.
+                                                                                7 Die Herabsetzung des Ruhetagsanspruchs nach Absatz 6 Buchstabe a oder b ist zwischen dem Un-
+                                                                                ternehmen und den Arbeitnehmern oder deren Vertretern zu vereinbaren.
+                                                                                8 Für Unternehmen mit gesamtarbeitsvertraglich oder öffentlich-rechtlich geregelten Anstellungs-
+                                                                                verhältnissen können zwischen dem Unternehmen und den Arbeitnehmervertretern andere Lösungen
+                                                                                vereinbart werden, sofern diese Absatz 6 gleichwertig sind.
+Gesetz (AZG)                                           Verordnung (AZGV)
+
+               Art. 15     Zuteilung der Ruhetage
+               1 Im Kalendermonat sind mindestens vier Ruhetage, wovon ein Ruhesonntag, zuzuteilen.
+               2 Abstände von mehr als 14 Tagen zwischen Ruhetagen und von mehr als 21 Tagen zwischen Ruhe-
+               sonntagen sind nicht gestattet. Anstatt des Abstandes von 21 Tagen zwischen Ruhesonntagen können
+               bei städtischen Verkehrsbetrieben und Eisenbahnen mit touristischem Charakter, darunter auch diejeni-
+               gen ohne Zahnrad, mit Zustimmung der Arbeitnehmer oder ihrer Vertreter im Zeitraum von 42 Tagen
+               mindestens zwei Ruhesonntage zugeteilt werden.
+               3 Die Ruhetage sind im Voraus in der Diensteinteilung zuzuteilen.
+               4 Eheleuten, die im gleichen Unternehmen arbeiten, sind auf ihren Wunsch die Ruhesonntage und
+               wenn möglich auch die übrigen Ruhetage gleichzeitig zu gewähren.
+               5 In den Zeiten saisonbedingten starken Verkehrs dürfen konzessionierte Automobilunternehmen (ohne
+               Nah- und Vorortsverkehrsbetriebe) die Anzahl Ruhetage ausnahmsweise auf drei Ruhetage, wovon ein
+               Ruhesonntag, herabsetzen. In den Zeiten saisonbedingten starken Verkehrs dürfen diese Unternehmen
+               sowie Schifffahrtsunternehmen zudem die Abstände nach Absatz 2 ausnahmsweise um sieben Tage
+               verlängern.
+               6 Bei Eisenbahnunternehmen ist die Verlängerung des Abstandes zwischen Ruhesonntagen um sieben
+               Tage mit Zustimmung der Arbeitnehmer oder ihrer Vertreter auch dann zulässig, wenn die Vorausset-
+               zungen von Absatz 5 nicht erfüllt sind.
+               7 Zur Bewältigung von starkem Reiseverkehr darf für die in diesem Dienstzweig tätigen Arbeitnehmer
+               der in Artikel 10 Absatz 2 des AZG genannten Unternehmen sowie für Arbeitnehmer der Nebenbetriebe
+               die Zahl der Ruhesonntage bis auf 16, in ganz besonderen Fällen bis auf 12 herabgesetzt werden.
+
+               Art. 16     Verschiebung von Ruhetagen
+               1 Begehren um Verschiebung von zugeteilten Ruhetagen ist wenn möglich zu entsprechen, sofern die
+               Bestimmungen von Artikel 15 Absätze 1, 2, 5 und 6 eingehalten werden.
+               2 Können zugeteilte Ruhetage aus zwingenden dienstlichen Gründen nicht gewährt werden, so sind sie
+               nach den Bestimmungen von Artikel 15 Absätze 1, 2, 5 und 6 und wenn möglich nach dem Wunsch des
+               Arbeitnehmers zu ersetzen.
+
+               Art. 17       Ruhetage beim Wechsel des Dienstverhältnisses
+               1 Für die im Laufe des Kalenderjahres ein- oder austretenden Arbeitnehmer wird der Anspruch auf Ru-
+               hetage wie folgt festgesetzt:
+               a. die Zahl der Ruhetage ist im Verhältnis zur Dienstzeit herabzusetzen, oder
+               b. es besteht Anspruch auf die Anzahl Ruhetage, die der Zahl der in die Dienstzeit fallenden Sonntage
+                    und der gemäss Artikel 10 Absatz 1 des AZG als Sonntage geltenden Feiertage entspricht.
+                    Der Ruhetagsanspruch nach Buchstabe a oder b ist zwischen dem Unternehmen und den Arbeit-
+                    nehmern oder deren Vertretern zu vereinbaren.
+               2 Sind bei Dienstaustritt nach Absatz 1 zu viele Ruhetage bezogen, so darf kein Lohnabzug gemacht
+               werden.
+                              Gesetz (AZG)                                                                            Verordnung (AZGV)
+
+Art. 11       Fahrzeugführer                                                  Art. 18      Fahrzeugführer
+1 Der Dienst am Lenkrad der Motorfahrzeug- und Trolleybusführer sowie         1 Der Dienst am Lenkrad der Motorfahrzeug- und Trolleybusführer sowie der Dienst als Wagenführer
+der Dienst als Wagenführer von Strassenbahnen wird in der Verordnung ge-      von Strassenbahnen darf 9 Stunden im Tag und 45 Stunden in der Woche nicht überschreiten. Werden
+regelt.                                                                       in einer Woche sieben Arbeitstage eingeteilt, so kann der Dienst am Lenkrad bis auf 54 Stunden verlän-
+2 Für Motorfahrzeugführer, die ausser den Fahrten im konzessionierten         gert werden.
+Verkehr noch andere Transporte besorgen, können durch Verordnung im           2 aufgehoben
+Rahmen der Bundesgesetzgebung über die Arbeits- und Ruhezeit der
+berufsmässigen Motorfahrzeugführer besondere Bestimmungen erlassen
+werden.
+
+Art. 12       Dienstpläne und Diensteinteilungen                              Art. 19        Dienstpläne und Diensteinteilungen
+1 Die Unternehmen haben die Einteilung der Arbeitstage sowie die Zutei-       1 Für alle dem Gesetz unterstellten Dienste hat das Unternehmen einen Dienstplan mit der graphischen
+lung der Ruhetage und Ferien in einer durch Verordnung bestimmten Art         Darstellung der täglichen Arbeitszeit nach Beilage A (Dienstplan) zu erstellen. Bei regelmässiger Ar-
+der Darstellung festzulegen.                                                  beitszeit kann auf die graphische Darstellung verzichtet werden. Der Dienstplan soll Angaben über die
+2 Die Arbeitnehmer oder ihre Vertreter sind vor der endgültigen Festsetzung   täglichen und die durchschnittlichen Arbeitszeiten, Dienst- und Ruheschichten sowie wenn möglich über
+                                                                              die Orte, wo auswärtige Ruhezeiten zu verbringen sind, enthalten.
+der Dienstpläne und der Diensteinteilungen anzuhören.
+                                                                              2 Vor Beginn eines Kalenderjahres oder Fahrplanjahres ist bei jeder Dienststelle eine Diensteinteilung
+                                                                              für alle Arbeitnehmer nach Beilage B (Jahreseinteilung) aufzulegen. Daraus sollen ersichtlich sein:
+                                                                              a. Name und dienstliche Stellung des Arbeitnehmers;
+                                                                              b. Datum der zugeteilten Ruhe- und Ausgleichstage sowie der Ferien;
+                                                                              c. Zahl der Ruhetage, getrennt nach Werktagen und Sonntagen;
+                                                                              d. wenn möglich der zu leistende Dienst.
+                                                                              3 Wo aus dienstlichen Gründen eine Jahreseinteilung nach Absatz 2 nicht möglich ist, kann eine Eintei-
+                                                                              lung nach Beilage C (Monatseinteilung) erstellt werden. In diesem Fall sind jedem Arbeitnehmer vor Be-
+                                                                              ginn des Kalenderjahres das Datum der Ferien und die Zahl der Ruhetage und Ruhesonntage für das
+                                                                              ganze Jahr bekanntzugeben.
+                                                                              4 Das Datum der Ferien ist dem Arbeitnehmer wenn möglich früher bekanntzugeben, als dies in den
+                                                                              Absätzen 2 und 3 vorgesehen ist, spätestens jedoch drei Monate vor Ferienbeginn.
+                                                                              5 Dienstpläne und Diensteinteilungen sind den Arbeitnehmern oder ihren Vertretern in der Regel min-
+                                                                              destens zehn Tage vor Inkrafttreten im Entwurf zur Kenntnis zu bringen.
+
+2.
+Art. 13                                                                       Art. 20       Arbeits- und Ruhezeit im Verwaltungsdienst
+aufgehoben                                                                    1 Für die Ordnung der Arbeits- und Ruhezeit der Arbeitnehmer im Verwaltungsdienst sind die Vorschrif-
+                                                                              ten der Artikel 9-22 des Arbeitsgesetzes vom 13. März 1964 sowie die entsprechenden Verordnungsbe-
+                                                                              stimmungen sinngemäss anwendbar. Sind gemäss diesen Vorschriften Bewilligungen erforderlich, so
+                                                                              werden sie von den in Artikel 27 genannten Aufsichtsbehörden erteilt.
+                                                                              2 Die Arbeitszeit und die Überzeitarbeit werden nach den Vorschriften der Artikel 4 und 5 des AZG so-
+                                                                              wie den entsprechenden Bestimmungen dieser Verordnung geregelt.
+                                Gesetz (AZG)                                                                               Verordnung (AZGV)
+
+III. Ferien                                                                      III. Ferien
+Art. 14                                                                          Art. 21      Ferienanspruch
+1 Der Arbeitnehmer hat je Kalenderjahr Anspruch auf mindestens vier Wo-          1 Für Arbeitnehmer, die nicht dauernd oder nicht während der ganzen Arbeitszeit von einem Unterneh-
+chen bezahlte Ferien. Die Verordnung bestimmt, ab welchem Alter sich die-        men beschäftigt werden, richten sich die in Artikel 14 des AZG und Absatz 2 hiernach vorgeschriebenen
+ser Anspruch auf fünf, beziehungsweise sechs Wochen erhöht.                      Ferien nach der durchschnittlichen täglichen Arbeitszeit.
+2 Für Arbeitnehmer im Betriebsdienst ist auf je sieben Ferientage ein be-        2 Der Arbeitnehmer hat je Kalenderjahr Anspruch auf bezahlte Ferien von:
+zahlter Ruhetag anzurechnen.                                                     a.   5 Wochen bis und mit dem Kalenderjahr, in dem er das 20. Altersjahr vollendet;
+3 aufgehoben                                                                     b.   5 Wochen vom Beginn des Kalenderjahres, in dem er das 50. Altersjahr vollendet;
+4 Die Verordnung regelt die Anrechnung von Dienstaussetzungen als Folge          c.   6 Wochen vom Beginn des Kalenderjahres, in dem er das 60. Altersjahr vollendet.
+von Krankheit, Unfall, Militär-, Zivil- und Zivilschutzdienst, Urlaub oder aus
+andern Gründen auf die Ferien.                                                   Art. 22       Bezug der Ferien
+                                                                                 1 Jeder Arbeitnehmer soll seine Ferien abwechslungsweise in den verschiedenen Jahreszeiten bezie-
+                                                                                 hen können. Er ist vor der Zuteilung der Ferien anzuhören, und seinen Wünschen ist, wenn möglich, zu
+                                                                                 entsprechen. In Zeiten besonders starken Verkehrs können jedoch nur Ferien beansprucht werden, so-
+                                                                                 fern es der Dienst gestattet.
+                                                                                 2 Ferien sind möglichst zusammenhängend zu beziehen. Der Bezug in mehr als zwei Abschnitten ist in
+                                                                                 der Regel unzulässig. Auf Wunsch des Arbeitnehmers kann ausserdem, wenn möglich, eine Ferienwo-
+                                                                                 che in ganze und halbe Tage aufgeteilt werden.
+                                                                                 3 Bei Diensteintritt oder -austritt im Laufe des Kalenderjahres sind die Ferien im Verhältnis zur Dienst-
+                                                                                 zeit zu bemessen. Bei Dienstaustritt zu viel bezogene Ferientage dürfen nur mit noch nicht bezogenen
+                                                                                 Ruhetagen oder mit dem Lohn verrechnet werden, wenn der Arbeitnehmer aus eigenem Verschulden
+                                                                                 aus dem Unternehmen ausscheidet.
+                                                                                 4 Eheleuten, die im gleichen Unternehmen arbeiten, sind auf ihren Wunsch die Ferien wenn möglich
+                                                                                 gleichzeitig zu gewähren.
+
+                                                                                 Art. 23       Kürzung der Ferien
+                                                                                 Die Ferien sind im Verhältnis zur Dauer der Dienstabwesenheit zu kürzen, wenn der Arbeitnehmer wäh-
+                                                                                 rend eines Kalenderjahres zusammen länger aussetzt als:
+                                                                                 a. 90 Tage infolge von Krankheit, Unfall, Militärdienst, Zivildienst oder Zivilschutzdienst; bei der Be-
+                                                                                      rechnung der Kürzung der Ferien fallen die ersten 90 Abwesenheitstage ausser Betracht;
+                                                                                 b. 30 Tage infolge von unbezahltem Urlaub.
+                             Gesetz (AZG)                                                                          Verordnung (AZGV)
+
+IV. Gesundheitsvorsorge und Unfallverhütung                               IV. Gesundheitsvorsorge und Unfallverhütung
+Art. 15       Gesundheitsvorsorge, Verhütung von Unfällen und Be-         Art. 24       Gesundheitsvorsorge, Verhütung von Unfällen und Berufskrankheiten
+              rufskrankheiten                                             1 Auf die dem Gesetz unterstellten Unternehmen und ihre Arbeitnehmer sind unter Vorbehalt von Ab-
+1 Durch Verordnung werden die Anwendbarkeit und der Vollzug der Vor-      satz 2 anwendbar:
+schriften des Bundes über Gesundheitsvorsorge sowie über Verhütung von    a. das Unfallversicherungsgesetz, insbesondere die Artikel 81–87, sowie die aufgrund dieses Geset-
+Unfällen und Berufskrankheiten geregelt.                                       zes erlassenen Verordnungen betreffend die Verhütung von Berufsunfällen und Berufskrankheiten;
+2 Zur Berücksichtigung der besonderen Verhältnisse bei den Unternehmen    b. sinngemäss Artikel 6 des Arbeitsgesetzes vom 13. März 1964 sowie die Verordnung 3 vom 18. Au-
+können durch Verordnung abweichende oder ergänzende Vorschriften er-           gust 1993 zum Arbeitsgesetz.
+lassen werden.                                                            c. für dauernde Nachtarbeit sinngemäss die Artikel 17c und 17d des Arbeitsgesetzes sowie die Artikel
+                                                                               43–45 der Verordnung 1 vom 10. Mai 2000 zum Arbeitsgesetz.
+                                                                          2 Vorbehalten bleiben:
+                                                                          a.   die Gesetzgebung des Bundes über den öffentlichen Verkehr, insbesondere die Vorschriften zur
+                                                                               Gewährleistung der Sicherheit sowie die Vorschriften über die Gesundheitsvorsorge;
+                                                                          b.   die übrigen auf die Unternehmen des öffentlichen Verkehrs anwendbaren Vorschriften des Bundes,
+                                                                               wie insbesondere solche betreffend die elektrischen Schwach- und Starkstromanlagen, die friedli-
+                                                                               che Verwendung der Atomenergie und den Strahlenschutz.
+                                                                          3 Die Unternehmen haben den Arbeitnehmern, die Pausen oder Ruheschichten nicht am Wohnort zu-
+                                                                          bringen können oder die Mahlzeiten bei der Arbeitsstelle einnehmen müssen, soweit ein Bedürfnis dafür
+                                                                          besteht, heizbare und mit Kocheinrichtungen versehene Unterkunftsräume zur Verfügung zu stellen.
+                                                                          Unterkunftsräume und Dienstwohnungen haben den Anforderungen der Gesundheitspflege und zeitge-
+                                                                          mässen Anforderungen an Behaglichkeit Rechnung zu tragen.
+                                                                          4 Die Vorschriften des Bundes über Gesundheitsvorsorge sowie über Verhütung von Unfällen und Be-
+                                                                          rufskrankheiten sind den Arbeitnehmern von den Unternehmen soweit nötig in geeigneter Weise zur
+                                                                          Kenntnis zu bringen.
+                                                                          5 Der Vollzug der Vorschriften nach Absatz 1 Buchstabe a wird von der Schweizerischen Unfallversi-
+                                                                          cherungsanstalt ausgeübt.
+                                                                          6 Das Eidgenössische Departement für Umwelt, Verkehr, Energie und Kommunikation ist ermächtigt,
+                                                                          unter Mitwirkung der Schweizerischen Unfallversicherungsanstalt, im Einvernehmen mit dem Eidgenös-
+                                                                          sischen Departement des Innern und dem Eidgenössischen Volkswirtschaftsdepartement und nach An-
+                                                                          hören der beteiligten Unternehmen und Arbeitnehmer oder deren Vertreter Ausführungsbestimmungen
+                                                                          zu diesem Artikel zu erlassen.
+
+V. Sonderschutz                                                           V. Sonderschutz
+Art. 16      Jugendliche                                                  Art. 25     Sonderschutz der Jugendlichen
+Für Jugendliche gelten die Sonderschutzvorschriften des Arbeitsgesetzes   1 aufgehoben
+vom 13. März 1964.
+                                                                          2 Jugendliche dürfen erst nach dem vollendeten 17. Altersjahr zu selbständigem Zugsabfertigungs-
+                                                                          dienst herangezogen werden.
+                                                                          3 Im Rangierdienst und im Zugsbegleitungsdienst dürfen Jugendliche erst nach dem vollendeten 18.
+                                                                          Altersjahr selbständig eingesetzt werden.
+                              Gesetz (AZG)                                                                         Verordnung (AZGV)
+
+Art. 17      Weitere Gruppen von Arbeitnehmern                              Art. 26
+1 Für den Gesundheitsschutz, die Beschäftigung, die Ersatzarbeit und die    aufgehoben
+Lohnfortzahlung bei Mutterschaft gelten die Bestimmungen des
+Arbeitsgesetzes vom 13. März 1964.
+2 Der Bundesrat kann den Einsatz Schwangerer oder anderer Gruppen von
+Arbeitnehmern für bestimmte Arbeiten aus gesundheitlichen Gründen
+untersagen oder von besonderen Voraussetzungen abhängig machen.
+
+VI. Durchführung des Gesetzes                                               VI. Durchführung des AZG
+Art. 18      Aufsicht und Beschwerdeverfahren                               Art. 27        Aufsicht
+1 Aufsicht und Vollzug des Gesetzes obliegen den in der Verordnung zu be-   1 Aufsicht und Vollzug des AZG obliegen, unter Vorbehalt von Artikel 24 Absatz 5, dem Bundesamt für
+zeichnenden Amtsstellen des Eidgenössischen Departements für Umwelt,        Verkehr.
+Verkehr, Energie und Kommunikation.                                         2 Das Bundesamt für Verkehr ist jederzeit berechtigt, bei den Unternehmen und den Nebenbetrieben
+2 Die Aufsichtsbehörden entscheiden über die Unterstellung einzelner Un-    die richtige Einhaltung der Vorschriften des AZG und der Verordnung an Ort und Stelle nachzuprüfen.
+ternehmen, Unternehmensteile oder Nebenbetriebe unter das Gesetz und        3 Es kann die für den Vollzug der Bundesgesetzgebung über Arbeit in Industrie, Gewerbe und Handel
+die Anwendung des Gesetzes auf einzelne Arbeitnehmer sowie über An-
+                                                                            sowie über die Arbeits- und Ruhezeit der berufsmässigen Motorfahrzeugführer zuständigen eidgenössi-
+stände zwischen Unternehmen und Arbeitnehmern über die Befolgung des
+                                                                            schen und kantonalen Amtsstellen zu den Kontrollen beiziehen.
+Gesetzes, der dazu erlassenen Verordnung und der gestützt auf diese Best-
+immungen getroffenen Verfügungen. Antragsberechtigt sind die Unterneh-
+men und die Arbeitnehmer sowie deren Vertreter.
+
+Art. 19      Massnahmen gegen rechtswidrige Beschlüsse und An-
+             ordnungen
+Die Aufsichtsbehörden sind verpflichtet, Beschlüsse und Anordnungen von
+Organen oder Dienststellen der Unternehmen aufzuheben, zu ändern oder
+ihre Durchführung zu verhindern, wenn sie gegen das Gesetz, die Verord-
+nung, die Weisungen, die Konzession oder internationale Vereinbarungen
+verstossen.
+
+Art. 20      Auskunftspflicht
+Die Unternehmen und die Arbeitnehmer sind verpflichtet, den Aufsichtsor-
+ganen die erforderlichen Auskünfte über den Vollzug des Gesetzes und
+dessen Verordnung zu erteilen sowie die Dienstpläne und Diensteinteilun-
+gen zur Verfügung zu halten.
+                             Gesetz (AZG)                                                                          Verordnung (AZGV)
+
+Art. 21       Abweichungen von den gesetzlichen Vorschriften               Art. 28       Abweichungen von den gesetzlichen Vorschriften
+1 Wenn besondere Verhältnisse vorliegen, können, nach Anhören der betei-   Die Unternehmen haben die von den Aufsichtsbehörden bewilligten Ausnahmen von den gesetzlichen
+ligten Unternehmen und Arbeitnehmer oder deren Vertreter, durch Verord-    Vorschriften den Arbeitnehmern zur Kenntnis zu bringen.
+nung für einzelne Unternehmen oder Unternehmenskategorien Ausnahmen
+von den Vorschriften des Gesetzes angeordnet werden.
+2 Zur Berücksichtigung aussergewöhnlicher Verhältnisse und nach Anhören
+der beteiligten Unternehmen und Arbeitnehmer oder deren Vertreter können
+die Aufsichtsbehörden im Einzelfall zeitlich befristete Abweichungen von
+den Vorschriften des Gesetzes bewilligen.
+3 Bei Anordnung von Ausnahmen und Abweichungen sind die Erfordernisse
+der Verkehrs- und Betriebssicherheit sowie des Arbeitnehmerschutzes an-
+gemessen zu berücksichtigen.
+
+                                                                           VII. Ausnahmebestimmungen
+                                                                           Art. 29       Beförderung zu Sportveranstaltungen
+                                                                           Für die Sicherheitsorgane nach Artikel 2 des Bundesgesetzes vom 18. Juni 20102 über die Sicherheits-
+                                                                           organe der Transportunternehmen im öffentlichen Verkehr und für das Zugbegleitpersonal, die für die
+                                                                           Beförderung zu Sportveranstaltungen eingesetzt werden, können die Unternehmen und die Arbeitneh-
+                                                                           mervertreter schriftlich vereinbaren, dass überschritten werden darf:
+                                                                           a. die Dienstschicht an einzelnen Tagen nach Artikel 6 Absatz 1 zweiter Satz AZG um höchstens zwei
+                                                                                Stunden;
+                                                                           b. die ununterbrochene Arbeitszeit von höchstens fünf Stunden nach Artikel 11 Absatz 4 um
+                                                                                höchstens zwei Stunden;
+                                                                           c. die Höchstarbeitszeit innerhalb einer einzelnen Dienstschicht nach Artikel 4 Absatz 3 AZG um
+                                                                                höchstens fünf Stunden; sie darf jedoch innerhalb von sieben aufeinanderfolgenden Arbeitstagen
+                                                                                72 Stunden nicht überschreiten.
+Gesetz (AZG)                                            Verordnung (AZGV)
+
+               Art. 30      Zahnradbahnen mit ausgesprochen touristischem Charakter,
+                            Luftseilbahnen und Standseilbahnen
+               1 Mit Zustimmung der beteiligten Arbeitnehmer oder von deren Vertretern kann die in Artikel 11 Absatz
+               4 vorgeschriebene Höchstdauer der ununterbrochenen Arbeitszeit auf höchstens fünfeinhalb Stunden
+               erhöht werden.
+               2 In den Zeiten saisonbedingten starken Verkehrs darf ausnahmsweise:
+               a. die in Artikel 15 Absatz 1 vorgeschriebene Anzahl Ruhetage im Kalendermonat auf drei Ruhetage,
+                  wovon ein Ruhesonntag, herabgesetzt werden;
+               b. der in Artikel 15 Absatz 2 vorgeschriebene Abstand zwischen zwei Ruhetagen um sieben Tage ver-
+                  längert werden;
+               c. der in Artikel 15 Absatz 2 vorgeschriebene Abstand zwischen zwei Ruhesonntagen um sieben Tage
+                  verlängert werden.
+               3 Die Dienstschicht darf während der Sommersaison (1. Mai bis 31. Oktober) oder der Wintersaison
+               (1. November bis 30. April) bis auf 15 Stunden verlängert werden, wobei die Höchstarbeitszeit innerhalb
+               einer Dienstschicht höchstens 13 Stunden betragen darf. Die Verlängerung muss mit den Arbeitnehmer-
+               vertretern vorgängig schriftlich vereinbart werden. Das von der Vereinbarung betroffene Personal darf
+               nicht während zwei aufeinanderfolgenden Saisons der Ausnahmeregelung unterstellt werden. Nicht an-
+               wendbar sind für die betreffende Dienstschicht Absatz 1 sowie Artikel 11 Absatz 1 und für die betref-
+               fende Saison Absatz 2 Buchstaben a und b. Die Höchstarbeitszeit innerhalb von sieben aufeinanderfol-
+               genden Arbeitstagen darf nicht mehr als 72 Stunden betragen.
+               4 Zur Bewältigung aussergewöhnlicher Verhältnisse sind Ausnahmen von den Vorschriften des AZG
+               und dieser Verordnung über die Arbeitszeit, die Dienstschicht, die Ruheschicht und die Zuteilung von
+               Ruhesonntagen an höchstens acht Arbeitstagen pro Jahr zulässig. Sie sind von der Aufsichtsbehörde
+               im Voraus zu genehmigen und bedürfen der Zustimmung der Arbeitnehmervertreter. Die Höchstarbeits-
+               zeit pro Arbeitstag darf nicht mehr als 15 Stunden betragen.
+
+               Art. 31      Schifffahrtsunternehmen
+               Zur Berücksichtigung aussergewöhnlicher Verhältnisse sind an höchstens acht Arbeitstagen pro Jahr
+               Ausnahmen von den Vorschriften des AZG und dieser Verordnung über die Arbeitszeit, die
+               Dienstschicht, die Ruheschicht und die Zuteilung von Ruhesonntagen zulässig. Die Ausnahmen
+               bedürfen der Zustimmung der Arbeitnehmervertreter; sie sind von der Aufsichtsbehörde im Voraus zu
+               genehmigen. Die Höchstarbeitszeit darf in keinem Fall 15 Stunden pro Tag überschreiten.
+                              Gesetz (AZG)                                                                            Verordnung (AZGV)
+
+                                                                             Art. 32       Schlafwagenbetriebe
+                                                                             1 Schlafwagen- und Liegewagenbegleiter sind von den Vorschriften des AZG über die Höchstarbeitszeit
+                                                                             (Art. 4 Abs. 3) und die Dienstschicht (Art. 6) ausgenommen.
+                                                                             2 Die Dienstpläne der Wagenbegleiter haben sich nach dem Lauf der Wagenkurse zu richten und wer-
+                                                                             den vom Unternehmen mit der Zustimmung der Mehrheit der beteiligten Arbeitnehmer erstellt. Die
+                                                                             durchschnittliche tägliche Arbeitszeit (Art. 4 Abs. 1 und 2 des AZG) ist im Jahresdurchschnitt einzuhal-
+                                                                             ten.
+                                                                             3 Dienstunterbrechungen auf der Endstation des Wagenkurses von neun Stunden und mehr gelten als
+                                                                             Ruheschicht, während diejenigen unter neun Stunden wie Pausen zu behandeln sind.
+                                                                             4 Nach Diensten, die länger als zwei Tage dauern, ist ein Ruhetag oder Ausgleichstag zu gewähren.
+                                                                             5 Mit Zustimmung der beteiligten Arbeitnehmer kann in Ausnahmefällen (Krankheit, Unfall, grosser Rei-
+                                                                             severkehr usw.) von der Bestimmung in Absatz 4 abgewichen werden.
+
+                                                                             Art. 33      Speisewagenbetriebe und ambulanter Verpflegungsdienst in Zügen
+                                                                             1 Für das fahrende Personal (Koch-, Servier- und Hilfspersonal) kann die tägliche Höchstarbeitszeit bis
+                                                                             auf 13 Stunden verlängert werden, doch ist die durchschnittliche Arbeitszeit gemäss Artikel 4 des AZG
+                                                                             im Jahresdurchschnitt einzuhalten.
+                                                                             2 Für das fahrende Personal kann die Dienstschicht bis auf 17 Stunden ausgedehnt werden, doch darf
+                                                                             sie 12 Stunden im Jahresdurchschnitt nicht überschreiten. Artikel 10 Absatz 1 ist anwendbar.
+
+                                                                             VIII. Arbeitszeitgesetzkommission
+Art. 22      Arbeitszeitgesetzkommission                                     Art. 34       Arbeitszeitgesetzkommission
+1 Der Bundesrat bestellt nach Entgegennahme von Vorschlägen der Unter-       1 Die Eidgenössische Arbeitszeitgesetzkommission besteht aus dem Präsidenten, einem Vertreter der
+nehmen und Arbeitnehmer die Eidgenössische Arbeitszeitgesetzkommis-          Schweizerischen Post, einem Vertreter der Schweizerischen Bundesbahnen und vier Vertretern der üb-
+sion, bestehend aus einem Präsidenten und aus Vertretern der Unterneh-       rigen dem Gesetz unterstellten Unternehmen sowie sechs Vertretern der Arbeitnehmer.
+men und der Arbeitnehmer in gleicher Zahl.                                   2 Der Präsident und die 12 Mitglieder werden vom Bundesrat gewählt. Gleichzeitig bestimmt der Bun-
+2 Die Arbeitszeitgesetzkommission begutachtet zuhanden der Bundesbe-         desrat für jedes Mitglied ein Ersatzmitglied. Die Amtsdauer richtet sich nach Artikel 14 der Kommissio-
+hörden Fragen des Arbeitszeitgesetzes und seines Vollzugs. Sie ist befugt,   nenverordnung vom 3. Juni 1996.
+von sich aus Anregungen zu machen.                                           3 Die Arbeitszeitgesetzkommission wird vom Präsidenten nach Bedarf einberufen. Sie muss einberufen
+                                                                             werden, falls mindestens 3 Mitglieder es verlangen. Den Mitgliedern ist von einem solchen Begehren
+                                                                             Kenntnis zu geben. Das Bundesamt für Verkehr unterbreitet der Kommission einen schriftlichen Bericht,
+                                                                             wenn die Bundesbehörden die Begutachtung eines Geschäftes verlangen.
+                                                                             4 Die Arbeitszeitgesetzkommission erlässt für ihre Geschäftsführung eine Geschäftsordnung.
+
+Art. 23     Verordnung
+Der Bundesrat erlässt Verordnungsbestimmungen
+a. in den vom Gesetz ausdrücklich bezeichneten Fällen,
+b. zum Vollzug des Gesetzes.
+                              Gesetz (AZG)                                                                      Verordnung (AZGV)
+
+VII. Strafbestimmungen
+Art. 24        Strafrechtliche Verantwortlichkeit
+1 Personen, die als Arbeitgeber oder für ihn gehandelt haben oder hätten
+handeln sollen, sind strafbar, wenn sie den Vorschriften des Gesetzes, der
+Verordnung oder einer gestützt darauf erlassenen Verfügung der zuständi-
+gen Behörde über
+a. Arbeits- und Ruhezeit,
+b. Ferien,
+c. Gesundheitsvorsorge und Unfallverhütung,
+d. den Sonderschutz
+     vorsätzlich oder fahrlässig zuwiderhandeln.
+2 Der Arbeitnehmer ist strafbar, wenn er den Vorschriften des Gesetzes, der
+Verordnung oder einer gestützt darauf erlassenen Verfügung der zuständi-
+gen Behörden über Arbeits- und Ruhezeit sowie Gesundheitsvorsorge und
+Unfallverhütung vorsätzlich oder fahrlässig zuwiderhandelt.
+3 Die Strafe ist Busse.
+4 Begeht ein Arbeitnehmer eine nach diesem Gesetz strafbare Handlung
+auf Veranlassung seines Arbeitgebers oder Vorgesetzten oder haben diese
+die Widerhandlung nicht nach ihren Möglichkeiten verhindert, so unterste-
+hen Arbeitgeber und Vorgesetzte der gleichen Strafandrohung wie der Ar-
+beitnehmer. Der Arbeitnehmer kann milder oder nicht bestraft werden, wenn
+die Umstände es rechtfertigen.
+
+Art. 25       Strafverfolgung. Vorbehalt des Strafgesetzbuches
+1 Ist das Unrecht oder die Schuld gering, so sieht die zuständige Behörde
+von der Strafverfolgung, der Überweisung an das Gericht oder der Bestra-
+fung ab.
+2 Die besonderen Bestimmungen des Strafgesetzbuches bleiben vorbehal-
+ten.
+3 Die Strafverfolgung ist Sache der Kantone.
+
+VIII. Schluss- und Übergangsbestimmungen                                      IX. Schluss- und Übergangsbestimmungen
+Art. 26      aufgehoben                                                       Art. 35      aufgehoben
+
+Art. 27     Übergangsbestimmungen
+1 aufgehoben
+2 Die Anwendung des Gesetzes darf für den Arbeitnehmer keine Verminde-
+rung des gesamten bisherigen Jahresverdienstes zur Folge haben.
+                              Gesetz (AZG)                                                                            Verordnung (AZGV)
+
+Art. 28       Aufhebung und Änderung von Vorschriften                        Art. 36       Aufhebung früherer Bestimmungen
+1 Mit dem Inkrafttreten des Gesetzes sind alle ihm widersprechenden Best-    1 Mit dem Inkrafttreten dieser Verordnung werden alle ihr widersprechenden Bestimmungen aufgeho-
+immungen aufgehoben, namentlich das Bundesgesetz vom 6. März 1920            ben, insbesondere die Vollziehungsverordnungen I und II vom 12. August 1921 zum Bundesgesetz be-
+betreffend die Arbeitszeit beim Betriebe der Eisenbahnen und anderer Ver-    treffend die Arbeitszeit beim Betriebe der Eisenbahnen und anderer Verkehrsanstalten und die Verord-
+kehrsanstalten;                                                              nung vom 5. Juli 1923 betreffend die Beschäftigung jugendlicher Personen bei den Transportanstalten.
+Artikel 66 des Bundesgesetzes vom 13. März 1964 über die Arbeit in Indust-   2 Artikel 13 der Verordnung II vom 3. Dezember 1917 über die Unfallversicherung wird mit dem Inkraft-
+rie, Gewerbe und Handel.                                                     treten dieser Verordnung für die dem Gesetz unterstellten Unternehmen aufgehoben.
+2 Das Bundesgesetz vom 13. März 1964 über die Arbeit in Industrie, Ge-
+werbe und Handel wird wie folgt geändert:
+Art. 2 Abs. 1 Bst. b (Text eingefügt im genannten BG)
+
+Art. 29     Inkrafttreten                                                    Art. 37      Inkrafttreten
+Der Bundesrat bestimmt den Zeitpunkt des Inkrafttretens dieses Gesetzes.     1 Diese Verordnung tritt am 28. Mai 1972 in Kraft.
+                                                                             2 aufgehoben
+Datum des Inkrafttretens: 28. Mai 1972
+                                                                             3 aufgehoben
+

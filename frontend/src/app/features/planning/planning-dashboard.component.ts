@@ -116,7 +116,7 @@ import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.f
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { findActivityTypeById, definitionHasField, shouldShowEndField } from './planning-dashboard-activity.helpers';
 import { STAGE_RESOURCE_GROUPS, TYPE_PICKER_META, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
-import { ConflictEntry, mapConflictCodes } from '../../shared/planning-conflicts';
+import { ConflictEntry, mapConflictCodesForOwner } from '../../shared/planning-conflicts';
 
 type LocationAutocompleteOption = {
   key: string;
@@ -175,6 +175,11 @@ export class PlanningDashboardComponent {
   private readonly stageActivitySignals: Record<PlanningStageId, Signal<Activity[]>> = {
     base: this.data.stageActivities('base'),
     operations: this.data.stageActivities('operations'),
+  };
+
+  private readonly stageSyncingActivityIdsSignals: Record<PlanningStageId, Signal<ReadonlySet<string>>> = {
+    base: this.data.syncingActivityIds('base'),
+    operations: this.data.syncingActivityIds('operations'),
   };
 
   private readonly normalizedStageActivitySignals: Record<PlanningStageId, Signal<Activity[]>> = {
@@ -560,6 +565,10 @@ export class PlanningDashboardComponent {
 
   protected readonly activeStageId = computed(() => this.activeStageSignal());
 
+  protected readonly activeSyncingActivityIds = computed(
+    () => this.stageSyncingActivityIdsSignals[this.activeStageSignal()](),
+  );
+
   protected readonly activeStageMeta = computed(
     () => this.stageMetaMap[this.activeStageSignal()],
   );
@@ -940,11 +949,15 @@ export class PlanningDashboardComponent {
     if (resource.kind !== 'personnel-service' && resource.kind !== 'vehicle-service') {
       return null;
     }
-    const rawStart = this.activityForm.controls['start'].value as string | null | undefined;
-    const startDate = typeof rawStart === 'string' ? fromLocalDateTime(rawStart) : null;
-    const date = startDate ? toIsoDate(startDate) : toIsoDate(new Date(selection.activity.start));
-    const stage = this.activeStageSignal();
-    const serviceId = `svc:${stage}:${resource.id}:${date}`;
+    const mappedServiceId = this.serviceIdForOwner(selection.activity, resource.id);
+    const serviceId = mappedServiceId ?? (() => {
+      const rawStart = this.activityForm.controls['start'].value as string | null | undefined;
+      const startDate = typeof rawStart === 'string' ? fromLocalDateTime(rawStart) : null;
+      const date = startDate ? toIsoDate(startDate) : toIsoDate(new Date(selection.activity.start));
+      const stage = this.activeStageSignal();
+      return `svc:${stage}:${resource.id}:${date}`;
+    })();
+    const date = this.parseDayKeyFromServiceId(serviceId) ?? toIsoDate(new Date(selection.activity.start));
     return {
       label: `${resource.name} · ${date}`,
       serviceId,
@@ -957,7 +970,71 @@ export class PlanningDashboardComponent {
     if (!selection) {
       return [];
     }
-    return mapConflictCodes(selection.activity.attributes);
+    return mapConflictCodesForOwner(selection.activity.attributes ?? undefined, selection.resource.id);
+  }
+
+  private serviceIdForOwner(activity: Activity, ownerId: string): string | null {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const rawMap = attrs?.['service_by_owner'];
+    if (!rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) {
+      return null;
+    }
+    const entry = (rawMap as Record<string, any>)[ownerId];
+    const rawServiceId = entry?.serviceId;
+    if (typeof rawServiceId === 'string' && rawServiceId.trim().length) {
+      return rawServiceId.trim();
+    }
+    return null;
+  }
+
+  private parseDayKeyFromServiceId(serviceId: string): string | null {
+    const trimmed = (serviceId ?? '').trim();
+    if (!trimmed.startsWith('svc:')) {
+      return null;
+    }
+    const parts = trimmed.split(':');
+    const dayKey = parts[parts.length - 1] ?? '';
+    return /^\\d{4}-\\d{2}-\\d{2}$/.test(dayKey) ? dayKey : null;
+  }
+
+  protected isSelectedServiceBoundary(): boolean {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return false;
+    }
+    const activity = selection.activity;
+    const role = activity.serviceRole ?? null;
+    const type = (activity.type ?? '').toString();
+    return role === 'start' || role === 'end' || type === 'service-start' || type === 'service-end';
+  }
+
+  protected isSelectedServiceBoundaryManual(): boolean {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return false;
+    }
+    const attrs = selection.activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['manual_service_boundary'];
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      return raw.trim().toLowerCase() === 'true';
+    }
+    return false;
+  }
+
+  protected restoreAutomaticServiceBoundary(): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
+    const attrs = { ...(selection.activity.attributes ?? {}) } as Record<string, unknown>;
+    if (!('manual_service_boundary' in attrs)) {
+      return;
+    }
+    delete attrs['manual_service_boundary'];
+    this.activityOpsFacade.replaceActivity({ ...selection.activity, attributes: attrs });
   }
 
   private mapActivityTypeOptionIds(ids: string[], limit: number): ActivityCatalogOption[] {
@@ -1330,6 +1407,24 @@ export class PlanningDashboardComponent {
       this.typeMenuTrigger?.openMenu();
       return;
     }
+    if (event.key === 'Delete') {
+      const active = (document.activeElement ?? null) as HTMLElement | null;
+      if (active && (active.isContentEditable || ['INPUT', 'TEXTAREA'].includes(active.tagName))) {
+        return;
+      }
+      const selectedIds = this.activitySelection.selectedActivityIds();
+      if (selectedIds.size === 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (selectedIds.size === 1) {
+        this.deleteSelectedActivity();
+      } else {
+        this.deleteActivitySelection();
+      }
+      return;
+    }
     if (event.key === 'Escape') {
       const trigger = this.typeMenuTrigger;
       if (trigger?.menuOpen) {
@@ -1399,6 +1494,29 @@ export class PlanningDashboardComponent {
   protected setMoveSelectionTarget(resourceId: string | null): void { this.selectionHandlers.setMoveSelectionTarget(resourceId); }
 
   protected moveSelectionToTarget(): void { this.selectionHandlers.moveSelectionToTarget(); }
+
+  protected shiftSelectionBy(deltaMinutes: number): void { this.selectionHandlers.shiftSelectionBy(deltaMinutes); }
+
+  protected deleteActivitySelection(): void {
+    const count = this.selectedActivities().length;
+    if (count === 0) {
+      return;
+    }
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '520px',
+      data: {
+        title: 'Auswahl löschen?',
+        message: `${count} Aktivität(en) werden gelöscht. Fortfahren?`,
+        confirmLabel: 'Löschen',
+        cancelLabel: 'Abbrechen',
+      } satisfies ConfirmDialogData,
+    });
+    dialogRef.afterClosed().subscribe((accepted) => {
+      if (accepted) {
+        this.selectionHandlers.deleteSelection();
+      }
+    });
+  }
 
   protected shiftSelectedActivityBy(deltaMinutes: number): void { this.selectionHandlers.shiftSelectedActivityBy(deltaMinutes); }
 

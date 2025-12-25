@@ -69,6 +69,9 @@
       × Kopieren
     </button>
   }
+  @if (isSyncing) {
+    <span class="gantt-activity__sync-indicator" aria-hidden="true"></span>
+  }
   <ng-container [ngTemplateOutlet]="activityContent"></ng-container>
 </div>
 
@@ -81,6 +84,9 @@
 >
   <div class="gantt-activity-popover" (mouseenter)="onPopoverMouseEnter()" (mouseleave)="onPopoverMouseLeave()">
     <div class="gantt-activity-popover__title">{{ effectiveTitle }}</div>
+    @if (isSyncing) {
+      <div class="gantt-activity-popover__sync">Synchronisiere…</div>
+    }
     <div class="gantt-activity-popover__content">
       @if (activity.remark) {
         <div class="gantt-activity-popover__remark">

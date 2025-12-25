@@ -1,0 +1,8 @@
+id: azg.duty_span_avg_28d
+kind: constraint
+executor: azg/duty-span-avg-28d
+enabled: true
+params:
+  windowDays: 28
+  maxAverageMinutes: 720 # 12h (AZG Art. 6 Abs. 1)
+

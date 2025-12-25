@@ -2,7 +2,7 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service';
 import { VariantPartitionService } from '../database/variant-partition.service';
-import type { Activity, Resource, StageId, TimelineRange, TrainRun, TrainSegment } from './planning.types';
+import { isStageId, type Activity, type Resource, type StageId, type TimelineRange, type TrainRun, type TrainSegment } from './planning.types';
 import type { StageData } from './planning.repository.types';
 
 interface StageRow {
@@ -659,8 +659,17 @@ export class PlanningStageRepository {
       );
       return activity;
     }
+    let managedServiceId = this.parseServiceIdFromManagedId(activity.id);
+    if (managedServiceId) {
+      const parsed = this.parseServiceParts(managedServiceId);
+      if (parsed?.ownerId && parsed.ownerId !== ownerId) {
+        managedServiceId = null;
+      } else if (parsed?.stageId && parsed.stageId !== stageId) {
+        managedServiceId = null;
+      }
+    }
     if (role === 'end') {
-      const predefinedServiceId = activity.serviceId?.trim() || null;
+      const predefinedServiceId = activity.serviceId?.trim() || managedServiceId || null;
       const match = predefinedServiceId
         ? null
         : await this.findLatestServiceStart(
@@ -691,7 +700,7 @@ export class PlanningStageRepository {
       };
     }
     // role === 'start'
-    const serviceId = this.computeServiceId(stageId, ownerId, activity.start);
+    const serviceId = activity.serviceId?.trim() || managedServiceId || this.computeServiceId(stageId, ownerId, activity.start);
     await this.ensureNoDuplicate(client, stageId, variantId, serviceId, 'start', activity.id);
     await this.attachPendingEnd(client, stageId, variantId, ownerId, serviceId, activity.start);
     await this.enforceWithinPreference(
@@ -1046,5 +1055,45 @@ export class PlanningStageRepository {
     });
 
     return result;
+  }
+
+  private parseServiceParts(serviceId: string): { stageId: StageId; ownerId: string; dayKey: string } | null {
+    const trimmed = (serviceId ?? '').trim();
+    if (!trimmed.startsWith('svc:')) {
+      return null;
+    }
+    const parts = trimmed.split(':');
+    if (parts.length < 4) {
+      return null;
+    }
+    const stagePart = parts[1] ?? '';
+    const ownerId = parts[2] ?? '';
+    const dayKey = parts[parts.length - 1] ?? '';
+    if (!ownerId || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dayKey)) {
+      return null;
+    }
+    if (!isStageId(stagePart)) {
+      return null;
+    }
+    return { stageId: stagePart as StageId, ownerId, dayKey };
+  }
+
+  private parseServiceIdFromManagedId(id: string): string | null {
+    if (id.startsWith('svcstart:')) {
+      const serviceId = id.slice('svcstart:'.length).trim();
+      return serviceId.length ? serviceId : null;
+    }
+    if (id.startsWith('svcend:')) {
+      const serviceId = id.slice('svcend:'.length).trim();
+      return serviceId.length ? serviceId : null;
+    }
+    if (id.startsWith('svcbreak:')) {
+      const rest = id.slice('svcbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    return null;
   }
 }

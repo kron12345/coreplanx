@@ -99,6 +99,14 @@ export class PlanningDashboardSelectionHandlers {
     this.deps.selectionActions.moveSelectionToTarget();
   }
 
+  shiftSelectionBy(deltaMinutes: number): void {
+    this.deps.selectionActions.shiftSelectionBy(deltaMinutes, this.deps.selectedActivities());
+  }
+
+  deleteSelection(): void {
+    this.deps.selectionActions.deleteSelection();
+  }
+
   snapSelectedActivity(direction: 'previous' | 'next', neighborFinder: NeighborFinder): void {
     this.deps.selectionActions.snapSelectedActivity(
       direction,

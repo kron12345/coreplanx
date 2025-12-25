@@ -119,6 +119,7 @@ export class GanttRowBuilderFacade {
     resources: Resource[];
     slotsByResource: Map<string, PreparedActivitySlot[]>;
     pendingActivityId: string | null;
+    syncingActivityIds: ReadonlySet<string>;
     viewStart: Date;
     viewEnd: Date;
     selectedIds: ReadonlySet<string>;
@@ -127,6 +128,7 @@ export class GanttRowBuilderFacade {
     const map = new Map<string, { bars: GanttBar[]; services: GanttServiceRange[] }>();
 
     const pendingId = options.pendingActivityId;
+    const syncingIds = options.syncingActivityIds;
     const startMs = options.viewStart.getTime();
     const endMs = options.viewEnd.getTime();
     const timeScale = this.deps.timeScale;
@@ -158,9 +160,12 @@ export class GanttRowBuilderFacade {
           const maxLeft = Math.max(0, contentWidth - barWidth);
           barLeft = Math.min(Math.max(0, barLeft), maxLeft);
         }
-        const classes = this.resolveBarClasses(activity);
+        const classes = this.resolveBarClasses(activity, slot.resourceId);
         if (isMilestone) {
           classes.push('gantt-activity--milestone');
+        }
+        if (syncingIds && syncingIds.has(activity.id)) {
+          classes.push('gantt-activity--syncing');
         }
         const attrMap = activity.attributes as Record<string, unknown> | undefined;
         const drawAs = typeof attrMap?.['draw_as'] === 'string' ? (attrMap['draw_as'] as string) : null;
@@ -241,7 +246,7 @@ export class GanttRowBuilderFacade {
           roleLabel: slot.iconLabel,
         });
 
-        const serviceId = activity.serviceId;
+        const serviceId = this.serviceIdForSlot(activity, slot.resourceId);
         if (!serviceId) {
           continue;
         }
@@ -257,6 +262,10 @@ export class GanttRowBuilderFacade {
             endLeft: null,
             startMs: null,
             endMs: null,
+            routeFrom: null,
+            routeTo: null,
+            routeFromMs: null,
+            routeToMs: null,
           };
           serviceMap.set(serviceId, accumulator);
         }
@@ -276,10 +285,19 @@ export class GanttRowBuilderFacade {
           accumulator.endLeft = displayEnd;
           accumulator.endMs = activity.endMs;
         }
+
+        if (activity.from && (accumulator.routeFromMs === null || activity.startMs < accumulator.routeFromMs)) {
+          accumulator.routeFrom = this.formatServiceLocationLabel(activity.from);
+          accumulator.routeFromMs = activity.startMs;
+        }
+        if (activity.to && (accumulator.routeToMs === null || activity.endMs > accumulator.routeToMs)) {
+          accumulator.routeTo = this.formatServiceLocationLabel(activity.to);
+          accumulator.routeToMs = activity.endMs;
+        }
       }
 
       const services = Array.from(serviceMap.values())
-        .map((entry) => this.createServiceRange(entry))
+        .map((entry) => this.createServiceRange(entry, resource))
         .filter((range): range is GanttServiceRange => !!range);
       map.set(resource.id, { bars, services });
     });
@@ -403,9 +421,10 @@ export class GanttRowBuilderFacade {
     }
   }
 
-  private resolveBarClasses(activity: PreparedActivity): string[] {
+  private resolveBarClasses(activity: PreparedActivity, resourceId: string): string[] {
     const classes: string[] = [];
-    if (activity.serviceId) {
+    const serviceId = this.serviceIdForSlot(activity, resourceId);
+    if (serviceId) {
       classes.push('gantt-activity--within-service');
       if (activity.serviceRole === 'start' || activity.type === 'service-start') {
         classes.push('gantt-activity--service-boundary', 'gantt-activity--service-boundary-start');
@@ -416,24 +435,13 @@ export class GanttRowBuilderFacade {
       classes.push('gantt-activity--outside-service');
     }
 
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const rawLevel = attrs?.['service_conflict_level'];
-    const level =
-      typeof rawLevel === 'number'
-        ? rawLevel
-        : typeof rawLevel === 'string'
-          ? Number.parseInt(rawLevel, 10)
-          : 0;
+    const { level, codes } = this.serviceConflictsForSlot(activity, resourceId);
     if (Number.isFinite(level) && level >= 2) {
       classes.push('gantt-activity--conflict-error');
     } else if (Number.isFinite(level) && level >= 1) {
       classes.push('gantt-activity--conflict-warn');
     }
 
-    const rawCodes = attrs?.['service_conflict_codes'];
-    const codes = Array.isArray(rawCodes)
-      ? rawCodes.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
-      : [];
     if (codes.length) {
       const set = new Set(codes);
       classes.push('gantt-activity--conflict-pattern');
@@ -443,14 +451,98 @@ export class GanttRowBuilderFacade {
       if (set.has('LOCATION_SEQUENCE')) {
         classes.push('gantt-activity--conflict-location');
       }
-      if (set.has('MAX_DUTY_SPAN') || set.has('MAX_WORK') || set.has('MAX_CONTINUOUS') || set.has('NO_BREAK_WINDOW')) {
+      if (
+        Array.from(set).some((code) => code.startsWith('AZG_')) ||
+        set.has('MAX_DUTY_SPAN') ||
+        set.has('MAX_WORK') ||
+        set.has('MAX_CONTINUOUS') ||
+        set.has('NO_BREAK_WINDOW')
+      ) {
         classes.push('gantt-activity--conflict-worktime');
       }
     }
     return classes;
   }
 
-  private createServiceRange(entry: ServiceRangeAccumulator): GanttServiceRange | null {
+  private serviceIdForSlot(activity: PreparedActivity, resourceId: string): string | null {
+    if (this.isManagedServiceActivity(activity)) {
+      return (activity.serviceId ?? null) as string | null;
+    }
+    const ownerEntry = this.readOwnerServiceEntry(activity, resourceId);
+    if (ownerEntry?.serviceId) {
+      return ownerEntry.serviceId;
+    }
+    return (activity.serviceId ?? null) as string | null;
+  }
+
+  private serviceConflictsForSlot(
+    activity: PreparedActivity,
+    resourceId: string,
+  ): { level: number; codes: string[] } {
+    const ownerEntry = this.readOwnerServiceEntry(activity, resourceId);
+    if (ownerEntry) {
+      return {
+        level: ownerEntry.conflictLevel,
+        codes: ownerEntry.conflictCodes,
+      };
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const rawLevel = attrs?.['service_conflict_level'];
+    const level =
+      typeof rawLevel === 'number'
+        ? rawLevel
+        : typeof rawLevel === 'string'
+          ? Number.parseInt(rawLevel, 10)
+          : 0;
+    const rawCodes = attrs?.['service_conflict_codes'];
+    const codes = Array.isArray(rawCodes)
+      ? rawCodes.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
+      : [];
+    return { level, codes };
+  }
+
+  private readOwnerServiceEntry(
+    activity: PreparedActivity,
+    resourceId: string,
+  ): { serviceId: string | null; conflictLevel: number; conflictCodes: string[] } | null {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['service_by_owner'];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return null;
+    }
+    const entry = (raw as Record<string, any>)[resourceId];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return null;
+    }
+    const serviceId = typeof entry.serviceId === 'string' ? entry.serviceId : null;
+    const rawLevel = entry.conflictLevel;
+    const conflictLevel =
+      typeof rawLevel === 'number'
+        ? rawLevel
+        : typeof rawLevel === 'string'
+          ? Number.parseInt(rawLevel, 10)
+          : 0;
+    const rawCodes = entry.conflictCodes;
+    const conflictCodes = Array.isArray(rawCodes)
+      ? rawCodes.map((code: any) => String(code)).filter((code: string) => code.trim().length > 0)
+      : [];
+    return { serviceId, conflictLevel, conflictCodes };
+  }
+
+  private isManagedServiceActivity(activity: PreparedActivity): boolean {
+    const id = (activity.id ?? '').toString();
+    if (id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:')) {
+      return true;
+    }
+    const role = activity.serviceRole ?? null;
+    if (role === 'start' || role === 'end') {
+      return true;
+    }
+    const type = (activity.type ?? '').toString();
+    return type === 'service-start' || type === 'service-end';
+  }
+
+  private createServiceRange(entry: ServiceRangeAccumulator, resource: Resource): GanttServiceRange | null {
     const hasStart = entry.startLeft !== null;
     const hasEnd = entry.endLeft !== null;
     if (!hasStart && !hasEnd && !Number.isFinite(entry.minLeft) && !Number.isFinite(entry.maxRight)) {
@@ -489,32 +581,104 @@ export class GanttRowBuilderFacade {
     }
     const status: GanttServiceRangeStatus =
       hasStart && hasEnd ? 'complete' : hasStart ? 'missing-end' : hasEnd ? 'missing-start' : 'missing-both';
-    const label = this.buildServiceRangeLabel(entry.startMs, entry.endMs, status);
+    const width = Math.max(4, right - left);
+    const label = this.buildServiceRangeLabel({
+      resource,
+      serviceId: entry.id,
+      startMs: entry.startMs,
+      endMs: entry.endMs,
+      routeFrom: entry.routeFrom,
+      routeTo: entry.routeTo,
+      status,
+      widthPx: width,
+    });
     return {
       id: entry.id,
       label,
       left,
-      width: Math.max(4, right - left),
+      width,
       status,
     };
   }
 
-  private buildServiceRangeLabel(
-    startMs: number | null,
-    endMs: number | null,
-    status: GanttServiceRangeStatus,
-  ): string {
+  private buildServiceRangeLabel(options: {
+    resource: Resource;
+    serviceId: string;
+    startMs: number | null;
+    endMs: number | null;
+    routeFrom: string | null;
+    routeTo: string | null;
+    status: GanttServiceRangeStatus;
+    widthPx: number;
+  }): string {
     const format = (value: number | null) => (value ? this.serviceLabelFormatter.format(new Date(value)) : '—');
-    switch (status) {
-      case 'complete':
-        return `Dienst ${format(startMs)} – ${format(endMs)}`;
-      case 'missing-end':
-        return `Dienst ${format(startMs)} • Ende fehlt`;
-      case 'missing-start':
-        return `Dienst ${format(endMs)} • Start fehlt`;
-      default:
-        return 'Dienst (unvollständig)';
+    const serviceNo = this.resolveServiceNumber(options.resource, options.serviceId);
+    const timeLabel = `${format(options.startMs)}-${format(options.endMs)}`;
+    const baseLabel = `${serviceNo} | ${timeLabel}`;
+
+    const routeLabel =
+      options.routeFrom && options.routeTo ? `${options.routeFrom}-${options.routeTo}` : null;
+
+    // Rough pixel heuristics: avoid long strings when the service frame is narrow.
+    if (options.widthPx < 90) {
+      return serviceNo;
     }
+    if (options.widthPx < 170 || !routeLabel) {
+      return baseLabel;
+    }
+    return `${baseLabel} | ${routeLabel}`;
+  }
+
+  private resolveServiceNumber(resource: Resource, serviceId: string): string {
+    const candidate = (resource.id ?? '').toString().trim();
+    const knownMatch = candidate.match(/^(PS|VS)-0*(\d+)$/i);
+    if (knownMatch) {
+      return knownMatch[2];
+    }
+
+    const name = (resource.name ?? '').toString().trim();
+    const nameMatch = name.match(/\b(\d{1,4})\b/);
+    if (nameMatch) {
+      return nameMatch[1];
+    }
+
+    const ownerId = this.parseOwnerIdFromServiceId(serviceId);
+    const ownerMatch = ownerId ? ownerId.match(/^(PS|VS)-0*(\d+)$/i) : null;
+    if (ownerMatch) {
+      return ownerMatch[2];
+    }
+
+    if (candidate.length > 0 && candidate.length <= 12) {
+      return candidate;
+    }
+    if (name.length > 0 && name.length <= 12) {
+      return name;
+    }
+    return ownerId ? ownerId.slice(0, 8) : serviceId.slice(0, 8);
+  }
+
+  private parseOwnerIdFromServiceId(serviceId: string): string | null {
+    const parts = (serviceId ?? '').toString().split(':');
+    if (parts.length < 4 || parts[0] !== 'svc') {
+      return null;
+    }
+    return parts[2] ?? null;
+  }
+
+  private formatServiceLocationLabel(raw: string | null | undefined): string {
+    const value = (raw ?? '').toString().trim();
+    if (!value) {
+      return '';
+    }
+    const upper = value.toUpperCase();
+    if (upper.length <= 10 && !upper.includes(' ')) {
+      return upper;
+    }
+    const firstWord = upper.split(/\s+/)[0];
+    if (firstWord.length >= 2 && firstWord.length <= 10) {
+      return firstWord;
+    }
+    return upper.slice(0, 10);
   }
 
   private activityDisplayInfo(activity: Activity): { label: string; showRoute: boolean } {

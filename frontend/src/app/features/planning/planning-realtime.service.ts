@@ -18,6 +18,7 @@ export interface PlanningRealtimeEvent {
   deleteIds?: string[];
   timelineRange?: PlanningTimelineRange | { start: string | Date; end: string | Date };
   version?: string | null;
+  clientRequestId?: string | null;
   sourceClientId?: string | null;
   sourceConnectionId?: string | null;
 }

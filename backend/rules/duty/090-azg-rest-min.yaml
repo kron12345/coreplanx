@@ -1,0 +1,7 @@
+id: azg.rest_min
+kind: constraint
+executor: azg/rest-min
+enabled: true
+params:
+  minMinutes: 660 # 11h (AZG Art. 8 Abs. 1)
+

@@ -6,7 +6,7 @@ import { CdkDragEnd, CdkDragMove, CdkDragStart, DragDropModule } from '@angular/
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivityParticipantCategory } from '../models/activity-ownership';
-import { ConflictEntry, mapConflictCodes } from '../shared/planning-conflicts';
+import { ConflictEntry, mapConflictCodesForOwner } from '../shared/planning-conflicts';
 
 const DATE_TIME_FORMAT = new Intl.DateTimeFormat('de-DE', {
   weekday: 'short',
@@ -114,6 +114,9 @@ export class GanttActivityComponent {
     }
     const lines: string[] = [];
     lines.push(this.effectiveTitle);
+    if (this.isSyncing) {
+      lines.push('Synchronisiere…');
+    }
     lines.push(`Start: ${this.startLabel}`);
     if (this.activity.end) {
       lines.push(`Ende: ${this.endLabel}`);
@@ -263,7 +266,8 @@ export class GanttActivityComponent {
   }
 
   get conflictEntries(): ConflictEntry[] {
-    return mapConflictCodes(this.activity?.attributes);
+    const ownerId = this.dragData?.participantResourceId ?? null;
+    return mapConflictCodesForOwner(this.activity?.attributes, ownerId);
   }
 
   get ariaLabel(): string {
@@ -271,6 +275,10 @@ export class GanttActivityComponent {
       return '';
     }
     return this.tooltipText.replace(/\n+/g, ', ');
+  }
+
+  protected get isSyncing(): boolean {
+    return this.classes?.includes('gantt-activity--syncing') ?? false;
   }
 
   protected onTriggerMouseEnter(): void {

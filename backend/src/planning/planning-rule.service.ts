@@ -23,6 +23,25 @@ export interface DutyAutopilotConfig {
   minBreakMinutes: number;
   maxDutySpanMinutes: number;
   enforceOneDutyPerDay: boolean;
+  azg: {
+    enabled: boolean;
+    exceedBufferMinutes: number;
+    workAvg7d: { enabled: boolean; windowWorkdays: number; maxAverageMinutes: number };
+    workAvg365d: { enabled: boolean; windowDays: number; maxAverageMinutes: number };
+    dutySpanAvg28d: { enabled: boolean; windowDays: number; maxAverageMinutes: number };
+    restMin: { enabled: boolean; minMinutes: number };
+    restAvg28d: { enabled: boolean; windowDays: number; minAverageMinutes: number };
+    breakMaxCount: { enabled: boolean; maxCount: number };
+    breakForbiddenNight: { enabled: boolean; startHour: number; endHour: number };
+    nightMaxStreak: { enabled: boolean; maxConsecutive: number };
+    nightMax28d: { enabled: boolean; windowDays: number; maxCount: number };
+    restDaysYear: {
+      enabled: boolean;
+      minRestDays: number;
+      minSundayRestDays: number;
+      additionalSundayLikeHolidays: string[];
+    };
+  };
 }
 
 @Injectable()
@@ -162,6 +181,31 @@ export class PlanningRuleService {
 
     const enforceOneDutyPerDay = !!rules.find((r) => r.id === 'duty.one_per_day' && r.enabled);
 
+    const isRuleEnabled = (ruleId: string): boolean => !!rules.find((r) => r.id === ruleId && r.enabled);
+    const pickInt = (ruleId: string, key: string, fallback: number): number => {
+      const rule = rules.find((r) => r.id === ruleId && r.enabled);
+      const raw = rule?.params?.[key];
+      const parsed =
+        typeof raw === 'number'
+          ? Math.trunc(raw)
+          : typeof raw === 'string'
+            ? Number.parseInt(raw, 10)
+            : Number.NaN;
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const pickStringList = (ruleId: string, key: string): string[] => {
+      const rule = rules.find((r) => r.id === ruleId && r.enabled);
+      const raw = rule?.params?.[key];
+      if (Array.isArray(raw)) {
+        return raw.map((entry) => `${entry ?? ''}`.trim()).filter((entry) => entry.length > 0);
+      }
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        return trimmed ? [trimmed] : [];
+      }
+      return [];
+    };
+
     return {
       serviceStartTypeId,
       serviceEndTypeId,
@@ -174,6 +218,58 @@ export class PlanningRuleService {
       minBreakMinutes: pickNumber('duty.min_break_minutes', 'minMinutes', 30),
       maxDutySpanMinutes: pickNumber('duty.max_duty_span_minutes', 'maxMinutes', 720),
       enforceOneDutyPerDay,
+      azg: {
+        enabled: rules.some((r) => r.id.startsWith('azg.') && r.enabled),
+        exceedBufferMinutes: pickInt('azg.exceed_buffer_minutes', 'bufferMinutes', 10),
+        workAvg7d: {
+          enabled: isRuleEnabled('azg.work_avg_7d'),
+          windowWorkdays: pickInt('azg.work_avg_7d', 'windowWorkdays', 7),
+          maxAverageMinutes: pickInt('azg.work_avg_7d', 'maxAverageMinutes', 540),
+        },
+        workAvg365d: {
+          enabled: isRuleEnabled('azg.work_avg_365d'),
+          windowDays: pickInt('azg.work_avg_365d', 'windowDays', 365),
+          maxAverageMinutes: pickInt('azg.work_avg_365d', 'maxAverageMinutes', 420),
+        },
+        dutySpanAvg28d: {
+          enabled: isRuleEnabled('azg.duty_span_avg_28d'),
+          windowDays: pickInt('azg.duty_span_avg_28d', 'windowDays', 28),
+          maxAverageMinutes: pickInt('azg.duty_span_avg_28d', 'maxAverageMinutes', 720),
+        },
+        restMin: {
+          enabled: isRuleEnabled('azg.rest_min'),
+          minMinutes: pickInt('azg.rest_min', 'minMinutes', 660),
+        },
+        restAvg28d: {
+          enabled: isRuleEnabled('azg.rest_avg_28d'),
+          windowDays: pickInt('azg.rest_avg_28d', 'windowDays', 28),
+          minAverageMinutes: pickInt('azg.rest_avg_28d', 'minAverageMinutes', 720),
+        },
+        breakMaxCount: {
+          enabled: isRuleEnabled('azg.break_max_count'),
+          maxCount: pickInt('azg.break_max_count', 'maxCount', 3),
+        },
+        breakForbiddenNight: {
+          enabled: isRuleEnabled('azg.break_forbidden_night'),
+          startHour: pickInt('azg.break_forbidden_night', 'startHour', 23),
+          endHour: pickInt('azg.break_forbidden_night', 'endHour', 5),
+        },
+        nightMaxStreak: {
+          enabled: isRuleEnabled('azg.night_max_streak'),
+          maxConsecutive: pickInt('azg.night_max_streak', 'maxConsecutive', 7),
+        },
+        nightMax28d: {
+          enabled: isRuleEnabled('azg.night_max_28d'),
+          windowDays: pickInt('azg.night_max_28d', 'windowDays', 28),
+          maxCount: pickInt('azg.night_max_28d', 'maxCount', 14),
+        },
+        restDaysYear: {
+          enabled: isRuleEnabled('azg.rest_days_year'),
+          minRestDays: pickInt('azg.rest_days_year', 'minRestDays', 62),
+          minSundayRestDays: pickInt('azg.rest_days_year', 'minSundayRestDays', 20),
+          additionalSundayLikeHolidays: pickStringList('azg.rest_days_year', 'additionalSundayLikeHolidays'),
+        },
+      },
     };
   }
 

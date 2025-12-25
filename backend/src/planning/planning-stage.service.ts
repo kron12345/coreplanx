@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -132,6 +133,31 @@ export class PlanningStageService implements OnModuleInit {
     const deletedIds: string[] = [];
     const changedUpsertIds = new Set<string>();
 
+    if (upserts.length) {
+      const existingById = new Map(stage.activities.map((activity) => [activity.id, activity]));
+      const conflicts: { id: string; expected: string | null; current: string | null }[] = [];
+      upserts.forEach((incoming) => {
+        const current = existingById.get(incoming.id);
+        if (!current) {
+          return;
+        }
+        const currentVersion = current.rowVersion ?? null;
+        const expectedVersion = incoming.rowVersion ?? null;
+        if (currentVersion && expectedVersion !== currentVersion) {
+          conflicts.push({ id: incoming.id, expected: expectedVersion, current: currentVersion });
+        }
+      });
+      if (conflicts.length) {
+        throw new ConflictException({
+          message: 'Aktivität wurde zwischenzeitlich geändert. Bitte neu laden.',
+          conflictIds: conflicts.map((entry) => entry.id),
+          conflicts,
+          error: 'Conflict',
+          statusCode: 409,
+        });
+      }
+    }
+
     upserts.forEach((incoming) => {
       this.upsertActivity(stage, incoming);
       appliedUpserts.push(incoming.id);
@@ -168,6 +194,12 @@ export class PlanningStageService implements OnModuleInit {
     }
 
     stage.version = this.nextVersion();
+    if (changedUpsertIds.size) {
+      const rowVersion = stage.version;
+      stage.activities = stage.activities.map((activity) =>
+        changedUpsertIds.has(activity.id) ? { ...activity, rowVersion } : activity,
+      );
+    }
     stage.timelineRange = this.computeTimelineRange(stage.activities, stage.timelineRange);
     const timelineChanged =
       previousTimeline.start !== stage.timelineRange.start ||
@@ -181,6 +213,7 @@ export class PlanningStageService implements OnModuleInit {
     if (changedUpsertIds.size || deletedIds.length) {
       this.emitStageEvent(stage, {
         scope: 'activities',
+        clientRequestId: request?.clientRequestId ?? undefined,
         version: stage.version,
         sourceClientId: sourceContext.userId,
         sourceConnectionId: sourceContext.connectionId,
@@ -189,7 +222,7 @@ export class PlanningStageService implements OnModuleInit {
       });
     }
     if (timelineChanged) {
-      this.emitTimelineEvent(stage, sourceContext);
+      this.emitTimelineEvent(stage, sourceContext, request?.clientRequestId);
     }
 
     if (this.usingDatabase) {
@@ -212,6 +245,7 @@ export class PlanningStageService implements OnModuleInit {
       deletedIds,
       upserts: activitySnapshots.length ? activitySnapshots : undefined,
       version: stage.version,
+      clientRequestId: request?.clientRequestId,
     };
   }
 
@@ -348,6 +382,7 @@ export class PlanningStageService implements OnModuleInit {
     if (appliedUpserts.length || deletedIds.length) {
       this.emitStageEvent(stage, {
         scope: 'resources',
+        clientRequestId: request?.clientRequestId ?? undefined,
         version: stage.version,
         sourceClientId: sourceContext.userId,
         sourceConnectionId: sourceContext.connectionId,
@@ -358,6 +393,7 @@ export class PlanningStageService implements OnModuleInit {
     if (orphanedActivityIds.length) {
       this.emitStageEvent(stage, {
         scope: 'activities',
+        clientRequestId: request?.clientRequestId ?? undefined,
         version: stage.version,
         sourceClientId: sourceContext.userId,
         sourceConnectionId: sourceContext.connectionId,
@@ -365,7 +401,7 @@ export class PlanningStageService implements OnModuleInit {
       });
     }
     if (timelineChanged) {
-      this.emitTimelineEvent(stage, sourceContext);
+      this.emitTimelineEvent(stage, sourceContext, request?.clientRequestId);
     }
 
     if (this.usingDatabase) {
@@ -380,6 +416,7 @@ export class PlanningStageService implements OnModuleInit {
       appliedUpserts,
       deletedIds,
       version: stage.version,
+      clientRequestId: request?.clientRequestId,
     };
   }
 
@@ -547,9 +584,14 @@ export class PlanningStageService implements OnModuleInit {
     subject.next(this.buildStageEvent(stage, event));
   }
 
-  private emitTimelineEvent(stage: StageState, sourceContext?: SourceContext): void {
+  private emitTimelineEvent(
+    stage: StageState,
+    sourceContext?: SourceContext,
+    clientRequestId?: string,
+  ): void {
     this.emitStageEvent(stage, {
       scope: 'timeline',
+      clientRequestId: clientRequestId ?? undefined,
       version: stage.version,
       sourceClientId: sourceContext?.userId,
       sourceConnectionId: sourceContext?.connectionId,
@@ -634,7 +676,7 @@ export class PlanningStageService implements OnModuleInit {
       ? new Set(filters.resourceIds)
       : undefined;
 
-    return activities.filter((activity) => {
+    const filtered = activities.filter((activity) => {
       if (resourceFilter) {
         const participants = activity.participants ?? [];
         const matchesResource = participants.some((participant) =>
@@ -658,6 +700,56 @@ export class PlanningStageService implements OnModuleInit {
 
       return true;
     });
+
+    // Ensure duties remain renderable even when the caller only loads a viewport slice.
+    // When a payload activity intersects the window, we include its service boundaries/breaks as well.
+    const hasWindow = !!filters.from || !!filters.to;
+    if (!hasWindow || filtered.length === 0) {
+      return filtered;
+    }
+
+    const serviceIds = new Set<string>();
+    const addServiceId = (value: unknown) => {
+      const id = typeof value === 'string' ? value.trim() : '';
+      if (id.startsWith('svc:')) {
+        serviceIds.add(id);
+      }
+    };
+    filtered.forEach((activity) => {
+      addServiceId(activity.serviceId);
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const map = attrs?.['service_by_owner'];
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        Object.entries(map as Record<string, any>).forEach(([ownerId, entry]) => {
+          if (resourceFilter && !resourceFilter.has(ownerId)) {
+            return;
+          }
+          addServiceId((entry as any)?.serviceId);
+        });
+      }
+    });
+    if (serviceIds.size === 0) {
+      return filtered;
+    }
+
+    const expanded = new Map<string, Activity>();
+    filtered.forEach((activity) => expanded.set(activity.id, activity));
+    const isManagedServiceId = (id: string) =>
+      id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:');
+    activities.forEach((activity) => {
+      if (!isManagedServiceId(activity.id)) {
+        return;
+      }
+      if (!activity.serviceId) {
+        return;
+      }
+      if (!serviceIds.has(activity.serviceId)) {
+        return;
+      }
+      expanded.set(activity.id, activity);
+    });
+
+    return Array.from(expanded.values());
   }
 
   private upsertActivity(stage: StageState, incoming: Activity): void {

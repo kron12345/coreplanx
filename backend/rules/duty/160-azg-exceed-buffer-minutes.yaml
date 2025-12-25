@@ -1,0 +1,7 @@
+id: azg.exceed_buffer_minutes
+kind: constraint
+executor: azg/exceed-buffer-minutes
+enabled: true
+params:
+  bufferMinutes: 10 # (AZG Art. 5 Abs. 3 / Art. 6 Abs. 3)
+

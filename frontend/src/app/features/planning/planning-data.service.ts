@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
-import { EMPTY, Observable, of } from 'rxjs';
+import { EMPTY, Observable } from 'rxjs';
 import { catchError, finalize, switchMap, take, tap } from 'rxjs/operators';
 import { Activity, ServiceRole, type ActivityParticipant } from '../../models/activity';
 import { Resource } from '../../models/resource';
@@ -24,7 +24,6 @@ import {
 } from '../../core/api/planning-resource-api.service';
 import type { PlanningStageData, PlanningTimelineRange, PlanningVariantContext } from './planning-data.types';
 import {
-  cloneActivities,
   cloneResources,
   cloneResourceSnapshot,
   cloneStageData,
@@ -36,7 +35,6 @@ import {
   mergeActivityList,
   mergeResourceList,
   normalizeActivityParticipants,
-  normalizeStage,
   normalizeTimelineRange,
   rangesEqual,
   resourceListsEqual,
@@ -73,7 +71,39 @@ export class PlanningDataService {
   private lastBaseTimelineSignature: string | null = null;
   private readonly planningVariantContext = signal<PlanningVariantContext | null>(null);
   private readonly clonedResourceCache = new WeakMap<Resource[], Resource[]>();
+  private readonly clonedResourceItemCache = new WeakMap<Resource, Resource>();
   private readonly clonedActivityCache = new WeakMap<Activity[], Activity[]>();
+  private readonly clonedActivityItemCache = new WeakMap<Activity, Activity>();
+
+  private readonly pendingActivityMutations: Record<
+    PlanningStageId,
+    { upserts: Map<string, Activity>; deleteIds: Set<string> }
+  > = {
+    base: { upserts: new Map<string, Activity>(), deleteIds: new Set<string>() },
+    operations: { upserts: new Map<string, Activity>(), deleteIds: new Set<string>() },
+  };
+
+  private readonly inFlightActivityMutations = new Set<PlanningStageId>();
+  private readonly inFlightActivityMutationIds: Record<
+    PlanningStageId,
+    { upsertIds: Set<string>; deleteIds: Set<string>; clientRequestId: string | null }
+  > = {
+    base: { upsertIds: new Set<string>(), deleteIds: new Set<string>(), clientRequestId: null },
+    operations: { upsertIds: new Set<string>(), deleteIds: new Set<string>(), clientRequestId: null },
+  };
+
+  private readonly deferredRemoteActivityMutations: Record<
+    PlanningStageId,
+    Map<string, { kind: 'upsert' | 'delete'; activity?: Activity; version?: string | null }>
+  > = {
+    base: new Map(),
+    operations: new Map(),
+  };
+
+  private readonly syncingActivityIdsSignal = signal<Record<PlanningStageId, ReadonlySet<string>>>({
+    base: new Set<string>(),
+    operations: new Set<string>(),
+  });
 
   private readonly stageDataSignal = signal<Record<PlanningStageId, PlanningStageData>>(
     STAGE_IDS.reduce((record, stage) => {
@@ -210,6 +240,10 @@ export class PlanningDataService {
     return computed(() => this.planningVariantContext());
   }
 
+  syncingActivityIds(stage: PlanningStageId): Signal<ReadonlySet<string>> {
+    return computed(() => this.syncingActivityIdsSignal()[stage] ?? new Set<string>());
+  }
+
   setPlanningVariant(context: PlanningVariantContext | null): void {
     const current = this.planningVariantContext();
     if (this.areVariantContextsEqual(current, context)) {
@@ -249,7 +283,7 @@ export class PlanningDataService {
     if (cached) {
       return cached;
     }
-    const cloned = cloneResources(resources);
+    const cloned = resources.map((resource) => this.cloneResourceItem(resource));
     this.clonedResourceCache.set(resources, cloned);
     return cloned;
   }
@@ -259,8 +293,39 @@ export class PlanningDataService {
     if (cached) {
       return cached;
     }
-    const cloned = cloneActivities(activities);
+    const cloned = activities.map((activity) => this.cloneActivityItem(activity));
     this.clonedActivityCache.set(activities, cloned);
+    return cloned;
+  }
+
+  private cloneResourceItem(resource: Resource): Resource {
+    const cached = this.clonedResourceItemCache.get(resource);
+    if (cached) {
+      return cached;
+    }
+    const cloned: Resource = {
+      ...resource,
+      attributes: resource.attributes ? { ...resource.attributes } : undefined,
+    };
+    this.clonedResourceItemCache.set(resource, cloned);
+    return cloned;
+  }
+
+  private cloneActivityItem(activity: Activity): Activity {
+    const cached = this.clonedActivityItemCache.get(activity);
+    if (cached) {
+      return cached;
+    }
+    const cloned: Activity = {
+      ...activity,
+      participants: activity.participants ? activity.participants.map((participant) => ({ ...participant })) : undefined,
+      requiredQualifications: activity.requiredQualifications ? [...activity.requiredQualifications] : undefined,
+      assignedQualifications: activity.assignedQualifications ? [...activity.assignedQualifications] : undefined,
+      workRuleTags: activity.workRuleTags ? [...activity.workRuleTags] : undefined,
+      attributes: activity.attributes ? { ...activity.attributes } : undefined,
+      meta: activity.meta ? { ...activity.meta } : undefined,
+    };
+    this.clonedActivityItemCache.set(activity, cloned);
     return cloned;
   }
 
@@ -385,9 +450,18 @@ export class PlanningDataService {
     const startDate = new Date(activity.start);
     const isoDay = Number.isFinite(startDate.getTime()) ? startDate.toISOString().slice(0, 10) : null;
     const stageActivityId = isoDay ? `${baseId}@${isoDay}` : null;
+    const currentStageActivity = stageActivityId
+      ? this.stageDataSignal().base.activities.find((entry) => entry.id === stageActivityId) ?? null
+      : null;
     const stageUpsert = stageActivityId
       ? normalizeActivityParticipants(
-          [{ ...activity, id: stageActivityId }],
+          [
+            {
+              ...activity,
+              id: stageActivityId,
+              rowVersion: currentStageActivity?.rowVersion ?? activity.rowVersion,
+            },
+          ],
           this.stageDataSignal().base.resources,
         )[0]
       : undefined;
@@ -399,35 +473,11 @@ export class PlanningDataService {
       .pipe(
         take(1),
         tap((saved) => this.applyTemplateActivity(saved)),
-        switchMap(() => {
-          if (!stageUpsert || !stageActivityId) {
-            return of(null);
-          }
-          return this.api
-            .batchMutateActivities(
-              'base',
-              {
-                upserts: [stageUpsert],
-                clientRequestId: this.decorateClientRequestId(`template-upsert:${stageActivityId}`),
-              },
-              context,
-            )
-            .pipe(
-              take(1),
-              tap((response) => this.applyMutationResponse('base', response)),
-              catchError((error) => {
-                console.warn(
-                  '[PlanningDataService] Failed to sync planning-stage base instance after template upsert',
-                  error,
-                );
-                return of(null);
-              }),
-            );
-        }),
         tap(() => {
-          // Force a fresh timeline load so the UI immediately reflects the change.
-          this.lastBaseTimelineSignature = null;
-          this.reloadBaseTimeline();
+          if (!stageUpsert || !stageActivityId) {
+            return;
+          }
+          this.enqueueActivityMutations('base', [stageUpsert], []);
         }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to upsert template activity', error);
@@ -468,28 +518,9 @@ export class PlanningDataService {
               },
             };
           });
-          this.lastBaseTimelineSignature = null;
-          this.reloadBaseTimeline();
 
           if (planningDeleteIds.length) {
-            this.api
-              .batchMutateActivities(
-                'base',
-                {
-                  deleteIds: planningDeleteIds,
-                  clientRequestId: this.decorateClientRequestId(`template-delete:${baseId}`),
-                },
-                this.currentApiContext(),
-              )
-              .pipe(
-                take(1),
-                tap((response) => this.applyMutationResponse('base', response)),
-                catchError((error) => {
-                  console.warn('[PlanningDataService] Failed to delete planning-stage base instances', error);
-                  return EMPTY;
-                }),
-              )
-              .subscribe();
+            this.enqueueActivityMutations('base', [], planningDeleteIds);
           }
         }),
         catchError((error) => {
@@ -586,9 +617,27 @@ export class PlanningDataService {
       return;
     }
     const activities = this.mapTimelineActivities([entry], 'base');
+    const baseId = entry.id;
+    const prefix = `${baseId}@`;
+    const nextIds = new Set(activities.map((activity) => activity.id));
     this.stageDataSignal.update((record) => {
       const baseStage = record.base;
-      const next = mergeActivityList(baseStage.activities, activities, []);
+      const persistedIds = new Set(
+        baseStage.activities.filter((activity) => !!activity.rowVersion).map((activity) => activity.id),
+      );
+      const safeUpserts = activities.filter((activity) => !persistedIds.has(activity.id));
+      const deleteIds = baseStage.activities
+        .filter((activity) => {
+          if (!activity.id.startsWith(prefix)) {
+            return false;
+          }
+          if (nextIds.has(activity.id)) {
+            return false;
+          }
+          return !activity.rowVersion;
+        })
+        .map((activity) => activity.id);
+      const next = mergeActivityList(baseStage.activities, safeUpserts, deleteIds);
       return {
         ...record,
         base: {
@@ -703,17 +752,52 @@ export class PlanningDataService {
   }
 
   updateStageData(stage: PlanningStageId, updater: (data: PlanningStageData) => PlanningStageData) {
-    const current = this.stageDataSignal();
-    const previousStage = cloneStageData(current[stage]);
-    const nextStage = normalizeStage(updater(previousStage));
-    this.stageDataSignal.set({
-      ...current,
-      [stage]: nextStage,
-    });
-    const activityDiff = diffActivities(previousStage.activities, nextStage.activities);
-    const resourceDiff = diffResources(previousStage.resources, nextStage.resources);
-    activityDiff.clientRequestId = this.decorateClientRequestId(activityDiff.clientRequestId);
+    const currentStage = this.stageDataSignal()[stage];
+    const draft = cloneStageData(currentStage);
+    const updatedDraft = updater(draft);
+    const nextStage: PlanningStageData = {
+      ...updatedDraft,
+      timelineRange: normalizeTimelineRange(cloneTimelineRange(updatedDraft.timelineRange)),
+    };
+
+    const resourceDiff = diffResources(currentStage.resources, nextStage.resources);
+    const activityDiff = diffActivities(currentStage.activities, nextStage.activities);
     resourceDiff.clientRequestId = this.decorateClientRequestId(resourceDiff.clientRequestId);
+    activityDiff.clientRequestId = this.decorateClientRequestId(activityDiff.clientRequestId);
+
+    const resourceUpserts = resourceDiff.upserts ?? [];
+    const resourceDeletes = resourceDiff.deleteIds ?? [];
+    const activityUpserts = activityDiff.upserts ?? [];
+    const activityDeletes = activityDiff.deleteIds ?? [];
+
+    this.stageDataSignal.update((record) => {
+      const stageData = record[stage];
+      const mergedResources = mergeResourceList(stageData.resources, resourceUpserts, resourceDeletes);
+      const normalizedActivityUpserts = activityUpserts.length
+        ? normalizeActivityParticipants(activityUpserts, mergedResources)
+        : [];
+      const mergedActivities = mergeActivityList(stageData.activities, normalizedActivityUpserts, activityDeletes);
+      const nextRange = rangesEqual(stageData.timelineRange, nextStage.timelineRange)
+        ? stageData.timelineRange
+        : nextStage.timelineRange;
+      if (
+        mergedResources === stageData.resources &&
+        mergedActivities === stageData.activities &&
+        nextRange === stageData.timelineRange
+      ) {
+        return record;
+      }
+      return {
+        ...record,
+        [stage]: {
+          ...stageData,
+          resources: mergedResources,
+          activities: mergedActivities,
+          timelineRange: nextRange,
+        },
+      };
+    });
+
     this.syncResources(stage, resourceDiff);
     this.syncActivities(stage, activityDiff);
   }
@@ -759,8 +843,12 @@ export class PlanningDataService {
       if (!stage) {
         return record;
       }
+      if (version && stage.version && version < stage.version) {
+        return record;
+      }
       const merged = mergeResourceList(stage.resources, upserts, deleteIds);
-      if (merged === stage.resources) {
+      const nextVersion = this.maxVersion(stage.version ?? null, version ?? null);
+      if (merged === stage.resources && nextVersion === (stage.version ?? null)) {
         return record;
       }
       return {
@@ -768,7 +856,7 @@ export class PlanningDataService {
         [stageId]: {
           ...stage,
           resources: merged,
-          version: version ?? stage.version,
+          version: nextVersion ?? stage.version,
         },
       };
     });
@@ -783,14 +871,57 @@ export class PlanningDataService {
     if (upserts.length === 0 && deleteIds.length === 0) {
       return;
     }
+    const currentStage = this.stageDataSignal()[stageId];
+    const currentVersion = currentStage?.version ?? null;
+    if (version && currentVersion && version < currentVersion) {
+      return;
+    }
+
+    const blocked = this.blockedActivityIds(stageId);
+    const applyUpserts: Activity[] = [];
+    const applyDeletes: string[] = [];
+    const deferred = this.deferredRemoteActivityMutations[stageId];
+
+    upserts.forEach((activity) => {
+      if (blocked.has(activity.id)) {
+        this.deferRemoteActivityMutation(deferred, activity.id, { kind: 'upsert', activity, version });
+        return;
+      }
+      applyUpserts.push(activity);
+    });
+    deleteIds.forEach((id) => {
+      if (blocked.has(id)) {
+        this.deferRemoteActivityMutation(deferred, id, { kind: 'delete', version });
+        return;
+      }
+      applyDeletes.push(id);
+    });
+
+    if (!applyUpserts.length && !applyDeletes.length) {
+      // Don't bump stage.version while a local mutation is pending; we'll apply the deferred data once the activity is idle again.
+      return;
+    }
     this.stageDataSignal.update((record) => {
       const stage = record[stageId];
       if (!stage) {
         return record;
       }
-      const normalizedUpserts = normalizeActivityParticipants(upserts, stage.resources);
-      const merged = mergeActivityList(stage.activities, normalizedUpserts, deleteIds);
-      if (merged === stage.activities) {
+      if (version && stage.version && version < stage.version) {
+        return record;
+      }
+      const normalizedUpserts = normalizeActivityParticipants(applyUpserts, stage.resources);
+      const currentById = new Map(stage.activities.map((activity) => [activity.id, activity.rowVersion ?? null]));
+      const filteredUpserts = normalizedUpserts.filter((activity) => {
+        const currentVersion = currentById.get(activity.id);
+        const incomingVersion = activity.rowVersion ?? null;
+        if (!currentVersion || !incomingVersion) {
+          return true;
+        }
+        return incomingVersion >= currentVersion;
+      });
+      const merged = mergeActivityList(stage.activities, filteredUpserts, applyDeletes);
+      const nextVersion = this.maxVersion(stage.version ?? null, version ?? null);
+      if (merged === stage.activities && nextVersion === (stage.version ?? null)) {
         return record;
       }
       return {
@@ -798,7 +929,7 @@ export class PlanningDataService {
         [stageId]: {
           ...stage,
           activities: merged,
-          version: version ?? stage.version,
+          version: nextVersion ?? stage.version,
         },
       };
     });
@@ -813,6 +944,9 @@ export class PlanningDataService {
     this.stageDataSignal.update((record) => {
       const stage = record[stageId];
       if (!stage) {
+        return record;
+      }
+      if (version && stage.version && version < stage.version) {
         return record;
       }
       return {
@@ -847,12 +981,149 @@ export class PlanningDataService {
     if (diff.upserts && stageData) {
       diff.upserts = normalizeActivityParticipants(diff.upserts, stageData.resources);
     }
+    this.enqueueActivityMutations(stage, diff.upserts ?? [], diff.deleteIds ?? []);
+  }
+
+  private applyMutationResponse(stage: PlanningStageId, response: ActivityBatchMutationResponse): void {
+    const pending = this.pendingActivityMutations[stage];
+    const pendingUpsertIds = pending.upserts;
+    const pendingDeleteIds = pending.deleteIds;
+
+    const rowVersionOnly = new Map<string, string>();
+
+    const applyUpserts: Activity[] = [];
+    (response.upserts ?? []).forEach((activity) => {
+      if (pendingDeleteIds.has(activity.id)) {
+        return;
+      }
+      if (pendingUpsertIds.has(activity.id)) {
+        if (activity.rowVersion) {
+          rowVersionOnly.set(activity.id, activity.rowVersion);
+          const pendingActivity = pendingUpsertIds.get(activity.id);
+          if (pendingActivity) {
+            pendingUpsertIds.set(activity.id, {
+              ...pendingActivity,
+              rowVersion: this.maxVersion(pendingActivity.rowVersion ?? null, activity.rowVersion) ?? activity.rowVersion,
+            });
+          }
+        }
+        return;
+      }
+      applyUpserts.push(activity);
+    });
+
+    const applyDeletes = (response.deletedIds ?? []).filter((id) => !pendingUpsertIds.has(id));
+
+    this.stageDataSignal.update((record) => {
+      const stageData = record[stage];
+      const currentVersion = stageData.version ?? null;
+      const nextVersion = this.maxVersion(currentVersion, response.version ?? null) ?? currentVersion;
+
+      let activities = stageData.activities;
+      if (rowVersionOnly.size) {
+        let mutated = false;
+        const next = activities.map((activity) => {
+          const incoming = rowVersionOnly.get(activity.id);
+          if (!incoming) {
+            return activity;
+          }
+          const mergedVersion = this.maxVersion(activity.rowVersion ?? null, incoming) ?? activity.rowVersion ?? incoming;
+          if ((activity.rowVersion ?? null) === mergedVersion) {
+            return activity;
+          }
+          mutated = true;
+          return {
+            ...activity,
+            rowVersion: mergedVersion,
+          };
+        });
+        activities = mutated ? next : activities;
+      }
+
+      const normalizedUpserts = applyUpserts.length
+        ? normalizeActivityParticipants(applyUpserts, stageData.resources)
+        : [];
+      const currentById = new Map(activities.map((activity) => [activity.id, activity.rowVersion ?? null]));
+      const filteredUpserts = normalizedUpserts.filter((activity) => {
+        const currentVersion = currentById.get(activity.id);
+        const incomingVersion = activity.rowVersion ?? null;
+        if (!currentVersion || !incomingVersion) {
+          return true;
+        }
+        return incomingVersion >= currentVersion;
+      });
+
+      const merged = mergeActivityList(activities, filteredUpserts, applyDeletes);
+      if (merged === stageData.activities && nextVersion === currentVersion) {
+        return record;
+      }
+      return {
+        ...record,
+        [stage]: {
+          ...stageData,
+          activities: merged,
+          version: nextVersion ?? stageData.version,
+        },
+      };
+    });
+  }
+
+  private enqueueActivityMutations(stage: PlanningStageId, upserts: Activity[], deleteIds: string[]): void {
+    const pending = this.pendingActivityMutations[stage];
+    deleteIds.forEach((id) => {
+      pending.upserts.delete(id);
+      pending.deleteIds.add(id);
+    });
+    upserts.forEach((activity) => {
+      pending.deleteIds.delete(activity.id);
+      pending.upserts.set(activity.id, activity);
+    });
+    this.updateSyncingActivityIds(stage);
+    this.flushActivityMutations(stage);
+  }
+
+  private flushActivityMutations(stage: PlanningStageId): void {
+    if (this.inFlightActivityMutations.has(stage)) {
+      return;
+    }
+    const pending = this.pendingActivityMutations[stage];
+    if (!pending.upserts.size && !pending.deleteIds.size) {
+      return;
+    }
+    const upserts = Array.from(pending.upserts.values());
+    const deleteIds = Array.from(pending.deleteIds.values());
+    pending.upserts.clear();
+    pending.deleteIds.clear();
+
+    const stageData = this.stageDataSignal()[stage];
+    const currentRowVersions = new Map(
+      (stageData?.activities ?? []).map((activity) => [activity.id, activity.rowVersion ?? null]),
+    );
+    const effectiveUpserts = upserts.map((activity) => {
+      const current = currentRowVersions.get(activity.id);
+      const merged = this.maxVersion(activity.rowVersion ?? null, current);
+      if (merged && merged !== (activity.rowVersion ?? null)) {
+        return { ...activity, rowVersion: merged };
+      }
+      return activity;
+    });
+
+    this.inFlightActivityMutations.add(stage);
+    const inFlight = this.inFlightActivityMutationIds[stage];
+    inFlight.upsertIds = new Set(effectiveUpserts.map((activity) => activity.id));
+    inFlight.deleteIds = new Set(deleteIds);
+    inFlight.clientRequestId = this.decorateClientRequestId(`activity-sync-${Date.now().toString(36)}`);
+    this.updateSyncingActivityIds(stage);
     this.api
-      .batchMutateActivities(stage, {
-        upserts: diff.upserts,
-        deleteIds: diff.deleteIds,
-        clientRequestId: diff.clientRequestId,
-      }, this.currentApiContext())
+      .batchMutateActivities(
+        stage,
+        {
+          upserts: effectiveUpserts,
+          deleteIds,
+          clientRequestId: inFlight.clientRequestId,
+        },
+        this.currentApiContext(),
+      )
       .pipe(
         take(1),
         tap((response) => this.applyMutationResponse(stage, response)),
@@ -861,26 +1132,135 @@ export class PlanningDataService {
           this.refreshStage(stage);
           return EMPTY;
         }),
+        finalize(() => {
+          this.inFlightActivityMutations.delete(stage);
+          const current = this.inFlightActivityMutationIds[stage];
+          current.upsertIds = new Set<string>();
+          current.deleteIds = new Set<string>();
+          current.clientRequestId = null;
+          this.updateSyncingActivityIds(stage);
+          this.drainDeferredRemoteActivityMutations(stage);
+          this.flushActivityMutations(stage);
+        }),
       )
       .subscribe();
   }
 
-  private applyMutationResponse(stage: PlanningStageId, response: ActivityBatchMutationResponse): void {
-    if (!response.version) {
+  private blockedActivityIds(stage: PlanningStageId): Set<string> {
+    const blocked = new Set<string>();
+    const pending = this.pendingActivityMutations[stage];
+    pending.upserts.forEach((_activity, id) => blocked.add(id));
+    pending.deleteIds.forEach((id) => blocked.add(id));
+    const inFlight = this.inFlightActivityMutationIds[stage];
+    inFlight.upsertIds.forEach((id) => blocked.add(id));
+    inFlight.deleteIds.forEach((id) => blocked.add(id));
+    return blocked;
+  }
+
+  private deferRemoteActivityMutation(
+    deferred: Map<string, { kind: 'upsert' | 'delete'; activity?: Activity; version?: string | null }>,
+    id: string,
+    mutation: { kind: 'upsert' | 'delete'; activity?: Activity; version?: string | null },
+  ): void {
+    const existing = deferred.get(id);
+    if (!existing) {
+      deferred.set(id, mutation);
       return;
     }
-    const upserts = response.upserts ?? [];
-    this.stageDataSignal.update((record) => ({
+    const existingVersion = existing.version ?? null;
+    const incomingVersion = mutation.version ?? null;
+    if (existingVersion && incomingVersion && incomingVersion < existingVersion) {
+      return;
+    }
+    deferred.set(id, {
+      ...mutation,
+      version: this.maxVersion(existingVersion, incomingVersion),
+    });
+  }
+
+  private drainDeferredRemoteActivityMutations(stage: PlanningStageId): void {
+    const deferred = this.deferredRemoteActivityMutations[stage];
+    if (!deferred.size) {
+      return;
+    }
+    const blocked = this.blockedActivityIds(stage);
+    const upserts: Activity[] = [];
+    const deleteIds: string[] = [];
+    let version: string | null = null;
+
+    Array.from(deferred.entries()).forEach(([id, mutation]) => {
+      if (blocked.has(id)) {
+        return;
+      }
+      deferred.delete(id);
+      if (mutation.kind === 'delete') {
+        deleteIds.push(id);
+      } else if (mutation.activity) {
+        upserts.push(mutation.activity);
+      }
+      version = this.maxVersion(version, mutation.version ?? null);
+    });
+
+    if (!upserts.length && !deleteIds.length) {
+      return;
+    }
+
+    this.stageDataSignal.update((record) => {
+      const stageData = record[stage];
+      if (!stageData) {
+        return record;
+      }
+      const normalizedUpserts = upserts.length
+        ? normalizeActivityParticipants(upserts, stageData.resources)
+        : [];
+      const currentById = new Map(stageData.activities.map((activity) => [activity.id, activity.rowVersion ?? null]));
+      const filteredUpserts = normalizedUpserts.filter((activity) => {
+        const currentVersion = currentById.get(activity.id);
+        const incomingVersion = activity.rowVersion ?? null;
+        if (!currentVersion || !incomingVersion) {
+          return true;
+        }
+        return incomingVersion >= currentVersion;
+      });
+      const merged = mergeActivityList(stageData.activities, filteredUpserts, deleteIds);
+      const nextVersion = this.maxVersion(stageData.version ?? null, version);
+      if (merged === stageData.activities && nextVersion === (stageData.version ?? null)) {
+        return record;
+      }
+      return {
+        ...record,
+        [stage]: {
+          ...stageData,
+          activities: merged,
+          version: nextVersion ?? stageData.version,
+        },
+      };
+    });
+  }
+
+  private maxVersion(a: string | null | undefined, b: string | null | undefined): string | null {
+    const left = a ?? null;
+    const right = b ?? null;
+    if (!left) {
+      return right;
+    }
+    if (!right) {
+      return left;
+    }
+    return left >= right ? left : right;
+  }
+
+  private updateSyncingActivityIds(stage: PlanningStageId): void {
+    const pending = this.pendingActivityMutations[stage];
+    const inFlight = this.inFlightActivityMutationIds[stage];
+    const ids = new Set<string>();
+    pending.upserts.forEach((_value, id) => ids.add(id));
+    pending.deleteIds.forEach((id) => ids.add(id));
+    inFlight.upsertIds.forEach((id) => ids.add(id));
+    inFlight.deleteIds.forEach((id) => ids.add(id));
+    this.syncingActivityIdsSignal.update((record) => ({
       ...record,
-      [stage]: {
-        ...record[stage],
-        activities: mergeActivityList(
-          record[stage].activities,
-          upserts.length ? normalizeActivityParticipants(upserts, record[stage].resources) : [],
-          response.deletedIds ?? [],
-        ),
-        version: response.version ?? record[stage].version,
-      },
+      [stage]: ids,
     }));
   }
 

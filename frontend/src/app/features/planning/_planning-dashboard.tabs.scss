@@ -647,6 +647,13 @@
 
 .planning-type-menu .mat-mdc-menu-content {
   max-height: 70vh;
+  overflow-x: hidden;
+}
+
+.planning-type-menu.mat-mdc-menu-panel {
+  width: min(420px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  overflow-x: hidden;
 }
 
 .planning-type-menu__search {
@@ -659,7 +666,7 @@
 }
 
 .planning-type-menu__search-field {
-  width: min(360px, 86vw);
+  width: 100%;
 }
 
 .planning-type-menu__header {

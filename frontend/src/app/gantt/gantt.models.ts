@@ -59,6 +59,10 @@ export interface ServiceRangeAccumulator {
   endLeft: number | null;
   startMs: number | null;
   endMs: number | null;
+  routeFrom: string | null;
+  routeTo: string | null;
+  routeFromMs: number | null;
+  routeToMs: number | null;
 }
 
 export type ActivitySelectionMode = 'set' | 'toggle';

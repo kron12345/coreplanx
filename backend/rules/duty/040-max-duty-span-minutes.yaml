@@ -3,5 +3,4 @@ kind: constraint
 executor: duty/max-duty-span-minutes
 enabled: true
 params:
-  maxMinutes: 720 # 12h
-
+  maxMinutes: 780 # 13h (AZG Art. 6 Abs. 1)

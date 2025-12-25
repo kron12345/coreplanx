@@ -1,0 +1,7 @@
+id: azg.break_max_count
+kind: constraint
+executor: azg/break-max-count
+enabled: true
+params:
+  maxCount: 3 # (AZG Art. 7 Abs. 2)
+

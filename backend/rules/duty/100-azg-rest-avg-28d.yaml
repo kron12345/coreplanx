@@ -1,0 +1,8 @@
+id: azg.rest_avg_28d
+kind: constraint
+executor: azg/rest-avg-28d
+enabled: true
+params:
+  windowDays: 28
+  minAverageMinutes: 720 # 12h (AZG Art. 8 Abs. 1)
+

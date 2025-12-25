@@ -595,6 +595,7 @@ export interface PlanningStageRealtimeEvent {
   stageId: StageId;
   variantId: PlanningVariantId;
   scope: PlanningStageRealtimeScope;
+  clientRequestId?: string | null;
   version?: string | null;
   sourceClientId?: string | null;
   sourceConnectionId?: string | null;
@@ -792,6 +793,7 @@ export interface ActivityMutationResponse {
   deletedIds: string[];
   upserts?: Activity[];
   version?: string | null;
+  clientRequestId?: string;
 }
 
 export type PlanningRuleKind = 'generator' | 'constraint';
@@ -838,6 +840,7 @@ export interface ResourceMutationResponse {
   appliedUpserts: string[];
   deletedIds: string[];
   version?: string | null;
+  clientRequestId?: string;
 }
 
 export interface ActivityValidationRequest {

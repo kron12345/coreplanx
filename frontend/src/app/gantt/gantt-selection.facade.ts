@@ -24,6 +24,7 @@ function decodeSelectionSlot(key: string): ActivitySlotSelection {
 
 export class GanttSelectionFacade {
   private readonly lassoActivationThreshold = 6;
+  private lassoFrameHandle: number | null = null;
   private lassoState: {
     pointerId: number;
     originX: number;
@@ -34,6 +35,18 @@ export class GanttSelectionFacade {
   } | null = null;
   private lassoPointerContainer: HTMLElement | null = null;
   private lassoHits = new Map<string, Set<string>>();
+  private lassoCandidateCache: {
+    candidates: Array<{
+      activityId: string;
+      resourceId: string;
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+    }>;
+    baseScrollLeft: number;
+    baseScrollTop: number;
+  } | null = null;
 
   private readonly selectedActivityIdsSignal = signal<Set<string>>(new Set());
   readonly selectedActivityIds = this.selectedActivityIdsSignal.asReadonly();
@@ -67,6 +80,17 @@ export class GanttSelectionFacade {
       suppressNextTimelineClick: () => void;
     },
   ) {}
+
+  isLassoActive(): boolean {
+    return this.lassoState !== null;
+  }
+
+  refreshLassoVisual(): void {
+    if (!this.lassoState) {
+      return;
+    }
+    this.updateLassoVisual();
+  }
 
   setSelectedActivityIds(value: string[] | null | undefined): void {
     const next = new Set(value ?? []);
@@ -104,10 +128,11 @@ export class GanttSelectionFacade {
       originY: event.clientY,
       currentX: event.clientX,
       currentY: event.clientY,
-      additive: event.metaKey || event.ctrlKey,
+      additive: event.metaKey || event.shiftKey,
     };
     this.lassoPointerContainer = host;
     this.lassoHits = new Map<string, Set<string>>();
+    this.captureLassoCandidates();
     this.lassoPreviewSelectionSignal.set(new Set());
     this.lassoBoxSignal.set(null);
     host.setPointerCapture?.(event.pointerId);
@@ -119,7 +144,7 @@ export class GanttSelectionFacade {
     }
     this.lassoState.currentX = event.clientX;
     this.lassoState.currentY = event.clientY;
-    this.updateLassoVisual();
+    this.scheduleLassoVisualUpdate();
     event.preventDefault();
     return true;
   }
@@ -137,10 +162,11 @@ export class GanttSelectionFacade {
     this.lassoHits.forEach((set, activityId) => hits.set(activityId, new Set(set)));
     const additive = this.lassoState.additive;
     this.resetLassoState();
-    if (!rect) {
-      return false;
-    }
     this.deps.suppressNextTimelineClick();
+    if (!rect) {
+      event.preventDefault();
+      return true;
+    }
     if (hits.size === 0) {
       event.preventDefault();
       return true;
@@ -169,6 +195,24 @@ export class GanttSelectionFacade {
     this.updateLassoHits(rect);
   }
 
+  private scheduleLassoVisualUpdate(): void {
+    if (this.lassoFrameHandle !== null) {
+      return;
+    }
+    const flush = () => {
+      this.lassoFrameHandle = null;
+      if (!this.lassoState) {
+        return;
+      }
+      this.updateLassoVisual();
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      this.lassoFrameHandle = requestAnimationFrame(flush);
+      return;
+    }
+    this.lassoFrameHandle = window.setTimeout(flush, 16);
+  }
+
   private computeLassoRect(): NormalizedRect | null {
     if (!this.lassoState) {
       return null;
@@ -194,7 +238,76 @@ export class GanttSelectionFacade {
   private updateLassoHits(rect: NormalizedRect): void {
     const hits = new Map<string, Set<string>>();
     const preview = new Set<string>();
-    const elements = this.deps.host().querySelectorAll('.gantt-activity[data-activity-id]');
+    const candidates = this.lassoCandidateCache?.candidates ?? [];
+    const scrollLeft = this.lassoPointerContainer?.scrollLeft ?? 0;
+    const scrollTop = this.viewportScrollTop();
+    const baseScrollLeft = this.lassoCandidateCache?.baseScrollLeft ?? scrollLeft;
+    const baseScrollTop = this.lassoCandidateCache?.baseScrollTop ?? scrollTop;
+    const dx = scrollLeft - baseScrollLeft;
+    const dy = scrollTop - baseScrollTop;
+
+    if (!candidates.length) {
+      const elements = this.deps.host().querySelectorAll('.gantt-activity[data-activity-id]');
+      elements.forEach((element: Element) => {
+        const activityElement = element as HTMLElement;
+        const activityId = activityElement.dataset['activityId'] ?? '';
+        const resourceId = activityElement.dataset['resourceId'] ?? '';
+        if (!activityId || !resourceId) {
+          return;
+        }
+        const targetRect = activityElement.getBoundingClientRect();
+        if (!this.rectanglesOverlap(rect, targetRect)) {
+          return;
+        }
+        let record = hits.get(activityId);
+        if (!record) {
+          record = new Set<string>();
+          hits.set(activityId, record);
+        }
+        record.add(resourceId);
+        preview.add(activityId);
+      });
+    } else {
+      candidates.forEach((candidate) => {
+        const adjusted = {
+          left: candidate.left - dx,
+          right: candidate.right - dx,
+          top: candidate.top - dy,
+          bottom: candidate.bottom - dy,
+        };
+        if (!this.rectanglesOverlap(rect, adjusted as DOMRect)) {
+          return;
+        }
+        let record = hits.get(candidate.activityId);
+        if (!record) {
+          record = new Set<string>();
+          hits.set(candidate.activityId, record);
+        }
+        record.add(candidate.resourceId);
+        preview.add(candidate.activityId);
+      });
+    }
+
+    this.lassoHits = hits;
+    this.lassoPreviewSelectionSignal.set(preview);
+  }
+
+  private viewportScrollTop(): number {
+    const viewport = this.deps.host().querySelector('.gantt__viewport') as HTMLElement | null;
+    return viewport?.scrollTop ?? 0;
+  }
+
+  private captureLassoCandidates(): void {
+    const host = this.deps.host();
+    const elements = host.querySelectorAll('.gantt-activity[data-activity-id]');
+    const candidates: Array<{
+      activityId: string;
+      resourceId: string;
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+    }> = [];
     elements.forEach((element: Element) => {
       const activityElement = element as HTMLElement;
       const activityId = activityElement.dataset['activityId'] ?? '';
@@ -202,20 +315,21 @@ export class GanttSelectionFacade {
       if (!activityId || !resourceId) {
         return;
       }
-      const targetRect = activityElement.getBoundingClientRect();
-      if (!this.rectanglesOverlap(rect, targetRect)) {
-        return;
-      }
-      let record = hits.get(activityId);
-      if (!record) {
-        record = new Set<string>();
-        hits.set(activityId, record);
-      }
-      record.add(resourceId);
-      preview.add(activityId);
+      const rect = activityElement.getBoundingClientRect();
+      candidates.push({
+        activityId,
+        resourceId,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      });
     });
-    this.lassoHits = hits;
-    this.lassoPreviewSelectionSignal.set(preview);
+    this.lassoCandidateCache = {
+      candidates,
+      baseScrollLeft: this.lassoPointerContainer?.scrollLeft ?? 0,
+      baseScrollTop: this.viewportScrollTop(),
+    };
   }
 
   private rectanglesOverlap(a: NormalizedRect, b: DOMRect): boolean {
@@ -223,9 +337,18 @@ export class GanttSelectionFacade {
   }
 
   private resetLassoState(): void {
+    if (this.lassoFrameHandle !== null) {
+      if (typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this.lassoFrameHandle);
+      } else {
+        clearTimeout(this.lassoFrameHandle);
+      }
+      this.lassoFrameHandle = null;
+    }
     this.lassoPointerContainer = null;
     this.lassoState = null;
     this.lassoHits = new Map<string, Set<string>>();
+    this.lassoCandidateCache = null;
     this.lassoPreviewSelectionSignal.set(new Set());
     this.lassoBoxSignal.set(null);
   }
@@ -312,4 +435,3 @@ export class GanttSelectionFacade {
     });
   }
 }
-

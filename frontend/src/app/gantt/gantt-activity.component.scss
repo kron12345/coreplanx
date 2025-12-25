@@ -1,7 +1,7 @@
 .gantt-activity {
   position: absolute;
-  top: 18px;
-  bottom: 18px;
+  top: 24px;
+  bottom: 24px;
   display: flex;
   align-items: center;
   padding: 4px 10px;
@@ -161,10 +161,12 @@
 
 .gantt-activity--conflict-warn {
   filter: saturate(1.35);
+  --gantt-conflict-overlay-opacity: 0.62;
 }
 
 .gantt-activity--conflict-error {
   filter: saturate(1.9);
+  --gantt-conflict-overlay-opacity: 0.78;
 }
 
 .gantt-activity--conflict-pattern {
@@ -179,26 +181,30 @@
     var(--gantt-conflict-pattern-1, none),
     var(--gantt-conflict-pattern-2, none),
     var(--gantt-conflict-pattern-3, none);
-  opacity: 0.36;
+  opacity: var(--gantt-conflict-overlay-opacity, 0.55);
 }
 
 .gantt-activity--conflict-capacity {
   --gantt-conflict-pattern-1: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.55) 0,
-    rgba(255, 255, 255, 0.55) 3px,
-    transparent 3px,
-    transparent 10px
+    rgba(255, 255, 255, 0.88) 0,
+    rgba(255, 255, 255, 0.88) 4px,
+    rgba(0, 0, 0, 0.18) 4px,
+    rgba(0, 0, 0, 0.18) 6px,
+    transparent 6px,
+    transparent 14px
   );
 }
 
 .gantt-activity--conflict-location {
   --gantt-conflict-pattern-2: repeating-linear-gradient(
     -45deg,
-    rgba(255, 255, 255, 0.45) 0,
-    rgba(255, 255, 255, 0.45) 3px,
-    transparent 3px,
-    transparent 10px
+    rgba(255, 255, 255, 0.78) 0,
+    rgba(255, 255, 255, 0.78) 3px,
+    rgba(0, 0, 0, 0.14) 3px,
+    rgba(0, 0, 0, 0.14) 5px,
+    transparent 5px,
+    transparent 13px
   );
 }
 
@@ -206,17 +212,21 @@
   --gantt-conflict-pattern-3:
     repeating-linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.24) 0,
-      rgba(255, 255, 255, 0.24) 2px,
+      rgba(255, 255, 255, 0.38) 0,
+      rgba(255, 255, 255, 0.38) 2px,
+      rgba(0, 0, 0, 0.12) 2px,
+      rgba(0, 0, 0, 0.12) 3px,
       transparent 2px,
-      transparent 10px
+      transparent 9px
     ),
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.24) 0,
-      rgba(255, 255, 255, 0.24) 2px,
+      rgba(255, 255, 255, 0.38) 0,
+      rgba(255, 255, 255, 0.38) 2px,
+      rgba(0, 0, 0, 0.12) 2px,
+      rgba(0, 0, 0, 0.12) 3px,
       transparent 2px,
-      transparent 10px
+      transparent 9px
     );
 }
 
@@ -345,10 +355,37 @@
   background: rgba(15, 23, 42, 1);
 }
 
+.gantt-activity--syncing {
+  filter: saturate(0.98) brightness(1.02);
+}
+
+.gantt-activity__sync-indicator {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  border-top-color: rgba(255, 255, 255, 0.25);
+  animation: gantt-activity-spin 900ms linear infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes gantt-activity-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .gantt-activity.cdk-drag-dragging {
   position: fixed !important;
   inset: auto !important;
-  height: 28px !important; // match visible bar height
+  height: 24px !important; // match visible bar height
   top: var(--drag-start-top, 0px) !important;
   left: var(--drag-start-left, 0px) !important;
   z-index: 12000;
@@ -368,14 +405,14 @@
   pointer-events: none;
   opacity: 0.98;
   z-index: 12000;
-  height: 28px;
+  height: 24px;
 }
 
 .cdk-drag-preview.gantt-activity {
   position: fixed !important;
   top: var(--drag-start-top, 0px) !important;
   left: var(--drag-start-left, 0px) !important;
-  height: 28px !important; // match visible bar height
+  height: 24px !important; // match visible bar height
   z-index: 12000 !important;
   pointer-events: none;
   opacity: 0.98;
@@ -477,8 +514,8 @@
 
 .gantt-activity--placeholder {
   position: absolute;
-  top: 18px;
-  bottom: 18px;
+  top: 24px;
+  bottom: 24px;
   border-radius: 4px;
   pointer-events: none;
 }
@@ -496,6 +533,13 @@
 
 .gantt-activity-popover__title {
   font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.gantt-activity-popover__sync {
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  color: rgba(148, 163, 184, 0.95);
   margin-bottom: 6px;
 }
 

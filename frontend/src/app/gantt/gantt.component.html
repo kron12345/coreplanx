@@ -3,11 +3,13 @@
     [zoomLabel]="zoomLabel()"
     [viewRangeLabel]="viewRangeLabel()"
     [filterText]="filterText()"
+    [markingMode]="markingMode()"
     (zoomIn)="onZoomIn()"
     (zoomOut)="onZoomOut()"
     (gotoToday)="onGotoToday()"
     (gotoDate)="onGotoDate($event)"
     (filterChange)="onFilterChange($event)"
+    (markingModeChange)="onMarkingModeChange($event)"
   >
     <ng-content select="[gantt-menu-actions]"></ng-content>
   </app-gantt-menu>

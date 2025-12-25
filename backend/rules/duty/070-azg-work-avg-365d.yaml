@@ -1,0 +1,8 @@
+id: azg.work_avg_365d
+kind: constraint
+executor: azg/work-avg-365d
+enabled: true
+params:
+  windowDays: 365
+  maxAverageMinutes: 420 # 7h (AZG Art. 4 Abs. 1)
+

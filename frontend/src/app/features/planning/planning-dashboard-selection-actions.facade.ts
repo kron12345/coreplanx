@@ -75,6 +75,65 @@ export class PlanningDashboardSelectionActionsFacade {
     }
   }
 
+  shiftSelectionBy(deltaMinutes: number, normalizedActivities: { activity: Activity; resource: Resource }[]): void {
+    if (!deltaMinutes) {
+      return;
+    }
+    const selectionIds = this.deps.activitySelection.selectedActivityIds();
+    if (selectionIds.size === 0) {
+      return;
+    }
+    const stage = this.deps.activeStage();
+    const deltaMs = deltaMinutes * 60_000;
+    const updates = new Map<string, Activity>();
+    normalizedActivities.forEach(({ activity }) => {
+      const startMs = new Date(activity.start).getTime();
+      if (!Number.isFinite(startMs)) {
+        return;
+      }
+      const endIso = activity.end ?? null;
+      const endMs = endIso ? new Date(endIso).getTime() : null;
+      const next: Activity = {
+        ...activity,
+        start: new Date(startMs + deltaMs).toISOString(),
+        end:
+          endMs !== null && Number.isFinite(endMs)
+            ? new Date(endMs + deltaMs).toISOString()
+            : null,
+      };
+      updates.set(activity.id, this.deps.applyActivityTypeConstraints(next));
+    });
+    if (updates.size === 0) {
+      return;
+    }
+    this.deps.updateStageActivities(stage, (activities) =>
+      activities.map((activity) => updates.get(activity.id) ?? activity),
+    );
+
+    const activeSelection = this.deps.activitySelection.selectedActivityState();
+    if (activeSelection) {
+      const updated = updates.get(activeSelection.activity.id);
+      if (updated) {
+        this.deps.activitySelection.selectedActivityState.set({
+          activity: updated,
+          resource: activeSelection.resource,
+        });
+      }
+    }
+  }
+
+  deleteSelection(): void {
+    const selectionIds = this.deps.activitySelection.selectedActivityIds();
+    if (selectionIds.size === 0) {
+      return;
+    }
+    const stage = this.deps.activeStage();
+    const ids = new Set(selectionIds);
+    this.deps.updateStageActivities(stage, (activities) => activities.filter((activity) => !ids.has(activity.id)));
+    this.deps.activitySelection.clearSelection();
+    this.resetMoveTarget();
+  }
+
   shiftSelectedActivityBy(deltaMinutes: number, normalizedActivities: { activity: Activity; resource: Resource }[]): void {
     this.deps.activityFacade.shiftSelectedActivityBy(
       deltaMinutes,

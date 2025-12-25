@@ -29,12 +29,14 @@ export class GanttMenuComponent {
   @Input({ required: true }) zoomLabel = '';
   @Input({ required: true }) viewRangeLabel = '';
   @Input() filterText = '';
+  @Input() markingMode = false;
 
   @Output() zoomIn = new EventEmitter<void>();
   @Output() zoomOut = new EventEmitter<void>();
   @Output() gotoToday = new EventEmitter<void>();
   @Output() gotoDate = new EventEmitter<Date>();
   @Output() filterChange = new EventEmitter<string>();
+  @Output() markingModeChange = new EventEmitter<boolean>();
 
   readonly today = new Date();
 
@@ -47,5 +49,9 @@ export class GanttMenuComponent {
       return;
     }
     this.gotoDate.emit(value);
+  }
+
+  toggleMarkingMode() {
+    this.markingModeChange.emit(!this.markingMode);
   }
 }

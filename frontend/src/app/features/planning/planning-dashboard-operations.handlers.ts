@@ -34,6 +34,8 @@ export class PlanningDashboardOperationsHandlers {
     if (!targetResource) {
       return;
     }
+    const sourceResourceId = event.sourceResourceId ?? event.targetResourceId;
+    const resourceChanged = event.targetResourceId !== sourceResourceId;
     const attrs = (event.activity.attributes ?? {}) as Record<string, unknown>;
     const linkGroupId =
       typeof attrs['linkGroupId'] === 'string' ? (attrs['linkGroupId'] as string) : null;
@@ -47,10 +49,14 @@ export class PlanningDashboardOperationsHandlers {
         start: event.start.toISOString(),
         end: event.end ? event.end.toISOString() : null,
       };
-      if (!isOwnerSlot && participantResourceId) {
-        return moveParticipantToResource(updatedBase, participantResourceId, targetResource);
+      const withManual = this.markBoundaryManual(updatedBase);
+      if (!resourceChanged) {
+        return withManual;
       }
-      return addParticipantToActivity(updatedBase, targetResource, undefined, undefined, {
+      if (!isOwnerSlot && participantResourceId) {
+        return moveParticipantToResource(withManual, participantResourceId, targetResource);
+      }
+      return addParticipantToActivity(withManual, targetResource, undefined, undefined, {
         retainPreviousOwner: false,
         ownerCategory: targetCategory,
       });
@@ -86,36 +92,37 @@ export class PlanningDashboardOperationsHandlers {
     const activeSelection = this.deps.activitySelection.selectedActivityState();
     if (activeSelection?.activity.id === event.activity.id) {
       const resource = targetResource;
+      const updatedBaseSelection = this.markBoundaryManual({
+        ...activeSelection.activity,
+        start: event.start.toISOString(),
+        end: event.end ? event.end.toISOString() : null,
+      });
       const updatedSelectionActivity = this.deps.applyActivityTypeConstraints(
-        !isOwnerSlot && participantResourceId
-          ? moveParticipantToResource(
-              {
-                ...activeSelection.activity,
-                start: event.start.toISOString(),
-                end: event.end ? event.end.toISOString() : null,
-              },
-              participantResourceId,
-              targetResource,
-            )
-          : addParticipantToActivity(
-              {
-                ...activeSelection.activity,
-                start: event.start.toISOString(),
-                end: event.end ? event.end.toISOString() : null,
-              },
-              targetResource,
-              undefined,
-              undefined,
-              {
+        resourceChanged
+          ? !isOwnerSlot && participantResourceId
+            ? moveParticipantToResource(updatedBaseSelection, participantResourceId, targetResource)
+            : addParticipantToActivity(updatedBaseSelection, targetResource, undefined, undefined, {
                 retainPreviousOwner: false,
                 ownerCategory: targetCategory,
-              },
-            ),
+              })
+          : updatedBaseSelection,
       );
       this.deps.activitySelection.selectedActivityState.set({
         activity: updatedSelectionActivity,
         resource,
       });
     }
+  }
+
+  private markBoundaryManual(activity: Activity): Activity {
+    const role = activity.serviceRole ?? null;
+    const type = (activity.type ?? '').toString();
+    const isBoundary = role === 'start' || role === 'end' || type === 'service-start' || type === 'service-end';
+    if (!isBoundary) {
+      return activity;
+    }
+    const attrs = { ...(activity.attributes ?? {}) } as Record<string, unknown>;
+    attrs['manual_service_boundary'] = true;
+    return { ...activity, attributes: attrs };
   }
 }

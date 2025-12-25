@@ -117,8 +117,10 @@ export class GanttComponent implements AfterViewInit {
     this.prepareActivities(this.activitiesInputSignal()),
   );
   private readonly pendingActivitySignal = signal<PreparedActivity | null>(null);
+  private readonly syncingActivityIdsSignal = signal<ReadonlySet<string>>(new Set<string>());
   private readonly filterTerm = signal('');
   private readonly cursorTimeSignal = signal<Date | null>(null);
+  private readonly markingModeSignal = signal(false);
   private readonly expandedGroups = signal<Set<string>>(new Set());
   private suppressNextTimelineClick = false;
   private readonly viewportFacade = new GanttViewportFacade({
@@ -134,6 +136,10 @@ export class GanttComponent implements AfterViewInit {
   private lastOverlapActivityId: string | null = null;
   private pendingTimelineScrollLeft: number | null = null;
   private timelineScrollHandle: number | null = null;
+  private lassoAutoScrollHandle: number | null = null;
+  private lassoAutoScrollPointer: { x: number; y: number } | null = null;
+  private readonly lassoAutoScrollEdgePx = 28;
+  private readonly lassoAutoScrollMaxSpeedPx = 22;
   protected readonly periodsSignal = signal<TemplatePeriod[]>([]);
   private readonly selection = new GanttSelectionFacade({
     host: () => this.hostElement.nativeElement,
@@ -169,6 +175,7 @@ export class GanttComponent implements AfterViewInit {
         }
         this.timelineScrollHandle = null;
       }
+      this.stopLassoAutoScroll();
       this.pendingTimelineScrollLeft = null;
     });
   }
@@ -274,6 +281,19 @@ export class GanttComponent implements AfterViewInit {
   }
 
   @Input()
+  set syncingActivityIds(value: ReadonlySet<string> | string[] | null) {
+    if (!value) {
+      this.syncingActivityIdsSignal.set(new Set<string>());
+      return;
+    }
+    if (value instanceof Set) {
+      this.syncingActivityIdsSignal.set(value);
+      return;
+    }
+    this.syncingActivityIdsSignal.set(new Set(value));
+  }
+
+  @Input()
   set periods(value: TemplatePeriod[] | null) {
     this.periodsSignal.set(value ?? []);
   }
@@ -369,6 +389,7 @@ export class GanttComponent implements AfterViewInit {
             resources: expandedResources,
             slotsByResource: this.activitySlotsByResource(),
             pendingActivityId: this.pendingActivitySignal()?.id ?? null,
+            syncingActivityIds: this.syncingActivityIdsSignal(),
             viewStart: this.viewport.viewStart(),
             viewEnd: this.viewport.viewEnd(),
             selectedIds: displaySelectedIds,
@@ -521,6 +542,7 @@ export class GanttComponent implements AfterViewInit {
   readonly hasRows = computed(() => this.rows().length > 0);
   readonly isViewportReady = computed(() => this.viewportReady());
   readonly lassoBox = this.selection.lassoBox;
+  readonly markingMode = this.markingModeSignal.asReadonly();
 
   private readonly rangeFormatter = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
@@ -551,6 +573,10 @@ export class GanttComponent implements AfterViewInit {
 
   onFilterChange(value: string) {
     this.filterTerm.set(value);
+  }
+
+  onMarkingModeChange(value: boolean) {
+    this.markingModeSignal.set(!!value);
   }
 
   onGotoToday() {
@@ -600,8 +626,17 @@ export class GanttComponent implements AfterViewInit {
       return;
     }
     if (event.pointerType === 'mouse' && event.button === 0) {
-      if (this.selection.shouldStartLasso(event, host, isActivityTarget)) {
+      const persistentMarking = this.markingModeSignal();
+      const effectiveMarking = persistentMarking !== event.ctrlKey;
+      if (effectiveMarking && !isActivityTarget && !!host.dataset['resourceId']) {
         this.selection.beginLassoSelection(event, host);
+        this.updateLassoAutoScrollPointer(event);
+        event.preventDefault();
+        return;
+      }
+      if (!persistentMarking && this.selection.shouldStartLasso(event, host, isActivityTarget)) {
+        this.selection.beginLassoSelection(event, host);
+        this.updateLassoAutoScrollPointer(event);
         event.preventDefault();
         return;
       }
@@ -615,6 +650,7 @@ export class GanttComponent implements AfterViewInit {
 
   onTimelinePointerMove(event: PointerEvent) {
     if (this.selection.handlePointerMove(event)) {
+      this.updateLassoAutoScrollPointer(event);
       return;
     }
     this.viewportFacade.handlePointerMove(event);
@@ -622,6 +658,7 @@ export class GanttComponent implements AfterViewInit {
 
   onTimelinePointerUp(event: PointerEvent) {
     if (this.selection.handlePointerUp(event)) {
+      this.stopLassoAutoScroll();
       return;
     }
     this.viewportFacade.handlePointerUp(event);
@@ -747,6 +784,11 @@ export class GanttComponent implements AfterViewInit {
       case 'H':
         event.preventDefault();
         this.onGotoToday();
+        break;
+      case 'm':
+      case 'M':
+        event.preventDefault();
+        this.markingModeSignal.update((current) => !current);
         break;
       case '+':
       case '=':
@@ -880,5 +922,97 @@ export class GanttComponent implements AfterViewInit {
     }
     overlaps.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
     return overlaps;
+  }
+
+  private updateLassoAutoScrollPointer(event: PointerEvent): void {
+    if (!this.selection.isLassoActive()) {
+      return;
+    }
+    this.lassoAutoScrollPointer = { x: event.clientX, y: event.clientY };
+    this.scheduleLassoAutoScroll();
+  }
+
+  private scheduleLassoAutoScroll(): void {
+    if (this.lassoAutoScrollHandle !== null) {
+      return;
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      this.lassoAutoScrollHandle = requestAnimationFrame(() => this.runLassoAutoScroll());
+      return;
+    }
+    this.lassoAutoScrollHandle = window.setTimeout(() => this.runLassoAutoScroll(), 16);
+  }
+
+  private stopLassoAutoScroll(): void {
+    if (this.lassoAutoScrollHandle !== null) {
+      if (typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this.lassoAutoScrollHandle);
+      } else {
+        clearTimeout(this.lassoAutoScrollHandle);
+      }
+      this.lassoAutoScrollHandle = null;
+    }
+    this.lassoAutoScrollPointer = null;
+  }
+
+  private runLassoAutoScroll(): void {
+    this.lassoAutoScrollHandle = null;
+    if (!this.selection.isLassoActive() || !this.lassoAutoScrollPointer) {
+      return;
+    }
+    const pointer = this.lassoAutoScrollPointer;
+    const timelineContainer = this.headerScrollerDir?.element ?? null;
+    const viewportElement = this.hostElement.nativeElement.querySelector('.gantt__viewport') as HTMLElement | null;
+    const timelineRect = (timelineContainer ?? viewportElement)?.getBoundingClientRect() ?? null;
+    const viewportRect = viewportElement?.getBoundingClientRect() ?? null;
+    if (!timelineRect || !viewportRect) {
+      return;
+    }
+
+    const dx = this.computeAutoScrollDelta(pointer.x, timelineRect.left, timelineRect.right);
+    const dy = this.computeAutoScrollDelta(pointer.y, viewportRect.top, viewportRect.bottom);
+    let didScroll = false;
+
+    if (dx !== 0) {
+      const before = this.viewport.scrollX();
+      this.viewport.scrollBy(dx);
+      const after = this.viewport.scrollX();
+      didScroll = didScroll || Math.abs(after - before) > 0.5;
+    }
+    if (dy !== 0 && viewportElement) {
+      const before = viewportElement.scrollTop;
+      viewportElement.scrollTop += dy;
+      const after = viewportElement.scrollTop;
+      didScroll = didScroll || Math.abs(after - before) > 0.5;
+    }
+
+    if (!didScroll) {
+      return;
+    }
+    this.selection.refreshLassoVisual();
+    this.scheduleLassoAutoScroll();
+  }
+
+  private computeAutoScrollDelta(pointer: number, start: number, end: number): number {
+    if (!Number.isFinite(pointer) || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      return 0;
+    }
+    const threshold = this.lassoAutoScrollEdgePx;
+    const maxSpeed = this.lassoAutoScrollMaxSpeedPx;
+    const distanceFromStart = pointer - start;
+    if (distanceFromStart < threshold) {
+      const ratio = Math.min(1, Math.max(0, (threshold - distanceFromStart) / threshold));
+      const eased = ratio * ratio;
+      const px = Math.max(1, Math.round(maxSpeed * eased));
+      return -px;
+    }
+    const distanceToEnd = end - pointer;
+    if (distanceToEnd < threshold) {
+      const ratio = Math.min(1, Math.max(0, (threshold - distanceToEnd) / threshold));
+      const eased = ratio * ratio;
+      const px = Math.max(1, Math.round(maxSpeed * eased));
+      return px;
+    }
+    return 0;
   }
 }

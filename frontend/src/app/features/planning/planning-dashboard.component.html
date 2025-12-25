@@ -305,6 +305,7 @@
                         [resources]="boardResources(board)"
                         [activities]="boardActivities(board)"
                         [pendingActivity]="boardPendingActivity(board)"
+                        [syncingActivityIds]="activeSyncingActivityIds()"
                         [timelineRange]="timelineRange()"
                         [periods]="currentPeriods()"
                         [minTimelineDays]="activeStageId() === 'base' ? 8 : 30"
@@ -407,6 +408,14 @@
             }
           </mat-chip-set>
 
+          <div class="planning-side-panels__shift">
+            <span>Zeit</span>
+            <button mat-stroked-button type="button" (click)="shiftSelectionBy(-30)">-30</button>
+            <button mat-stroked-button type="button" (click)="shiftSelectionBy(-5)">-5</button>
+            <button mat-stroked-button type="button" (click)="shiftSelectionBy(5)">+5</button>
+            <button mat-stroked-button type="button" (click)="shiftSelectionBy(30)">+30</button>
+          </div>
+
           <mat-form-field appearance="outline" class="planning-side-panels__field">
             <mat-label>Zielressource</mat-label>
             <mat-select
@@ -434,6 +443,15 @@
               [disabled]="!activityMoveTarget()"
             >
               Auf Ressource verschieben
+            </button>
+            <button
+              mat-stroked-button
+              color="warn"
+              type="button"
+              (click)="deleteActivitySelection()"
+              [disabled]="selectedActivities().length === 0"
+            >
+              Auswahl löschen
             </button>
           </div>
         </div>
@@ -829,6 +847,24 @@
                       <span class="planning-status__label">Service ID</span>
                       <span class="planning-status__value planning-status__mono">{{ svc.serviceId }}</span>
                     </div>
+                    @if (isSelectedServiceBoundary()) {
+                      <div class="planning-status__row">
+                        <span class="planning-status__label">Dienstgrenze</span>
+                        <span class="planning-status__value">
+                          {{ isSelectedServiceBoundaryManual() ? 'Manuell' : 'Automatisch' }}
+                        </span>
+                      </div>
+                      @if (isSelectedServiceBoundaryManual()) {
+                        <div class="planning-status__row">
+                          <span class="planning-status__label"></span>
+                          <span class="planning-status__value">
+                            <button mat-stroked-button type="button" (click)="restoreAutomaticServiceBoundary()">
+                              Automatik wiederherstellen
+                            </button>
+                          </span>
+                        </div>
+                      }
+                    }
                   </div>
                 }
 

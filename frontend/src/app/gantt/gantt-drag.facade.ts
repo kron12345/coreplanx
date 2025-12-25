@@ -267,6 +267,12 @@ export class GanttDragFacade {
     const changedStart = pending.start.getTime() !== originalStartMs;
     const changedDuration = pendingEndMs !== originalEndMs;
     const resourceChanged = pending.resourceId !== this.dragState.sourceResourceId;
+    if (this.dragState.mode === 'copy' && !resourceChanged) {
+      this.setDragFeedback('invalid', 'Kopieren ist nur auf eine andere Ressource möglich.');
+      event.source.reset();
+      this.dragState = null;
+      return;
+    }
     if (resourceChanged || changedStart || changedDuration) {
       const emitEnd =
         this.dragState.hasEnd && pending.end ? pending.end : this.dragState.hasEnd ? new Date(pending.start) : null;

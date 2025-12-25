@@ -13,6 +13,7 @@ export interface ActivityBatchMutationResponse {
   deletedIds: string[];
   upserts?: Activity[];
   version?: string | null;
+  clientRequestId?: string;
 }
 
 export interface ResourceBatchMutationRequest {
@@ -25,6 +26,7 @@ export interface ResourceBatchMutationResponse {
   appliedUpserts: string[];
   deletedIds: string[];
   version?: string | null;
+  clientRequestId?: string;
 }
 
 export interface ActivityValidationRequest {

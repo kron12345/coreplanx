@@ -1,0 +1,8 @@
+id: azg.night_max_28d
+kind: constraint
+executor: azg/night-max-28d
+enabled: true
+params:
+  windowDays: 28
+  maxCount: 14 # (AZG Art. 9 Abs. 3)
+
