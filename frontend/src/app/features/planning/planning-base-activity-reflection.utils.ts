@@ -1,5 +1,6 @@
 import type { Activity } from '../../models/activity';
 import type { TemplatePeriod } from '../../core/api/timeline-api.types';
+import { readActivityGroupMetaFromAttributes, stripDayScope, writeActivityGroupMetaToAttributes } from './planning-activity-group.utils';
 
 export function reflectBaseActivities(options: {
   activities: Activity[];
@@ -49,11 +50,11 @@ export function reflectBaseActivities(options: {
         return;
       }
 
-      for (let cursor = first; cursor <= windowEnd; cursor.setUTCDate(cursor.getUTCDate() + 7)) {
-        const iso = cursor.toISOString().slice(0, 10);
-        if (specialDays.has(iso)) {
-          continue;
-        }
+        for (let cursor = first; cursor <= windowEnd; cursor.setUTCDate(cursor.getUTCDate() + 7)) {
+          const iso = cursor.toISOString().slice(0, 10);
+          if (specialDays.has(iso)) {
+            continue;
+          }
         const baseDay = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()));
         const newStart = new Date(baseDay);
         newStart.setUTCMilliseconds(newStart.getUTCMilliseconds() + timeMs);
@@ -62,11 +63,22 @@ export function reflectBaseActivities(options: {
           newEnd = new Date(baseDay);
           newEnd.setUTCMilliseconds(newEnd.getUTCMilliseconds() + endMs);
         }
+        const groupMeta = readActivityGroupMetaFromAttributes(activity.attributes ?? undefined);
+        const attachedTo = stripDayScope(groupMeta?.attachedToActivityId ?? null);
+        const updatedAttributes =
+          attachedTo && groupMeta
+            ? writeActivityGroupMetaToAttributes(activity.attributes ?? undefined, {
+                ...groupMeta,
+                attachedToActivityId: `${attachedTo}@${iso}`,
+              })
+            : activity.attributes;
+
         reflected.push({
           ...activity,
           id: `${activity.id}@${iso}`,
           start: newStart.toISOString(),
           end: newEnd ? newEnd.toISOString() : null,
+          attributes: updatedAttributes,
         });
       }
     });
@@ -84,4 +96,3 @@ function alignToWeekday(date: Date, weekday: number): Date | null {
   result.setUTCDate(result.getUTCDate() + diff);
   return result;
 }
-

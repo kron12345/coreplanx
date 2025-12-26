@@ -8,6 +8,26 @@ export function resolvePrimaryRoleForResource(resource: Resource): ActivityParti
     : 'primary-personnel';
 }
 
+export function resolveSuggestedParticipantRole(activity: Activity, resource: Resource): ActivityParticipantRole {
+  const participants = activity.participants ?? [];
+  const existing = participants.find((participant) => participant.resourceId === resource.id)?.role;
+  if (existing) {
+    return existing;
+  }
+  const category = resourceParticipantCategory(resource);
+  if (category === 'vehicle') {
+    const hasVehicle = participants.some((participant) => participant.kind === 'vehicle' || participant.kind === 'vehicle-service');
+    return hasVehicle ? 'secondary-vehicle' : 'primary-vehicle';
+  }
+  if (category === 'personnel') {
+    const hasPersonnel = participants.some(
+      (participant) => participant.kind === 'personnel' || participant.kind === 'personnel-service',
+    );
+    return hasPersonnel ? 'secondary-personnel' : 'primary-personnel';
+  }
+  return resolvePrimaryRoleForResource(resource);
+}
+
 export function isPrimaryParticipantRole(role: ActivityParticipantRole | undefined): boolean {
   return role === 'primary-personnel' || role === 'primary-vehicle';
 }
@@ -50,7 +70,10 @@ export function addParticipantToActivity(
   };
 
   ensureParticipant(partner, partnerRole);
-  ensureParticipant(owner, resolvePrimaryRoleForResource(owner));
+  const previousOwnerRole = owner?.id ? participants.get(owner.id)?.role : undefined;
+  const ownerRole =
+    options?.retainPreviousOwner && previousOwnerRole ? previousOwnerRole : resolvePrimaryRoleForResource(owner);
+  ensureParticipant(owner, ownerRole);
 
   const participantList = Array.from(participants.values()).sort((a, b) => {
     if (a.resourceId === owner.id) {

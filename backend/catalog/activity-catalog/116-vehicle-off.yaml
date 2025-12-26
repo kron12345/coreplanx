@@ -1,0 +1,26 @@
+id: vehicle-off
+label: Ausschalten
+description: Fahrzeug ausschalten bzw. außer Betrieb nehmen.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: service
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - remark
+defaultDurationMinutes: 10
+attributes:
+  is_within_service: yes
+  requires_vehicle: true
+  is_vehicle_off: true
+  color: '#c62828'

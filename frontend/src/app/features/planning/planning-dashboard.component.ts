@@ -10,7 +10,7 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
 import { PlanningDataService } from './planning-data.service';
 import type { PlanningTimelineRange } from './planning-data.types';
 import { Resource } from '../../models/resource';
-import { Activity, ServiceRole } from '../../models/activity';
+import { Activity, ActivityGroupRole, ServiceRole } from '../../models/activity';
 import {
   ActivityParticipantCategory,
   getActivityOwnerByCategory,
@@ -40,6 +40,7 @@ import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 import { SimulationService } from '../../core/services/simulation.service';
 import { SimulationRecord } from '../../core/models/simulation.model';
 import { ActivityLinkRole, ActivityLinkRoleDialogComponent, ActivityLinkRoleDialogResult } from './activity-link-role-dialog.component';
+import { ActivityGroupDialogComponent, ActivityGroupDialogData, ActivityGroupDialogResult } from './activity-group-dialog.component';
 import { TemplateTimelineStoreService } from './template-timeline-store.service';
 import { TimelineApiService } from '../../core/api/timeline-api.service';
 import { ActivityApiService } from '../../core/api/activity-api.service';
@@ -109,6 +110,7 @@ import { PlanningDashboardSelectionState } from './planning-dashboard-selection.
 import { PlanningDashboardFilterHandlers } from './planning-dashboard-filter.handlers';
 import { PlanningDashboardCopyHandlers } from './planning-dashboard-copy.handlers';
 import { applyActivityTypeConstraints as applyActivityTypeConstraintsUtil, normalizeActivityList } from './planning-dashboard-activity-normalize.utils';
+import { readActivityGroupMeta } from './planning-activity-group.utils';
 import { normalizeStageId, updateStageQueryParam } from './planning-dashboard-stage.utils';
 import { fromLocalDateTime, toIsoDate, toLocalDateTime } from './planning-dashboard-time.utils';
 import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facade';
@@ -439,6 +441,7 @@ export class PlanningDashboardComponent {
     activityOwnerId: (activity) => this.activityOwnerId(activity),
     stageResourceSignals: this.stageResourceSignals,
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
     applyBaseCopyWithRoles: (source, sourceResource, targetResource, roles) =>
       this.baseHandlers.applyCopyWithRoles(source, sourceResource, targetResource, roles),
     updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
@@ -685,6 +688,8 @@ export class PlanningDashboardComponent {
     activeStage: () => this.activeStageSignal(),
     activityFacade: this.activityFacade,
     activitySelection: this.activitySelection,
+    dialog: this.dialog,
+    stageResources: (stage) => this.stageResourceSignals[stage](),
     templateSelected: () => !!this.templateStore.selectedTemplate()?.id,
     selectedTemplateId: () => this.templateStore.selectedTemplate()?.id ?? null,
     activityCreationTool: () => this.activityCreationToolSignal(),
@@ -764,6 +769,7 @@ export class PlanningDashboardComponent {
   // Bind service methods to preserve `this` when used as callbacks in the template.
   protected readonly resourceError = this.data.resourceError.bind(this.data);
   protected readonly timelineError = this.data.timelineError.bind(this.data);
+  protected readonly activityError = this.data.activityError.bind(this.data);
   protected readonly templateError = this.templateStore.error;
 
   protected readonly selectedActivity = this.selectionState.selectedActivity;
@@ -783,10 +789,46 @@ export class PlanningDashboardComponent {
     return findActivityTypeById(this.activityTypeDefinitions, typeId);
   });
 
+  protected readonly selectedGroupSummary = computed(() => {
+    const items = this.selectedActivities();
+    if (!items.length) {
+      return null;
+    }
+    const groupIds = new Set(
+      items
+        .map((item) => (item.activity.groupId ?? '').toString().trim())
+        .filter((id) => id.length > 0),
+    );
+    if (groupIds.size !== 1) {
+      return null;
+    }
+    const groupId = Array.from(groupIds)[0];
+    const meta = readActivityGroupMeta(items[0].activity);
+    return {
+      groupId,
+      label: meta?.label ?? 'Gruppe',
+      role: (meta?.role ?? 'independent') as ActivityGroupRole,
+      attachedToActivityId: meta?.attachedToActivityId ?? null,
+    };
+  });
+
+  protected readonly selectionHasGroup = computed(() =>
+    this.selectedActivities().some((item) => !!item.activity.groupId),
+  );
+
+  protected readonly canAddSelectionToFocusedGroup = computed(() => {
+    const focus = this.activitySelection.selectedActivityState()?.activity ?? null;
+    if (!focus?.groupId) {
+      return false;
+    }
+    return this.selectedActivities().length > 0;
+  });
+
   private readonly selectionActionsFacade = new PlanningDashboardSelectionActionsFacade({
     activitySelection: this.activitySelection,
     activityFacade: this.activityFacade,
     stageResourceSignals: this.stageResourceSignals,
+    stageActivitySignals: this.normalizedStageActivitySignals,
     activeStage: () => this.activeStageSignal(),
     updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
@@ -795,6 +837,7 @@ export class PlanningDashboardComponent {
     replaceActivity: (activity) => this.activityOpsFacade.replaceActivity(activity),
     findActivityType: (typeId) => this.findActivityType(typeId),
     activityMoveTargetSignal: this.activityMoveTargetSignal,
+    saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
   });
   private readonly selectionHandlers = new PlanningDashboardSelectionHandlers({
     activeStage: () => this.activeStageSignal(),
@@ -1329,11 +1372,100 @@ export class PlanningDashboardComponent {
     targetResourceId: string;
     start: Date;
     end: Date | null;
+    sourceResourceId?: string | null;
+    participantCategory?: ActivityParticipantCategory | null;
+    participantResourceId?: string | null;
+    isOwnerSlot?: boolean;
   }): void {
     this.selectionHandlers.handleCopy(event);
   }
 
   protected clearActivitySelection(): void { this.selectionHandlers.clearActivitySelection(); }
+
+  protected createGroupFromSelection(): void {
+    if (this.selectedActivities().length === 0) {
+      return;
+    }
+    const focus = this.activitySelection.selectedActivityState();
+    const focusActivity =
+      focus && focus.activity?.id
+        ? {
+            id: focus.activity.id,
+            label: `${this.activityTypeLabel(focus.activity.type)} · ${focus.resource.name}`,
+          }
+        : null;
+    const dialogRef = this.dialog.open<
+      ActivityGroupDialogComponent,
+      ActivityGroupDialogData,
+      ActivityGroupDialogResult | undefined
+    >(ActivityGroupDialogComponent, {
+      width: '520px',
+      data: {
+        title: 'Gruppe erstellen',
+        initialLabel: 'Gruppe',
+        initialRole: 'independent',
+        initialAttachedToActivityId: null,
+        focusActivity: focusActivity,
+      },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (!result) {
+        return;
+      }
+      this.selectionHandlers.createGroupFromSelection({
+        label: result.label,
+        role: result.role,
+        attachedToActivityId: result.attachedToActivityId ?? null,
+      });
+    });
+  }
+
+  protected editSelectedGroup(): void {
+    const group = this.selectedGroupSummary();
+    if (!group) {
+      return;
+    }
+    const focus = this.activitySelection.selectedActivityState();
+    const focusActivity =
+      focus && focus.activity?.id
+        ? {
+            id: focus.activity.id,
+            label: `${this.activityTypeLabel(focus.activity.type)} · ${focus.resource.name}`,
+          }
+        : null;
+    const dialogRef = this.dialog.open<
+      ActivityGroupDialogComponent,
+      ActivityGroupDialogData,
+      ActivityGroupDialogResult | undefined
+    >(ActivityGroupDialogComponent, {
+      width: '520px',
+      data: {
+        title: 'Gruppe bearbeiten',
+        initialLabel: group.label,
+        initialRole: group.role,
+        initialAttachedToActivityId: group.attachedToActivityId,
+        focusActivity: focusActivity,
+      },
+    });
+    dialogRef.afterClosed().subscribe((result) => {
+      if (!result) {
+        return;
+      }
+      this.selectionHandlers.updateGroupMeta(group.groupId, {
+        label: result.label,
+        role: result.role,
+        attachedToActivityId: result.attachedToActivityId ?? null,
+      });
+    });
+  }
+
+  protected addSelectionToFocusedGroup(): void {
+    this.selectionHandlers.addSelectionToFocusedGroup();
+  }
+
+  protected removeSelectionFromGroup(): void {
+    this.selectionHandlers.removeSelectionFromGroup();
+  }
 
   protected clearSelectedActivity(): void {
     this.confirmDiscardActivityEdits(() => this.selectionHandlers.clearSelectedActivity());

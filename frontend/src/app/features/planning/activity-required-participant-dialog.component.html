@@ -1,0 +1,23 @@
+<h2 mat-dialog-title>{{ data.title }}</h2>
+<mat-dialog-content>
+  @if (data.message) {
+    <p>{{ data.message }}</p>
+  }
+  <mat-form-field appearance="outline" class="required-participant-dialog__field">
+    <mat-label>{{ data.requiredLabel }}</mat-label>
+    <mat-select [value]="selectedId" (selectionChange)="selectedId = $event.value">
+      @for (candidate of data.candidates; track candidate.id) {
+        <mat-option [value]="candidate.id">
+          {{ candidate.name }}
+        </mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="onCancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" [disabled]="!selectedId" (click)="onConfirm()">
+    Verknüpfen
+  </button>
+</mat-dialog-actions>
+

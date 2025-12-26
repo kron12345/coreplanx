@@ -11,6 +11,7 @@ import { PlanningDashboardBaseHandlers } from './planning-dashboard-base.handler
 import { PlanningDashboardOperationsHandlers } from './planning-dashboard-operations.handlers';
 import { PlanningDashboardActivityHandlersFacade } from './planning-dashboard-activity.handlers.facade';
 import { PlanningDashboardCopyHandlers } from './planning-dashboard-copy.handlers';
+import { ActivityGroupRole } from '../../models/activity';
 
 type NeighborFinder = (activity: Activity) => { previous: Activity | null; next: Activity | null };
 
@@ -83,7 +84,16 @@ export class PlanningDashboardSelectionHandlers {
     this.deps.operationsHandlers.handleReposition(event);
   }
 
-  handleCopy(event: { activity: Activity; targetResourceId: string; start: Date; end: Date | null }): void {
+  handleCopy(event: {
+    activity: Activity;
+    targetResourceId: string;
+    start: Date;
+    end: Date | null;
+    sourceResourceId?: string | null;
+    participantCategory?: ActivityParticipantCategory | null;
+    participantResourceId?: string | null;
+    isOwnerSlot?: boolean;
+  }): void {
     this.deps.copyHandlers.handleActivityCopy(event);
   }
 
@@ -118,5 +128,21 @@ export class PlanningDashboardSelectionHandlers {
 
   fillGapForSelectedActivity(neighborFinder: NeighborFinder): void {
     this.deps.selectionActions.fillGapForSelectedActivity(neighborFinder, this.deps.activityForm, this.deps.findActivityType);
+  }
+
+  createGroupFromSelection(options: { label: string; role: ActivityGroupRole; attachedToActivityId?: string | null }): void {
+    this.deps.selectionActions.createGroupFromSelection(options);
+  }
+
+  updateGroupMeta(groupId: string, meta: { label: string; role: ActivityGroupRole; attachedToActivityId?: string | null }): void {
+    this.deps.selectionActions.updateGroupMeta(groupId, meta);
+  }
+
+  addSelectionToFocusedGroup(): void {
+    this.deps.selectionActions.addSelectionToFocusedGroup();
+  }
+
+  removeSelectionFromGroup(): void {
+    this.deps.selectionActions.removeSelectionFromGroup();
   }
 }

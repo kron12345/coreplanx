@@ -1,0 +1,28 @@
+id: unpark
+label: Entparken
+description: Fahrzeug aus dem Abstellbereich holen bzw. entparken.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: movement
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+defaultDurationMinutes: 15
+attributes:
+  is_within_service: yes
+  requires_vehicle: true
+  is_unparking: true
+  consider_location_conflicts: true
+  color: '#5d4037'

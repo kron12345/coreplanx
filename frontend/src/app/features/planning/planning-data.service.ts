@@ -43,6 +43,12 @@ import {
 } from './planning-data.utils';
 import { reflectBaseActivities } from './planning-base-activity-reflection.utils';
 import { flattenResourceSnapshot } from './planning-resource-snapshot.utils';
+import {
+  readActivityGroupMeta,
+  readActivityGroupMetaFromAttributes,
+  stripDayScope,
+  writeActivityGroupMetaToAttributes,
+} from './planning-activity-group.utils';
 
 const STAGE_IDS: PlanningStageId[] = ['base', 'operations'];
 
@@ -62,6 +68,10 @@ export class PlanningDataService {
   private readonly resourceSnapshotSignal = signal<ResourceSnapshotDto | null>(null);
   private readonly resourceErrorSignal = signal<string | null>(null);
   private readonly timelineErrorSignal = signal<Record<PlanningStageId, string | null>>({
+    base: null,
+    operations: null,
+  });
+  private readonly activityErrorSignal = signal<Record<PlanningStageId, string | null>>({
     base: null,
     operations: null,
   });
@@ -227,6 +237,10 @@ export class PlanningDataService {
 
   timelineError(stage: PlanningStageId): Signal<string | null> {
     return computed(() => this.timelineErrorSignal()[stage] ?? null);
+  }
+
+  activityError(stage: PlanningStageId): Signal<string | null> {
+    return computed(() => this.activityErrorSignal()[stage] ?? null);
   }
 
   resourceSnapshot(): Signal<ResourceSnapshotDto | null> {
@@ -666,7 +680,9 @@ export class PlanningDataService {
   }
 
   private mapTimelineActivities(entries: TimelineActivityDto[], stage: PlanningStageId): Activity[] {
-    const activities = entries.map((entry) => ({
+    const activities = entries.map((entry) => {
+      const groupMeta = readActivityGroupMetaFromAttributes(entry.attributes ?? undefined);
+      return {
       id: entry.id,
       title: entry.label?.trim().length ? entry.label : entry.type ?? entry.id,
       start: entry.start,
@@ -677,13 +693,16 @@ export class PlanningDataService {
       remark: entry.remark ?? undefined,
       serviceId: entry.serviceId ?? undefined,
       serviceRole: (entry.serviceRole ?? undefined) as ServiceRole | undefined,
+      groupId: groupMeta?.id ?? undefined,
+      groupOrder: groupMeta?.order ?? undefined,
       attributes: entry.attributes ?? undefined,
       participants: entry.resourceAssignments.map((assignment) => ({
         resourceId: assignment.resourceId,
         kind: assignment.resourceType,
         role: (assignment.role ?? undefined) as ActivityParticipant['role'],
       })),
-    }));
+    } satisfies Activity;
+    });
     if (stage !== 'base') {
       return activities;
     }
@@ -698,6 +717,10 @@ export class PlanningDataService {
       role: participant.role ?? null,
       lineIndex: null,
     }));
+    const groupMeta = readActivityGroupMeta(activity);
+    const attributes = writeActivityGroupMetaToAttributes(activity.attributes ?? undefined, groupMeta
+      ? { ...groupMeta, attachedToActivityId: stripDayScope(groupMeta.attachedToActivityId ?? null) }
+      : null) ?? null;
     const isOpenEnded = !activity.end;
     return {
       id: activity.id,
@@ -714,7 +737,7 @@ export class PlanningDataService {
       label: activity.title ?? null,
       serviceId: activity.serviceId ?? null,
       resourceAssignments,
-      attributes: activity.attributes ?? null,
+      attributes,
       version: (activity as any).version ?? null,
     };
   }
@@ -1109,6 +1132,7 @@ export class PlanningDataService {
     });
 
     this.inFlightActivityMutations.add(stage);
+    this.activityErrorSignal.update((state) => ({ ...state, [stage]: null }));
     const inFlight = this.inFlightActivityMutationIds[stage];
     inFlight.upsertIds = new Set(effectiveUpserts.map((activity) => activity.id));
     inFlight.deleteIds = new Set(deleteIds);
@@ -1126,9 +1150,13 @@ export class PlanningDataService {
       )
       .pipe(
         take(1),
+        tap(() => {
+          this.activityErrorSignal.update((state) => ({ ...state, [stage]: null }));
+        }),
         tap((response) => this.applyMutationResponse(stage, response)),
         catchError((error) => {
           console.error(`[PlanningDataService] Failed to sync activities for ${stage}`, error);
+          this.activityErrorSignal.update((state) => ({ ...state, [stage]: this.describeActivitySyncError(error) }));
           this.refreshStage(stage);
           return EMPTY;
         }),
@@ -1144,6 +1172,36 @@ export class PlanningDataService {
         }),
       )
       .subscribe();
+  }
+
+  private describeActivitySyncError(error: unknown): string {
+    const fallback = 'Änderungen konnten nicht gespeichert werden.';
+    const anyError = error as any;
+    const payload = anyError?.error;
+    const message =
+      typeof payload?.message === 'string'
+        ? payload.message
+        : Array.isArray(payload?.message)
+          ? payload.message.filter((entry: any) => typeof entry === 'string').join(' · ')
+          : null;
+    const violations = Array.isArray(payload?.violations) ? payload.violations : [];
+    if (violations.length) {
+      const first = violations[0] as Record<string, unknown>;
+      const detail = typeof first['message'] === 'string' ? (first['message'] as string) : null;
+      const ownerId = typeof first['ownerId'] === 'string' ? (first['ownerId'] as string) : null;
+      const activityId = typeof first['activityId'] === 'string' ? (first['activityId'] as string) : null;
+      const context = ownerId ?? activityId ?? null;
+      const suffix = context && detail ? `${context}: ${detail}` : detail;
+      if (message && suffix) {
+        return `${message} (${suffix})`;
+      }
+      return message ?? suffix ?? fallback;
+    }
+    if (message) {
+      return message;
+    }
+    const generic = typeof anyError?.message === 'string' ? anyError.message : null;
+    return generic ?? fallback;
   }
 
   private blockedActivityIds(stage: PlanningStageId): Set<string> {

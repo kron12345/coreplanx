@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TemplateModule } from '../template/template.module';
+import { ActivityCatalogModule } from '../activity-catalog/activity-catalog.module';
 import { PlanningController } from './planning.controller';
 import { PlanningCatalogController } from './planning-catalog.controller';
 import { PlanningService } from './planning.service';
@@ -27,7 +28,7 @@ import { PlanningRuleService } from './planning-rule.service';
 import { DutyAutopilotService } from './duty-autopilot.service';
 
 @Module({
-  imports: [TemplateModule],
+  imports: [TemplateModule, ActivityCatalogModule],
   controllers: [
     PlanningController,
     PlanningCatalogController,

@@ -1,0 +1,33 @@
+<h2 mat-dialog-title>{{ data.title }}</h2>
+<mat-dialog-content>
+  <mat-form-field appearance="outline" class="activity-group-dialog__field">
+    <mat-label>Gruppenname</mat-label>
+    <input matInput [value]="label" (input)="label = $any($event.target).value" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="activity-group-dialog__field">
+    <mat-label>Rolle</mat-label>
+    <mat-select [value]="role" (selectionChange)="onRoleChange($event.value)">
+      <mat-option value="independent">Eigenständig</mat-option>
+      <mat-option value="pre">Vorleistung</mat-option>
+      <mat-option value="main">Hauptgruppe</mat-option>
+      <mat-option value="post">Nachleistung</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  @if (isAttachableRole(role)) {
+    <mat-form-field appearance="outline" class="activity-group-dialog__field">
+      <mat-label>Anhängen an</mat-label>
+      <mat-select [value]="attachedToActivityId" (selectionChange)="attachedToActivityId = $event.value">
+        @for (option of attachOptions(); track option.id) {
+          <mat-option [value]="option.id">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="onCancel()">Abbrechen</button>
+  <button mat-flat-button color="primary" type="button" (click)="onConfirm()">Speichern</button>
+</mat-dialog-actions>
+

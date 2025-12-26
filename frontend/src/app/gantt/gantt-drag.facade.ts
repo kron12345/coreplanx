@@ -168,6 +168,13 @@ export class GanttDragFacade {
     this.dragState.sourceResourceKind = sourceKind ?? this.dragState.sourceResourceKind ?? null;
     const requiredCategory = this.dragState.participantCategory;
     const pointerCategory = pointerResourceKind ? participantCategoryFromKind(pointerResourceKind ?? undefined) : null;
+    const allowCrossCategoryCopy =
+      this.dragState.mode === 'copy' &&
+      !!requiredCategory &&
+      requiredCategory !== 'other' &&
+      !!pointerCategory &&
+      pointerCategory !== 'other' &&
+      pointerCategory !== requiredCategory;
     const categoryMismatch = (candidate: ActivityParticipantCategory | null) => {
       if (!requiredCategory || requiredCategory === 'other') {
         return false;
@@ -179,7 +186,7 @@ export class GanttDragFacade {
     };
     if (!sameResource) {
       if (pointerResourceId && pointerResourceId !== this.dragState.sourceResourceId) {
-        if (categoryMismatch(pointerCategory)) {
+        if (categoryMismatch(pointerCategory) && !allowCrossCategoryCopy) {
           this.dragState.pendingTarget = null;
           this.applyDragHoverCell(pointerCell);
           this.updateDragBadge(`Nur ${this.describeParticipantCategory(requiredCategory)}`, pointer);
@@ -200,7 +207,7 @@ export class GanttDragFacade {
         }
         targetResourceKind = this.dragState.pendingTarget.resourceKind;
       }
-    } else if (pointerResourceId && categoryMismatch(pointerCategory)) {
+    } else if (pointerResourceId && categoryMismatch(pointerCategory) && !allowCrossCategoryCopy) {
       this.dragState.pendingTarget = null;
       this.applyDragHoverCell(pointerCell);
       this.updateDragBadge(`Nur ${this.describeParticipantCategory(requiredCategory)}`, pointer);

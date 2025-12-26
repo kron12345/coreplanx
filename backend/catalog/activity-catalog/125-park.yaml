@@ -1,0 +1,27 @@
+id: park
+label: Parken
+description: Fahrzeug abstellen bzw. parken.
+appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+relevantFor:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+category: movement
+timeMode: duration
+fields:
+  - start
+  - end
+  - from
+  - remark
+defaultDurationMinutes: 15
+attributes:
+  is_within_service: yes
+  requires_vehicle: true
+  is_parking: true
+  consider_location_conflicts: true
+  color: '#6d4c41'

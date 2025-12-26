@@ -23,5 +23,6 @@ defaultDurationMinutes: 60
 attributes:
   is_within_service: yes
   is_travel: true
+  requires_vehicle: true
   consider_location_conflicts: true
   color: '#00796b'

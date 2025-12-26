@@ -15,6 +15,12 @@
                 {{ error }}
               </div>
             }
+            @if (activityError(activeStageId()); as error) {
+              <div class="alert">
+                <mat-icon fontIcon="error_outline"></mat-icon>
+                {{ error }}
+              </div>
+            }
             @if (templateError(); as error) {
               <div class="alert">
                 <mat-icon fontIcon="warning"></mat-icon>
@@ -414,6 +420,38 @@
             <button mat-stroked-button type="button" (click)="shiftSelectionBy(-5)">-5</button>
             <button mat-stroked-button type="button" (click)="shiftSelectionBy(5)">+5</button>
             <button mat-stroked-button type="button" (click)="shiftSelectionBy(30)">+30</button>
+          </div>
+
+          <div class="planning-side-panels__shift">
+            <span>Gruppierung</span>
+            <button mat-stroked-button type="button" (click)="createGroupFromSelection()">
+              Neue Gruppe
+            </button>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="editSelectedGroup()"
+              [disabled]="!selectedGroupSummary()"
+            >
+              Gruppe bearbeiten
+            </button>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="addSelectionToFocusedGroup()"
+              [disabled]="!canAddSelectionToFocusedGroup()"
+            >
+              Zur Fokus-Gruppe
+            </button>
+            <button
+              mat-stroked-button
+              color="warn"
+              type="button"
+              (click)="removeSelectionFromGroup()"
+              [disabled]="!selectionHasGroup()"
+            >
+              Aus Gruppe entfernen
+            </button>
           </div>
 
           <mat-form-field appearance="outline" class="planning-side-panels__field">

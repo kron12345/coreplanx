@@ -5,6 +5,7 @@ import { Resource } from '../../models/resource';
 import { PlanningStageId } from './planning-stage.model';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { addParticipantToActivity, moveParticipantToResource, resourceParticipantCategory } from './planning-dashboard-participant.utils';
+import { readActivityGroupMetaFromAttributes } from './planning-activity-group.utils';
 
 export class PlanningDashboardOperationsHandlers {
   constructor(
@@ -28,6 +29,10 @@ export class PlanningDashboardOperationsHandlers {
     isOwnerSlot?: boolean;
   }): void {
     const stage: PlanningStageId = 'operations';
+    const previousActivityId = event.activity.id;
+    const previousStartMs = new Date(event.activity.start).getTime();
+    const nextStartMs = event.start.getTime();
+    const shiftDeltaMs = Number.isFinite(previousStartMs) ? nextStartMs - previousStartMs : 0;
     const targetId = event.targetResourceId;
     const targetResource =
       this.deps.stageResourceSignal().find((resource) => resource.id === targetId) ?? null;
@@ -61,11 +66,15 @@ export class PlanningDashboardOperationsHandlers {
         ownerCategory: targetCategory,
       });
     };
+    let shiftedAttachments = new Map<string, Activity>();
     this.deps.updateStageActivities(stage, (activities) => {
+      shiftedAttachments = shiftDeltaMs
+        ? this.shiftedGroupAttachmentMap(activities, previousActivityId, shiftDeltaMs)
+        : new Map<string, Activity>();
       if (!linkGroupId) {
         return activities.map((activity) => {
           if (activity.id !== event.activity.id) {
-            return activity;
+            return shiftedAttachments.get(activity.id) ?? activity;
           }
           return applyUpdate(activity);
         });
@@ -78,6 +87,10 @@ export class PlanningDashboardOperationsHandlers {
             : null;
         if (activity.id === event.activity.id) {
           return applyUpdate(activity);
+        }
+        const shifted = shiftedAttachments.get(activity.id);
+        if (shifted) {
+          return shifted;
         }
         if (!currentGroupId || currentGroupId !== linkGroupId) {
           return activity;
@@ -111,6 +124,16 @@ export class PlanningDashboardOperationsHandlers {
         activity: updatedSelectionActivity,
         resource,
       });
+      return;
+    }
+    if (activeSelection) {
+      const shifted = shiftedAttachments.get(activeSelection.activity.id) ?? null;
+      if (shifted) {
+        this.deps.activitySelection.selectedActivityState.set({
+          activity: shifted,
+          resource: activeSelection.resource,
+        });
+      }
     }
   }
 
@@ -124,5 +147,40 @@ export class PlanningDashboardOperationsHandlers {
     const attrs = { ...(activity.attributes ?? {}) } as Record<string, unknown>;
     attrs['manual_service_boundary'] = true;
     return { ...activity, attributes: attrs };
+  }
+
+  private shiftedGroupAttachmentMap(
+    activities: Activity[],
+    previousActivityId: string,
+    shiftDeltaMs: number,
+  ): Map<string, Activity> {
+    const shifted = new Map<string, Activity>();
+    for (const activity of activities) {
+      if (activity.id === previousActivityId) {
+        continue;
+      }
+      const meta = readActivityGroupMetaFromAttributes(activity.attributes ?? undefined);
+      const attachedTo = (meta?.attachedToActivityId ?? '').toString().trim();
+      if (!attachedTo || attachedTo !== previousActivityId) {
+        continue;
+      }
+      const startMs = new Date(activity.start).getTime();
+      if (!Number.isFinite(startMs)) {
+        continue;
+      }
+      const endIso = activity.end ?? null;
+      const endMs = endIso ? new Date(endIso).getTime() : null;
+      const nextStartMs = startMs + shiftDeltaMs;
+      const nextEndMs = endMs !== null && Number.isFinite(endMs) ? endMs + shiftDeltaMs : null;
+      shifted.set(
+        activity.id,
+        this.deps.applyActivityTypeConstraints({
+          ...activity,
+          start: new Date(nextStartMs).toISOString(),
+          end: nextEndMs !== null ? new Date(nextEndMs).toISOString() : null,
+        }),
+      );
+    }
+    return shifted;
   }
 }

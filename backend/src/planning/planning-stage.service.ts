@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -28,6 +29,7 @@ import type {
 import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
 import { DutyAutopilotService } from './duty-autopilot.service';
+import { ActivityCatalogService } from '../activity-catalog/activity-catalog.service';
 
 const DEFAULT_VARIANT_ID: PlanningVariantId = 'default';
 
@@ -55,12 +57,16 @@ export class PlanningStageService implements OnModuleInit {
   private validationIssueCounter = 0;
   private readonly stageEventSubjects = new Map<string, Subject<PlanningStageRealtimeEvent>>();
   private readonly heartbeatIntervalMs = 30000;
+  private activityTypeRequirements:
+    | Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>
+    | null = null;
 
   private readonly usingDatabase: boolean;
 
   constructor(
     private readonly repository: PlanningRepository,
     private readonly dutyAutopilot: DutyAutopilotService,
+    private readonly activityCatalog: ActivityCatalogService,
   ) {
     this.usingDatabase = this.repository.isEnabled;
     if (!this.usingDatabase) {
@@ -127,70 +133,103 @@ export class PlanningStageService implements OnModuleInit {
   ): Promise<ActivityMutationResponse> {
     const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     const previousTimeline = { ...stage.timelineRange };
+    const previousActivities = stage.activities.slice();
+    const previousVersion = stage.version;
     const upserts = request?.upserts ?? [];
     const deleteIds = new Set(request?.deleteIds ?? []);
     const appliedUpserts: string[] = [];
     const deletedIds: string[] = [];
     const changedUpsertIds = new Set<string>();
 
-    if (upserts.length) {
-      const existingById = new Map(stage.activities.map((activity) => [activity.id, activity]));
-      const conflicts: { id: string; expected: string | null; current: string | null }[] = [];
+    try {
+      const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
+      if (upserts.length) {
+        const existingById = new Map(stage.activities.map((activity) => [activity.id, activity]));
+        const conflicts: { id: string; expected: string | null; current: string | null }[] = [];
+        upserts.forEach((incoming) => {
+          const current = existingById.get(incoming.id);
+          if (!current) {
+            return;
+          }
+          const currentVersion = current.rowVersion ?? null;
+          const expectedVersion = incoming.rowVersion ?? null;
+          if (currentVersion && expectedVersion !== currentVersion) {
+            conflicts.push({ id: incoming.id, expected: expectedVersion, current: currentVersion });
+          }
+        });
+        if (conflicts.length) {
+          throw new ConflictException({
+            message: 'Aktivität wurde zwischenzeitlich geändert. Bitte neu laden.',
+            conflictIds: conflicts.map((entry) => entry.id),
+            conflicts,
+            error: 'Conflict',
+            statusCode: 409,
+          });
+        }
+      }
+
       upserts.forEach((incoming) => {
-        const current = existingById.get(incoming.id);
-        if (!current) {
-          return;
-        }
-        const currentVersion = current.rowVersion ?? null;
-        const expectedVersion = incoming.rowVersion ?? null;
-        if (currentVersion && expectedVersion !== currentVersion) {
-          conflicts.push({ id: incoming.id, expected: expectedVersion, current: currentVersion });
-        }
+        this.upsertActivity(stage, incoming);
+        appliedUpserts.push(incoming.id);
+        changedUpsertIds.add(incoming.id);
+        deleteIds.delete(incoming.id);
       });
-      if (conflicts.length) {
-        throw new ConflictException({
-          message: 'Aktivität wurde zwischenzeitlich geändert. Bitte neu laden.',
-          conflictIds: conflicts.map((entry) => entry.id),
-          conflicts,
-          error: 'Conflict',
-          statusCode: 409,
+
+      if (deleteIds.size > 0) {
+        stage.activities = stage.activities.filter((activity) => {
+          if (deleteIds.has(activity.id)) {
+            deletedIds.push(activity.id);
+            return false;
+          }
+          return true;
         });
       }
-    }
 
-    upserts.forEach((incoming) => {
-      this.upsertActivity(stage, incoming);
-      appliedUpserts.push(incoming.id);
-      changedUpsertIds.add(incoming.id);
-      deleteIds.delete(incoming.id);
-    });
+      const autopilot = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
+      if (autopilot.upserts.length) {
+        autopilot.upserts.forEach((activity) => {
+          this.upsertActivity(stage, activity);
+          changedUpsertIds.add(activity.id);
+        });
+      }
+      if (autopilot.deletedIds.length) {
+        const toDelete = new Set(autopilot.deletedIds);
+        stage.activities = stage.activities.filter((activity) => {
+          if (toDelete.has(activity.id)) {
+            deletedIds.push(activity.id);
+            return false;
+          }
+          return true;
+        });
+      }
 
-    if (deleteIds.size > 0) {
-      stage.activities = stage.activities.filter((activity) => {
-        if (deleteIds.has(activity.id)) {
-          deletedIds.push(activity.id);
-          return false;
+      const changedActivities = changedUpsertIds.size
+        ? stage.activities.filter((activity) => changedUpsertIds.has(activity.id))
+        : [];
+      await this.assertParticipantRequirements(stage.stageId, stage.variantId, changedActivities);
+
+      const boundaryScopeIds = new Set<string>([...changedUpsertIds, ...deletedIds]);
+      if (boundaryScopeIds.size > 0) {
+        const nextById = new Map(stage.activities.map((activity) => [activity.id, activity]));
+        const affectedBoundaryGroupKeys = this.collectVehicleServiceBoundaryGroupKeys(
+          previousById,
+          nextById,
+          boundaryScopeIds,
+        );
+        if (affectedBoundaryGroupKeys.size > 0) {
+          await this.assertVehicleServiceBoundaries(
+            stage.stageId,
+            stage.variantId,
+            stage.activities,
+            affectedBoundaryGroupKeys,
+          );
         }
-        return true;
-      });
-    }
-
-    const autopilot = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
-    if (autopilot.upserts.length) {
-      autopilot.upserts.forEach((activity) => {
-        this.upsertActivity(stage, activity);
-        changedUpsertIds.add(activity.id);
-      });
-    }
-    if (autopilot.deletedIds.length) {
-      const toDelete = new Set(autopilot.deletedIds);
-      stage.activities = stage.activities.filter((activity) => {
-        if (toDelete.has(activity.id)) {
-          deletedIds.push(activity.id);
-          return false;
-        }
-        return true;
-      });
+      }
+    } catch (error) {
+      stage.activities = previousActivities;
+      stage.version = previousVersion;
+      stage.timelineRange = previousTimeline;
+      throw error;
     }
 
     stage.version = this.nextVersion();
@@ -247,6 +286,308 @@ export class PlanningStageService implements OnModuleInit {
       version: stage.version,
       clientRequestId: request?.clientRequestId,
     };
+  }
+
+  private utcDayKey(iso: string): string | null {
+    const ms = Date.parse(iso);
+    if (!Number.isFinite(ms)) {
+      return null;
+    }
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+
+  private resolveServiceIdForOwner(activity: Activity, ownerId: string): string | null {
+    const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (explicit.startsWith('svc:')) {
+      return explicit;
+    }
+    const attrs = (activity.attributes ?? {}) as Record<string, any>;
+    const map = attrs['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      const entry = (map as Record<string, any>)[ownerId];
+      const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      if (candidate.startsWith('svc:')) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  private computeVehicleServiceBoundaryGroupKey(activity: Activity, ownerId: string): string {
+    const serviceId = this.resolveServiceIdForOwner(activity, ownerId);
+    const dayKey = serviceId ? (serviceId.split(':').pop() ?? null) : this.utcDayKey(activity.start);
+    return `${ownerId}|${serviceId ?? dayKey ?? 'unknown'}`;
+  }
+
+  private collectVehicleServiceBoundaryGroupKeys(
+    previousById: Map<string, Activity>,
+    nextById: Map<string, Activity>,
+    activityIds: Iterable<string>,
+  ): Set<string> {
+    const keys = new Set<string>();
+    const addKeysFor = (activity: Activity | undefined) => {
+      if (!activity) {
+        return;
+      }
+      const owners = (activity.participants ?? [])
+        .filter((p) => (p as any)?.resourceId && (p as any)?.kind === 'vehicle-service')
+        .map((p) => (p as any).resourceId as string);
+      owners.forEach((ownerId) => keys.add(this.computeVehicleServiceBoundaryGroupKey(activity, ownerId)));
+    };
+
+    for (const id of activityIds) {
+      addKeysFor(previousById.get(id));
+      addKeysFor(nextById.get(id));
+    }
+
+    return keys;
+  }
+
+  private async assertParticipantRequirements(stageId: StageId, variantId: string, activities: Activity[]): Promise<void> {
+    if (!activities.length) {
+      return;
+    }
+    const requirements = await this.loadActivityTypeRequirements();
+
+    const violations: Array<{
+      activityId: string;
+      type: string | null;
+      code: 'MISSING_PERSONNEL' | 'MISSING_VEHICLE';
+      message: string;
+    }> = [];
+
+    for (const activity of activities) {
+      const id = (activity.id ?? '').toString();
+      if (!id || this.isManagedServiceActivityId(id)) {
+        continue;
+      }
+      const typeId = (activity.type ?? '').toString().trim() || null;
+      const participants = activity.participants ?? [];
+      const hasVehicle = participants.some((p) => p.kind === 'vehicle-service' || p.kind === 'vehicle');
+      const hasPersonnel = participants.some((p) => p.kind === 'personnel-service' || p.kind === 'personnel');
+
+      if (hasVehicle && !hasPersonnel) {
+        violations.push({
+          activityId: id,
+          type: typeId,
+          code: 'MISSING_PERSONNEL',
+          message: 'Fahrzeugleistungen benötigen mindestens einen Personaldienst.',
+        });
+      }
+
+      const requiresVehicle = typeId ? requirements.get(typeId)?.requiresVehicle ?? false : false;
+      if (requiresVehicle && !hasVehicle) {
+        violations.push({
+          activityId: id,
+          type: typeId,
+          code: 'MISSING_VEHICLE',
+          message: 'Diese Leistung benötigt mindestens einen Fahrzeugdienst.',
+        });
+      }
+    }
+
+    if (!violations.length) {
+      return;
+    }
+
+    throw new BadRequestException({
+      message: 'Leistung verletzt Pflicht-Verknüpfungen (Personal/Fahrzeug).',
+      stageId,
+      variantId,
+      violations,
+      error: 'ValidationError',
+      statusCode: 400,
+    });
+  }
+
+  private isManagedServiceActivityId(id: string): boolean {
+    return id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:');
+  }
+
+  private async loadActivityTypeRequirements(): Promise<
+    Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>
+  > {
+    if (this.activityTypeRequirements) {
+      return this.activityTypeRequirements;
+    }
+    try {
+      const entries = await this.activityCatalog.list();
+      const toBool = (value: unknown) => {
+        if (typeof value === 'boolean') {
+          return value;
+        }
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          return normalized === 'true' || normalized === 'yes' || normalized === '1';
+        }
+        if (typeof value === 'number') {
+          return Number.isFinite(value) && value !== 0;
+        }
+        return false;
+      };
+      const map = new Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>();
+      for (const entry of entries) {
+        const id = (entry?.id ?? '').toString().trim();
+        if (!id) {
+          continue;
+        }
+        const attrs = entry.attributes as Record<string, unknown> | undefined;
+        map.set(id, {
+          requiresVehicle: toBool(attrs?.['requires_vehicle']),
+          isVehicleOn: toBool(attrs?.['is_vehicle_on']),
+          isVehicleOff: toBool(attrs?.['is_vehicle_off']),
+        });
+      }
+      this.activityTypeRequirements = map;
+      return map;
+    } catch (error) {
+      this.logger.warn(`Activity catalog requirements could not be loaded: ${(error as Error).message ?? String(error)}`);
+      this.activityTypeRequirements = new Map();
+      return this.activityTypeRequirements;
+    }
+  }
+
+  private async assertVehicleServiceBoundaries(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+    scopeGroupKeys?: Set<string>,
+  ): Promise<void> {
+    if (!activities.length) {
+      return;
+    }
+    if (scopeGroupKeys && scopeGroupKeys.size === 0) {
+      return;
+    }
+    const requirements = await this.loadActivityTypeRequirements();
+
+    const violations: Array<{
+      ownerId: string;
+      serviceId: string | null;
+      dayKey: string | null;
+      code:
+        | 'MISSING_VEHICLE_ON'
+        | 'MISSING_VEHICLE_OFF'
+        | 'VEHICLE_ON_NOT_FIRST'
+        | 'VEHICLE_OFF_NOT_LAST'
+        | 'VEHICLE_ON_AFTER_OFF';
+      message: string;
+    }> = [];
+
+    const groups = new Map<string, { ownerId: string; serviceId: string | null; dayKey: string | null; items: Activity[] }>();
+
+    for (const activity of activities) {
+      const id = (activity.id ?? '').toString();
+      if (!id || this.isManagedServiceActivityId(id)) {
+        continue;
+      }
+      const typeId = (activity.type ?? '').toString().trim() || null;
+      if (!typeId) {
+        continue;
+      }
+      const req = requirements.get(typeId);
+      const relevant = !!(req?.requiresVehicle || req?.isVehicleOn || req?.isVehicleOff);
+      if (!relevant) {
+        continue;
+      }
+
+      const owners = (activity.participants ?? [])
+        .filter((p) => (p as any)?.resourceId && (p as any)?.kind === 'vehicle-service')
+        .map((p) => (p as any).resourceId as string);
+
+      if (!owners.length) {
+        continue;
+      }
+
+      owners.forEach((ownerId) => {
+        const serviceId = this.resolveServiceIdForOwner(activity, ownerId);
+        const dayKey = serviceId ? (serviceId.split(':').pop() ?? null) : this.utcDayKey(activity.start);
+        const groupKey = `${ownerId}|${serviceId ?? dayKey ?? 'unknown'}`;
+        if (scopeGroupKeys && !scopeGroupKeys.has(groupKey)) {
+          return;
+        }
+        const existing = groups.get(groupKey);
+        if (existing) {
+          existing.items.push(activity);
+        } else {
+          groups.set(groupKey, { ownerId, serviceId, dayKey, items: [activity] });
+        }
+      });
+    }
+
+    const parseStartMs = (activity: Activity): number | null => {
+      const ms = Date.parse(activity.start);
+      return Number.isFinite(ms) ? ms : null;
+    };
+
+    groups.forEach((group) => {
+      const items = group.items
+        .map((activity) => ({ activity, startMs: parseStartMs(activity) }))
+        .filter((entry): entry is { activity: Activity; startMs: number } => entry.startMs !== null)
+        .sort((a, b) => a.startMs - b.startMs || a.activity.id.localeCompare(b.activity.id));
+      if (!items.length) {
+        return;
+      }
+
+      const isOn = (activity: Activity) =>
+        !!requirements.get((activity.type ?? '').toString().trim() || '')?.isVehicleOn;
+      const isOff = (activity: Activity) =>
+        !!requirements.get((activity.type ?? '').toString().trim() || '')?.isVehicleOff;
+
+      const onItems = items.filter((entry) => isOn(entry.activity));
+      const offItems = items.filter((entry) => isOff(entry.activity));
+
+      const earliest = items[0];
+      const latest = items[items.length - 1];
+
+      if (onItems.length && !isOn(earliest.activity)) {
+        violations.push({
+          ownerId: group.ownerId,
+          serviceId: group.serviceId,
+          dayKey: group.dayKey,
+          code: 'VEHICLE_ON_NOT_FIRST',
+          message: 'Einschalten muss die erste Fahrzeugleistung im Fahrzeugdienst sein.',
+        });
+        return;
+      }
+      if (offItems.length && !isOff(latest.activity)) {
+        violations.push({
+          ownerId: group.ownerId,
+          serviceId: group.serviceId,
+          dayKey: group.dayKey,
+          code: 'VEHICLE_OFF_NOT_LAST',
+          message: 'Ausschalten muss die letzte Fahrzeugleistung im Fahrzeugdienst sein.',
+        });
+        return;
+      }
+
+      if (onItems.length && offItems.length) {
+        const firstOnStartMs = onItems[0].startMs;
+        const lastOffStartMs = offItems[offItems.length - 1].startMs;
+        if (firstOnStartMs > lastOffStartMs) {
+          violations.push({
+            ownerId: group.ownerId,
+            serviceId: group.serviceId,
+            dayKey: group.dayKey,
+            code: 'VEHICLE_ON_AFTER_OFF',
+            message: 'Einschalten muss vor Ausschalten liegen.',
+          });
+        }
+      }
+    });
+
+    if (!violations.length) {
+      return;
+    }
+
+    throw new BadRequestException({
+      message: 'Fahrzeugdienst-Grenzen verletzt (Einschalten/Ausschalten).',
+      stageId,
+      variantId,
+      violations,
+      error: 'ValidationError',
+      statusCode: 400,
+    });
   }
 
   async validateActivities(

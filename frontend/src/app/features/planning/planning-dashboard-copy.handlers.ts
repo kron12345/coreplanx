@@ -4,13 +4,18 @@ import { Resource } from '../../models/resource';
 import { ActivityLinkRoleDialogComponent, ActivityLinkRoleDialogResult } from './activity-link-role-dialog.component';
 import { PlanningStageId } from './planning-stage.model';
 import { applyActivityCopyWithRoles } from './planning-dashboard-activity-copy.utils';
-import { addParticipantToActivity } from './planning-dashboard-participant.utils';
+import { ActivityParticipantCategory } from '../../models/activity-ownership';
+import { addParticipantToActivity, resolveSuggestedParticipantRole } from './planning-dashboard-participant.utils';
 
 type CopyEvent = {
   activity: Activity;
   targetResourceId: string;
   start: Date;
   end: Date | null;
+  sourceResourceId?: string | null;
+  participantCategory?: ActivityParticipantCategory | null;
+  participantResourceId?: string | null;
+  isOwnerSlot?: boolean;
 };
 
 export class PlanningDashboardCopyHandlers {
@@ -21,6 +26,7 @@ export class PlanningDashboardCopyHandlers {
       activityOwnerId: (activity: Activity) => string | null;
       stageResourceSignals: Record<PlanningStageId, () => Resource[]>;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
+      saveTemplateActivity: (activity: Activity) => void;
       applyBaseCopyWithRoles: (
         source: Activity,
         sourceResource: Resource,
@@ -35,14 +41,60 @@ export class PlanningDashboardCopyHandlers {
     const stage = this.deps.activeStage();
     const source = event.activity;
     const targetResourceId = event.targetResourceId;
+    const sourceRowId = event.sourceResourceId ?? event.participantResourceId ?? null;
     const sourceOwnerId = this.deps.activityOwnerId(source);
-    if (!sourceOwnerId || targetResourceId === sourceOwnerId) {
+    if (!sourceOwnerId || targetResourceId === sourceOwnerId || (sourceRowId && targetResourceId === sourceRowId)) {
       return;
     }
     const resources = this.deps.stageResourceSignals[stage]();
-    const sourceResource = resources.find((res) => res.id === sourceOwnerId);
+    const sourceResource = resources.find((res) => res.id === sourceOwnerId) ?? null;
     const targetResource = resources.find((res) => res.id === targetResourceId);
-    if (!sourceResource || !targetResource || sourceResource.kind !== targetResource.kind) {
+    if (!targetResource) {
+      return;
+    }
+    const rowResource = (sourceRowId ? resources.find((res) => res.id === sourceRowId) : null) ?? sourceResource;
+    if (!rowResource || !sourceResource) {
+      return;
+    }
+
+    const isVehicle = (resource: Resource) => resource.kind === 'vehicle' || resource.kind === 'vehicle-service';
+    if (isVehicle(rowResource) && isVehicle(targetResource)) {
+      const updated = this.deps.applyActivityTypeConstraints(
+        addParticipantToActivity(
+          source,
+          sourceResource,
+          targetResource,
+          resolveSuggestedParticipantRole(source, targetResource),
+          { retainPreviousOwner: true },
+        ),
+      );
+      if (stage === 'base') {
+        this.deps.saveTemplateActivity(updated);
+        return;
+      }
+      this.deps.updateStageActivities(stage, (activities) =>
+        activities.map((activity) => (activity.id === source.id ? updated : activity)),
+      );
+      return;
+    }
+
+    if (rowResource.kind !== targetResource.kind) {
+      const updated = this.deps.applyActivityTypeConstraints(
+        addParticipantToActivity(
+          source,
+          sourceResource,
+          targetResource,
+          resolveSuggestedParticipantRole(source, targetResource),
+          { retainPreviousOwner: true },
+        ),
+      );
+      if (stage === 'base') {
+        this.deps.saveTemplateActivity(updated);
+        return;
+      }
+      this.deps.updateStageActivities(stage, (activities) =>
+        activities.map((activity) => (activity.id === source.id ? updated : activity)),
+      );
       return;
     }
     const dialogRef = this.deps.dialog.open<
@@ -52,7 +104,7 @@ export class PlanningDashboardCopyHandlers {
     >(ActivityLinkRoleDialogComponent, {
       width: '420px',
       data: {
-        sourceResourceName: sourceResource.name,
+        sourceResourceName: rowResource.name,
         targetResourceName: targetResource.name,
       },
     });
@@ -62,10 +114,10 @@ export class PlanningDashboardCopyHandlers {
         return;
       }
       if (stage === 'base') {
-        this.deps.applyBaseCopyWithRoles(source, sourceResource, targetResource, result);
+        this.deps.applyBaseCopyWithRoles(source, rowResource, targetResource, result);
         return;
       }
-      this.applyActivityCopyWithRoles(stage, source, sourceResource, targetResource, event, result);
+      this.applyActivityCopyWithRoles(stage, source, rowResource, targetResource, event, result);
     });
   }
 

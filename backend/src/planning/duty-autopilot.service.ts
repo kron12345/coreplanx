@@ -1093,7 +1093,7 @@ export class DutyAutopilotService {
     activities: Activity[],
     config: NonNullable<Awaited<ReturnType<PlanningRuleService['getDutyAutopilotConfig']>>>,
   ): Activity[] {
-    if (!config.azg.enabled) {
+    if (!config.azg?.enabled) {
       return [];
     }
 

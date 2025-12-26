@@ -2,10 +2,14 @@ id: cleaning
 label: Innenreinigung
 description: Reinigungsarbeiten am Fahrzeug.
 appliesTo:
+  - personnel
   - vehicle
+  - personnel-service
   - vehicle-service
 relevantFor:
+  - personnel
   - vehicle
+  - personnel-service
   - vehicle-service
 category: service
 timeMode: duration
@@ -17,4 +21,5 @@ defaultDurationMinutes: 45
 attributes:
   is_within_service: yes
   is_cleaning: true
+  requires_vehicle: true
   color: '#00897b'
