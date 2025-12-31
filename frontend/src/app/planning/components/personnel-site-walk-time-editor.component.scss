@@ -1,0 +1,10 @@
+.walk-time-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 12px;
+}
+
+.walk-time-toolbar mat-form-field {
+  width: min(420px, 100%);
+}
+

@@ -833,6 +833,9 @@ export class PlanningStageRepository {
     role: 'start' | 'end',
     selfId: string,
   ): Promise<void> {
+    if (this.isManagedServiceActivityId(selfId)) {
+      return;
+    }
     const result = await client.query<{ id: string }>(
       `
         SELECT id
@@ -1094,6 +1097,30 @@ export class PlanningStageRepository {
       const trimmed = serviceId.trim();
       return trimmed.length ? trimmed : null;
     }
+    if (id.startsWith('svcshortbreak:')) {
+      const rest = id.slice('svcshortbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    if (id.startsWith('svccommute:')) {
+      const rest = id.slice('svccommute:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
     return null;
+  }
+
+  private isManagedServiceActivityId(id: string): boolean {
+    return (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    );
   }
 }

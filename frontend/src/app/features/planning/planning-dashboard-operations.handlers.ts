@@ -15,6 +15,11 @@ export class PlanningDashboardOperationsHandlers {
       applyActivityTypeConstraints: (activity: Activity) => Activity;
       activitySelection: PlanningDashboardActivitySelectionFacade;
       activityOwnerId: (activity: Activity) => string | null;
+      ensureRequiredParticipants?: (
+        stage: PlanningStageId,
+        anchorResource: Resource,
+        activity: Activity,
+      ) => Promise<Activity | null>;
     },
   ) {}
 
@@ -28,6 +33,19 @@ export class PlanningDashboardOperationsHandlers {
     participantResourceId?: string | null;
     isOwnerSlot?: boolean;
   }): void {
+    void this.handleRepositionAsync(event);
+  }
+
+  private async handleRepositionAsync(event: {
+    activity: Activity;
+    targetResourceId: string;
+    start: Date;
+    end: Date | null;
+    sourceResourceId?: string | null;
+    participantCategory?: ActivityParticipantCategory | null;
+    participantResourceId?: string | null;
+    isOwnerSlot?: boolean;
+  }): Promise<void> {
     const stage: PlanningStageId = 'operations';
     const previousActivityId = event.activity.id;
     const previousStartMs = new Date(event.activity.start).getTime();
@@ -66,6 +84,16 @@ export class PlanningDashboardOperationsHandlers {
         ownerCategory: targetCategory,
       });
     };
+    const updatedMain = applyUpdate(event.activity);
+    const anchorResource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
+    const shouldEnsure = resourceChanged;
+    const ensuredMain =
+      shouldEnsure && this.deps.ensureRequiredParticipants && anchorResource
+        ? await this.deps.ensureRequiredParticipants(stage, anchorResource, updatedMain)
+        : updatedMain;
+    if (!ensuredMain) {
+      return;
+    }
     let shiftedAttachments = new Map<string, Activity>();
     this.deps.updateStageActivities(stage, (activities) => {
       shiftedAttachments = shiftDeltaMs
@@ -76,7 +104,7 @@ export class PlanningDashboardOperationsHandlers {
           if (activity.id !== event.activity.id) {
             return shiftedAttachments.get(activity.id) ?? activity;
           }
-          return applyUpdate(activity);
+          return ensuredMain;
         });
       }
       return activities.map((activity) => {
@@ -86,7 +114,7 @@ export class PlanningDashboardOperationsHandlers {
             ? (currentAttrs['linkGroupId'] as string)
             : null;
         if (activity.id === event.activity.id) {
-          return applyUpdate(activity);
+          return ensuredMain;
         }
         const shifted = shiftedAttachments.get(activity.id);
         if (shifted) {
@@ -105,21 +133,7 @@ export class PlanningDashboardOperationsHandlers {
     const activeSelection = this.deps.activitySelection.selectedActivityState();
     if (activeSelection?.activity.id === event.activity.id) {
       const resource = targetResource;
-      const updatedBaseSelection = this.markBoundaryManual({
-        ...activeSelection.activity,
-        start: event.start.toISOString(),
-        end: event.end ? event.end.toISOString() : null,
-      });
-      const updatedSelectionActivity = this.deps.applyActivityTypeConstraints(
-        resourceChanged
-          ? !isOwnerSlot && participantResourceId
-            ? moveParticipantToResource(updatedBaseSelection, participantResourceId, targetResource)
-            : addParticipantToActivity(updatedBaseSelection, targetResource, undefined, undefined, {
-                retainPreviousOwner: false,
-                ownerCategory: targetCategory,
-              })
-          : updatedBaseSelection,
-      );
+      const updatedSelectionActivity = this.deps.applyActivityTypeConstraints(ensuredMain);
       this.deps.activitySelection.selectedActivityState.set({
         activity: updatedSelectionActivity,
         resource,

@@ -173,6 +173,10 @@ export class PlanningDashboardBoardFacade {
   boardActivities(stage: PlanningStageId, board: PlanningBoard): Activity[] {
     const resourceSet = new Set(board.resourceIds);
     return this.deps.normalizedStageActivitySignals[stage]().filter((activity) => {
+      const participants = activity.participants ?? [];
+      if (participants.some((participant) => !!participant?.resourceId && resourceSet.has(participant.resourceId))) {
+        return true;
+      }
       const ownerId = this.deps.activityOwnerId(activity);
       return ownerId ? resourceSet.has(ownerId) : false;
     });

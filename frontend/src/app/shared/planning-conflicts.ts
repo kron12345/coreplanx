@@ -5,6 +5,7 @@ export type ConflictEntry = {
   category: ConflictCategory;
   categoryLabel: string;
   label: string;
+  details?: string[];
 };
 
 export const CONFLICT_CATEGORY_LABELS: Record<ConflictCategory, string> = {
@@ -17,6 +18,20 @@ export const CONFLICT_CATEGORY_LABELS: Record<ConflictCategory, string> = {
 export const CONFLICT_DEFINITIONS: Record<string, { category: ConflictCategory; label: string }> = {
   CAPACITY_OVERLAP: { category: 'capacity', label: 'Leistungen überlappen sich.' },
   LOCATION_SEQUENCE: { category: 'location', label: 'Ortsabfolge ist nicht konsistent.' },
+  HOME_DEPOT_NOT_FOUND: { category: 'location', label: 'Heimdepot ist nicht vorhanden.' },
+  HOME_DEPOT_NO_SITES: { category: 'location', label: 'Heimdepot hat keine zulässigen Start-/Endstellen.' },
+  HOME_DEPOT_SITE_NOT_FOUND: { category: 'location', label: 'Heimdepot verweist auf unbekannte Personnel Sites.' },
+  HOME_DEPOT_START_LOCATION_MISSING: { category: 'location', label: 'Start-Ort der ersten Leistung ist nicht gesetzt.' },
+  HOME_DEPOT_END_LOCATION_MISSING: { category: 'location', label: 'End-Ort der letzten Leistung ist nicht gesetzt.' },
+  HOME_DEPOT_PAUSE_LOCATION_MISSING: { category: 'location', label: 'Pause kann nicht platziert werden (fehlende Ortsangaben).' },
+  HOME_DEPOT_OVERNIGHT_LOCATION_MISSING: { category: 'location', label: 'Ort für auswärtige Übernachtung fehlt.' },
+  HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN: { category: 'location', label: 'Ort für auswärtige Übernachtung ist im Heimdepot nicht erlaubt.' },
+  HOME_DEPOT_NO_BREAK_SITES: { category: 'location', label: 'Heimdepot hat keine zulässigen Pausenräume.' },
+  HOME_DEPOT_NO_SHORT_BREAK_SITES: { category: 'location', label: 'Heimdepot hat keine zulässigen Kurzpausenräume.' },
+  WALK_TIME_MISSING_START: { category: 'location', label: 'Wegzeit für Dienstanfang fehlt.' },
+  WALK_TIME_MISSING_END: { category: 'location', label: 'Wegzeit für Dienstende fehlt.' },
+  WALK_TIME_MISSING_BREAK: { category: 'location', label: 'Wegzeit zur Pause fehlt.' },
+  WALK_TIME_MISSING_SHORT_BREAK: { category: 'location', label: 'Wegzeit zur Kurzpause fehlt.' },
   MAX_DUTY_SPAN: { category: 'worktime', label: 'Maximale Dienstspanne überschritten.' },
   MAX_WORK: { category: 'worktime', label: 'Maximale Arbeitszeit im Dienst überschritten.' },
   MAX_CONTINUOUS: { category: 'worktime', label: 'Maximale zusammenhängende Arbeitszeit überschritten.' },
@@ -52,6 +67,71 @@ export function extractConflictCodes(attributes: Record<string, unknown> | null 
   return [];
 }
 
+export function extractConflictDetails(attributes: Record<string, unknown> | null | undefined): Record<string, string[]> {
+  const attrs = (attributes ?? {}) as Record<string, unknown>;
+  const raw = attrs['service_conflict_details'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  const result: Record<string, string[]> = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([code, value]) => {
+    if (!Array.isArray(value)) {
+      return;
+    }
+    const normalized = `${code ?? ''}`.trim();
+    if (!normalized) {
+      return;
+    }
+    const list = value
+      .map((entry) => (entry ?? '').toString().trim())
+      .filter((entry) => entry.length > 0);
+    if (!list.length) {
+      return;
+    }
+    result[normalized] = list;
+  });
+  return result;
+}
+
+export function extractConflictDetailsForOwner(
+  attributes: Record<string, unknown> | null | undefined,
+  ownerId: string | null | undefined,
+): Record<string, string[]> {
+  const trimmedOwner = (ownerId ?? '').trim();
+  if (!trimmedOwner) {
+    return extractConflictDetails(attributes);
+  }
+  const attrs = (attributes ?? {}) as Record<string, unknown>;
+  const rawMap = attrs['service_by_owner'];
+  if (rawMap && typeof rawMap === 'object' && !Array.isArray(rawMap)) {
+    const entry = (rawMap as Record<string, any>)[trimmedOwner];
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const rawDetails = (entry as any).conflictDetails;
+      if (rawDetails && typeof rawDetails === 'object' && !Array.isArray(rawDetails)) {
+        const result: Record<string, string[]> = {};
+        Object.entries(rawDetails as Record<string, unknown>).forEach(([code, value]) => {
+          if (!Array.isArray(value)) {
+            return;
+          }
+          const normalized = `${code ?? ''}`.trim();
+          if (!normalized) {
+            return;
+          }
+          const list = value
+            .map((detail) => (detail ?? '').toString().trim())
+            .filter((detail) => detail.length > 0);
+          if (!list.length) {
+            return;
+          }
+          result[normalized] = list;
+        });
+        return result;
+      }
+    }
+  }
+  return extractConflictDetails(attributes);
+}
+
 export function extractConflictCodesForOwner(
   attributes: Record<string, unknown> | null | undefined,
   ownerId: string | null | undefined,
@@ -81,6 +161,7 @@ export function mapConflictCodes(attributes: Record<string, unknown> | null | un
   if (!codes.length) {
     return [];
   }
+  const details = extractConflictDetails(attributes);
   const entries = codes.map((code) => {
     const normalized = code.trim();
     const def = CONFLICT_DEFINITIONS[normalized];
@@ -90,6 +171,7 @@ export function mapConflictCodes(attributes: Record<string, unknown> | null | un
       category,
       categoryLabel: CONFLICT_CATEGORY_LABELS[category],
       label: def?.label ?? normalized,
+      details: details[normalized],
     } satisfies ConflictEntry;
   });
   return entries.sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.label.localeCompare(b.label));
@@ -103,6 +185,7 @@ export function mapConflictCodesForOwner(
   if (!codes.length) {
     return [];
   }
+  const details = extractConflictDetailsForOwner(attributes, ownerId);
   const entries = codes.map((code) => {
     const normalized = code.trim();
     const def = CONFLICT_DEFINITIONS[normalized];
@@ -112,6 +195,7 @@ export function mapConflictCodesForOwner(
       category,
       categoryLabel: CONFLICT_CATEGORY_LABELS[category],
       label: def?.label ?? normalized,
+      details: details[normalized],
     } satisfies ConflictEntry;
   });
   return entries.sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.label.localeCompare(b.label));

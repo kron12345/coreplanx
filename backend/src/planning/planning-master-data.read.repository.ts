@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import type {
+  HomeDepot,
   OperationalPoint,
   OpReplacementStopLink,
   Personnel,
@@ -184,6 +185,7 @@ export class PlanningMasterDataReadRepository {
       personnelPoolMemberRows,
       personnelServicePoolRows,
       personnelServicePoolMemberRows,
+      homeDepots,
       vehicleRows,
       vehicleServiceRows,
       vehiclePoolRows,
@@ -257,6 +259,7 @@ export class PlanningMasterDataReadRepository {
           `,
         )
         .then((result) => result.rows),
+      this.loadJsonCollection<HomeDepot>('master_home_depot', 'home_depot_id'),
       this.database
         .query<VehicleRow>(
           `
@@ -400,6 +403,7 @@ export class PlanningMasterDataReadRepository {
       personnelServices,
       personnelServicePools,
       personnelPools,
+      homeDepots,
       vehicles,
       vehicleServices,
       vehicleServicePools,
@@ -680,7 +684,7 @@ export class PlanningMasterDataReadRepository {
       if (this.isTopologyStructureMissing(error)) {
         if (!this.missingTopologyTables.has(tableName)) {
           this.logger.debug(
-            `Topologie-Tabelle ${tableName} ohne payload-Spalte gefunden – Migration 004 muss noch ausgeführt werden. Verwende leere Sammlung.`,
+            `Tabelle ${tableName} (JSON-Payload) fehlt oder hat keine payload-Spalte – verwende leere Sammlung.`,
           );
         }
         this.missingTopologyTables.add(tableName);
@@ -696,6 +700,7 @@ export class PlanningMasterDataReadRepository {
       personnelServices: [],
       personnelServicePools: [],
       personnelPools: [],
+      homeDepots: [],
       vehicles: [],
       vehicleServices: [],
       vehicleServicePools: [],

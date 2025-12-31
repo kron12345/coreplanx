@@ -1,13 +1,34 @@
-<app-attribute-entity-editor
-  [title]="'Personnel Sites'"
-  [entities]="entityRecords()"
-  [attributeDefinitions]="attributeDefinitions()"
-  [defaultFallbackValues]="defaultFallback"
-  [numericKeys]="numericKeys"
-  [actionKeys]="actionKeys"
-  [detailError]="error()"
-  (saveEntity)="handleSave($event)"
-  (deleteEntities)="handleDelete($event)"
-  (bulkApply)="handleBulkApply($event)"
-  (actionTriggered)="handleAction($event)"
-/>
+<section class="personnel-site-editor">
+  <header>
+    <mat-button-toggle-group
+      color="primary"
+      [value]="viewMode()"
+      (valueChange)="viewMode.set($event)"
+    >
+      <mat-button-toggle value="sites">Personnel Sites</mat-button-toggle>
+      <mat-button-toggle value="walkTimes">Wegzeiten</mat-button-toggle>
+    </mat-button-toggle-group>
+  </header>
+
+  @switch (viewMode()) {
+    @case ('sites') {
+      <app-attribute-entity-editor
+        [title]="'Personnel Sites'"
+        [entities]="entityRecords()"
+        [attributeDefinitions]="attributeDefinitions()"
+        [defaultFallbackValues]="defaultFallback"
+        [numericKeys]="numericKeys"
+        [actionKeys]="actionKeys"
+        [detailError]="error()"
+        [selectOptions]="selectOptions()"
+        (saveEntity)="handleSave($event)"
+        (deleteEntities)="handleDelete($event)"
+        (bulkApply)="handleBulkApply($event)"
+        (actionTriggered)="handleAction($event)"
+      />
+    }
+    @case ('walkTimes') {
+      <app-personnel-site-walk-time-editor />
+    }
+  }
+</section>

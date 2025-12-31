@@ -8,6 +8,7 @@ import {
   SimpleChanges,
   signal,
 } from '@angular/core';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -53,6 +54,7 @@ const uid = () => crypto.randomUUID();
     imports: [
         CommonModule,
         FormsModule,
+        ScrollingModule,
         MatInputModule,
         MatButtonModule,
         MatIconModule,
@@ -84,6 +86,7 @@ export class AttributeTableEditorComponent implements OnChanges {
   @Input() numericKeys: string[] = [];
   @Input() actionKeys: string[] = [];
   @Input() selectOptions: Record<string, SelectOption[]> = {};
+  @Input() multiSelectOptions: Record<string, SelectOption[]> = {};
   @Output() attributesChange = new EventEmitter<AttributeSavePayload>();
   @Output() valueChange = new EventEmitter<Record<string, string>>();
   @Output() actionTriggered = new EventEmitter<string>();
@@ -91,6 +94,7 @@ export class AttributeTableEditorComponent implements OnChanges {
   readonly rows = signal<AttributeRowState[]>([]);
   readonly historyDrawerFor = signal<string | null>(null);
   private snapshot: AttributeRowState[] = [];
+  private readonly multiSelectCache = new Map<string, { raw: string; parsed: string[] }>();
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['definitions'] || changes['attributes'] || changes['fallbackValues']) {
@@ -238,7 +242,41 @@ export class AttributeTableEditorComponent implements OnChanges {
     return Array.isArray(options) && options.length > 0;
   }
 
+  hasMultiSelectOptions(key: string): boolean {
+    const options = this.multiSelectOptions[key];
+    return Array.isArray(options) && options.length > 0;
+  }
+
+  multiSelectModel(key: string, value: string): string[] {
+    const raw = (value ?? '').toString();
+    const cached = this.multiSelectCache.get(key);
+    if (cached && cached.raw === raw) {
+      return cached.parsed;
+    }
+    const parsed = raw
+      ? raw
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0)
+      : [];
+    this.multiSelectCache.set(key, { raw, parsed });
+    return parsed;
+  }
+
+  updateMultiSelectRow(key: string, next: string[] | null | undefined): void {
+    const normalized = Array.isArray(next) ? next : [];
+    const cleaned = normalized.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    const value = cleaned.join(', ');
+    this.multiSelectCache.set(key, { raw: value, parsed: cleaned });
+    this.updateRowField(key, 'value', value);
+  }
+
+  trackOption(_index: number, option: SelectOption): string {
+    return option.value;
+  }
+
   private buildRows(): void {
+    this.multiSelectCache.clear();
     const defs = this.definitions;
     if (!defs || defs.length === 0) {
       this.rows.set([]);

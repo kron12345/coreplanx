@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -12,10 +12,11 @@ import {
 import { MasterDataCollectionsStoreService } from '../../master-data-collections.store';
 import { MasterDataResourceStoreService } from '../../master-data-resource.store';
 import { CustomAttributeDefinition, CustomAttributeService } from '../../../../core/services/custom-attribute.service';
-import { Personnel, PersonnelPool, PersonnelService, PersonnelServicePool } from '../../../../models/master-data';
+import { HomeDepot, Personnel, PersonnelPool, PersonnelService, PersonnelServicePool } from '../../../../models/master-data';
 import { PlanningDataService } from '../../../planning/planning-data.service';
+import { PlanningStoreService } from '../../../../shared/planning-store.service';
 
-type PersonnelEditorMode = 'servicePools' | 'services' | 'personnelPools' | 'personnel';
+type PersonnelEditorMode = 'servicePools' | 'services' | 'personnelPools' | 'homeDepots' | 'personnel';
 
 const SERVICE_POOL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
   {
@@ -30,6 +31,13 @@ const SERVICE_POOL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
     id: 'psp-description',
     key: 'description',
     label: 'Beschreibung',
+    type: 'string',
+    entityId: 'personnel-service-pools',
+  },
+  {
+    id: 'psp-home-depot',
+    key: 'homeDepotId',
+    label: 'Heimdepot',
     type: 'string',
     entityId: 'personnel-service-pools',
   },
@@ -48,6 +56,13 @@ const PERSONNEL_POOL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
     id: 'pp-description',
     key: 'description',
     label: 'Beschreibung',
+    type: 'string',
+    entityId: 'personnel-pools',
+  },
+  {
+    id: 'pp-home-depot',
+    key: 'homeDepotId',
+    label: 'Heimdepot',
     type: 'string',
     entityId: 'personnel-pools',
   },
@@ -174,7 +189,7 @@ const PERSONNEL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
   {
     id: 'person-service-ids',
     key: 'serviceIds',
-    label: 'Dienst-IDs (kommagetrennt)',
+    label: 'Dienste',
     type: 'string',
     entityId: 'personnel',
   },
@@ -212,6 +227,53 @@ const PERSONNEL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
     label: 'Reserve?',
     type: 'boolean',
     entityId: 'personnel',
+  },
+];
+
+const HOME_DEPOT_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
+  {
+    id: 'hd-name',
+    key: 'name',
+    label: 'Name',
+    type: 'string',
+    entityId: 'home-depots',
+    required: true,
+  },
+  {
+    id: 'hd-description',
+    key: 'description',
+    label: 'Beschreibung',
+    type: 'string',
+    entityId: 'home-depots',
+  },
+  {
+    id: 'hd-sites',
+    key: 'siteIds',
+    label: 'Start/Endstellen (Personnel Site)',
+    type: 'string',
+    entityId: 'home-depots',
+    required: true,
+  },
+  {
+    id: 'hd-break-sites',
+    key: 'breakSiteIds',
+    label: 'Pausenräume (Personnel Site)',
+    type: 'string',
+    entityId: 'home-depots',
+  },
+  {
+    id: 'hd-short-break-sites',
+    key: 'shortBreakSiteIds',
+    label: 'Kurzpausenräume (Personnel Site)',
+    type: 'string',
+    entityId: 'home-depots',
+  },
+  {
+    id: 'hd-overnight-sites',
+    key: 'overnightSiteIds',
+    label: 'Übernachtung (Personnel Site)',
+    type: 'string',
+    entityId: 'home-depots',
   },
 ];
 
@@ -253,6 +315,15 @@ const PERSONNEL_POOL_DEFAULTS = {
   locationCode: 'BER',
 };
 
+const HOME_DEPOT_DEFAULTS = {
+  name: 'Depot Berlin (Beispiel)',
+  description: 'Start/Ende sowie Pausenräume für das Team Berlin.',
+  siteIds: '',
+  breakSiteIds: '',
+  shortBreakSiteIds: '',
+  overnightSiteIds: '',
+};
+
 @Component({
     selector: 'app-personnel-master-editor',
     imports: [CommonModule, MatButtonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
@@ -265,16 +336,25 @@ export class PersonnelMasterEditorComponent {
   private readonly resources = inject(MasterDataResourceStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
   private readonly planningData = inject(PlanningDataService);
+  private readonly planningStore = inject(PlanningStoreService);
 
   readonly viewMode = signal<PersonnelEditorMode>('servicePools');
 
+  private readonly initTopologyForHomeDepots = effect(() => {
+    if (this.viewMode() === 'homeDepots') {
+      this.planningStore.ensureInitialized();
+    }
+  });
+
   readonly servicePoolDefaults = SERVICE_POOL_DEFAULTS;
   readonly personnelPoolDefaults = PERSONNEL_POOL_DEFAULTS;
+  readonly homeDepotDefaults = HOME_DEPOT_DEFAULTS;
   readonly serviceDefaults = PERSONNEL_SERVICE_DEFAULTS;
   readonly personnelDefaults = PERSONNEL_DEFAULTS;
 
   readonly servicePoolRequiredKeys = ['name'];
   readonly personnelPoolRequiredKeys = ['name'];
+  readonly homeDepotRequiredKeys = ['name', 'siteIds'];
   readonly servicePoolOptions = computed(() =>
     this.collections.personnelServicePools().map((pool) => ({
       value: pool.id,
@@ -287,12 +367,54 @@ export class PersonnelMasterEditorComponent {
       label: pool.name ?? pool.id,
     })),
   );
+  readonly homeDepotOptions = computed(() =>
+    [
+      { value: '', label: '— kein Heimdepot —' },
+      ...this.collections.homeDepots().map((depot) => ({
+        value: depot.id,
+        label: depot.name ?? depot.id,
+      })),
+    ],
+  );
+  readonly personnelSiteOptions = computed(() =>
+    this.planningStore
+      .personnelSites()
+      .map((site) => ({
+        value: site.siteId,
+        label: `${site.name} · ${site.siteType} (${site.siteId})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  );
+  readonly poolSelectOptions = computed(() => ({
+    homeDepotId: this.homeDepotOptions(),
+  }));
   readonly serviceSelectOptions = computed(() => ({
-    poolId: this.servicePoolOptions(),
+    poolId: [{ value: '', label: '— kein Pool —' }, ...this.servicePoolOptions()],
   }));
   readonly personnelSelectOptions = computed(() => ({
-    poolId: this.personnelPoolOptions(),
+    poolId: [{ value: '', label: '— kein Pool —' }, ...this.personnelPoolOptions()],
   }));
+  readonly personnelServiceOptions = computed(() =>
+    this.resources
+      .personnelServices()
+      .map((service) => ({
+        value: service.id,
+        label: `${service.name ?? service.id} (${service.id})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  );
+  readonly personnelMultiSelectOptions = computed(() => ({
+    serviceIds: this.personnelServiceOptions(),
+  }));
+  readonly homeDepotMultiSelectOptions = computed(() => {
+    const options = this.personnelSiteOptions();
+    return {
+      siteIds: options,
+      breakSiteIds: options,
+      shortBreakSiteIds: options,
+      overnightSiteIds: options,
+    };
+  });
 
   readonly servicePoolDefinitions = computed<CustomAttributeDefinition[]>(() =>
     mergeDefinitions(SERVICE_POOL_BASE_DEFINITIONS, this.customAttributes.list('personnel-service-pools')),
@@ -300,6 +422,10 @@ export class PersonnelMasterEditorComponent {
 
   readonly personnelPoolDefinitions = computed<CustomAttributeDefinition[]>(() =>
     mergeDefinitions(PERSONNEL_POOL_BASE_DEFINITIONS, this.customAttributes.list('personnel-pools')),
+  );
+
+  readonly homeDepotDefinitions = computed<CustomAttributeDefinition[]>(() =>
+    mergeDefinitions(HOME_DEPOT_BASE_DEFINITIONS, this.customAttributes.list('home-depots')),
   );
 
   readonly serviceDefinitions = computed<CustomAttributeDefinition[]>(() =>
@@ -319,6 +445,7 @@ export class PersonnelMasterEditorComponent {
       fallbackValues: {
         name: pool.name ?? '',
         description: pool.description ?? '',
+        homeDepotId: pool.homeDepotId ?? '',
         shiftCoordinator: pool.shiftCoordinator ?? '',
         contactEmail: pool.contactEmail ?? '',
       },
@@ -355,7 +482,25 @@ export class PersonnelMasterEditorComponent {
       fallbackValues: {
         name: pool.name ?? '',
         description: pool.description ?? '',
+        homeDepotId: pool.homeDepotId ?? '',
         locationCode: pool.locationCode ?? '',
+      },
+    })),
+  );
+
+  readonly homeDepotRecords = computed<AttributeEntityRecord[]>(() =>
+    this.collections.homeDepots().map((depot) => ({
+      id: depot.id,
+      label: depot.name ?? depot.id,
+      secondaryLabel: depot.description ?? '',
+      attributes: [],
+      fallbackValues: {
+        name: depot.name ?? '',
+        description: depot.description ?? '',
+        siteIds: (depot.siteIds ?? []).join(', '),
+        breakSiteIds: (depot.breakSiteIds ?? []).join(', '),
+        shortBreakSiteIds: (depot.shortBreakSiteIds ?? []).join(', '),
+        overnightSiteIds: (depot.overnightSiteIds ?? []).join(', '),
       },
     })),
   );
@@ -423,6 +568,7 @@ export class PersonnelMasterEditorComponent {
   });
   readonly servicePoolError = signal<string | null>(null);
   readonly personnelPoolError = signal<string | null>(null);
+  readonly homeDepotError = signal<string | null>(null);
   readonly serviceError = signal<string | null>(null);
   readonly personnelError = signal<string | null>(null);
   readonly serviceCreateDefaultsFactory = (groupId: string | null): Record<string, string> => {
@@ -453,6 +599,7 @@ export class PersonnelMasterEditorComponent {
       name,
       description: this.cleanString(values['description']),
       serviceIds: existing?.serviceIds ?? [],
+      homeDepotId: this.cleanString(values['homeDepotId']),
       shiftCoordinator: this.cleanString(values['shiftCoordinator']),
       contactEmail: this.cleanString(values['contactEmail']),
     };
@@ -488,6 +635,7 @@ export class PersonnelMasterEditorComponent {
       name,
       description: this.cleanString(values['description']),
       personnelIds: existing?.personnelIds ?? [],
+      homeDepotId: this.cleanString(values['homeDepotId']),
       locationCode: this.cleanString(values['locationCode']),
     };
     const next = existing
@@ -505,6 +653,46 @@ export class PersonnelMasterEditorComponent {
     const remaining = this.collections.personnelPools().filter((pool) => !set.has(pool.id));
     this.collections.syncPersonnelPools(remaining);
     this.detachPersonnelFromPools(ids);
+  }
+
+  handleHomeDepotSave(event: EntitySaveEvent): void {
+    const id = event.entityId ?? this.generateId('HD');
+    const values = event.payload.values;
+    const name = (values['name'] ?? '').trim();
+    if (!name) {
+      this.homeDepotError.set('Name darf nicht leer sein.');
+      return;
+    }
+    const siteIds = this.parseList(values['siteIds']);
+    if (!siteIds.length) {
+      this.homeDepotError.set('Mindestens eine Start/Endstelle (siteId) angeben.');
+      return;
+    }
+    const list = this.collections.homeDepots();
+    const existing = list.find((depot) => depot.id === id);
+    const updated: HomeDepot = {
+      id,
+      name,
+      description: this.cleanString(values['description']),
+      siteIds,
+      breakSiteIds: this.parseList(values['breakSiteIds']),
+      shortBreakSiteIds: this.parseList(values['shortBreakSiteIds']),
+      overnightSiteIds: this.parseList(values['overnightSiteIds']),
+      attributes: existing?.attributes,
+    };
+    const next = existing ? list.map((depot) => (depot.id === id ? updated : depot)) : [...list, updated];
+    this.collections.syncHomeDepots(next);
+    this.homeDepotError.set(null);
+  }
+
+  handleHomeDepotDelete(ids: string[]): void {
+    if (!ids.length) {
+      return;
+    }
+    const set = new Set(ids);
+    const remaining = this.collections.homeDepots().filter((depot) => !set.has(depot.id));
+    this.collections.syncHomeDepots(remaining);
+    this.detachHomeDepotReferences(ids);
   }
 
   handleServiceSave(event: EntitySaveEvent): void {
@@ -639,6 +827,36 @@ export class PersonnelMasterEditorComponent {
     });
     if (changed) {
       this.resources.syncPersonnel(next);
+    }
+  }
+
+  private detachHomeDepotReferences(homeDepotIds: string[]): void {
+    const idSet = new Set(homeDepotIds);
+    const servicePools = this.collections.personnelServicePools();
+    const personnelPools = this.collections.personnelPools();
+    let servicePoolsChanged = false;
+    let personnelPoolsChanged = false;
+
+    const nextServicePools = servicePools.map((pool) => {
+      if (pool.homeDepotId && idSet.has(pool.homeDepotId)) {
+        servicePoolsChanged = true;
+        return { ...pool, homeDepotId: undefined };
+      }
+      return pool;
+    });
+    const nextPersonnelPools = personnelPools.map((pool) => {
+      if (pool.homeDepotId && idSet.has(pool.homeDepotId)) {
+        personnelPoolsChanged = true;
+        return { ...pool, homeDepotId: undefined };
+      }
+      return pool;
+    });
+
+    if (servicePoolsChanged) {
+      this.collections.syncPersonnelServicePools(nextServicePools);
+    }
+    if (personnelPoolsChanged) {
+      this.collections.syncPersonnelPools(nextPersonnelPools);
     }
   }
 

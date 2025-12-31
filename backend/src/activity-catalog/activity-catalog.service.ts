@@ -39,11 +39,25 @@ export class ActivityCatalogService implements OnModuleInit {
 
     if (entries.length && this.defaultEntries.length) {
       const updated = this.mergeDefaultAttributes(entries, this.defaultEntries);
-      if (updated.toUpsert.length) {
-        await this.repo.upsertMany(updated.toUpsert);
-        this.logger.log(
-          `Updated ${updated.toUpsert.length} activity catalog entries with missing default attributes.`,
-        );
+      const existingIds = new Set(updated.entries.map((entry) => entry.id));
+      const missingDefaults = this.defaultEntries.filter((entry) => !existingIds.has(entry.id));
+      const toUpsert = [...updated.toUpsert, ...missingDefaults];
+      if (toUpsert.length) {
+        await this.repo.upsertMany(toUpsert);
+        const messages: string[] = [];
+        if (updated.toUpsert.length) {
+          messages.push(
+            `Updated ${updated.toUpsert.length} activity catalog entries with missing default attributes.`,
+          );
+        }
+        if (missingDefaults.length) {
+          messages.push(`Inserted ${missingDefaults.length} missing default activity catalog entries.`);
+        }
+        this.logger.log(messages.join(' '));
+      }
+      if (missingDefaults.length) {
+        entries = await this.repo.list();
+        return entries;
       }
       return updated.entries;
     }

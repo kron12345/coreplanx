@@ -36,6 +36,19 @@ export class ReplacementStopEditorComponent {
   private readonly store = inject(PlanningStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
 
+  readonly selectOptions = computed(() => {
+    const ops = this.store
+      .operationalPoints()
+      .map((op) => ({
+        value: op.uniqueOpId,
+        label: `${op.name ?? op.uniqueOpId} (${op.uniqueOpId})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      nearestUniqueOpId: [{ value: '', label: '— kein OP —' }, ...ops],
+    };
+  });
+
   readonly attributeDefinitions = computed(() =>
     this.customAttributes.list('topology-replacement-stops'),
   );

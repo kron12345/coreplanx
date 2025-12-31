@@ -29,6 +29,7 @@ export interface PersonnelServicePool {
   name: string;
   description?: string;
   serviceIds: string[];
+  homeDepotId?: string;
   shiftCoordinator?: string;
   contactEmail?: string;
   attributes?: Record<string, unknown>;
@@ -53,7 +54,31 @@ export interface PersonnelPool {
   name: string;
   description?: string;
   personnelIds: string[];
+  homeDepotId?: string;
   locationCode?: string;
+  attributes?: Record<string, unknown>;
+}
+
+export interface HomeDepot {
+  id: string;
+  name: string;
+  description?: string;
+  /**
+   * Zulässige Start-/Endstellen (PersonnelSite.siteId). Anfang = Ende wird in der Logik erzwungen.
+   */
+  siteIds: string[];
+  /**
+   * Zulässige Pausenräume (PersonnelSite.siteId) für reguläre Pausen.
+   */
+  breakSiteIds: string[];
+  /**
+   * Zulässige Pausenräume (PersonnelSite.siteId) für Kurzpausen / Arbeitsunterbrechungen.
+   */
+  shortBreakSiteIds: string[];
+  /**
+   * Zulässige Orte für auswärtige Übernachtungen (PersonnelSite.siteId).
+   */
+  overnightSiteIds: string[];
   attributes?: Record<string, unknown>;
 }
 

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { PlanningStoreService } from '../../shared/planning-store.service';
 import { PersonnelSite, PersonnelSiteType } from '../../shared/planning-types';
 import { CustomAttributeService } from '../../core/services/custom-attribute.service';
@@ -11,6 +12,7 @@ import {
   EntitySaveEvent,
 } from '../../shared/components/attribute-entity-editor/attribute-entity-editor.component';
 import { mergeAttributeEntry } from '../../shared/utils/topology-attribute.helpers';
+import { PersonnelSiteWalkTimeEditorComponent } from './personnel-site-walk-time-editor.component';
 
 const DEFAULT_FALLBACK = {
   name: '',
@@ -25,13 +27,29 @@ const SITE_TYPES: PersonnelSiteType[] = ['MELDESTELLE', 'PAUSENRAUM', 'BEREITSCH
 
 @Component({
     selector: 'app-personnel-site-editor',
-    imports: [CommonModule, AttributeEntityEditorComponent],
+    imports: [CommonModule, MatButtonToggleModule, AttributeEntityEditorComponent, PersonnelSiteWalkTimeEditorComponent],
     templateUrl: './personnel-site-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PersonnelSiteEditorComponent {
   private readonly store = inject(PlanningStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
+
+  readonly viewMode = signal<'sites' | 'walkTimes'>('sites');
+
+  readonly selectOptions = computed(() => {
+    const ops = this.store
+      .operationalPoints()
+      .map((op) => ({
+        value: op.uniqueOpId,
+        label: `${op.name ?? op.uniqueOpId} (${op.uniqueOpId})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      siteType: SITE_TYPES.map((type) => ({ value: type, label: type })),
+      uniqueOpId: [{ value: '', label: '— kein OP —' }, ...ops],
+    };
+  });
 
   readonly attributeDefinitions = computed(() =>
     this.customAttributes.list('topology-personnel-sites'),

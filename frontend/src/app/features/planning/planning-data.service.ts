@@ -467,19 +467,16 @@ export class PlanningDataService {
     const currentStageActivity = stageActivityId
       ? this.stageDataSignal().base.activities.find((entry) => entry.id === stageActivityId) ?? null
       : null;
+    const baseResources = this.stageDataSignal().base.resources;
+    const normalizedActivity = normalizeActivityParticipants([activity], baseResources)[0] ?? activity;
     const stageUpsert = stageActivityId
-      ? normalizeActivityParticipants(
-          [
-            {
-              ...activity,
-              id: stageActivityId,
-              rowVersion: currentStageActivity?.rowVersion ?? activity.rowVersion,
-            },
-          ],
-          this.stageDataSignal().base.resources,
-        )[0]
+      ? {
+          ...normalizedActivity,
+          id: stageActivityId,
+          rowVersion: currentStageActivity?.rowVersion ?? normalizedActivity.rowVersion ?? activity.rowVersion,
+        }
       : undefined;
-    const dto = this.activityToTimelineDto('base', { ...activity, id: baseId });
+    const dto = this.activityToTimelineDto('base', { ...normalizedActivity, id: baseId });
     const context = this.currentApiContext();
 
     this.timelineApi

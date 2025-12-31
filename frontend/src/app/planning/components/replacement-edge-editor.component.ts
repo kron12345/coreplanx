@@ -30,6 +30,28 @@ export class ReplacementEdgeEditorComponent {
   private readonly store = inject(PlanningStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
 
+  readonly selectOptions = computed(() => {
+    const routes = this.store
+      .replacementRoutes()
+      .map((route) => ({
+        value: route.replacementRouteId,
+        label: route.name ?? route.replacementRouteId,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const stops = this.store
+      .replacementStops()
+      .map((stop) => ({
+        value: stop.replacementStopId,
+        label: stop.name ?? stop.replacementStopId,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      replacementRouteId: routes,
+      fromStopId: stops,
+      toStopId: stops,
+    };
+  });
+
   readonly attributeDefinitions = computed(() =>
     this.customAttributes.list('topology-replacement-edges'),
   );

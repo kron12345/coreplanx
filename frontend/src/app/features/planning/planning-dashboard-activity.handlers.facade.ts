@@ -205,7 +205,13 @@ export class PlanningDashboardActivityHandlersFacade {
 
   private shouldPersistToTemplate(activityId: string): boolean {
     const id = (activityId ?? '').toString();
-    if (id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:')) {
+    if (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    ) {
       return false;
     }
     return true;
@@ -352,14 +358,11 @@ export class PlanningDashboardActivityHandlersFacade {
     const typeDefinition = typeId ? this.deps.findActivityType(typeId) : null;
     const requiresVehicleFromType = this.toBool((typeDefinition?.attributes as any)?.['requires_vehicle']);
     const requiresVehicleFromAttributes = this.toBool((activity.attributes as any)?.['requires_vehicle']);
-    const requiresVehicle = typeDefinition ? requiresVehicleFromType : requiresVehicleFromAttributes;
+    const requiresVehicle = requiresVehicleFromType || requiresVehicleFromAttributes;
     const participants = activity.participants ?? [];
     const hasVehicle = participants.some((p) => p.kind === 'vehicle-service' || p.kind === 'vehicle');
-    const hasPersonnel = participants.some((p) => p.kind === 'personnel-service' || p.kind === 'personnel');
-
     const realm = anchorResource.kind === 'personnel-service' || anchorResource.kind === 'vehicle-service' ? 'service' : 'resource';
     const desiredVehicleKind: Resource['kind'] = realm === 'service' ? 'vehicle-service' : 'vehicle';
-    const desiredPersonnelKind: Resource['kind'] = realm === 'service' ? 'personnel-service' : 'personnel';
 
     let updated = activity;
 
@@ -377,25 +380,15 @@ export class PlanningDashboardActivityHandlersFacade {
       updated = this.attachParticipant(stage, updated, selected, anchorResource);
     }
 
-    const nextParticipants = updated.participants ?? [];
-    const nextHasVehicle = nextParticipants.some((p) => p.kind === 'vehicle-service' || p.kind === 'vehicle');
-    const nextHasPersonnel = nextParticipants.some((p) => p.kind === 'personnel-service' || p.kind === 'personnel');
-
-    if (nextHasVehicle && !nextHasPersonnel) {
-      const selected = await this.promptForRequiredParticipant({
-        stage,
-        anchorResource,
-        activity: updated,
-        kind: desiredPersonnelKind,
-        label: realm === 'service' ? 'Personaldienst' : 'Personal',
-      });
-      if (!selected) {
-        return null;
-      }
-      updated = this.attachParticipant(stage, updated, selected, anchorResource);
-    }
-
     return updated;
+  }
+
+  async ensureRequiredParticipantsForActivity(
+    stage: PlanningStageId,
+    anchorResource: Resource,
+    activity: Activity,
+  ): Promise<Activity | null> {
+    return this.ensureRequiredParticipants(stage, anchorResource, activity);
   }
 
   private attachParticipant(stage: PlanningStageId, activity: Activity, participant: Resource, anchorResource: Resource): Activity {

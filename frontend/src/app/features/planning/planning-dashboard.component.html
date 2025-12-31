@@ -913,6 +913,13 @@
                       <div class="planning-status__conflict">
                         <span class="planning-status__conflict-kind">{{ entry.categoryLabel }}</span>
                         <span class="planning-status__conflict-text">{{ entry.label }}</span>
+                        @if (entry.details?.length) {
+                          <div class="planning-status__conflict-details">
+                            @for (detail of entry.details; track detail) {
+                              <div class="planning-status__conflict-detail">{{ detail }}</div>
+                            }
+                          </div>
+                        }
                       </div>
                     }
                   </div>

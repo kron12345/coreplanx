@@ -566,7 +566,6 @@ schemas:
       en:
         "activityType:service-start":
           label: "Service start"
-    - scope
   Personnel:
     type: object
     properties:
@@ -630,6 +629,10 @@ schemas:
         type: array
         items:
           $ref: '#/components/schemas/PersonnelPool'
+      homeDepots:
+        type: array
+        items:
+          $ref: '#/components/schemas/HomeDepot'
       vehicles:
         type: array
         items:
@@ -659,6 +662,7 @@ schemas:
     - personnelServices
     - personnelServicePools
     - personnelPools
+    - homeDepots
     - vehicles
     - vehicleServices
     - vehicleServicePools
@@ -1057,6 +1061,9 @@ schemas:
         type: array
         items:
           type: string
+      homeDepotId:
+        type: string
+        nullable: true
       shiftCoordinator:
         type: string
         nullable: true
@@ -1094,6 +1101,9 @@ schemas:
         type: array
         items:
           type: string
+      homeDepotId:
+        type: string
+        nullable: true
       locationCode:
         type: string
         nullable: true
@@ -1111,6 +1121,51 @@ schemas:
         type: array
         items:
           $ref: '#/components/schemas/PersonnelPool'
+    required:
+    - items
+  HomeDepot:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+        nullable: true
+      siteIds:
+        type: array
+        items:
+          type: string
+      breakSiteIds:
+        type: array
+        items:
+          type: string
+      shortBreakSiteIds:
+        type: array
+        items:
+          type: string
+      overnightSiteIds:
+        type: array
+        items:
+          type: string
+      attributes:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - name
+    - siteIds
+    - breakSiteIds
+    - shortBreakSiteIds
+    - overnightSiteIds
+  HomeDepotListRequest:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/components/schemas/HomeDepot'
     required:
     - items
   VehicleServicePool:

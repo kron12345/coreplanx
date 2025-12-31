@@ -140,6 +140,8 @@ export class PlanningStageService implements OnModuleInit {
     const appliedUpserts: string[] = [];
     const deletedIds: string[] = [];
     const changedUpsertIds = new Set<string>();
+    const requestedUpsertIds = new Set<string>(upserts.map((activity) => activity.id));
+    const requestedDeleteIds = new Set<string>();
 
     try {
       const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
@@ -179,6 +181,7 @@ export class PlanningStageService implements OnModuleInit {
         stage.activities = stage.activities.filter((activity) => {
           if (deleteIds.has(activity.id)) {
             deletedIds.push(activity.id);
+            requestedDeleteIds.add(activity.id);
             return false;
           }
           return true;
@@ -203,12 +206,18 @@ export class PlanningStageService implements OnModuleInit {
         });
       }
 
-      const changedActivities = changedUpsertIds.size
-        ? stage.activities.filter((activity) => changedUpsertIds.has(activity.id))
+      const changedActivities = requestedUpsertIds.size
+        ? stage.activities.filter((activity) => requestedUpsertIds.has(activity.id))
         : [];
-      await this.assertParticipantRequirements(stage.stageId, stage.variantId, changedActivities);
+      await this.assertParticipantRequirements(
+        stage.stageId,
+        stage.variantId,
+        changedActivities,
+        previousById,
+        stage.resources,
+      );
 
-      const boundaryScopeIds = new Set<string>([...changedUpsertIds, ...deletedIds]);
+      const boundaryScopeIds = new Set<string>([...requestedUpsertIds, ...requestedDeleteIds]);
       if (boundaryScopeIds.size > 0) {
         const nextById = new Map(stage.activities.map((activity) => [activity.id, activity]));
         const affectedBoundaryGroupKeys = this.collectVehicleServiceBoundaryGroupKeys(
@@ -343,11 +352,30 @@ export class PlanningStageService implements OnModuleInit {
     return keys;
   }
 
-  private async assertParticipantRequirements(stageId: StageId, variantId: string, activities: Activity[]): Promise<void> {
+  private async assertParticipantRequirements(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+    previousById?: Map<string, Activity>,
+    resources?: Resource[],
+  ): Promise<void> {
     if (!activities.length) {
       return;
     }
     const requirements = await this.loadActivityTypeRequirements();
+    const resourceKindMap = resources ? new Map(resources.map((resource) => [resource.id, resource.kind])) : undefined;
+    const resolveKind = (participant: Activity['participants'][number] | undefined | null): string | null => {
+      if (!participant) {
+        return null;
+      }
+      if (participant.kind) {
+        return participant.kind;
+      }
+      if (!participant.resourceId) {
+        return null;
+      }
+      return resourceKindMap?.get(participant.resourceId) ?? null;
+    };
 
     const violations: Array<{
       activityId: string;
@@ -361,19 +389,16 @@ export class PlanningStageService implements OnModuleInit {
       if (!id || this.isManagedServiceActivityId(id)) {
         continue;
       }
+      const previous = previousById?.get(id);
+      if (previous && !this.participantListsChanged(previous.participants, activity.participants, resourceKindMap)) {
+        continue;
+      }
       const typeId = (activity.type ?? '').toString().trim() || null;
       const participants = activity.participants ?? [];
-      const hasVehicle = participants.some((p) => p.kind === 'vehicle-service' || p.kind === 'vehicle');
-      const hasPersonnel = participants.some((p) => p.kind === 'personnel-service' || p.kind === 'personnel');
-
-      if (hasVehicle && !hasPersonnel) {
-        violations.push({
-          activityId: id,
-          type: typeId,
-          code: 'MISSING_PERSONNEL',
-          message: 'Fahrzeugleistungen benötigen mindestens einen Personaldienst.',
-        });
-      }
+      const hasVehicle = participants.some((participant) => {
+        const kind = resolveKind(participant);
+        return kind === 'vehicle-service' || kind === 'vehicle';
+      });
 
       const requiresVehicle = typeId ? requirements.get(typeId)?.requiresVehicle ?? false : false;
       if (requiresVehicle && !hasVehicle) {
@@ -400,8 +425,48 @@ export class PlanningStageService implements OnModuleInit {
     });
   }
 
+  private participantListsChanged(
+    previous: Activity['participants'] | null | undefined,
+    next: Activity['participants'] | null | undefined,
+    resourceKindMap?: Map<string, Resource['kind']>,
+  ): boolean {
+    const resolveKind = (participant: Activity['participants'][number] | undefined | null): string => {
+      if (!participant) {
+        return '';
+      }
+      if (participant.kind) {
+        return participant.kind;
+      }
+      if (!participant.resourceId) {
+        return '';
+      }
+      return resourceKindMap?.get(participant.resourceId) ?? '';
+    };
+    const normalize = (list: Activity['participants'] | null | undefined): string[] => {
+      if (!list || list.length === 0) {
+        return [];
+      }
+      return list
+        .filter((entry): entry is NonNullable<typeof entry> => !!entry && !!entry.resourceId)
+        .map((entry) => `${resolveKind(entry)}|${entry.resourceId ?? ''}|${entry.role ?? ''}`)
+        .sort((a, b) => a.localeCompare(b));
+    };
+    const a = normalize(previous);
+    const b = normalize(next);
+    if (a.length !== b.length) {
+      return true;
+    }
+    return a.some((entry, index) => entry !== b[index]);
+  }
+
   private isManagedServiceActivityId(id: string): boolean {
-    return id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:');
+    return (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    );
   }
 
   private async loadActivityTypeRequirements(): Promise<
@@ -1076,7 +1141,11 @@ export class PlanningStageService implements OnModuleInit {
     const expanded = new Map<string, Activity>();
     filtered.forEach((activity) => expanded.set(activity.id, activity));
     const isManagedServiceId = (id: string) =>
-      id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:');
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:');
     activities.forEach((activity) => {
       if (!isManagedServiceId(activity.id)) {
         return;

@@ -111,6 +111,15 @@
             </div>
           }
         </div>
+        @if (hasLocation) {
+          <div class="gantt-activity-popover__section">
+            <div class="gantt-activity-popover__section-title">Ort</div>
+            <div class="gantt-activity-popover__row">
+              <span class="gantt-activity-popover__label">Standort</span>
+              <span class="gantt-activity-popover__value">{{ locationDisplay }}</span>
+            </div>
+          </div>
+        }
         @if (hasRoute) {
           <div class="gantt-activity-popover__section">
             <div class="gantt-activity-popover__section-title">Route</div>

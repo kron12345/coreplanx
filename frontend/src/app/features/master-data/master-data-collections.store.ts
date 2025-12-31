@@ -1,5 +1,6 @@
 import { Injectable, computed, inject } from '@angular/core';
 import {
+  HomeDepot,
   PersonnelPool,
   PersonnelServicePool,
   VehicleComposition,
@@ -13,6 +14,7 @@ import { ResourceSnapshotDto } from '../../core/api/planning-resource-api.servic
 type CollectionKey =
   | 'personnelServicePools'
   | 'personnelPools'
+  | 'homeDepots'
   | 'vehicleServicePools'
   | 'vehiclePools'
   | 'vehicleTypes'
@@ -21,6 +23,7 @@ type CollectionKey =
 interface MasterDataCollectionsState {
   personnelServicePools: PersonnelServicePool[];
   personnelPools: PersonnelPool[];
+  homeDepots: HomeDepot[];
   vehicleServicePools: VehicleServicePool[];
   vehiclePools: VehiclePool[];
   vehicleTypes: VehicleType[];
@@ -30,6 +33,7 @@ interface MasterDataCollectionsState {
 const INITIAL_STATE: MasterDataCollectionsState = {
   personnelServicePools: [],
   personnelPools: [],
+  homeDepots: [],
   vehicleServicePools: [],
   vehiclePools: [],
   vehicleTypes: [],
@@ -43,6 +47,7 @@ export class MasterDataCollectionsStoreService {
 
   readonly personnelServicePools = computed(() => this.snapshot()?.personnelServicePools ?? INITIAL_STATE.personnelServicePools);
   readonly personnelPools = computed(() => this.snapshot()?.personnelPools ?? INITIAL_STATE.personnelPools);
+  readonly homeDepots = computed(() => this.snapshot()?.homeDepots ?? INITIAL_STATE.homeDepots);
   readonly vehicleServicePools = computed(() => this.snapshot()?.vehicleServicePools ?? INITIAL_STATE.vehicleServicePools);
   readonly vehiclePools = computed(() => this.snapshot()?.vehiclePools ?? INITIAL_STATE.vehiclePools);
   readonly vehicleTypes = computed(() => this.snapshot()?.vehicleTypes ?? INITIAL_STATE.vehicleTypes);
@@ -54,6 +59,10 @@ export class MasterDataCollectionsStoreService {
 
   syncPersonnelPools(entries: PersonnelPool[]): void {
     this.persist('personnelPools', entries);
+  }
+
+  syncHomeDepots(entries: HomeDepot[]): void {
+    this.persist('homeDepots', entries);
   }
 
   syncVehicleServicePools(entries: VehicleServicePool[]): void {

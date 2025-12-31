@@ -448,7 +448,10 @@ export class GanttRowBuilderFacade {
       if (set.has('CAPACITY_OVERLAP')) {
         classes.push('gantt-activity--conflict-capacity');
       }
-      if (set.has('LOCATION_SEQUENCE')) {
+      if (
+        set.has('LOCATION_SEQUENCE') ||
+        Array.from(set).some((code) => code.startsWith('HOME_DEPOT_') || code.startsWith('WALK_TIME_'))
+      ) {
         classes.push('gantt-activity--conflict-location');
       }
       if (
@@ -531,7 +534,13 @@ export class GanttRowBuilderFacade {
 
   private isManagedServiceActivity(activity: PreparedActivity): boolean {
     const id = (activity.id ?? '').toString();
-    if (id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:')) {
+    if (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    ) {
       return true;
     }
     const role = activity.serviceRole ?? null;

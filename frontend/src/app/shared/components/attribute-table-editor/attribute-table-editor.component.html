@@ -48,7 +48,24 @@
             </div>
           </td>
           <td>
-            @if (hasSelectOptions(row.key)) {
+            @if (hasMultiSelectOptions(row.key)) {
+              <mat-form-field appearance="outline" class="select-field">
+                <mat-select
+                  multiple
+                  [ngModel]="multiSelectModel(row.key, row.value)"
+                  (ngModelChange)="updateMultiSelectRow(row.key, $event)"
+                >
+                  <cdk-virtual-scroll-viewport itemSize="48" class="select-viewport">
+                    <mat-option
+                      *cdkVirtualFor="let option of multiSelectOptions[row.key]; trackBy: trackOption"
+                      [value]="option.value"
+                    >
+                      {{ option.label }}
+                    </mat-option>
+                  </cdk-virtual-scroll-viewport>
+                </mat-select>
+              </mat-form-field>
+            } @else if (hasSelectOptions(row.key)) {
               <mat-form-field appearance="outline" class="select-field">
                 <mat-select
                   [ngModel]="row.value"

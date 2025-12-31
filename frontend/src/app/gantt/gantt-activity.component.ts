@@ -127,10 +127,16 @@ export class GanttActivityComponent {
     if (this.activity.to) {
       lines.push(`Nach: ${this.activity.to}`);
     }
+    if (!this.hasRoute && this.hasLocation) {
+      lines.push(`Ort: ${this.locationDisplay}`);
+    }
     if (this.conflictEntries.length) {
       lines.push('Konflikte:');
       this.conflictEntries.forEach((entry) => {
         lines.push(`- ${entry.categoryLabel}: ${entry.label}`);
+        (entry.details ?? []).forEach((detail) => {
+          lines.push(`  - ${detail}`);
+        });
       });
     }
     return lines.join('\n');
@@ -203,6 +209,22 @@ export class GanttActivityComponent {
 
   get hasRoute(): boolean {
     return !!(this.activity?.from || this.activity?.to);
+  }
+
+  get hasLocation(): boolean {
+    return !!(this.activity?.locationId || this.activity?.locationLabel);
+  }
+
+  get locationDisplay(): string {
+    if (!this.activity) {
+      return '—';
+    }
+    const label = `${this.activity.locationLabel ?? ''}`.trim();
+    const id = `${this.activity.locationId ?? ''}`.trim();
+    if (label && id && label !== id) {
+      return `${label} (${id})`;
+    }
+    return label || id || '—';
   }
 
   get fromLabel(): string {

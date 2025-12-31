@@ -15,12 +15,15 @@ export interface DutyAutopilotConfig {
   serviceStartTypeId: string;
   serviceEndTypeId: string;
   breakTypeIds: string[];
+  shortBreakTypeId: string;
+  commuteTypeId: string;
   conflictAttributeKey: string;
   conflictCodesAttributeKey: string;
   maxConflictLevel: number;
   maxWorkMinutes: number;
   maxContinuousWorkMinutes: number;
   minBreakMinutes: number;
+  minShortBreakMinutes: number;
   maxDutySpanMinutes: number;
   enforceOneDutyPerDay: boolean;
   azg: {
@@ -167,6 +170,8 @@ export class PlanningRuleService {
     const breakTypeIds = Array.isArray(breakTypeIdsRaw)
       ? breakTypeIdsRaw.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
       : ['break'];
+    const shortBreakTypeId = String(params['shortBreakTypeId'] ?? 'short-break');
+    const commuteTypeId = String(params['commuteTypeId'] ?? 'commute');
     const conflictAttributeKey = String(params['conflictAttributeKey'] ?? 'service_conflict_level');
     const conflictCodesAttributeKey = String(
       params['conflictCodesAttributeKey'] ?? 'service_conflict_codes',
@@ -210,12 +215,15 @@ export class PlanningRuleService {
       serviceStartTypeId,
       serviceEndTypeId,
       breakTypeIds,
+      shortBreakTypeId,
+      commuteTypeId,
       conflictAttributeKey,
       conflictCodesAttributeKey,
       maxConflictLevel: Number.isFinite(maxConflictLevel) ? maxConflictLevel : 2,
       maxWorkMinutes: pickNumber('duty.max_work_minutes', 'maxMinutes', 600),
       maxContinuousWorkMinutes: pickNumber('duty.max_continuous_work_minutes', 'maxMinutes', 300),
       minBreakMinutes: pickNumber('duty.min_break_minutes', 'minMinutes', 30),
+      minShortBreakMinutes: pickNumber('duty.min_short_break_minutes', 'minMinutes', 15),
       maxDutySpanMinutes: pickNumber('duty.max_duty_span_minutes', 'maxMinutes', 720),
       enforceOneDutyPerDay,
       azg: {

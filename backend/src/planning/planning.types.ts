@@ -270,6 +270,7 @@ export interface PersonnelServicePool {
   name: string;
   description?: string | null;
   serviceIds: string[];
+  homeDepotId?: string | null;
   shiftCoordinator?: string | null;
   contactEmail?: string | null;
   attributes?: Record<string, unknown>;
@@ -283,12 +284,39 @@ export interface PersonnelPool {
   name: string;
   description?: string | null;
   personnelIds: string[];
+  homeDepotId?: string | null;
   locationCode?: string | null;
   attributes?: Record<string, unknown>;
 }
 
 export type PersonnelPoolListRequest = ListPayload<PersonnelPool>;
 export type PersonnelPoolListResponse = PersonnelPool[];
+
+export interface HomeDepot {
+  id: string;
+  name: string;
+  description?: string | null;
+  /**
+   * Zulässige Start-/Endstellen (PersonnelSite.siteId). Anfang = Ende wird in der Logik erzwungen.
+   */
+  siteIds: string[];
+  /**
+   * Zulässige Pausenräume (PersonnelSite.siteId) für reguläre Pausen.
+   */
+  breakSiteIds: string[];
+  /**
+   * Zulässige Pausenräume (PersonnelSite.siteId) für Kurzpausen / Arbeitsunterbrechungen.
+   */
+  shortBreakSiteIds: string[];
+  /**
+   * Zulässige Orte für auswärtige Übernachtungen (PersonnelSite.siteId).
+   */
+  overnightSiteIds: string[];
+  attributes?: Record<string, unknown>;
+}
+
+export type HomeDepotListRequest = ListPayload<HomeDepot>;
+export type HomeDepotListResponse = HomeDepot[];
 
 export interface VehicleServicePool {
   id: string;
@@ -726,6 +754,7 @@ export interface ResourceSnapshot {
   personnelServices: PersonnelService[];
   personnelServicePools: PersonnelServicePool[];
   personnelPools: PersonnelPool[];
+  homeDepots: HomeDepot[];
   vehicles: Vehicle[];
   vehicleServices: VehicleService[];
   vehicleServicePools: VehicleServicePool[];

@@ -14,6 +14,7 @@ import type {
   ReplacementEdge,
   ReplacementRoute,
   ReplacementStop,
+  HomeDepot,
   Resource,
   SectionOfLine,
   StageId,
@@ -47,6 +48,7 @@ export interface MasterDataSets {
   personnelServices: PersonnelService[];
   personnelServicePools: PersonnelServicePool[];
   personnelPools: PersonnelPool[];
+  homeDepots: HomeDepot[];
   vehicles: Vehicle[];
   vehicleServices: VehicleService[];
   vehicleServicePools: VehicleServicePool[];

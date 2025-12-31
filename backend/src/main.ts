@@ -11,7 +11,9 @@ import yaml from 'js-yaml';
 
 async function bootstrap() {
   const apiPrefix = 'api/v1';
-  const fastifyAdapter = new FastifyAdapter();
+  const fastifyAdapter = new FastifyAdapter({
+    bodyLimit: 50 * 1024 * 1024,
+  });
   await fastifyAdapter.register(fastifySse);
   const app = await NestFactory.create(AppModule, fastifyAdapter);
   fastifyAdapter.getInstance().addHook('onRequest', (request, _reply, done) => {

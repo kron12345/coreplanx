@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_CONFIG } from '../config/api-config';
 import {
+  HomeDepot,
   Personnel,
   PersonnelPool,
   PersonnelService,
@@ -20,6 +21,7 @@ export interface ResourceSnapshotDto {
   personnelServices: PersonnelService[];
   personnelServicePools: PersonnelServicePool[];
   personnelPools: PersonnelPool[];
+  homeDepots: HomeDepot[];
   vehicles: Vehicle[];
   vehicleServices: VehicleService[];
   vehicleServicePools: VehicleServicePool[];

@@ -1,5 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import type { Activity, ActivityAttributes, ActivityParticipant, StageId } from './planning.types';
+import type {
+  Activity,
+  ActivityAttributes,
+  ActivityParticipant,
+  HomeDepot,
+  OperationalPoint,
+  Personnel,
+  PersonnelPool,
+  PersonnelService,
+  PersonnelServicePool,
+  PersonnelSite,
+  StageId,
+  TransferEdge,
+  TransferNode,
+} from './planning.types';
+import { PlanningMasterDataService } from './planning-master-data.service';
 import { PlanningRuleService } from './planning-rule.service';
 import { deriveTimetableYearLabelFromVariantId } from '../shared/variant-scope';
 
@@ -16,10 +31,13 @@ type DutyActivityGroup = {
   activities: Activity[];
 };
 
+type ConflictDetails = Record<string, string[]>;
+
 type ServiceAssignment = {
   serviceId: string;
   conflictLevel: number;
   conflictCodes: string[];
+  conflictDetails?: ConflictDetails;
 };
 
 type AzgDutySnapshot = {
@@ -37,9 +55,45 @@ type AzgDutySnapshot = {
   hasNightWork: boolean;
 };
 
+type TransferNodeKey = `OP:${string}` | `PERSONNEL_SITE:${string}` | `REPLACEMENT_STOP:${string}`;
+
+type MasterDataContext = {
+  homeDepotsById: Map<string, HomeDepot>;
+  personnelById: Map<string, Personnel>;
+  personnelServicesById: Map<string, PersonnelService>;
+  personnelPoolsById: Map<string, PersonnelPool>;
+  personnelServicePoolsById: Map<string, PersonnelServicePool>;
+  personnelSitesById: Map<string, PersonnelSite>;
+  operationalPointsById: Map<string, OperationalPoint>;
+  walkTimeMs: Map<string, number>;
+};
+
+type HomeDepotSelection = {
+  depotId: string;
+  depot: HomeDepot;
+  selectedSite: PersonnelSite;
+  walkStartMs: number | null;
+  walkEndMs: number | null;
+};
+
+type PlannedPause = {
+  kind: 'break' | 'short-break';
+  site: PersonnelSite | null;
+  gapId: string;
+  fromLocation: string;
+  toLocation: string;
+  commuteInMs: number;
+  commuteOutMs: number;
+  breakStartMs: number;
+  breakEndMs: number;
+};
+
 @Injectable()
 export class DutyAutopilotService {
-  constructor(private readonly rules: PlanningRuleService) {}
+  constructor(
+    private readonly rules: PlanningRuleService,
+    private readonly masterData: PlanningMasterDataService,
+  ) {}
 
   async apply(stageId: StageId, variantId: string, activities: Activity[]): Promise<DutyAutopilotResult> {
     const config = await this.rules.getDutyAutopilotConfig(stageId, variantId);
@@ -49,6 +103,8 @@ export class DutyAutopilotService {
     if (!activities.length) {
       return { upserts: [], deletedIds: [], touchedIds: [] };
     }
+
+    const masterDataContext = this.buildMasterDataContext();
 
     const byId = new Map<string, Activity>(activities.map((a) => [a.id, a]));
 
@@ -76,7 +132,7 @@ export class DutyAutopilotService {
         ...group,
         activities: group.activities.map((activity) => byId.get(activity.id) ?? activity),
       };
-      const result = this.autoframeDuty(stageId, hydratedGroup, config);
+      const result = this.autoframeDuty(stageId, hydratedGroup, config, masterDataContext);
       result.upserts.forEach((activity) => {
         byId.set(activity.id, activity);
         upserts.set(activity.id, activity);
@@ -263,6 +319,7 @@ export class DutyAutopilotService {
     stageId: StageId,
     group: DutyActivityGroup,
     config: Awaited<ReturnType<PlanningRuleService['getDutyAutopilotConfig']>>,
+    context: MasterDataContext,
   ): { upserts: Activity[]; deletedIds: string[]; managedIds: string[] } {
     if (!config) {
       return { upserts: [], deletedIds: [], managedIds: [] };
@@ -272,10 +329,14 @@ export class DutyAutopilotService {
     const ownerId = owner.resourceId;
 
     const breakTypeIds = config.breakTypeIds;
+    const shortBreakTypeId = config.shortBreakTypeId || 'short-break';
+    const commuteTypeId = config.commuteTypeId || 'commute';
     const conflictKey = config.conflictAttributeKey;
     const conflictCodesKey = config.conflictCodesAttributeKey;
 
-    const isBreak = (a: Activity) => this.isBreakActivity(a, breakTypeIds);
+    const isShortBreak = (a: Activity) => this.isShortBreakActivity(a, shortBreakTypeId);
+    const isRegularBreak = (a: Activity) => this.isBreakActivity(a, breakTypeIds) && !isShortBreak(a);
+    const isAnyPause = (a: Activity) => isRegularBreak(a) || isShortBreak(a);
     const isBoundary = (a: Activity) => {
       const role = this.resolveServiceRole(a);
       return (
@@ -286,17 +347,20 @@ export class DutyAutopilotService {
       );
     };
 
-    const dutyActivities = group.activities.filter((a) => !isBreak(a));
-    const payloadActivities = dutyActivities.filter((a) => !isBoundary(a));
+    const dutyActivities = group.activities;
+    const basePayloadActivities = dutyActivities
+      .filter((a) => !isBoundary(a))
+      .filter((a) => !isAnyPause(a))
+      .filter((a) => !this.isManagedId(a.id));
 
-    if (!payloadActivities.length) {
+    if (!basePayloadActivities.length) {
       const deleted = group.activities
         .map((a) => a.id)
         .filter((id) => this.isManagedId(id) && this.belongsToService(id, serviceId));
       return { upserts: [], deletedIds: deleted, managedIds: [] };
     }
 
-    const payloadIntervals = this.sortedIntervals(payloadActivities);
+    const payloadIntervals = this.sortedIntervals(basePayloadActivities);
     const dutyStartMs = payloadIntervals.minStartMs;
     const dutyEndMs = payloadIntervals.maxEndMs;
 
@@ -328,12 +392,119 @@ export class DutyAutopilotService {
     const manualEndMs =
       existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey) ? this.parseMs(existingEnd.start) : null;
 
-    const boundaryStartMs = manualStartMs !== null && manualStartMs < dutyStartMs ? manualStartMs : dutyStartMs;
-    const boundaryEndMs = manualEndMs !== null && manualEndMs > dutyEndMs ? manualEndMs : dutyEndMs;
+    const homeDepotCodes: string[] = [];
+    const homeDepotDetails: ConflictDetails = {};
+    const homeDepotSelection = this.resolveHomeDepotSelection(owner, basePayloadActivities, context);
+    if (homeDepotSelection.conflictCodes.length) {
+      homeDepotCodes.push(...homeDepotSelection.conflictCodes);
+    }
+    this.mergeConflictDetails(homeDepotDetails, homeDepotSelection.conflictDetails);
+    if (homeDepotSelection.selection) {
+      const allowed = new Set(
+        (homeDepotSelection.selection.depot.overnightSiteIds ?? [])
+          .map((id) => `${id ?? ''}`.trim())
+          .filter((id) => id.length > 0),
+      );
+      if (allowed.size > 0) {
+        for (const activity of group.activities) {
+          if (!this.isOvernightActivity(activity)) {
+            continue;
+          }
+          const locationId = `${activity.locationId ?? ''}`.trim();
+          if (!locationId) {
+            homeDepotCodes.push('HOME_DEPOT_OVERNIGHT_LOCATION_MISSING');
+            this.appendConflictDetail(
+              homeDepotDetails,
+              'HOME_DEPOT_OVERNIGHT_LOCATION_MISSING',
+              `Aktivität: ${activity.id} (locationId fehlt)`,
+            );
+            continue;
+          }
+          if (!allowed.has(locationId)) {
+            homeDepotCodes.push('HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN');
+            this.appendConflictDetail(
+              homeDepotDetails,
+              'HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN',
+              `Aktivität: ${activity.id} (locationId=${locationId})`,
+            );
+          }
+        }
+      }
+    }
+
+    const generatedCommutes: Activity[] = [];
+    if (homeDepotSelection.selection) {
+      const selection = homeDepotSelection.selection;
+      const first = this.findFirstActivity(basePayloadActivities);
+      const last = this.findLastActivity(basePayloadActivities);
+      const firstStartMs = first ? this.parseMs(first.start) : null;
+      const lastEndMs = last ? this.parseMs(last.end ?? last.start) : null;
+      const startCandidate = first ? this.readStartLocation(first) : null;
+      const endCandidate = last ? this.readEndLocation(last) : null;
+      const startOpId = startCandidate ? this.resolveOperationalPointId(startCandidate, context) : null;
+      const endOpId = endCandidate ? this.resolveOperationalPointId(endCandidate, context) : null;
+
+      if (firstStartMs !== null && startOpId && selection.walkStartMs !== null) {
+        const startCommuteId = `svccommute:${serviceId}:start`;
+        managedIds.push(startCommuteId);
+        generatedCommutes.push(
+          this.buildCommuteActivity({
+            id: startCommuteId,
+            title: 'Wegezeit',
+            type: commuteTypeId,
+            startMs: firstStartMs - selection.walkStartMs,
+            endMs: firstStartMs,
+            from: selection.selectedSite.siteId,
+            to: startOpId,
+            owner,
+            serviceId,
+            conflictKey,
+            conflictCodesKey,
+            depotId: selection.depotId,
+            siteId: selection.selectedSite.siteId,
+            siteLabel: selection.selectedSite.name,
+          }),
+        );
+      }
+
+      if (lastEndMs !== null && endOpId && selection.walkEndMs !== null) {
+        const endCommuteId = `svccommute:${serviceId}:end`;
+        managedIds.push(endCommuteId);
+        generatedCommutes.push(
+          this.buildCommuteActivity({
+            id: endCommuteId,
+            title: 'Wegezeit',
+            type: commuteTypeId,
+            startMs: lastEndMs,
+            endMs: lastEndMs + selection.walkEndMs,
+            from: endOpId,
+            to: selection.selectedSite.siteId,
+            owner,
+            serviceId,
+            conflictKey,
+            conflictCodesKey,
+            depotId: selection.depotId,
+            siteId: selection.selectedSite.siteId,
+            siteLabel: selection.selectedSite.name,
+          }),
+        );
+      }
+    }
+
+    const effectiveDutyStartMs = generatedCommutes.length
+      ? Math.min(dutyStartMs, ...generatedCommutes.map((c) => this.parseMs(c.start) ?? dutyStartMs))
+      : dutyStartMs;
+    const effectiveDutyEndMs = generatedCommutes.length
+      ? Math.max(dutyEndMs, ...generatedCommutes.map((c) => this.parseMs(c.end ?? c.start) ?? dutyEndMs))
+      : dutyEndMs;
+
+    const boundaryStartMs =
+      manualStartMs !== null && manualStartMs < effectiveDutyStartMs ? manualStartMs : effectiveDutyStartMs;
+    const boundaryEndMs = manualEndMs !== null && manualEndMs > effectiveDutyEndMs ? manualEndMs : effectiveDutyEndMs;
     const framedStartMs = boundaryStartMs;
     const framedEndMs = boundaryEndMs;
 
-    const serviceStart: Activity = this.buildBoundaryActivity({
+    let serviceStart: Activity = this.buildBoundaryActivity({
       id: startId,
       title: existingStart?.title ?? 'Dienstanfang',
       type: config.serviceStartTypeId,
@@ -346,7 +517,7 @@ export class DutyAutopilotService {
       manualBoundaryKey,
       manual: Boolean(existingStart && this.isManualBoundary(existingStart, manualBoundaryKey)),
     });
-    const serviceEnd: Activity = this.buildBoundaryActivity({
+    let serviceEnd: Activity = this.buildBoundaryActivity({
       id: endId,
       title: existingEnd?.title ?? 'Dienstende',
       type: config.serviceEndTypeId,
@@ -360,89 +531,291 @@ export class DutyAutopilotService {
       manual: Boolean(existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey)),
     });
 
-    const workActivities = this.sortedIntervals([serviceStart, ...payloadActivities, serviceEnd]).intervals;
-    const gaps = this.computeGaps(workActivities).filter((gap) => gap.durationMs > 0);
+    if (homeDepotSelection.selection) {
+      const site = homeDepotSelection.selection.selectedSite;
+      serviceStart = { ...serviceStart, locationId: site.siteId, locationLabel: site.name };
+      serviceEnd = { ...serviceEnd, locationId: site.siteId, locationLabel: site.name };
+    }
+
+    const workEntries = this.buildWorkEntries([serviceStart, ...basePayloadActivities, ...generatedCommutes, serviceEnd]);
+    const gaps = this.computeGaps(workEntries.map((entry) => ({ startMs: entry.startMs, endMs: entry.endMs }))).filter(
+      (gap) => gap.durationMs > 0,
+    );
 
     const breakMinMs = config.minBreakMinutes * 60_000;
+    const shortBreakMinMs = Math.max(0, config.minShortBreakMinutes) * 60_000;
     const maxContinuousMs = config.maxContinuousWorkMinutes * 60_000;
     const maxWorkMs = config.maxWorkMinutes * 60_000;
+    const supportsBreaks = owner.kind === 'personnel' || owner.kind === 'personnel-service';
 
     const selectedGapIds = new Set<string>();
-    const selectedBreaks: Array<{ startMs: number; endMs: number }> = [];
+    const selectedPauses: PlannedPause[] = [];
     const blockedContinuous: boolean[] = [];
+    const gapLocations = new Map<string, { fromLocation: string | null; toLocation: string | null }>();
 
-    let segmentWorkMs = 0;
-    let cursorMs = workActivities[0]?.startMs ?? dutyStartMs;
+    if (supportsBreaks) {
+      let segmentWorkMs = 0;
+      let cursorMs = workEntries[0]?.startMs ?? dutyStartMs;
 
-    for (let i = 0; i < workActivities.length; i += 1) {
-      const current = workActivities[i];
-      segmentWorkMs += Math.max(0, current.endMs - cursorMs);
-      cursorMs = current.endMs;
+      for (let i = 0; i < workEntries.length; i += 1) {
+        const current = workEntries[i];
+        const segmentStart = Math.max(cursorMs, current.startMs);
+        segmentWorkMs += Math.max(0, current.endMs - segmentStart);
+        cursorMs = Math.max(cursorMs, current.endMs);
 
-      const next = workActivities[i + 1];
-      if (!next) {
-        break;
-      }
-      const gapStartMs = cursorMs;
-      const gapEndMs = next.startMs;
-      const gapDurationMs = Math.max(0, gapEndMs - gapStartMs);
-      const nextDurationMs = Math.max(0, next.endMs - next.startMs);
-
-      if (segmentWorkMs + gapDurationMs + nextDurationMs > maxContinuousMs) {
+        const next = workEntries[i + 1];
+        if (!next) {
+          break;
+        }
+        const gapStartMs = cursorMs;
+        const gapEndMs = next.startMs;
+        const gapDurationMs = Math.max(0, gapEndMs - gapStartMs);
+        const nextDurationMs = Math.max(0, next.endMs - next.startMs);
         const gapId = `${gapStartMs}-${gapEndMs}`;
-        if (gapDurationMs >= breakMinMs) {
-          selectedGapIds.add(gapId);
-          selectedBreaks.push({ startMs: gapStartMs, endMs: gapEndMs });
-          segmentWorkMs = 0;
-          cursorMs = gapEndMs;
-        } else {
-          blockedContinuous.push(true);
+        const fromLocation = this.readEndLocation(current.activity);
+        const toLocation = this.readStartLocation(next.activity);
+        gapLocations.set(gapId, { fromLocation, toLocation });
+
+        if (segmentWorkMs + gapDurationMs + nextDurationMs > maxContinuousMs) {
+          let planned: PlannedPause | null = null;
+          let pauseConflictCodes: string[] = [];
+
+          if (homeDepotSelection.selection) {
+            const breakAttempt = this.planPause({
+              kind: 'break',
+              depot: homeDepotSelection.selection.depot,
+              gapId,
+              gapStartMs,
+              gapEndMs,
+              fromLocation,
+              toLocation,
+              minBreakMs: breakMinMs,
+              minShortBreakMs: shortBreakMinMs,
+              context,
+            });
+            this.mergeConflictDetails(homeDepotDetails, breakAttempt.conflictDetails);
+            if (breakAttempt.pause) {
+              planned = breakAttempt.pause;
+              pauseConflictCodes = breakAttempt.conflictCodes;
+            } else {
+              const shortAttempt = this.planPause({
+                kind: 'short-break',
+                depot: homeDepotSelection.selection.depot,
+                gapId,
+                gapStartMs,
+                gapEndMs,
+                fromLocation,
+                toLocation,
+                minBreakMs: breakMinMs,
+                minShortBreakMs: shortBreakMinMs,
+                context,
+              });
+              this.mergeConflictDetails(homeDepotDetails, shortAttempt.conflictDetails);
+              planned = shortAttempt.pause;
+              pauseConflictCodes = shortAttempt.pause
+                ? shortAttempt.conflictCodes
+                : this.normalizeConflictCodes([...breakAttempt.conflictCodes, ...shortAttempt.conflictCodes]);
+            }
+          }
+
+          if (pauseConflictCodes.length) {
+            homeDepotCodes.push(...pauseConflictCodes);
+          }
+
+          if (planned) {
+            selectedGapIds.add(gapId);
+            selectedPauses.push(planned);
+            segmentWorkMs = 0;
+            cursorMs = planned.breakEndMs;
+          } else if (!homeDepotSelection.selection && gapDurationMs >= breakMinMs) {
+            selectedGapIds.add(gapId);
+            selectedPauses.push({
+              kind: 'break',
+              site: null,
+              gapId,
+              fromLocation: fromLocation ?? '',
+              toLocation: toLocation ?? '',
+              commuteInMs: 0,
+              commuteOutMs: 0,
+              breakStartMs: gapStartMs,
+              breakEndMs: gapEndMs,
+            });
+            segmentWorkMs = 0;
+            cursorMs = gapEndMs;
+          } else {
+            blockedContinuous.push(true);
+          }
         }
       }
     }
 
     const dutySpanMs = Math.max(0, framedEndMs - framedStartMs);
-    let breakMs = selectedBreaks.reduce((sum, entry) => sum + Math.max(0, entry.endMs - entry.startMs), 0);
-    let workMs = Math.max(0, dutySpanMs - breakMs);
+    let breakMs = 0;
+    let workMs = Math.max(0, dutySpanMs);
+    if (supportsBreaks) {
+      breakMs = selectedPauses
+        .filter((pause) => pause.kind === 'break')
+        .reduce((sum, entry) => sum + Math.max(0, entry.breakEndMs - entry.breakStartMs), 0);
+      workMs = Math.max(0, dutySpanMs - breakMs);
 
-    if (workMs > maxWorkMs) {
-      const additionalNeedMs = workMs - maxWorkMs;
-      let remainingMs = additionalNeedMs;
-      const candidates = gaps
-        .filter((gap) => gap.durationMs >= breakMinMs)
-        .filter((gap) => !selectedGapIds.has(gap.id))
-        .sort((a, b) => b.durationMs - a.durationMs);
+      if (workMs > maxWorkMs) {
+        const additionalNeedMs = workMs - maxWorkMs;
+        let remainingMs = additionalNeedMs;
+        const candidates = gaps
+          .filter((gap) => !selectedGapIds.has(gap.id))
+          .map((gap) => {
+            if (!homeDepotSelection.selection) {
+              return { gap, planned: null as PlannedPause | null, breakDurationMs: gap.durationMs };
+            }
+            const meta = gapLocations.get(gap.id) ?? { fromLocation: null, toLocation: null };
+            const attempt = this.planPause({
+              kind: 'break',
+              depot: homeDepotSelection.selection.depot,
+              gapId: gap.id,
+              gapStartMs: gap.startMs,
+              gapEndMs: gap.endMs,
+              fromLocation: meta.fromLocation,
+              toLocation: meta.toLocation,
+              minBreakMs: breakMinMs,
+              minShortBreakMs: shortBreakMinMs,
+              context,
+            });
+            this.mergeConflictDetails(homeDepotDetails, attempt.conflictDetails);
+            if (attempt.conflictCodes.length) {
+              homeDepotCodes.push(...attempt.conflictCodes);
+            }
+            const planned = attempt.pause;
+            const breakDurationMs = planned ? Math.max(0, planned.breakEndMs - planned.breakStartMs) : 0;
+            return { gap, planned, breakDurationMs };
+          })
+          .filter((entry) => entry.breakDurationMs >= breakMinMs)
+          .sort((a, b) => b.breakDurationMs - a.breakDurationMs);
 
-      for (const gap of candidates) {
-        if (remainingMs <= 0) {
-          break;
+        for (const entry of candidates) {
+          if (remainingMs <= 0) {
+            break;
+          }
+          selectedGapIds.add(entry.gap.id);
+          if (entry.planned) {
+            selectedPauses.push(entry.planned);
+            breakMs += entry.breakDurationMs;
+          } else {
+            selectedPauses.push({
+              kind: 'break',
+              site: null,
+              gapId: entry.gap.id,
+              fromLocation: '',
+              toLocation: '',
+              commuteInMs: 0,
+              commuteOutMs: 0,
+              breakStartMs: entry.gap.startMs,
+              breakEndMs: entry.gap.endMs,
+            });
+            breakMs += entry.gap.durationMs;
+          }
+          workMs = Math.max(0, dutySpanMs - breakMs);
+          remainingMs = Math.max(0, workMs - maxWorkMs);
         }
-        selectedGapIds.add(gap.id);
-        selectedBreaks.push({ startMs: gap.startMs, endMs: gap.endMs });
-        breakMs += gap.durationMs;
-        workMs = Math.max(0, dutySpanMs - breakMs);
-        remainingMs = Math.max(0, workMs - maxWorkMs);
       }
     }
 
-    const breaksSorted = selectedBreaks.sort((a, b) => a.startMs - b.startMs);
-    const maxContinuousObservedMs = this.computeMaxContinuousMs(framedStartMs, framedEndMs, breaksSorted);
+    const pausesSorted = selectedPauses.sort((a, b) => a.breakStartMs - b.breakStartMs);
+    const breakIntervals = pausesSorted.map((pause) => ({ startMs: pause.breakStartMs, endMs: pause.breakEndMs }));
+    const maxContinuousObservedMs = supportsBreaks
+      ? this.computeMaxContinuousMs(framedStartMs, framedEndMs, breakIntervals)
+      : 0;
 
     const worktimeConflictCodes: string[] = [];
-    if (dutySpanMs > config.maxDutySpanMinutes * 60_000) {
-      worktimeConflictCodes.push('MAX_DUTY_SPAN');
-    }
-    if (workMs > maxWorkMs) {
-      worktimeConflictCodes.push('MAX_WORK');
-    }
-    if (maxContinuousObservedMs > maxContinuousMs || blockedContinuous.length) {
-      worktimeConflictCodes.push('MAX_CONTINUOUS');
-    }
-    if (blockedContinuous.length) {
-      worktimeConflictCodes.push('NO_BREAK_WINDOW');
+    if (supportsBreaks) {
+      worktimeConflictCodes.push(...homeDepotCodes);
+      if (dutySpanMs > config.maxDutySpanMinutes * 60_000) {
+        worktimeConflictCodes.push('MAX_DUTY_SPAN');
+      }
+      if (workMs > maxWorkMs) {
+        worktimeConflictCodes.push('MAX_WORK');
+      }
+      if (maxContinuousObservedMs > maxContinuousMs || blockedContinuous.length) {
+        worktimeConflictCodes.push('MAX_CONTINUOUS');
+      }
+      if (blockedContinuous.length) {
+        worktimeConflictCodes.push('NO_BREAK_WINDOW');
+      }
     }
 
-    const localConflictCodes = this.detectLocalConflicts(payloadActivities);
+    const pauseCommutes: Activity[] = [];
+    const pauseActivities: Activity[] = [];
+    pausesSorted.forEach((pause, index) => {
+      const ordinal = index + 1;
+      const gapStartMs = pause.breakStartMs - pause.commuteInMs;
+      const gapEndMs = pause.breakEndMs + pause.commuteOutMs;
+      if (pause.site) {
+        const commuteInId = `svccommute:${serviceId}:pause-in-${ordinal}`;
+        const commuteOutId = `svccommute:${serviceId}:pause-out-${ordinal}`;
+        managedIds.push(commuteInId, commuteOutId);
+        pauseCommutes.push(
+          this.buildCommuteActivity({
+            id: commuteInId,
+            title: 'Wegezeit',
+            type: commuteTypeId,
+            startMs: gapStartMs,
+            endMs: pause.breakStartMs,
+            from: pause.fromLocation,
+            to: pause.site.siteId,
+            owner,
+            serviceId,
+            conflictKey,
+            conflictCodesKey,
+            depotId: homeDepotSelection.selection?.depotId,
+            siteId: pause.site.siteId,
+            siteLabel: pause.site.name,
+          }),
+        );
+        pauseCommutes.push(
+          this.buildCommuteActivity({
+            id: commuteOutId,
+            title: 'Wegezeit',
+            type: commuteTypeId,
+            startMs: pause.breakEndMs,
+            endMs: gapEndMs,
+            from: pause.site.siteId,
+            to: pause.toLocation,
+            owner,
+            serviceId,
+            conflictKey,
+            conflictCodesKey,
+            depotId: homeDepotSelection.selection?.depotId,
+            siteId: pause.site.siteId,
+            siteLabel: pause.site.name,
+          }),
+        );
+      }
+
+      const breakId =
+        pause.kind === 'short-break'
+          ? `svcshortbreak:${serviceId}:${ordinal}`
+          : `svcbreak:${serviceId}:${ordinal}`;
+      managedIds.push(breakId);
+      const type = pause.kind === 'short-break' ? shortBreakTypeId : (breakTypeIds[0] ?? 'break');
+      const title = pause.kind === 'short-break' ? 'Kurzpause' : 'Pause';
+      const breakActivity = this.buildBreakActivity({
+        id: breakId,
+        title,
+        type,
+        startMs: pause.breakStartMs,
+        endMs: pause.breakEndMs,
+        owner,
+        serviceId,
+        conflictKey,
+        conflictCodesKey,
+        isShortBreak: pause.kind === 'short-break',
+        locationId: pause.site?.siteId,
+        locationLabel: pause.site?.name,
+        depotId: homeDepotSelection.selection?.depotId,
+      });
+      pauseActivities.push(breakActivity);
+    });
+
+    const localConflictCodes = this.detectLocalConflicts([...basePayloadActivities, ...generatedCommutes, ...pauseCommutes]);
     const localUnion = Array.from(
       new Set(
         Array.from(localConflictCodes.values()).flatMap((codes) => Array.from(codes)),
@@ -454,33 +827,25 @@ export class DutyAutopilotService {
         .filter((code) => code.startsWith('AZG_')),
     );
     const markerCodes = this.normalizeConflictCodes([...worktimeConflictCodes, ...localUnion, ...existingAzgCodes]);
+    const normalizedWorktimeDetails = this.normalizeConflictDetails(homeDepotDetails);
+    const markerDetails = this.detailsForCodes(normalizedWorktimeDetails, markerCodes);
     const markerConflictLevel = this.conflictLevelForCodes(markerCodes, config.maxConflictLevel);
 
-    const updatedPayload = payloadActivities.map((activity) => {
+    const updatedPayload = basePayloadActivities.map((activity) => {
       const codes = this.normalizeConflictCodes([
         ...worktimeConflictCodes,
         ...(localConflictCodes.get(activity.id) ? Array.from(localConflictCodes.get(activity.id)!) : []),
         ...existingAzgCodes,
       ]);
+      const details = this.detailsForCodes(normalizedWorktimeDetails, codes);
       const level = this.conflictLevelForCodes(codes, config.maxConflictLevel);
-      return this.applyDutyAssignment(activity, ownerId, { serviceId, conflictLevel: level, conflictCodes: codes }, conflictKey, conflictCodesKey);
-    });
-
-    const breakTypeId = breakTypeIds[0] ?? 'break';
-    const generatedBreaks: Activity[] = breaksSorted.map((entry, index) => {
-      const id = `svcbreak:${serviceId}:${index + 1}`;
-      managedIds.push(id);
-      return this.buildBreakActivity({
-        id,
-        title: 'Pause',
-        type: breakTypeId,
-        startMs: entry.startMs,
-        endMs: entry.endMs,
-        owner,
-        serviceId,
+      return this.applyDutyAssignment(
+        activity,
+        ownerId,
+        { serviceId, conflictLevel: level, conflictCodes: codes, conflictDetails: details },
         conflictKey,
         conflictCodesKey,
-      });
+      );
     });
 
     const updatedBoundaries = [
@@ -491,6 +856,7 @@ export class DutyAutopilotService {
         markerCodes,
         conflictKey,
         conflictCodesKey,
+        markerDetails,
       ),
       this.applyDutyMeta(
         serviceEnd,
@@ -499,10 +865,11 @@ export class DutyAutopilotService {
         markerCodes,
         conflictKey,
         conflictCodesKey,
+        markerDetails,
       ),
     ];
 
-    const updatedBreaks = generatedBreaks.map((b) =>
+    const updatedManaged = [...generatedCommutes, ...pauseCommutes, ...pauseActivities].map((b) =>
       this.applyDutyMeta(
         b,
         serviceId,
@@ -510,10 +877,11 @@ export class DutyAutopilotService {
         markerCodes,
         conflictKey,
         conflictCodesKey,
+        markerDetails,
       ),
     );
 
-    const upserts = [...updatedPayload, ...updatedBoundaries, ...updatedBreaks];
+    const upserts = [...updatedPayload, ...updatedBoundaries, ...updatedManaged];
 
     const desiredManaged = new Set(managedIds);
     const deletedIds = Array.from(
@@ -569,7 +937,18 @@ export class DutyAutopilotService {
     serviceId: string;
     conflictKey: string;
     conflictCodesKey: string;
+    isShortBreak?: boolean;
+    locationId?: string | null;
+    locationLabel?: string | null;
+    depotId?: string | null;
   }): Activity {
+    const attrs: ActivityAttributes = {
+      ...(options.conflictKey ? { [options.conflictKey]: 0 } : {}),
+      ...(options.conflictCodesKey ? { [options.conflictCodesKey]: [] } : {}),
+      is_break: true,
+      ...(options.isShortBreak ? { is_short_break: true } : {}),
+      ...(options.depotId ? { home_depot_id: options.depotId } : {}),
+    };
     return {
       id: options.id,
       title: options.title,
@@ -577,12 +956,10 @@ export class DutyAutopilotService {
       end: new Date(options.endMs).toISOString(),
       type: options.type,
       serviceId: options.serviceId,
+      locationId: options.locationId ?? null,
+      locationLabel: options.locationLabel ?? null,
       participants: [this.buildOwnerParticipant(options.owner)],
-      attributes: {
-        ...(options.conflictKey ? { [options.conflictKey]: 0 } : {}),
-        ...(options.conflictCodesKey ? { [options.conflictCodesKey]: [] } : {}),
-        is_break: true,
-      },
+      attributes: attrs,
     };
   }
 
@@ -593,18 +970,30 @@ export class DutyAutopilotService {
     conflictCodes: string[],
     conflictKey: string,
     conflictCodesKey: string,
+    conflictDetails?: ConflictDetails,
   ): Activity {
     const attrs: ActivityAttributes = { ...(activity.attributes ?? {}) };
+    const detailsKey = this.conflictDetailsKey();
     const normalizedCodes = this.normalizeConflictCodes(conflictCodes);
+    const normalizedDetails = conflictDetails === undefined ? null : this.normalizeConflictDetails(conflictDetails);
     const levelUnchanged = attrs[conflictKey] === conflictLevel;
     const codesUnchanged = this.sameStringArray(attrs[conflictCodesKey], normalizedCodes);
     const serviceUnchanged = (activity.serviceId ?? null) === serviceId;
-    if (levelUnchanged && codesUnchanged && serviceUnchanged) {
+    const detailsUnchanged =
+      normalizedDetails === null ? true : this.sameConflictDetails(attrs[detailsKey], normalizedDetails);
+    if (levelUnchanged && codesUnchanged && serviceUnchanged && detailsUnchanged) {
       return activity;
     }
 
     attrs[conflictKey] = conflictLevel;
     attrs[conflictCodesKey] = normalizedCodes;
+    if (normalizedDetails !== null) {
+      if (Object.keys(normalizedDetails).length) {
+        attrs[detailsKey] = normalizedDetails;
+      } else {
+        delete (attrs as any)[detailsKey];
+      }
+    }
     return { ...activity, serviceId, attributes: attrs };
   }
 
@@ -617,19 +1006,26 @@ export class DutyAutopilotService {
   ): Activity {
     const attrs: ActivityAttributes = { ...(activity.attributes ?? {}) };
     const serviceByOwnerKey = this.serviceByOwnerKey();
+    const detailsKey = this.conflictDetailsKey();
     const existing = attrs[serviceByOwnerKey];
     const map = this.cloneOwnerAssignmentMap(existing);
     const normalizedCodes = this.normalizeConflictCodes(assignment.conflictCodes);
+    const normalizedDetails =
+      assignment.conflictDetails === undefined ? null : this.normalizeConflictDetails(assignment.conflictDetails);
     const currentEntry = map[ownerId];
+    const retainedDetails =
+      normalizedDetails === null ? this.normalizeConflictDetails(currentEntry?.conflictDetails ?? {}) : normalizedDetails;
     const entryUnchanged =
       (currentEntry?.serviceId ?? null) === assignment.serviceId &&
       (currentEntry?.conflictLevel ?? 0) === assignment.conflictLevel &&
-      this.sameStringArray(currentEntry?.conflictCodes ?? [], normalizedCodes);
+      this.sameStringArray(currentEntry?.conflictCodes ?? [], normalizedCodes) &&
+      this.sameConflictDetails(currentEntry?.conflictDetails, retainedDetails);
 
     map[ownerId] = {
       serviceId: assignment.serviceId,
       conflictLevel: assignment.conflictLevel,
       conflictCodes: normalizedCodes,
+      ...(Object.keys(retainedDetails).length ? { conflictDetails: retainedDetails } : {}),
     };
 
     attrs[serviceByOwnerKey] = map;
@@ -640,14 +1036,25 @@ export class DutyAutopilotService {
     const unionCodes = this.normalizeConflictCodes(
       entries.flatMap((entry) => (Array.isArray(entry?.conflictCodes) ? entry.conflictCodes : [])),
     );
+    const unionDetails: ConflictDetails = {};
+    entries.forEach((entry) => {
+      this.mergeConflictDetails(unionDetails, entry?.conflictDetails ?? undefined);
+    });
+    const normalizedUnionDetails = this.normalizeConflictDetails(unionDetails);
     attrs[conflictKey] = maxLevel;
     attrs[conflictCodesKey] = unionCodes;
+    if (Object.keys(normalizedUnionDetails).length) {
+      attrs[detailsKey] = normalizedUnionDetails;
+    } else {
+      delete (attrs as any)[detailsKey];
+    }
 
     const serviceUnchanged = activity.serviceId === null;
     const globalLevelUnchanged = (activity.attributes as any)?.[conflictKey] === maxLevel;
     const globalCodesUnchanged = this.sameStringArray((activity.attributes as any)?.[conflictCodesKey], unionCodes);
+    const globalDetailsUnchanged = this.sameConflictDetails((activity.attributes as any)?.[detailsKey], normalizedUnionDetails);
 
-    if (entryUnchanged && serviceUnchanged && globalLevelUnchanged && globalCodesUnchanged) {
+    if (entryUnchanged && serviceUnchanged && globalLevelUnchanged && globalCodesUnchanged && globalDetailsUnchanged) {
       return activity;
     }
 
@@ -659,6 +1066,114 @@ export class DutyAutopilotService {
       .map((entry) => `${entry ?? ''}`.trim())
       .filter((entry) => entry.length > 0);
     return Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b));
+  }
+
+  private conflictDetailsKey(): string {
+    return 'service_conflict_details';
+  }
+
+  private appendConflictDetail(details: ConflictDetails, code: string, message: string): void {
+    const key = `${code ?? ''}`.trim();
+    const trimmed = `${message ?? ''}`.trim();
+    if (!key || !trimmed) {
+      return;
+    }
+    const list = details[key] ?? [];
+    list.push(trimmed);
+    details[key] = list;
+  }
+
+  private mergeConflictDetails(target: ConflictDetails, source: unknown): void {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+      return;
+    }
+    Object.entries(source as Record<string, unknown>).forEach(([code, value]) => {
+      if (!Array.isArray(value)) {
+        return;
+      }
+      value.forEach((entry) => this.appendConflictDetail(target, code, `${entry ?? ''}`));
+    });
+  }
+
+  private normalizeConflictDetails(details: unknown): ConflictDetails {
+    const result: ConflictDetails = {};
+    if (!details || typeof details !== 'object' || Array.isArray(details)) {
+      return result;
+    }
+    Object.entries(details as Record<string, unknown>).forEach(([code, value]) => {
+      if (!Array.isArray(value)) {
+        return;
+      }
+      const normalizedCode = `${code ?? ''}`.trim();
+      if (!normalizedCode) {
+        return;
+      }
+      const entries = value
+        .map((entry) => `${entry ?? ''}`.trim())
+        .filter((entry) => entry.length > 0);
+      if (!entries.length) {
+        return;
+      }
+      const unique = Array.from(new Set(entries)).sort((a, b) => a.localeCompare(b));
+      result[normalizedCode] = unique;
+    });
+    return result;
+  }
+
+  private sameConflictDetails(current: unknown, expected: ConflictDetails): boolean {
+    const expectedKeys = Object.keys(expected).sort((a, b) => a.localeCompare(b));
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return expectedKeys.length === 0;
+    }
+    const obj = current as Record<string, unknown>;
+    const currentKeys = Object.keys(obj)
+      .map((key) => `${key ?? ''}`.trim())
+      .filter((key) => key.length > 0)
+      .sort((a, b) => a.localeCompare(b));
+    if (currentKeys.length !== expectedKeys.length) {
+      return false;
+    }
+    for (let i = 0; i < currentKeys.length; i += 1) {
+      if (currentKeys[i] !== expectedKeys[i]) {
+        return false;
+      }
+    }
+    for (const key of expectedKeys) {
+      const expectedValues = expected[key] ?? [];
+      const raw = obj[key];
+      if (!Array.isArray(raw)) {
+        return false;
+      }
+      if (raw.length !== expectedValues.length) {
+        return false;
+      }
+      for (let i = 0; i < raw.length; i += 1) {
+        if (`${raw[i] ?? ''}` !== expectedValues[i]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private detailsForCodes(details: ConflictDetails, codes: string[]): ConflictDetails {
+    const set = new Set(codes.map((code) => `${code ?? ''}`.trim()).filter(Boolean));
+    const filtered: ConflictDetails = {};
+    Object.entries(details).forEach(([code, entries]) => {
+      if (!set.has(code)) {
+        return;
+      }
+      entries.forEach((entry) => this.appendConflictDetail(filtered, code, entry));
+    });
+    return this.normalizeConflictDetails(filtered);
+  }
+
+  private formatWalkLink(site: PersonnelSite, uniqueOpId: string, context: MasterDataContext): string {
+    const normalizedOpId = `${uniqueOpId ?? ''}`.trim().toUpperCase();
+    const op = normalizedOpId ? context.operationalPointsById.get(normalizedOpId) ?? null : null;
+    const opLabel = op?.name ? `${op.name} (${normalizedOpId})` : normalizedOpId || '—';
+    const siteLabel = `${site.name ?? site.siteId}`.trim() || site.siteId;
+    return `Wegzeit fehlt: ${siteLabel} (${site.siteId}) ↔ ${opLabel}`;
   }
 
   private sameStringArray(value: unknown, expected: string[]): boolean {
@@ -754,6 +1269,20 @@ export class DutyAutopilotService {
       'MAX_CONTINUOUS',
       'NO_BREAK_WINDOW',
       'CAPACITY_OVERLAP',
+      'HOME_DEPOT_NOT_FOUND',
+      'HOME_DEPOT_NO_SITES',
+      'HOME_DEPOT_SITE_NOT_FOUND',
+      'HOME_DEPOT_START_LOCATION_MISSING',
+      'HOME_DEPOT_END_LOCATION_MISSING',
+      'HOME_DEPOT_PAUSE_LOCATION_MISSING',
+      'HOME_DEPOT_OVERNIGHT_LOCATION_MISSING',
+      'HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN',
+      'HOME_DEPOT_NO_BREAK_SITES',
+      'HOME_DEPOT_NO_SHORT_BREAK_SITES',
+      'WALK_TIME_MISSING_START',
+      'WALK_TIME_MISSING_END',
+      'WALK_TIME_MISSING_BREAK',
+      'WALK_TIME_MISSING_SHORT_BREAK',
       'AZG_REST_MIN',
       'AZG_BREAK_MAX_COUNT',
       'AZG_BREAK_TOO_SHORT',
@@ -877,6 +1406,24 @@ export class DutyAutopilotService {
       return null;
     }
     return normalized.toUpperCase();
+  }
+
+  private resolveOperationalPointId(value: string | null | undefined, context: MasterDataContext): string | null {
+    const normalized = this.normalizeLocation(value);
+    if (!normalized) {
+      return null;
+    }
+    if (context.operationalPointsById.has(normalized)) {
+      return normalized;
+    }
+    const matches = Array.from(context.operationalPointsById.entries()).filter(([, op]) => {
+      const opName = typeof op?.name === 'string' ? op.name : '';
+      return this.normalizeLocation(opName) === normalized;
+    });
+    if (matches.length === 1) {
+      return matches[0][0];
+    }
+    return null;
   }
 
   private resolveDutyOwner(activity: Activity): ActivityParticipant | null {
@@ -1032,14 +1579,22 @@ export class DutyAutopilotService {
   }
 
   private isManagedId(id: string): boolean {
-    return id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:');
+    return (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    );
   }
 
   private belongsToService(id: string, serviceId: string): boolean {
     return (
       id === `svcstart:${serviceId}` ||
       id === `svcend:${serviceId}` ||
-      id.startsWith(`svcbreak:${serviceId}:`)
+      id.startsWith(`svcbreak:${serviceId}:`) ||
+      id.startsWith(`svcshortbreak:${serviceId}:`) ||
+      id.startsWith(`svccommute:${serviceId}:`)
     );
   }
 
@@ -1052,6 +1607,20 @@ export class DutyAutopilotService {
     }
     if (id.startsWith('svcbreak:')) {
       const rest = id.slice('svcbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed ? trimmed : null;
+    }
+    if (id.startsWith('svcshortbreak:')) {
+      const rest = id.slice('svcshortbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed ? trimmed : null;
+    }
+    if (id.startsWith('svccommute:')) {
+      const rest = id.slice('svccommute:'.length);
       const idx = rest.lastIndexOf(':');
       const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
       const trimmed = serviceId.trim();
@@ -1087,6 +1656,518 @@ export class DutyAutopilotService {
     return {};
   }
 
+  private buildMasterDataContext(): MasterDataContext {
+    const snapshot = this.masterData.getResourceSnapshot();
+
+    const homeDepotsById = new Map<string, HomeDepot>(
+      (snapshot.homeDepots ?? []).map((depot) => [depot.id, depot]),
+    );
+    const personnelById = new Map<string, Personnel>((snapshot.personnel ?? []).map((p) => [p.id, p]));
+    const personnelServicesById = new Map<string, PersonnelService>(
+      (snapshot.personnelServices ?? []).map((svc) => [svc.id, svc]),
+    );
+    const personnelPoolsById = new Map<string, PersonnelPool>(
+      (snapshot.personnelPools ?? []).map((pool) => [pool.id, pool]),
+    );
+    const personnelServicePoolsById = new Map<string, PersonnelServicePool>(
+      (snapshot.personnelServicePools ?? []).map((pool) => [pool.id, pool]),
+    );
+
+    const personnelSites = this.masterData.listPersonnelSites();
+    const personnelSitesById = new Map<string, PersonnelSite>(personnelSites.map((site) => [site.siteId, site]));
+
+    const operationalPoints = this.masterData.listOperationalPoints();
+    const operationalPointsById = new Map<string, OperationalPoint>(
+      operationalPoints.map((point) => [`${point.uniqueOpId ?? ''}`.trim().toUpperCase(), point]),
+    );
+
+    const transferEdges = this.masterData.listTransferEdges();
+    const walkTimeMs = new Map<string, number>();
+
+    for (const edge of transferEdges) {
+      if (edge.mode !== 'WALK') {
+        continue;
+      }
+      const durationSec = edge.avgDurationSec ?? null;
+      if (durationSec === null || !Number.isFinite(durationSec) || durationSec <= 0) {
+        continue;
+      }
+      const fromKey = this.transferNodeKey(edge.from);
+      const toKey = this.transferNodeKey(edge.to);
+      if (!fromKey || !toKey) {
+        continue;
+      }
+
+      const ms = Math.round(durationSec * 1000);
+      walkTimeMs.set(`${fromKey}|${toKey}`, ms);
+      if (edge.bidirectional) {
+        walkTimeMs.set(`${toKey}|${fromKey}`, ms);
+      }
+    }
+
+    return {
+      homeDepotsById,
+      personnelById,
+      personnelServicesById,
+      personnelPoolsById,
+      personnelServicePoolsById,
+      personnelSitesById,
+      operationalPointsById,
+      walkTimeMs,
+    };
+  }
+
+  private resolveHomeDepotSelection(
+    owner: ActivityParticipant,
+    payloadActivities: Activity[],
+    context: MasterDataContext,
+  ): { selection: HomeDepotSelection | null; conflictCodes: string[]; conflictDetails: ConflictDetails } {
+    const conflictCodes: string[] = [];
+    const conflictDetails: ConflictDetails = {};
+    const ownerId = owner.resourceId;
+
+    if (owner.kind !== 'personnel' && owner.kind !== 'personnel-service') {
+      return { selection: null, conflictCodes, conflictDetails };
+    }
+
+    let homeDepotId: string | null = null;
+    if (owner.kind === 'personnel-service') {
+      const service = context.personnelServicesById.get(ownerId);
+      const poolId = service?.poolId ?? null;
+      const pool = poolId ? context.personnelServicePoolsById.get(poolId) : null;
+      homeDepotId = typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
+    } else {
+      const personnel = context.personnelById.get(ownerId);
+      const poolId = personnel?.poolId ?? null;
+      const pool = poolId ? context.personnelPoolsById.get(poolId) : null;
+      homeDepotId = typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
+    }
+
+    const trimmedDepotId = (homeDepotId ?? '').trim();
+    if (!trimmedDepotId) {
+      return { selection: null, conflictCodes, conflictDetails };
+    }
+
+    const depot = context.homeDepotsById.get(trimmedDepotId);
+    if (!depot) {
+      this.appendConflictDetail(conflictDetails, 'HOME_DEPOT_NOT_FOUND', `Heimdepot-ID: ${trimmedDepotId}`);
+      return { selection: null, conflictCodes: ['HOME_DEPOT_NOT_FOUND'], conflictDetails };
+    }
+
+    const siteIds = Array.from(
+      new Set((Array.isArray(depot.siteIds) ? depot.siteIds : []).map((id) => `${id ?? ''}`.trim()).filter(Boolean)),
+    );
+    if (!siteIds.length) {
+      return { selection: null, conflictCodes: ['HOME_DEPOT_NO_SITES'], conflictDetails };
+    }
+
+    const candidateSites = siteIds
+      .map((siteId) => context.personnelSitesById.get(siteId) ?? null)
+      .filter((site): site is PersonnelSite => site !== null);
+
+    if (!candidateSites.length) {
+      const missing = siteIds.filter((id) => !context.personnelSitesById.has(id));
+      if (missing.length) {
+        this.appendConflictDetail(conflictDetails, 'HOME_DEPOT_SITE_NOT_FOUND', `Unbekannte Personnel Sites: ${missing.join(', ')}`);
+      }
+      return { selection: null, conflictCodes: ['HOME_DEPOT_SITE_NOT_FOUND'], conflictDetails };
+    }
+
+    const first = this.findFirstActivity(payloadActivities);
+    const last = this.findLastActivity(payloadActivities);
+    const startCandidate = first ? this.readStartLocation(first) : null;
+    const endCandidate = last ? this.readEndLocation(last) : null;
+
+    const startOpId = startCandidate ? this.resolveOperationalPointId(startCandidate, context) : null;
+    const endOpId = endCandidate ? this.resolveOperationalPointId(endCandidate, context) : null;
+
+    const startOpKey = startOpId ? (`OP:${startOpId}` as const) : null;
+    const endOpKey = endOpId ? (`OP:${endOpId}` as const) : null;
+
+    if (!startOpId) {
+      conflictCodes.push('HOME_DEPOT_START_LOCATION_MISSING');
+      this.appendConflictDetail(
+        conflictDetails,
+        'HOME_DEPOT_START_LOCATION_MISSING',
+        `Erste Leistung: ${first?.id ?? '—'} (Start-Ort=${startCandidate ?? '—'})`,
+      );
+    }
+    if (!endOpId) {
+      conflictCodes.push('HOME_DEPOT_END_LOCATION_MISSING');
+      this.appendConflictDetail(
+        conflictDetails,
+        'HOME_DEPOT_END_LOCATION_MISSING',
+        `Letzte Leistung: ${last?.id ?? '—'} (End-Ort=${endCandidate ?? '—'})`,
+      );
+    }
+
+    let best: { site: PersonnelSite; walkStartMs: number | null; walkEndMs: number | null; score: number } | null =
+      null;
+
+    const missingPenalty = 1_000_000_000_000;
+
+    for (const site of candidateSites) {
+      const siteKey = `PERSONNEL_SITE:${site.siteId}` as const;
+      const walkStartMs = startOpKey ? this.lookupWalkTimeMs(context, siteKey, startOpKey) : null;
+      const walkEndMs = endOpKey ? this.lookupWalkTimeMs(context, endOpKey, siteKey) : null;
+      const score =
+        (walkStartMs ?? missingPenalty) + (walkEndMs ?? missingPenalty);
+      if (!best || score < best.score) {
+        best = { site, walkStartMs, walkEndMs, score };
+      }
+    }
+
+    const selected = best?.site ?? candidateSites[0];
+    const selectedSiteKey = `PERSONNEL_SITE:${selected.siteId}` as const;
+    const walkStartMs = startOpKey ? this.lookupWalkTimeMs(context, selectedSiteKey, startOpKey) : null;
+    const walkEndMs = endOpKey ? this.lookupWalkTimeMs(context, endOpKey, selectedSiteKey) : null;
+
+    if (startOpKey && walkStartMs === null) {
+      conflictCodes.push('WALK_TIME_MISSING_START');
+      this.appendConflictDetail(
+        conflictDetails,
+        'WALK_TIME_MISSING_START',
+        this.formatWalkLink(selected, startOpKey.slice(3), context),
+      );
+    }
+    if (endOpKey && walkEndMs === null) {
+      conflictCodes.push('WALK_TIME_MISSING_END');
+      this.appendConflictDetail(
+        conflictDetails,
+        'WALK_TIME_MISSING_END',
+        this.formatWalkLink(selected, endOpKey.slice(3), context),
+      );
+    }
+
+    return {
+      selection: {
+        depotId: trimmedDepotId,
+        depot,
+        selectedSite: selected,
+        walkStartMs,
+        walkEndMs,
+      },
+      conflictCodes: this.normalizeConflictCodes(conflictCodes),
+      conflictDetails: this.normalizeConflictDetails(conflictDetails),
+    };
+  }
+
+  private transferNodeKey(node: TransferNode): TransferNodeKey | null {
+    switch (node.kind) {
+      case 'OP': {
+        const ref = `${node.uniqueOpId ?? ''}`.trim();
+        return ref ? (`OP:${ref.toUpperCase()}` as const) : null;
+      }
+      case 'PERSONNEL_SITE': {
+        const ref = `${(node as any).siteId ?? ''}`.trim();
+        return ref ? (`PERSONNEL_SITE:${ref}` as const) : null;
+      }
+      case 'REPLACEMENT_STOP': {
+        const ref = `${(node as any).replacementStopId ?? ''}`.trim();
+        return ref ? (`REPLACEMENT_STOP:${ref}` as const) : null;
+      }
+    }
+  }
+
+  private lookupWalkTimeMs(
+    context: MasterDataContext,
+    from: TransferNodeKey,
+    to: TransferNodeKey,
+  ): number | null {
+    const direct = context.walkTimeMs.get(`${from}|${to}`);
+    if (direct !== undefined) {
+      return direct;
+    }
+    const reverse = context.walkTimeMs.get(`${to}|${from}`);
+    return reverse !== undefined ? reverse : null;
+  }
+
+  private findFirstActivity(activities: Activity[]): Activity | null {
+    let best: Activity | null = null;
+    let bestStartMs: number | null = null;
+    let bestEndMs: number | null = null;
+
+    for (const activity of activities) {
+      const startMs = this.parseMs(activity.start);
+      if (startMs === null) {
+        continue;
+      }
+      const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
+      const normalizedEndMs = Math.max(startMs, endMs);
+      if (
+        best === null ||
+        bestStartMs === null ||
+        startMs < bestStartMs ||
+        (startMs === bestStartMs && bestEndMs !== null && normalizedEndMs < bestEndMs)
+      ) {
+        best = activity;
+        bestStartMs = startMs;
+        bestEndMs = normalizedEndMs;
+      }
+    }
+
+    return best;
+  }
+
+  private findLastActivity(activities: Activity[]): Activity | null {
+    let best: Activity | null = null;
+    let bestEndMs: number | null = null;
+    let bestStartMs: number | null = null;
+
+    for (const activity of activities) {
+      const startMs = this.parseMs(activity.start);
+      if (startMs === null) {
+        continue;
+      }
+      const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
+      const normalizedEndMs = Math.max(startMs, endMs);
+      if (
+        best === null ||
+        bestEndMs === null ||
+        normalizedEndMs > bestEndMs ||
+        (normalizedEndMs === bestEndMs && bestStartMs !== null && startMs > bestStartMs)
+      ) {
+        best = activity;
+        bestEndMs = normalizedEndMs;
+        bestStartMs = startMs;
+      }
+    }
+
+    return best;
+  }
+
+  private readStartLocation(activity: Activity): string | null {
+    const locId = `${activity.locationId ?? ''}`.trim();
+    if (locId) {
+      return locId;
+    }
+    const from = `${activity.from ?? ''}`.trim();
+    if (from) {
+      return from;
+    }
+    const label = `${activity.locationLabel ?? ''}`.trim();
+    if (label) {
+      return label;
+    }
+    const to = `${activity.to ?? ''}`.trim();
+    return to || null;
+  }
+
+  private readEndLocation(activity: Activity): string | null {
+    const locId = `${activity.locationId ?? ''}`.trim();
+    if (locId) {
+      return locId;
+    }
+    const to = `${activity.to ?? ''}`.trim();
+    if (to) {
+      return to;
+    }
+    const label = `${activity.locationLabel ?? ''}`.trim();
+    if (label) {
+      return label;
+    }
+    const from = `${activity.from ?? ''}`.trim();
+    return from || null;
+  }
+
+  private buildWorkEntries(
+    activities: Activity[],
+  ): Array<{ activity: Activity; startMs: number; endMs: number }> {
+    return activities
+      .map((activity) => {
+        const startMs = this.parseMs(activity.start);
+        if (startMs === null) {
+          return null;
+        }
+        const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
+        return { activity, startMs, endMs: Math.max(startMs, endMs) };
+      })
+      .filter((entry): entry is { activity: Activity; startMs: number; endMs: number } => entry !== null)
+      .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+  }
+
+  private planPause(options: {
+    kind: 'break' | 'short-break';
+    depot: HomeDepot;
+    gapId: string;
+    gapStartMs: number;
+    gapEndMs: number;
+    fromLocation: string | null;
+    toLocation: string | null;
+    minBreakMs: number;
+    minShortBreakMs: number;
+    context: MasterDataContext;
+  }): { pause: PlannedPause | null; conflictCodes: string[]; conflictDetails: ConflictDetails } {
+    const conflictCodes: string[] = [];
+    const conflictDetails: ConflictDetails = {};
+    const depot = options.depot;
+    const allowedSiteIds =
+      options.kind === 'short-break' ? depot.shortBreakSiteIds ?? [] : depot.breakSiteIds ?? [];
+
+    const normalizedIds = Array.from(
+      new Set((Array.isArray(allowedSiteIds) ? allowedSiteIds : []).map((id) => `${id ?? ''}`.trim()).filter(Boolean)),
+    );
+    if (!normalizedIds.length) {
+      conflictCodes.push(options.kind === 'short-break' ? 'HOME_DEPOT_NO_SHORT_BREAK_SITES' : 'HOME_DEPOT_NO_BREAK_SITES');
+      return { pause: null, conflictCodes, conflictDetails };
+    }
+
+    const fromRaw = `${options.fromLocation ?? ''}`.trim();
+    const toRaw = `${options.toLocation ?? ''}`.trim();
+    const fromOpId = this.resolveOperationalPointId(fromRaw, options.context);
+    const toOpId = this.resolveOperationalPointId(toRaw, options.context);
+    const fromKey = fromOpId ? (`OP:${fromOpId}` as const) : null;
+    const toKey = toOpId ? (`OP:${toOpId}` as const) : null;
+    if (!fromKey || !toKey) {
+      conflictCodes.push('HOME_DEPOT_PAUSE_LOCATION_MISSING');
+      this.appendConflictDetail(
+        conflictDetails,
+        'HOME_DEPOT_PAUSE_LOCATION_MISSING',
+        `Von: ${fromRaw || '—'} · Nach: ${toRaw || '—'}`,
+      );
+      return { pause: null, conflictCodes, conflictDetails: this.normalizeConflictDetails(conflictDetails) };
+    }
+
+    const minPauseMs = options.kind === 'short-break' ? options.minShortBreakMs : options.minBreakMs;
+    const gapDurationMs = Math.max(0, options.gapEndMs - options.gapStartMs);
+    if (gapDurationMs <= 0) {
+      return { pause: null, conflictCodes, conflictDetails };
+    }
+
+    let best:
+      | { site: PersonnelSite; commuteInMs: number; commuteOutMs: number; breakStartMs: number; breakEndMs: number; score: number }
+      | null = null;
+
+    let sawWalkCandidate = false;
+    const missingLinks: string[] = [];
+
+    for (const siteId of normalizedIds) {
+      const site = options.context.personnelSitesById.get(siteId) ?? null;
+      if (!site) {
+        continue;
+      }
+      const siteKey = `PERSONNEL_SITE:${site.siteId}` as const;
+      const commuteInMs = this.lookupWalkTimeMs(options.context, fromKey, siteKey);
+      const commuteOutMs = this.lookupWalkTimeMs(options.context, siteKey, toKey);
+      if (commuteInMs === null) {
+        missingLinks.push(this.formatWalkLink(site, fromOpId ?? fromKey.slice(3), options.context));
+      }
+      if (commuteOutMs === null) {
+        missingLinks.push(this.formatWalkLink(site, toOpId ?? toKey.slice(3), options.context));
+      }
+      if (commuteInMs === null || commuteOutMs === null) {
+        continue;
+      }
+      sawWalkCandidate = true;
+      const breakStartMs = options.gapStartMs + commuteInMs;
+      const breakEndMs = options.gapEndMs - commuteOutMs;
+      const breakDurationMs = Math.max(0, breakEndMs - breakStartMs);
+      if (breakDurationMs < minPauseMs) {
+        continue;
+      }
+      const score = commuteInMs + commuteOutMs;
+      if (!best || score < best.score) {
+        best = { site, commuteInMs, commuteOutMs, breakStartMs, breakEndMs, score };
+      }
+    }
+
+    if (!best) {
+      if (!sawWalkCandidate) {
+        const code = options.kind === 'short-break' ? 'WALK_TIME_MISSING_SHORT_BREAK' : 'WALK_TIME_MISSING_BREAK';
+        conflictCodes.push(code);
+        missingLinks.forEach((detail) => this.appendConflictDetail(conflictDetails, code, detail));
+      }
+      return { pause: null, conflictCodes, conflictDetails: this.normalizeConflictDetails(conflictDetails) };
+    }
+
+    return {
+      pause: {
+        kind: options.kind,
+        site: best.site,
+        gapId: options.gapId,
+        fromLocation: fromOpId ?? fromRaw,
+        toLocation: toOpId ?? toRaw,
+        commuteInMs: best.commuteInMs,
+        commuteOutMs: best.commuteOutMs,
+        breakStartMs: best.breakStartMs,
+        breakEndMs: best.breakEndMs,
+      },
+      conflictCodes: [],
+      conflictDetails: {},
+    };
+  }
+
+  private isShortBreakActivity(activity: Activity, shortBreakTypeId: string): boolean {
+    const type = `${activity.type ?? ''}`.trim();
+    if (type && type === shortBreakTypeId) {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['is_short_break'];
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const normalized = raw.trim().toLowerCase();
+      return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+    }
+    return false;
+  }
+
+  private isOvernightActivity(activity: Activity): boolean {
+    const type = `${activity.type ?? ''}`.trim().toLowerCase();
+    if (type === 'overnight') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['is_overnight'];
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const normalized = raw.trim().toLowerCase();
+      return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+    }
+    return false;
+  }
+
+  private buildCommuteActivity(options: {
+    id: string;
+    title: string;
+    type: string;
+    startMs: number;
+    endMs: number;
+    from: string;
+    to: string;
+    owner: ActivityParticipant;
+    serviceId: string;
+    conflictKey: string;
+    conflictCodesKey: string;
+    depotId?: string | null;
+    siteId?: string | null;
+    siteLabel?: string | null;
+  }): Activity {
+    const attrs: ActivityAttributes = {
+      ...(options.conflictKey ? { [options.conflictKey]: 0 } : {}),
+      ...(options.conflictCodesKey ? { [options.conflictCodesKey]: [] } : {}),
+      is_commute: true,
+      ...(options.depotId ? { home_depot_id: options.depotId } : {}),
+      ...(options.siteId ? { home_depot_site_id: options.siteId } : {}),
+    };
+    return {
+      id: options.id,
+      title: options.title,
+      start: new Date(options.startMs).toISOString(),
+      end: new Date(options.endMs).toISOString(),
+      type: options.type,
+      from: options.from,
+      to: options.to,
+      serviceId: options.serviceId,
+      participants: [this.buildOwnerParticipant(options.owner)],
+      attributes: attrs,
+    };
+  }
+
   private applyAzgCompliance(
     stageId: StageId,
     variantId: string,
@@ -1100,6 +2181,9 @@ export class DutyAutopilotService {
     const conflictKey = config.conflictAttributeKey;
     const conflictCodesKey = config.conflictCodesAttributeKey;
     const breakTypeIds = config.breakTypeIds;
+    const shortBreakTypeId = config.shortBreakTypeId || 'short-break';
+    const isShortBreak = (activity: Activity) => this.isShortBreakActivity(activity, shortBreakTypeId);
+    const isRegularBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
     const dayMs = 86_400_000;
 
     const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
@@ -1138,7 +2222,7 @@ export class DutyAutopilotService {
       const endBoundary = groupActivities.find((a) => a.id === `svcend:${serviceId}`) ?? groupActivities.find((a) => this.resolveServiceRole(a) === 'end') ?? null;
 
       const fallbackIntervals = this.sortedIntervals(
-        groupActivities.filter((activity) => !this.isBreakActivity(activity, breakTypeIds) && !isBoundary(activity)),
+        groupActivities.filter((activity) => !isRegularBreak(activity) && !isBoundary(activity)),
       );
       const dutyStartMs = this.parseMs(startBoundary?.start ?? null) ?? fallbackIntervals.minStartMs;
       const dutyEndMs = this.parseMs(endBoundary?.start ?? null) ?? fallbackIntervals.maxEndMs;
@@ -1148,7 +2232,7 @@ export class DutyAutopilotService {
       }
 
       const breaks = groupActivities
-        .filter((activity) => this.isBreakActivity(activity, breakTypeIds))
+        .filter((activity) => isRegularBreak(activity))
         .map((activity) => {
           const start = this.parseMs(activity.start);
           const end = this.parseMs(activity.end ?? null);

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type {
   Activity,
+  HomeDepot,
   OperationalPoint,
   OpReplacementStopLink,
   Personnel,
@@ -92,6 +93,10 @@ export class PlanningRepository {
 
   replacePersonnelPools(items: PersonnelPool[]): Promise<void> {
     return this.masterDataRepository.replacePersonnelPools(items);
+  }
+
+  replaceHomeDepots(items: HomeDepot[]): Promise<void> {
+    return this.masterDataRepository.replaceHomeDepots(items);
   }
 
   replaceVehicleServicePools(items: VehicleServicePool[]): Promise<void> {

@@ -34,6 +34,24 @@ export class TransferEdgeEditorComponent {
   private readonly store = inject(PlanningStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
 
+  readonly selectOptions = computed(() => ({
+    fromKind: [
+      { value: 'OP', label: 'OP' },
+      { value: 'PERSONNEL_SITE', label: 'PERSONNEL_SITE' },
+      { value: 'REPLACEMENT_STOP', label: 'REPLACEMENT_STOP' },
+    ],
+    toKind: [
+      { value: 'OP', label: 'OP' },
+      { value: 'PERSONNEL_SITE', label: 'PERSONNEL_SITE' },
+      { value: 'REPLACEMENT_STOP', label: 'REPLACEMENT_STOP' },
+    ],
+    mode: MODES.map((mode) => ({ value: mode, label: mode })),
+    bidirectional: [
+      { value: 'true', label: 'Ja' },
+      { value: 'false', label: 'Nein' },
+    ],
+  }));
+
   readonly attributeDefinitions = computed(() =>
     this.customAttributes.list('topology-transfer-edges'),
   );

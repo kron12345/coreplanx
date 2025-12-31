@@ -214,6 +214,7 @@ export class MigrationService implements OnModuleInit {
       'personnel_service_pools',
       'personnel_services',
       'personnel',
+      'master_home_depot',
       // Topology
       'topology_op_replacement_link',
       'topology_op_replacement_stop_link',

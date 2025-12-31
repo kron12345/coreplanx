@@ -180,6 +180,7 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   @Input() groupedEntities: AttributeEntityGroup[] | null = null;
   @Input() createDefaultsFactory?: (groupId: string | null) => Record<string, string>;
   @Input() selectOptions: Record<string, { label: string; value: string }[]> = {};
+  @Input() multiSelectOptions: Record<string, { label: string; value: string }[]> = {};
 
   @Output() readonly saveEntity = new EventEmitter<EntitySaveEvent>();
   @Output() readonly deleteEntities = new EventEmitter<string[]>();

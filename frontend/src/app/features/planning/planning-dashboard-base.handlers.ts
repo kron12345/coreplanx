@@ -18,6 +18,11 @@ export class PlanningDashboardBaseHandlers {
       saveTemplateActivity: (activity: Activity) => void;
       activitySelection: PlanningDashboardActivitySelectionFacade;
       templateId: () => string | null;
+      ensureRequiredParticipants?: (
+        stage: PlanningStageId,
+        anchorResource: Resource,
+        activity: Activity,
+      ) => Promise<Activity | null>;
     },
   ) {}
 
@@ -31,6 +36,20 @@ export class PlanningDashboardBaseHandlers {
     sourceResourceId?: string | null;
     isOwnerSlot?: boolean;
   }): void {
+    void this.handleRepositionAsync(event);
+  }
+
+  private async handleRepositionAsync(event: {
+    activity: Activity;
+    targetResourceId: string;
+    start: Date;
+    end: Date | null;
+    participantResourceId?: string | null;
+    participantCategory?: ActivityParticipantCategory | null;
+    sourceResourceId?: string | null;
+    isOwnerSlot?: boolean;
+  }): Promise<void> {
+    const stage: PlanningStageId = 'base';
     const resources = this.deps.stageResourceSignal();
     const targetResource = resources.find((res) => res.id === event.targetResourceId) ?? null;
     const sourceResourceId = event.sourceResourceId ?? event.targetResourceId;
@@ -57,22 +76,31 @@ export class PlanningDashboardBaseHandlers {
           })
       : base;
     const normalized = this.deps.applyActivityTypeConstraints(this.markBoundaryManual(updated));
+    const anchorResource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
+    const shouldEnsure = resourceChanged;
+    const ensured =
+      shouldEnsure && this.deps.ensureRequiredParticipants && anchorResource
+        ? await this.deps.ensureRequiredParticipants(stage, anchorResource, normalized)
+        : normalized;
+    if (!ensured) {
+      return;
+    }
     const baseId = previousActivityId.split('@')[0] ?? previousActivityId;
-    const nextMainId = normalized.id;
+    const nextMainId = ensured.id;
     let shiftedAttachments: Array<{ originalId: string; activity: Activity }> = [];
     this.deps.updateStageActivities('base', (activities) => {
       const result = this.applyGroupAttachmentShift({
         activities,
         previousActivityId,
         nextMainId,
-        normalizedMain: normalized,
+        normalizedMain: ensured,
         shiftDeltaMs,
       });
       shiftedAttachments = result.shiftedAttachments;
       return result.activities;
     });
     if (this.shouldPersistToTemplate(event.activity)) {
-      this.deps.saveTemplateActivity({ ...normalized, id: baseId });
+      this.deps.saveTemplateActivity({ ...ensured, id: baseId });
       shiftedAttachments.forEach(({ activity }) => {
         if (!this.shouldPersistToTemplate(activity)) {
           return;
@@ -84,7 +112,7 @@ export class PlanningDashboardBaseHandlers {
     const resource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
     const currentSelection = this.deps.activitySelection.selectedActivityState();
     if (resource && currentSelection?.activity.id === previousActivityId) {
-      this.deps.activitySelection.selectedActivityState.set({ activity: normalized, resource });
+      this.deps.activitySelection.selectedActivityState.set({ activity: ensured, resource });
     }
     if (currentSelection && currentSelection.activity.id !== previousActivityId) {
       const shifted = shiftedAttachments.find((entry) => entry.originalId === currentSelection.activity.id) ?? null;
@@ -120,7 +148,13 @@ export class PlanningDashboardBaseHandlers {
 
   private shouldPersistToTemplate(activity: Activity): boolean {
     const id = (activity.id ?? '').toString();
-    if (id.startsWith('svcstart:') || id.startsWith('svcend:') || id.startsWith('svcbreak:')) {
+    if (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    ) {
       return false;
     }
     return true;

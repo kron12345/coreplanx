@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import type {
+  HomeDepot,
   LatLng,
   OperationalPoint,
   OperationalPointListRequest,
@@ -75,6 +76,7 @@ export class PlanningMasterDataService implements OnModuleInit {
   private readonly logger = new Logger(PlanningMasterDataService.name);
   private personnelServicePools: PersonnelServicePool[] = [];
   private personnelPools: PersonnelPool[] = [];
+  private homeDepots: HomeDepot[] = [];
   private personnels: Personnel[] = [];
   private personnelServices: PersonnelService[] = [];
   private vehicleServicePools: VehicleServicePool[] = [];
@@ -345,6 +347,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       ),
       personnelServicePools: this.listPersonnelServicePools(),
       personnelPools: this.listPersonnelPools(),
+      homeDepots: this.homeDepots.map((item) => this.cloneHomeDepot(item)),
       vehicles: this.vehicles.map((item) => this.cloneVehicle(item)),
       vehicleServices: this.vehicleServices.map((item) =>
         this.cloneVehicleService(item),
@@ -363,6 +366,7 @@ export class PlanningMasterDataService implements OnModuleInit {
     const nextPersonnelServices = snapshot?.personnelServices ?? [];
     const nextPersonnelServicePools = snapshot?.personnelServicePools ?? [];
     const nextPersonnelPools = snapshot?.personnelPools ?? [];
+    const nextHomeDepots = snapshot?.homeDepots ?? [];
     const nextVehicles = snapshot?.vehicles ?? [];
     const nextVehicleServices = snapshot?.vehicleServices ?? [];
     const nextVehicleServicePools = snapshot?.vehicleServicePools ?? [];
@@ -380,6 +384,7 @@ export class PlanningMasterDataService implements OnModuleInit {
     this.personnelPools = nextPersonnelPools.map((pool) =>
       this.clonePersonnelPool(pool),
     );
+    this.homeDepots = nextHomeDepots.map((item) => this.cloneHomeDepot(item));
     this.vehicles = nextVehicles.map((entry) => this.cloneVehicle(entry));
     this.vehicleServices = nextVehicleServices.map((entry) =>
       this.cloneVehicleService(entry),
@@ -400,6 +405,7 @@ export class PlanningMasterDataService implements OnModuleInit {
         this.repository.replacePersonnelServices(persisted.personnelServices),
         this.repository.replacePersonnelServicePools(persisted.personnelServicePools),
         this.repository.replacePersonnelPools(persisted.personnelPools),
+        this.repository.replaceHomeDepots(persisted.homeDepots),
         this.repository.replaceVehicles(persisted.vehicles),
         this.repository.replaceVehicleServices(persisted.vehicleServices),
         this.repository.replaceVehicleServicePools(persisted.vehicleServicePools),
@@ -431,6 +437,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       ...current,
       personnelServicePools: defaults.resources.personnelServicePools,
       personnelPools: defaults.resources.personnelPools,
+      homeDepots: defaults.resources.homeDepots,
       personnelServices: defaults.resources.personnelServices,
       personnel: defaults.resources.personnel,
     });
@@ -529,6 +536,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       personnelServices: (doc.resources?.personnelServices ?? []) as PersonnelService[],
       personnelServicePools: (doc.resources?.personnelServicePools ?? []) as PersonnelServicePool[],
       personnelPools: (doc.resources?.personnelPools ?? []) as PersonnelPool[],
+      homeDepots: (doc.resources?.homeDepots ?? []) as HomeDepot[],
       vehicles: (doc.resources?.vehicles ?? []) as Vehicle[],
       vehicleServices: (doc.resources?.vehicleServices ?? []) as VehicleService[],
       vehicleServicePools: (doc.resources?.vehicleServicePools ?? []) as VehicleServicePool[],
@@ -692,6 +700,7 @@ export class PlanningMasterDataService implements OnModuleInit {
     const hasAny =
       this.personnelServicePools.length > 0 ||
       this.personnelPools.length > 0 ||
+      this.homeDepots.length > 0 ||
       this.personnels.length > 0 ||
       this.personnelServices.length > 0 ||
       this.vehicleServicePools.length > 0 ||
@@ -730,6 +739,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       vehicleServices: snapshot.vehicleServices.map((s) => this.prepareServiceForPersistence(s)),
       personnelServicePools: snapshot.personnelServicePools.map((p) => this.preparePoolForPersistence(p)),
       personnelPools: snapshot.personnelPools.map((p) => this.preparePoolForPersistence(p)),
+      homeDepots: snapshot.homeDepots.map((d) => this.cloneHomeDepot(d)),
       vehicleServicePools: snapshot.vehicleServicePools.map((p) => this.preparePoolForPersistence(p)),
       vehiclePools: snapshot.vehiclePools.map((p) => this.preparePoolForPersistence(p)),
       vehicleTypes: snapshot.vehicleTypes.map((t) => this.cloneVehicleType(t)),
@@ -862,6 +872,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.personnelPools = masterData.personnelPools.map((pool) =>
         this.clonePersonnelPool(pool),
       );
+      this.homeDepots = masterData.homeDepots.map((item) => this.cloneHomeDepot(item));
       this.vehicleServicePools = masterData.vehicleServicePools.map((pool) =>
         this.cloneVehicleServicePool(pool),
       );
@@ -913,6 +924,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       );
       this.personnelServicePools = [];
       this.personnelPools = [];
+      this.homeDepots = [];
       this.vehicleServicePools = [];
       this.vehiclePools = [];
       this.vehicleTypes = [];
@@ -959,6 +971,17 @@ export class PlanningMasterDataService implements OnModuleInit {
       ...pool,
       personnelIds: [...(pool.personnelIds ?? [])],
       attributes: pool.attributes ? { ...pool.attributes } : undefined,
+    };
+  }
+
+  private cloneHomeDepot(depot: HomeDepot): HomeDepot {
+    return {
+      ...depot,
+      siteIds: [...(depot.siteIds ?? [])],
+      breakSiteIds: [...(depot.breakSiteIds ?? [])],
+      shortBreakSiteIds: [...(depot.shortBreakSiteIds ?? [])],
+      overnightSiteIds: [...(depot.overnightSiteIds ?? [])],
+      attributes: depot.attributes ? { ...depot.attributes } : undefined,
     };
   }
 

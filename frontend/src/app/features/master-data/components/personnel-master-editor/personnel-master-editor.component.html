@@ -17,6 +17,10 @@
         <mat-icon fontIcon="groups"></mat-icon>
         Personalpools
       </mat-button-toggle>
+      <mat-button-toggle value="homeDepots">
+        <mat-icon fontIcon="home"></mat-icon>
+        Heimdepots
+      </mat-button-toggle>
       <mat-button-toggle value="personnel">
         <mat-icon fontIcon="badge"></mat-icon>
         Personal
@@ -37,6 +41,7 @@
         [defaultFallbackValues]="servicePoolDefaults"
         [detailError]="servicePoolError()"
         [requiredKeys]="servicePoolRequiredKeys"
+        [selectOptions]="poolSelectOptions()"
         (saveEntity)="handleServicePoolSave($event)"
         (deleteEntities)="handleServicePoolDelete($event)"
       />
@@ -63,8 +68,22 @@
         [defaultFallbackValues]="personnelPoolDefaults"
         [detailError]="personnelPoolError()"
         [requiredKeys]="personnelPoolRequiredKeys"
+        [selectOptions]="poolSelectOptions()"
         (saveEntity)="handlePersonnelPoolSave($event)"
         (deleteEntities)="handlePersonnelPoolDelete($event)"
+      />
+    }
+    @case ('homeDepots') {
+      <app-attribute-entity-editor
+        [title]="'Heimdepots'"
+        [entities]="homeDepotRecords()"
+        [attributeDefinitions]="homeDepotDefinitions()"
+        [defaultFallbackValues]="homeDepotDefaults"
+        [detailError]="homeDepotError()"
+        [requiredKeys]="homeDepotRequiredKeys"
+        [multiSelectOptions]="homeDepotMultiSelectOptions()"
+        (saveEntity)="handleHomeDepotSave($event)"
+        (deleteEntities)="handleHomeDepotDelete($event)"
       />
     }
     @case ('personnel') {
@@ -77,6 +96,7 @@
         [groupedEntities]="personnelGroups()"
         [createDefaultsFactory]="personnelCreateDefaultsFactory"
         [selectOptions]="personnelSelectOptions()"
+        [multiSelectOptions]="personnelMultiSelectOptions()"
         (saveEntity)="handlePersonnelSave($event)"
         (deleteEntities)="handlePersonnelDelete($event)"
       />

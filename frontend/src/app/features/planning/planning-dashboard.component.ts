@@ -427,6 +427,8 @@ export class PlanningDashboardComponent {
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
     activitySelection: this.activitySelection,
     activityOwnerId: (activity) => this.activityOwnerId(activity),
+    ensureRequiredParticipants: (stage, anchorResource, activity) =>
+      this.activityHandlers.ensureRequiredParticipantsForActivity(stage, anchorResource, activity),
   });
   private readonly assignmentFacade = new PlanningDashboardAssignmentFacade({
     activeStage: () => this.activeStageSignal(),
@@ -683,6 +685,8 @@ export class PlanningDashboardComponent {
     saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
     activitySelection: this.activitySelection,
     templateId: () => this.templateStore.selectedTemplate()?.id ?? null,
+    ensureRequiredParticipants: (stage, anchorResource, activity) =>
+      this.activityHandlers.ensureRequiredParticipantsForActivity(stage, anchorResource, activity),
   });
   private readonly activityHandlers = new PlanningDashboardActivityHandlersFacade({
     activeStage: () => this.activeStageSignal(),

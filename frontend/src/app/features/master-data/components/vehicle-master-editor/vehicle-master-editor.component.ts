@@ -56,7 +56,7 @@ const VEHICLE_POOL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
 const VEHICLE_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
   { id: 'veh-number', key: 'vehicleNumber', label: 'Fahrzeugnummer', type: 'string', entityId: 'vehicle', required: true },
   { id: 'veh-type', key: 'typeId', label: 'Fahrzeugtyp', type: 'string', entityId: 'vehicle', required: true },
-  { id: 'veh-service-ids', key: 'serviceIds', label: 'Dienst-IDs (kommagetrennt)', type: 'string', entityId: 'vehicle' },
+  { id: 'veh-service-ids', key: 'serviceIds', label: 'Dienste', type: 'string', entityId: 'vehicle' },
   { id: 'veh-pool', key: 'poolId', label: 'Pool-ID', type: 'string', entityId: 'vehicle' },
   { id: 'veh-description', key: 'description', label: 'Beschreibung', type: 'string', entityId: 'vehicle' },
   { id: 'veh-depot', key: 'depot', label: 'Depot', type: 'string', entityId: 'vehicle' },
@@ -419,20 +419,38 @@ export class VehicleMasterEditorComponent {
   readonly vehicleTypeNumericKeys = VEHICLE_TYPE_NUMERIC_KEYS;
 
   readonly serviceSelectOptions = computed(() => ({
-    poolId: this.collections.vehicleServicePools().map((pool) => ({
-      value: pool.id,
-      label: pool.name ?? pool.id,
-    })),
+    poolId: [
+      { value: '', label: '— kein Pool —' },
+      ...this.collections.vehicleServicePools().map((pool) => ({
+        value: pool.id,
+        label: pool.name ?? pool.id,
+      })),
+    ],
   }));
   readonly vehicleSelectOptions = computed(() => ({
-    poolId: this.collections.vehiclePools().map((pool) => ({
-      value: pool.id,
-      label: pool.name ?? pool.id,
-    })),
+    poolId: [
+      { value: '', label: '— kein Pool —' },
+      ...this.collections.vehiclePools().map((pool) => ({
+        value: pool.id,
+        label: pool.name ?? pool.id,
+      })),
+    ],
     typeId: this.collections.vehicleTypes().map((type) => ({
       value: type.id,
       label: type.label ?? type.id,
     })),
+  }));
+  readonly vehicleServiceOptions = computed(() =>
+    this.resources
+      .vehicleServices()
+      .map((service) => ({
+        value: service.id,
+        label: `${service.name ?? service.id} (${service.id})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  );
+  readonly vehicleMultiSelectOptions = computed(() => ({
+    serviceIds: this.vehicleServiceOptions(),
   }));
   readonly vehicleTypeSelectOptions = VEHICLE_TYPE_SELECT_OPTIONS;
 

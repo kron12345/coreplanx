@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import type {
+  HomeDepot,
   OperationalPoint,
   OpReplacementStopLink,
   Personnel,
@@ -178,6 +179,17 @@ export class PlanningMasterDataWriteRepository {
         throw error;
       }
     });
+  }
+
+  async replaceHomeDepots(items: HomeDepot[]): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+    await this.replaceJsonPayloadCollection(
+      'master_home_depot',
+      'home_depot_id',
+      items.map((item) => ({ id: item.id, payload: item })),
+    );
   }
 
   async replaceVehicleServicePools(items: VehicleServicePool[]): Promise<void> {
@@ -837,7 +849,6 @@ export class PlanningMasterDataWriteRepository {
       return;
     }
     this.missingTopologyTables.add(tableName);
-    this.logger.warn(`Topologie-Tabelle ${tableName} ${message}`);
+    this.logger.warn(`Tabelle ${tableName} (JSON-Payload) ${message}`);
   }
 }
-

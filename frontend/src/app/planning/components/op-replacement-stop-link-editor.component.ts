@@ -31,6 +31,28 @@ export class OpReplacementStopLinkEditorComponent {
   private readonly store = inject(PlanningStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
 
+  readonly selectOptions = computed(() => {
+    const ops = this.store
+      .operationalPoints()
+      .map((op) => ({
+        value: op.uniqueOpId,
+        label: `${op.name ?? op.uniqueOpId} (${op.uniqueOpId})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const stops = this.store
+      .replacementStops()
+      .map((stop) => ({
+        value: stop.replacementStopId,
+        label: stop.name ?? stop.replacementStopId,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      uniqueOpId: ops,
+      replacementStopId: stops,
+      relationType: RELATIONS.map((relation) => ({ value: relation, label: relation })),
+    };
+  });
+
   readonly attributeDefinitions = computed(() =>
     this.customAttributes.list('topology-op-replacement-links'),
   );

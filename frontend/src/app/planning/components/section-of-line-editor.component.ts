@@ -70,6 +70,21 @@ export class SectionOfLineEditorComponent implements OnDestroy {
   private readonly topologyApi = inject(TopologyApiService);
   private importSubscription: Subscription | null = null;
 
+  readonly selectOptions = computed(() => {
+    const ops = this.store
+      .operationalPoints()
+      .map((op) => ({
+        value: op.uniqueOpId,
+        label: `${op.name ?? op.uniqueOpId} (${op.uniqueOpId})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      startUniqueOpId: ops,
+      endUniqueOpId: ops,
+      nature: SOL_NATURES.map((nature) => ({ value: nature, label: nature })),
+    };
+  });
+
   readonly attributeDefinitions = computed(() =>
     this.customAttributes.list('topology-sections-of-line'),
   );

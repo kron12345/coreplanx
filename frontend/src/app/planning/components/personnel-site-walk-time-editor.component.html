@@ -1,0 +1,25 @@
+<div class="walk-time-toolbar">
+  <mat-form-field appearance="outline">
+    <mat-label>Personnel Site</mat-label>
+    <mat-select [ngModel]="siteFilter()" (ngModelChange)="siteFilter.set($event)">
+      <mat-option value="">Alle</mat-option>
+      @for (option of siteFilterOptions(); track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<app-attribute-entity-editor
+  [title]="'Wegzeiten (Personnel Sites ↔ OP)'"
+  [entities]="entityRecords()"
+  [attributeDefinitions]="attributeDefinitions"
+  [defaultFallbackValues]="defaultFallback"
+  [numericKeys]="numericKeys"
+  [detailError]="error()"
+  [selectOptions]="selectOptions()"
+  [groupedEntities]="groupedEntities()"
+  (saveEntity)="handleSave($event)"
+  (deleteEntities)="handleDelete($event)"
+  (bulkApply)="handleBulkApply($event)"
+/>
