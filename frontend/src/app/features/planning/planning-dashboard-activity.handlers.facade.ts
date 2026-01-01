@@ -14,6 +14,7 @@ import {
   addParticipantToActivity,
   resolveSuggestedParticipantRole,
 } from './planning-dashboard-participant.utils';
+import { serviceIdForOwner } from './planning-dashboard-activity.utils';
 import {
   ActivityRequiredParticipantDialogComponent,
   ActivityRequiredParticipantDialogResult,
@@ -37,6 +38,8 @@ export class PlanningDashboardActivityHandlersFacade {
         typeId: string | null | undefined,
       ) => ActivityTypeDefinition | null;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
+      stageActivities: (stage: PlanningStageId) => Activity[];
+      applyLocationDefaults: (activity: Activity, activities: Activity[]) => Activity;
       pendingActivityOriginal: {
         (): Activity | null;
         set: (val: Activity | null) => void;
@@ -74,7 +77,8 @@ export class PlanningDashboardActivityHandlersFacade {
     }
     const draft = this.deps.activityFacade.createDraft(stage, event, definition, option);
     const normalized = this.deps.applyActivityTypeConstraints(draft);
-    const ensured = await this.ensureRequiredParticipants(stage, event.resource, normalized);
+    const withDefaults = this.deps.applyLocationDefaults(normalized, this.deps.stageActivities(stage));
+    const ensured = await this.ensureRequiredParticipants(stage, event.resource, withDefaults);
     if (!ensured) {
       return;
     }
@@ -144,22 +148,23 @@ export class PlanningDashboardActivityHandlersFacade {
     if (!ensured) {
       return;
     }
+    const withDefaults = this.deps.applyLocationDefaults(ensured, this.deps.stageActivities(stage));
     if (isPendingDraft) {
       if (stage === 'base') {
-        this.deps.saveTemplateActivity(ensured);
+        this.deps.saveTemplateActivity(withDefaults);
       } else {
-        this.deps.updateStageActivities(stage, (activities) => [...activities, ensured]);
+        this.deps.updateStageActivities(stage, (activities) => [...activities, withDefaults]);
       }
       this.deps.pendingActivitySignal.set(null);
       this.deps.pendingActivityOriginal.set(null);
-      this.deps.activitySelection.selectedActivityState.set({ activity: ensured, resource: selection.resource });
+      this.deps.activitySelection.selectedActivityState.set({ activity: withDefaults, resource: selection.resource });
       this.deps.clearEditingPreview();
       return;
     }
     if (stage === 'base') {
       const previousActivityId = selection.activity.id;
       const previousStartMs = Date.parse(selection.activity.start);
-      const nextStartMs = Date.parse(ensured.start);
+      const nextStartMs = Date.parse(withDefaults.start);
       const shiftDeltaMs =
         Number.isFinite(previousStartMs) && Number.isFinite(nextStartMs) ? nextStartMs - previousStartMs : 0;
       const nextMainId = Number.isFinite(nextStartMs)
@@ -167,7 +172,7 @@ export class PlanningDashboardActivityHandlersFacade {
         : previousActivityId;
 
       const normalizedMain = this.deps.applyActivityTypeConstraints({
-        ...ensured,
+        ...withDefaults,
         id: nextMainId,
       });
 
@@ -200,7 +205,7 @@ export class PlanningDashboardActivityHandlersFacade {
       this.deps.clearEditingPreview();
       return;
     }
-    this.deps.replaceActivity(ensured);
+    this.deps.replaceActivity(withDefaults);
   }
 
   private shouldPersistToTemplate(activityId: string): boolean {
@@ -367,17 +372,22 @@ export class PlanningDashboardActivityHandlersFacade {
     let updated = activity;
 
     if (requiresVehicle && !hasVehicle) {
-      const selected = await this.promptForRequiredParticipant({
-        stage,
-        anchorResource,
-        activity: updated,
-        kind: desiredVehicleKind,
-        label: realm === 'service' ? 'Fahrzeugdienst' : 'Fahrzeug',
-      });
-      if (!selected) {
-        return null;
+      const inferred = this.inferRequiredVehicleParticipant(stage, anchorResource, updated, desiredVehicleKind);
+      if (inferred) {
+        updated = this.attachParticipant(stage, updated, inferred, anchorResource);
+      } else {
+        const selected = await this.promptForRequiredParticipant({
+          stage,
+          anchorResource,
+          activity: updated,
+          kind: desiredVehicleKind,
+          label: realm === 'service' ? 'Fahrzeugdienst' : 'Fahrzeug',
+        });
+        if (!selected) {
+          return null;
+        }
+        updated = this.attachParticipant(stage, updated, selected, anchorResource);
       }
-      updated = this.attachParticipant(stage, updated, selected, anchorResource);
     }
 
     return updated;
@@ -412,6 +422,57 @@ export class PlanningDashboardActivityHandlersFacade {
       return null;
     }
     return resources.find((res) => res.id === owner.resourceId) ?? null;
+  }
+
+  private inferRequiredVehicleParticipant(
+    stage: PlanningStageId,
+    anchorResource: Resource,
+    activity: Activity,
+    kind: Resource['kind'],
+  ): Resource | null {
+    if (kind !== 'vehicle-service' && kind !== 'vehicle') {
+      return null;
+    }
+    const anchorKind = anchorResource.kind;
+    const ownerId =
+      anchorKind === 'personnel-service' || anchorKind === 'vehicle-service'
+        ? anchorResource.id
+        : this.resolveOwnerResource(activity, this.deps.stageResources(stage))?.id ?? null;
+    if (!ownerId) {
+      return null;
+    }
+    const serviceId = serviceIdForOwner(activity, ownerId);
+    if (!serviceId) {
+      return null;
+    }
+
+    const candidates = new Set<string>();
+    for (const other of this.deps.stageActivities(stage)) {
+      if (other.id === activity.id) {
+        continue;
+      }
+      const participants = other.participants ?? [];
+      if (!participants.some((participant) => participant.resourceId === ownerId)) {
+        continue;
+      }
+      if (serviceIdForOwner(other, ownerId) !== serviceId) {
+        continue;
+      }
+      participants.forEach((participant) => {
+        if (participant.kind === kind) {
+          candidates.add(participant.resourceId);
+        }
+      });
+      if (candidates.size > 1) {
+        return null;
+      }
+    }
+    if (candidates.size !== 1) {
+      return null;
+    }
+
+    const candidateId = Array.from(candidates)[0]!;
+    return this.deps.stageResources(stage).find((resource) => resource.id === candidateId) ?? null;
   }
 
   private async promptForRequiredParticipant(options: {

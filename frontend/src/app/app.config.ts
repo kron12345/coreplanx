@@ -12,14 +12,14 @@ const API_PATH = '/api/v1';
 const LOCAL_API_ORIGIN = 'http://localhost:3000';
 
 function resolveApiBaseUrl(): string {
-  const runtimeOverride = (globalThis as { __ORDER_MGMT_API_BASE__?: string }).__ORDER_MGMT_API_BASE__;
+  const runtimeOverride = (globalThis as { __COREPLANX_API_BASE__?: string }).__COREPLANX_API_BASE__;
   if (runtimeOverride && runtimeOverride.trim().length > 0) {
     return runtimeOverride.trim();
   }
 
   if (typeof document !== 'undefined') {
     const metaOverride = document
-      .querySelector('meta[name="order-mgmt-api-base"]')
+      .querySelector('meta[name="coreplanx-api-base"]')
       ?.getAttribute('content')
       ?.trim();
     if (metaOverride) {

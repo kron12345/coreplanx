@@ -362,9 +362,10 @@ export class PlanningStageService implements OnModuleInit {
     if (!activities.length) {
       return;
     }
+    type ActivityParticipantEntry = NonNullable<Activity['participants']>[number];
     const requirements = await this.loadActivityTypeRequirements();
     const resourceKindMap = resources ? new Map(resources.map((resource) => [resource.id, resource.kind])) : undefined;
-    const resolveKind = (participant: Activity['participants'][number] | undefined | null): string | null => {
+    const resolveKind = (participant: ActivityParticipantEntry | undefined | null): string | null => {
       if (!participant) {
         return null;
       }
@@ -430,7 +431,8 @@ export class PlanningStageService implements OnModuleInit {
     next: Activity['participants'] | null | undefined,
     resourceKindMap?: Map<string, Resource['kind']>,
   ): boolean {
-    const resolveKind = (participant: Activity['participants'][number] | undefined | null): string => {
+    type ActivityParticipantEntry = NonNullable<Activity['participants']>[number];
+    const resolveKind = (participant: ActivityParticipantEntry | undefined | null): string => {
       if (!participant) {
         return '';
       }

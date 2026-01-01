@@ -1,4 +1,4 @@
-# coreplanx
+# CorePlanX
 
 Ein gemeinsames Arbeitsverzeichnis für einen Angular-18-Client und ein NestJS-Backend zur Planung von Ressourcen, Aktivitäten und Zeitplänen im Bahn-/SEV-Umfeld. Der Backend-Teil liefert REST- und WebSocket-Endpunkte samt automatischen PostgreSQL-Migrationen; der Frontend-Teil visualisiert Gantt-Timelines, Stammdaten und Auftragsprozesse.
 
@@ -40,7 +40,7 @@ npm start
 ```
 - API-Basis: Standard ist `/api`. Für das Nest-Backend mit Präfix `/api/v1` entsprechend umstellen, z. B. per `API_CONFIG`-Provider oder globalem Flag vor dem Bootstrap:
   ```html
-  <script>window.__ORDER_MGMT_API_BASE__ = 'http://localhost:3000/api/v1';</script>
+  <script>window.__COREPLANX_API_BASE__ = 'http://localhost:3000/api/v1';</script>
   ```
 
 ## Tests

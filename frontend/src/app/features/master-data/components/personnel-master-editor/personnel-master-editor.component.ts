@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
+import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import {
   AttributeEntityEditorComponent,
   AttributeEntityRecord,
@@ -15,8 +16,16 @@ import { CustomAttributeDefinition, CustomAttributeService } from '../../../../c
 import { HomeDepot, Personnel, PersonnelPool, PersonnelService, PersonnelServicePool } from '../../../../models/master-data';
 import { PlanningDataService } from '../../../planning/planning-data.service';
 import { PlanningStoreService } from '../../../../shared/planning-store.service';
+import { AssistantUiContextService } from '../../../../core/services/assistant-ui-context.service';
+import { SYSTEM_POOL_IDS, SYSTEM_POOL_LABELS } from '../../system-pools';
 
-type PersonnelEditorMode = 'servicePools' | 'services' | 'personnelPools' | 'homeDepots' | 'personnel';
+type PersonnelEditorMode =
+  | 'servicePools'
+  | 'services'
+  | 'personnelPools'
+  | 'homeDepots'
+  | 'personnel'
+  | 'system';
 
 const SERVICE_POOL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
   {
@@ -326,7 +335,14 @@ const HOME_DEPOT_DEFAULTS = {
 
 @Component({
     selector: 'app-personnel-master-editor',
-    imports: [CommonModule, MatButtonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
+    imports: [
+      CommonModule,
+      MatButtonModule,
+      MatButtonToggleModule,
+      MatIconModule,
+      DragDropModule,
+      AttributeEntityEditorComponent,
+    ],
     templateUrl: './personnel-master-editor.component.html',
     styleUrl: './personnel-master-editor.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -337,6 +353,7 @@ export class PersonnelMasterEditorComponent {
   private readonly customAttributes = inject(CustomAttributeService);
   private readonly planningData = inject(PlanningDataService);
   private readonly planningStore = inject(PlanningStoreService);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
 
   readonly viewMode = signal<PersonnelEditorMode>('servicePools');
 
@@ -344,6 +361,19 @@ export class PersonnelMasterEditorComponent {
     if (this.viewMode() === 'homeDepots') {
       this.planningStore.ensureInitialized();
     }
+  });
+
+  private readonly updateAssistantContext = effect(() => {
+    const isActive = this.assistantUiContext.docKey() === 'personnel';
+    if (!isActive) {
+      return;
+    }
+    const mode = this.viewMode();
+    const subtopic = this.resolveModeLabel(mode);
+    this.assistantUiContext.setDocKey('personnel');
+    this.assistantUiContext.setDocSubtopic(subtopic);
+    this.assistantUiContext.setBreadcrumbs(['Stammdaten', 'Personal', subtopic]);
+    this.assistantUiContext.setDataSummary(this.buildAssistantDataSummary(mode));
   });
 
   readonly servicePoolDefaults = SERVICE_POOL_DEFAULTS;
@@ -356,16 +386,22 @@ export class PersonnelMasterEditorComponent {
   readonly personnelPoolRequiredKeys = ['name'];
   readonly homeDepotRequiredKeys = ['name', 'siteIds'];
   readonly servicePoolOptions = computed(() =>
-    this.collections.personnelServicePools().map((pool) => ({
-      value: pool.id,
-      label: pool.name ?? pool.id,
-    })),
+    this.collections
+      .personnelServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelServicePool)
+      .map((pool) => ({
+        value: pool.id,
+        label: pool.name ?? pool.id,
+      })),
   );
   readonly personnelPoolOptions = computed(() =>
-    this.collections.personnelPools().map((pool) => ({
-      value: pool.id,
-      label: pool.name ?? pool.id,
-    })),
+    this.collections
+      .personnelPools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelPool)
+      .map((pool) => ({
+        value: pool.id,
+        label: pool.name ?? pool.id,
+      })),
   );
   readonly homeDepotOptions = computed(() =>
     [
@@ -397,6 +433,7 @@ export class PersonnelMasterEditorComponent {
   readonly personnelServiceOptions = computed(() =>
     this.resources
       .personnelServices()
+      .filter((service) => service.poolId !== SYSTEM_POOL_IDS.personnelServicePool)
       .map((service) => ({
         value: service.id,
         label: `${service.name ?? service.id} (${service.id})`,
@@ -420,6 +457,107 @@ export class PersonnelMasterEditorComponent {
     mergeDefinitions(SERVICE_POOL_BASE_DEFINITIONS, this.customAttributes.list('personnel-service-pools')),
   );
 
+  private resolveModeLabel(mode: PersonnelEditorMode): string {
+    switch (mode) {
+      case 'servicePools':
+        return 'Dienstpools';
+      case 'services':
+        return 'Dienste';
+      case 'personnelPools':
+        return 'Personalpools';
+      case 'homeDepots':
+        return 'Heimdepots';
+      case 'personnel':
+        return 'Personal';
+      case 'system':
+        return 'System-Pools';
+      default:
+        return 'Personal';
+    }
+  }
+
+  private buildAssistantDataSummary(mode: PersonnelEditorMode): string {
+    switch (mode) {
+      case 'servicePools': {
+        const items = this.collections
+          .personnelServicePools()
+          .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelServicePool);
+        return this.formatSummary('Dienstpools', items, (pool) => {
+          const name = pool.name ?? pool.id;
+          const depot = pool.homeDepotId ? `, homeDepotId=${pool.homeDepotId}` : '';
+          return `${pool.id}: ${name}${depot}`;
+        });
+      }
+      case 'services': {
+        const items = this.resources
+          .personnelServices()
+          .filter((service) => service.poolId !== SYSTEM_POOL_IDS.personnelServicePool);
+        return this.formatSummary('Dienste', items, (service) => {
+          const name = service.name ?? service.id;
+          const pool = service.poolId ? `, poolId=${service.poolId}` : '';
+          const quals =
+            service.requiredQualifications && service.requiredQualifications.length
+              ? `, qualis=${service.requiredQualifications.length}`
+              : '';
+          return `${service.id}: ${name}${pool}${quals}`;
+        });
+      }
+      case 'personnelPools': {
+        const items = this.collections
+          .personnelPools()
+          .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelPool);
+        return this.formatSummary('Personalpools', items, (pool) => {
+          const name = pool.name ?? pool.id;
+          const location = pool.locationCode ? `, location=${pool.locationCode}` : '';
+          const depot = pool.homeDepotId ? `, homeDepotId=${pool.homeDepotId}` : '';
+          return `${pool.id}: ${name}${location}${depot}`;
+        });
+      }
+      case 'homeDepots': {
+        const items = this.collections.homeDepots();
+        return this.formatSummary('Heimdepots', items, (depot) => {
+          const name = depot.name ?? depot.id;
+          const sites =
+            depot.siteIds && depot.siteIds.length ? `, sites=${depot.siteIds.length}` : '';
+          return `${depot.id}: ${name}${sites}`;
+        });
+      }
+      case 'personnel': {
+        const items = this.resources
+          .personnel()
+          .filter((person) => person.poolId !== SYSTEM_POOL_IDS.personnelPool);
+        return this.formatSummary('Personal', items, (person) => {
+          const firstName = typeof person.firstName === 'string' ? person.firstName : '';
+          const lastName = person.lastName ?? '';
+          const pool = person.poolId ? `, poolId=${person.poolId}` : '';
+          return `${person.id}: ${`${firstName} ${lastName}`.trim() || '—'}${pool}`;
+        });
+      }
+      case 'system': {
+        const systemServiceCount = this.resources.personnelServices().filter(
+          (service) => service.poolId === SYSTEM_POOL_IDS.personnelServicePool,
+        ).length;
+        const systemPersonnelCount = this.resources.personnel().filter(
+          (person) => person.poolId === SYSTEM_POOL_IDS.personnelPool,
+        ).length;
+        return `System-Pools\nPersonaldienste: ${systemServiceCount}\nPersonal: ${systemPersonnelCount}`;
+      }
+      default:
+        return '';
+    }
+  }
+
+  private formatSummary<T>(
+    title: string,
+    items: readonly T[],
+    formatItem: (item: T) => string,
+  ): string {
+    const limit = 6;
+    const lines = items.slice(0, limit).map((item) => `- ${formatItem(item)}`);
+    const remaining = items.length > limit ? `\n- … (+${items.length - limit} weitere)` : '';
+    return `Aktuelle Liste: ${title}\nAnzahl: ${items.length}${lines.length ? `\n${lines.join('\n')}${remaining}` : ''}`;
+  }
+
   readonly personnelPoolDefinitions = computed<CustomAttributeDefinition[]>(() =>
     mergeDefinitions(PERSONNEL_POOL_BASE_DEFINITIONS, this.customAttributes.list('personnel-pools')),
   );
@@ -437,55 +575,64 @@ export class PersonnelMasterEditorComponent {
   );
 
   readonly servicePoolRecords = computed<AttributeEntityRecord[]>(() =>
-    this.collections.personnelServicePools().map((pool) => ({
-      id: pool.id,
-      label: pool.name ?? pool.id,
-      secondaryLabel: pool.description ?? '',
-      attributes: [],
-      fallbackValues: {
-        name: pool.name ?? '',
-        description: pool.description ?? '',
-        homeDepotId: pool.homeDepotId ?? '',
-        shiftCoordinator: pool.shiftCoordinator ?? '',
-        contactEmail: pool.contactEmail ?? '',
-      },
-    })),
+    this.collections
+      .personnelServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelServicePool)
+      .map((pool) => ({
+        id: pool.id,
+        label: pool.name ?? pool.id,
+        secondaryLabel: pool.description ?? '',
+        attributes: [],
+        fallbackValues: {
+          name: pool.name ?? '',
+          description: pool.description ?? '',
+          homeDepotId: pool.homeDepotId ?? '',
+          shiftCoordinator: pool.shiftCoordinator ?? '',
+          contactEmail: pool.contactEmail ?? '',
+        },
+      })),
   );
 
   readonly serviceRecords = computed<AttributeEntityRecord[]>(() =>
-    this.resources.personnelServices().map((service) => ({
-      id: service.id,
-      label: service.name ?? service.id,
-      secondaryLabel: service.poolId ? `Pool ${service.poolId}` : 'kein Pool',
-      attributes: [],
-      fallbackValues: {
-        name: service.name ?? '',
-        description: service.description ?? '',
-        poolId: service.poolId ?? '',
-        startTime: service.startTime ?? '',
-        endTime: service.endTime ?? '',
-        isNightService: service.isNightService ? 'true' : 'false',
-        requiredQualifications: (service.requiredQualifications ?? []).join(', '),
-        maxDailyInstances: service.maxDailyInstances != null ? String(service.maxDailyInstances) : '',
-        maxResourcesPerInstance:
-          service.maxResourcesPerInstance != null ? String(service.maxResourcesPerInstance) : '',
-      },
-    })),
+    this.resources
+      .personnelServices()
+      .filter((service) => service.poolId !== SYSTEM_POOL_IDS.personnelServicePool)
+      .map((service) => ({
+        id: service.id,
+        label: service.name ?? service.id,
+        secondaryLabel: service.poolId ? `Pool ${service.poolId}` : 'kein Pool',
+        attributes: [],
+        fallbackValues: {
+          name: service.name ?? '',
+          description: service.description ?? '',
+          poolId: service.poolId ?? '',
+          startTime: service.startTime ?? '',
+          endTime: service.endTime ?? '',
+          isNightService: service.isNightService ? 'true' : 'false',
+          requiredQualifications: (service.requiredQualifications ?? []).join(', '),
+          maxDailyInstances: service.maxDailyInstances != null ? String(service.maxDailyInstances) : '',
+          maxResourcesPerInstance:
+            service.maxResourcesPerInstance != null ? String(service.maxResourcesPerInstance) : '',
+        },
+      })),
   );
 
   readonly personnelPoolRecords = computed<AttributeEntityRecord[]>(() =>
-    this.collections.personnelPools().map((pool) => ({
-      id: pool.id,
-      label: pool.name ?? pool.id,
-      secondaryLabel: pool.description ?? '',
-      attributes: [],
-      fallbackValues: {
-        name: pool.name ?? '',
-        description: pool.description ?? '',
-        homeDepotId: pool.homeDepotId ?? '',
-        locationCode: pool.locationCode ?? '',
-      },
-    })),
+    this.collections
+      .personnelPools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelPool)
+      .map((pool) => ({
+        id: pool.id,
+        label: pool.name ?? pool.id,
+        secondaryLabel: pool.description ?? '',
+        attributes: [],
+        fallbackValues: {
+          name: pool.name ?? '',
+          description: pool.description ?? '',
+          homeDepotId: pool.homeDepotId ?? '',
+          locationCode: pool.locationCode ?? '',
+        },
+      })),
   );
 
   readonly homeDepotRecords = computed<AttributeEntityRecord[]>(() =>
@@ -506,27 +653,32 @@ export class PersonnelMasterEditorComponent {
   );
 
   readonly personnelRecords = computed<AttributeEntityRecord[]>(() =>
-    this.resources.personnel().map((person) => ({
-      id: person.id,
-      label: `${person.firstName ?? ''} ${person.lastName ?? ''}`.trim() || person.id,
-      secondaryLabel: person.poolId ? `Pool ${person.poolId}` : 'kein Pool',
-      attributes: [],
-      fallbackValues: {
-        firstName: (person.firstName as string) ?? '',
-        lastName: person.lastName ?? '',
-        preferredName: (person.preferredName as string) ?? '',
-        qualifications: (person.qualifications ?? []).join(', '),
-        serviceIds: (person.serviceIds ?? []).join(', '),
-        poolId: person.poolId ?? '',
-        homeStation: person.homeStation ?? '',
-        availabilityStatus: person.availabilityStatus ?? '',
-        qualificationExpires: person.qualificationExpires ?? '',
-        isReserve: person.isReserve ? 'true' : 'false',
-      },
-    })),
+    this.resources
+      .personnel()
+      .filter((person) => person.poolId !== SYSTEM_POOL_IDS.personnelPool)
+      .map((person) => ({
+        id: person.id,
+        label: `${person.firstName ?? ''} ${person.lastName ?? ''}`.trim() || person.id,
+        secondaryLabel: person.poolId ? `Pool ${person.poolId}` : 'kein Pool',
+        attributes: [],
+        fallbackValues: {
+          firstName: (person.firstName as string) ?? '',
+          lastName: person.lastName ?? '',
+          preferredName: (person.preferredName as string) ?? '',
+          qualifications: (person.qualifications ?? []).join(', '),
+          serviceIds: (person.serviceIds ?? []).join(', '),
+          poolId: person.poolId ?? '',
+          homeStation: person.homeStation ?? '',
+          availabilityStatus: person.availabilityStatus ?? '',
+          qualificationExpires: person.qualificationExpires ?? '',
+          isReserve: person.isReserve ? 'true' : 'false',
+        },
+      })),
   );
   readonly serviceGroups = computed<AttributeEntityGroup[]>(() => {
-    const pools = this.collections.personnelServicePools();
+    const pools = this.collections
+      .personnelServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelServicePool);
     const services = this.serviceRecords();
     const groups: AttributeEntityGroup[] = pools.map((pool) => ({
       id: pool.id,
@@ -547,7 +699,9 @@ export class PersonnelMasterEditorComponent {
   });
 
   readonly personnelGroups = computed<AttributeEntityGroup[]>(() => {
-    const pools = this.collections.personnelPools();
+    const pools = this.collections
+      .personnelPools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelPool);
     const persons = this.personnelRecords();
     const groups: AttributeEntityGroup[] = pools.map((pool) => ({
       id: pool.id,
@@ -566,6 +720,45 @@ export class PersonnelMasterEditorComponent {
     }
     return groups;
   });
+
+  readonly systemPoolLabels = SYSTEM_POOL_LABELS;
+  readonly systemPoolIds = SYSTEM_POOL_IDS;
+  readonly systemServiceItems = computed(() =>
+    this.resources
+      .personnelServices()
+      .filter((service) => service.poolId === SYSTEM_POOL_IDS.personnelServicePool),
+  );
+  readonly systemPersonnelItems = computed(() =>
+    this.resources.personnel().filter((person) => person.poolId === SYSTEM_POOL_IDS.personnelPool),
+  );
+  readonly serviceCountByPool = computed(() => {
+    const counts = new Map<string, number>();
+    this.resources.personnelServices().forEach((service) => {
+      if (!service.poolId) {
+        return;
+      }
+      counts.set(service.poolId, (counts.get(service.poolId) ?? 0) + 1);
+    });
+    return counts;
+  });
+  readonly personnelCountByPool = computed(() => {
+    const counts = new Map<string, number>();
+    this.resources.personnel().forEach((person) => {
+      if (!person.poolId) {
+        return;
+      }
+      counts.set(person.poolId, (counts.get(person.poolId) ?? 0) + 1);
+    });
+    return counts;
+  });
+  readonly servicePoolTargets = computed(() =>
+    this.collections
+      .personnelServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelServicePool),
+  );
+  readonly personnelPoolTargets = computed(() =>
+    this.collections.personnelPools().filter((pool) => pool.id !== SYSTEM_POOL_IDS.personnelPool),
+  );
   readonly servicePoolError = signal<string | null>(null);
   readonly personnelPoolError = signal<string | null>(null);
   readonly homeDepotError = signal<string | null>(null);
@@ -793,11 +986,51 @@ export class PersonnelMasterEditorComponent {
     this.detachPersonFromPools(ids);
   }
 
+  handleSystemServiceDrop(event: CdkDragDrop<string>): void {
+    const serviceId = String(event.item.data ?? '').trim();
+    const targetPoolId = String(event.container.data ?? '').trim();
+    if (!serviceId || !targetPoolId) {
+      return;
+    }
+    if (targetPoolId === SYSTEM_POOL_IDS.personnelServicePool) {
+      return;
+    }
+    this.moveServiceToPool(serviceId, targetPoolId);
+  }
+
+  handleSystemPersonnelDrop(event: CdkDragDrop<string>): void {
+    const personnelId = String(event.item.data ?? '').trim();
+    const targetPoolId = String(event.container.data ?? '').trim();
+    if (!personnelId || !targetPoolId) {
+      return;
+    }
+    if (targetPoolId === SYSTEM_POOL_IDS.personnelPool) {
+      return;
+    }
+    this.movePersonnelToPool(personnelId, targetPoolId);
+  }
+
   resetToDefaults(): void {
     if (!this.confirmFactoryReset('Personal-Stammdaten')) {
       return;
     }
     this.planningData.resetResourceSnapshotToDefaults('personnel');
+  }
+
+  private moveServiceToPool(serviceId: string, poolId: string): void {
+    const list = this.resources.personnelServices();
+    const next = list.map((service) =>
+      service.id === serviceId ? { ...service, poolId } : service,
+    );
+    this.resources.syncPersonnelServices(next);
+  }
+
+  private movePersonnelToPool(personnelId: string, poolId: string): void {
+    const list = this.resources.personnel();
+    const next = list.map((person) =>
+      person.id === personnelId ? { ...person, poolId } : person,
+    );
+    this.resources.syncPersonnel(next);
   }
 
   private detachServicesFromPools(poolIds: string[]): void {
@@ -806,7 +1039,7 @@ export class PersonnelMasterEditorComponent {
     const next = list.map((service) => {
       if (service.poolId && poolIds.includes(service.poolId)) {
         changed = true;
-        return { ...service, poolId: undefined };
+        return { ...service, poolId: SYSTEM_POOL_IDS.personnelServicePool };
       }
       return service;
     });
@@ -821,7 +1054,7 @@ export class PersonnelMasterEditorComponent {
     const next = list.map((person) => {
       if (person.poolId && poolIds.includes(person.poolId)) {
         changed = true;
-        return { ...person, poolId: undefined };
+        return { ...person, poolId: SYSTEM_POOL_IDS.personnelPool };
       }
       return person;
     });
@@ -907,6 +1140,12 @@ export class PersonnelMasterEditorComponent {
     }
     const normalized = value.trim().toLowerCase();
     return normalized === 'true' || normalized === '1' || normalized === 'ja';
+  }
+
+  formatPersonnelLabel(person: Personnel): string {
+    const firstName = typeof person.firstName === 'string' ? person.firstName : '';
+    const lastName = person.lastName ?? '';
+    return `${firstName} ${lastName}`.trim() || person.id;
   }
 
   private generateId(prefix: string): string {

@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
+import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import {
   AttributeEntityEditorComponent,
   AttributeEntityGroup,
@@ -22,6 +23,8 @@ import {
   VehicleType,
 } from '../../../../models/master-data';
 import { PlanningDataService } from '../../../planning/planning-data.service';
+import { AssistantUiContextService } from '../../../../core/services/assistant-ui-context.service';
+import { SYSTEM_POOL_IDS, SYSTEM_POOL_LABELS } from '../../system-pools';
 
 type VehicleEditorMode =
   | 'servicePools'
@@ -29,7 +32,8 @@ type VehicleEditorMode =
   | 'vehiclePools'
   | 'vehicles'
   | 'vehicleTypes'
-  | 'compositions';
+  | 'compositions'
+  | 'system';
 
 const VEHICLE_SERVICE_POOL_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
   { id: 'vsp-name', key: 'name', label: 'Poolname', type: 'string', entityId: 'vehicle-service-pools', required: true },
@@ -227,7 +231,14 @@ function mergeDefinitions(
 
 @Component({
     selector: 'app-vehicle-master-editor',
-    imports: [CommonModule, MatButtonModule, MatButtonToggleModule, MatIconModule, AttributeEntityEditorComponent],
+    imports: [
+      CommonModule,
+      MatButtonModule,
+      MatButtonToggleModule,
+      MatIconModule,
+      DragDropModule,
+      AttributeEntityEditorComponent,
+    ],
     templateUrl: './vehicle-master-editor.component.html',
     styleUrl: './vehicle-master-editor.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -237,8 +248,22 @@ export class VehicleMasterEditorComponent {
   private readonly resources = inject(MasterDataResourceStoreService);
   private readonly customAttributes = inject(CustomAttributeService);
   private readonly planningData = inject(PlanningDataService);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
 
   readonly viewMode = signal<VehicleEditorMode>('servicePools');
+
+  private readonly updateAssistantContext = effect(() => {
+    const isActive = this.assistantUiContext.docKey() === 'vehicles';
+    if (!isActive) {
+      return;
+    }
+    const mode = this.viewMode();
+    const subtopic = this.resolveModeLabel(mode);
+    this.assistantUiContext.setDocKey('vehicles');
+    this.assistantUiContext.setDocSubtopic(subtopic);
+    this.assistantUiContext.setBreadcrumbs(['Stammdaten', 'Fahrzeuge', subtopic]);
+    this.assistantUiContext.setDataSummary(this.buildAssistantDataSummary(mode));
+  });
 
   readonly servicePoolDefinitions = computed(() =>
     mergeDefinitions(VEHICLE_SERVICE_POOL_BASE_DEFINITIONS, this.customAttributes.list('vehicle-service-pools')),
@@ -259,64 +284,179 @@ export class VehicleMasterEditorComponent {
     mergeDefinitions(VEHICLE_COMPOSITION_BASE_DEFINITIONS, this.customAttributes.list('vehicle-compositions')),
   );
 
+  private resolveModeLabel(mode: VehicleEditorMode): string {
+    switch (mode) {
+      case 'servicePools':
+        return 'Fahrzeugdienstpools';
+      case 'services':
+        return 'Fahrzeugdienste';
+      case 'vehiclePools':
+        return 'Fahrzeugpools';
+      case 'vehicles':
+        return 'Fahrzeuge';
+      case 'vehicleTypes':
+        return 'Fahrzeugtypen';
+      case 'compositions':
+        return 'Kompositionen';
+      case 'system':
+        return 'System-Pools';
+      default:
+        return 'Fahrzeuge';
+    }
+  }
+
+  private buildAssistantDataSummary(mode: VehicleEditorMode): string {
+    switch (mode) {
+      case 'servicePools': {
+        const items = this.collections
+          .vehicleServicePools()
+          .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehicleServicePool);
+        return this.formatSummary('Fahrzeugdienstpools', items, (pool) => {
+          const name = pool.name ?? pool.id;
+          return `${pool.id}: ${name}`;
+        });
+      }
+      case 'services': {
+        const items = this.resources
+          .vehicleServices()
+          .filter((service) => service.poolId !== SYSTEM_POOL_IDS.vehicleServicePool);
+        return this.formatSummary('Fahrzeugdienste', items, (service) => {
+          const name = service.name ?? service.id;
+          const pool = service.poolId ? `, poolId=${service.poolId}` : '';
+          return `${service.id}: ${name}${pool}`;
+        });
+      }
+      case 'vehiclePools': {
+        const items = this.collections
+          .vehiclePools()
+          .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehiclePool);
+        return this.formatSummary('Fahrzeugpools', items, (pool) => {
+          const name = pool.name ?? pool.id;
+          return `${pool.id}: ${name}`;
+        });
+      }
+      case 'vehicles': {
+        const items = this.resources
+          .vehicles()
+          .filter((vehicle) => vehicle.poolId !== SYSTEM_POOL_IDS.vehiclePool);
+        return this.formatSummary('Fahrzeuge', items, (vehicle) => {
+          const label = vehicle.vehicleNumber ?? vehicle.id;
+          const typeId = vehicle.typeId ? `, typeId=${vehicle.typeId}` : '';
+          const pool = vehicle.poolId ? `, poolId=${vehicle.poolId}` : '';
+          return `${vehicle.id}: ${label}${typeId}${pool}`;
+        });
+      }
+      case 'vehicleTypes': {
+        const items = this.collections.vehicleTypes();
+        return this.formatSummary('Fahrzeugtypen', items, (type) => {
+          const label = type.label ?? type.id;
+          const category = type.category ? `, category=${type.category}` : '';
+          return `${type.id}: ${label}${category}`;
+        });
+      }
+      case 'compositions': {
+        const items = this.collections.vehicleCompositions();
+        return this.formatSummary('Kompositionen', items, (composition) => {
+          const name = composition.name ?? composition.id;
+          const entries = composition.entries?.length ? `, entries=${composition.entries.length}` : '';
+          return `${composition.id}: ${name}${entries}`;
+        });
+      }
+      case 'system': {
+        const systemServiceCount = this.resources.vehicleServices().filter(
+          (service) => service.poolId === SYSTEM_POOL_IDS.vehicleServicePool,
+        ).length;
+        const systemVehicleCount = this.resources.vehicles().filter(
+          (vehicle) => vehicle.poolId === SYSTEM_POOL_IDS.vehiclePool,
+        ).length;
+        return `System-Pools\nFahrzeugdienste: ${systemServiceCount}\nFahrzeuge: ${systemVehicleCount}`;
+      }
+      default:
+        return '';
+    }
+  }
+
+  private formatSummary<T>(
+    title: string,
+    items: readonly T[],
+    formatItem: (item: T) => string,
+  ): string {
+    const limit = 6;
+    const lines = items.slice(0, limit).map((item) => `- ${formatItem(item)}`);
+    const remaining = items.length > limit ? `\n- … (+${items.length - limit} weitere)` : '';
+    return `Aktuelle Liste: ${title}\nAnzahl: ${items.length}${lines.length ? `\n${lines.join('\n')}${remaining}` : ''}`;
+  }
+
   readonly servicePoolRecords = computed<AttributeEntityRecord[]>(() =>
-    this.collections.vehicleServicePools().map((pool) => ({
-      id: pool.id,
-      label: pool.name ?? pool.id,
-      secondaryLabel: pool.description ?? '',
-      attributes: [],
-      fallbackValues: {
-        name: pool.name ?? '',
-        description: pool.description ?? '',
-        dispatcher: pool.dispatcher ?? '',
-      },
-    })),
+    this.collections
+      .vehicleServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehicleServicePool)
+      .map((pool) => ({
+        id: pool.id,
+        label: pool.name ?? pool.id,
+        secondaryLabel: pool.description ?? '',
+        attributes: [],
+        fallbackValues: {
+          name: pool.name ?? '',
+          description: pool.description ?? '',
+          dispatcher: pool.dispatcher ?? '',
+        },
+      })),
   );
   readonly serviceRecords = computed<AttributeEntityRecord[]>(() =>
-    this.resources.vehicleServices().map((service) => ({
-      id: service.id,
-      label: service.name ?? service.id,
-      secondaryLabel: service.poolId ? `Pool ${service.poolId}` : 'kein Pool',
-      attributes: [],
-      fallbackValues: {
-        name: service.name ?? '',
-        description: service.description ?? '',
-        poolId: service.poolId ?? '',
-        startTime: service.startTime ?? '',
-        endTime: service.endTime ?? '',
-        isOvernight: service.isOvernight ? 'true' : 'false',
-        primaryRoute: service.primaryRoute ?? '',
-      },
-    })),
+    this.resources
+      .vehicleServices()
+      .filter((service) => service.poolId !== SYSTEM_POOL_IDS.vehicleServicePool)
+      .map((service) => ({
+        id: service.id,
+        label: service.name ?? service.id,
+        secondaryLabel: service.poolId ? `Pool ${service.poolId}` : 'kein Pool',
+        attributes: [],
+        fallbackValues: {
+          name: service.name ?? '',
+          description: service.description ?? '',
+          poolId: service.poolId ?? '',
+          startTime: service.startTime ?? '',
+          endTime: service.endTime ?? '',
+          isOvernight: service.isOvernight ? 'true' : 'false',
+          primaryRoute: service.primaryRoute ?? '',
+        },
+      })),
   );
   readonly vehiclePoolRecords = computed<AttributeEntityRecord[]>(() =>
-    this.collections.vehiclePools().map((pool) => ({
-      id: pool.id,
-      label: pool.name ?? pool.id,
-      secondaryLabel: pool.description ?? '',
-      attributes: [],
-      fallbackValues: {
-        name: pool.name ?? '',
-        description: pool.description ?? '',
-        depotManager: pool.depotManager ?? '',
-      },
-    })),
+    this.collections
+      .vehiclePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehiclePool)
+      .map((pool) => ({
+        id: pool.id,
+        label: pool.name ?? pool.id,
+        secondaryLabel: pool.description ?? '',
+        attributes: [],
+        fallbackValues: {
+          name: pool.name ?? '',
+          description: pool.description ?? '',
+          depotManager: pool.depotManager ?? '',
+        },
+      })),
   );
   readonly vehicleRecords = computed<AttributeEntityRecord[]>(() =>
-    this.resources.vehicles().map((vehicle) => ({
-      id: vehicle.id,
-      label: vehicle.vehicleNumber ?? vehicle.id,
-      secondaryLabel: vehicle.poolId ? `Pool ${vehicle.poolId}` : 'kein Pool',
-      attributes: [],
-      fallbackValues: {
-        vehicleNumber: vehicle.vehicleNumber ?? '',
-        typeId: vehicle.typeId ?? '',
-        serviceIds: (vehicle.serviceIds ?? []).join(', '),
-        poolId: vehicle.poolId ?? '',
-        description: vehicle.description ?? '',
-        depot: vehicle.depot ?? '',
-      },
-    })),
+    this.resources
+      .vehicles()
+      .filter((vehicle) => vehicle.poolId !== SYSTEM_POOL_IDS.vehiclePool)
+      .map((vehicle) => ({
+        id: vehicle.id,
+        label: vehicle.vehicleNumber ?? vehicle.id,
+        secondaryLabel: vehicle.poolId ? `Pool ${vehicle.poolId}` : 'kein Pool',
+        attributes: [],
+        fallbackValues: {
+          vehicleNumber: vehicle.vehicleNumber ?? '',
+          typeId: vehicle.typeId ?? '',
+          serviceIds: (vehicle.serviceIds ?? []).join(', '),
+          poolId: vehicle.poolId ?? '',
+          description: vehicle.description ?? '',
+          depot: vehicle.depot ?? '',
+        },
+      })),
   );
   readonly vehicleTypeLabelMap = computed(() =>
     new Map(this.collections.vehicleTypes().map((type) => [type.id, type.label ?? type.id] as const)),
@@ -366,7 +506,9 @@ export class VehicleMasterEditorComponent {
     })),
   );
   readonly serviceGroups = computed<AttributeEntityGroup[]>(() => {
-    const pools = this.collections.vehicleServicePools();
+    const pools = this.collections
+      .vehicleServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehicleServicePool);
     const services = this.serviceRecords();
     const groups: AttributeEntityGroup[] = pools.map((pool) => ({
       id: pool.id,
@@ -386,7 +528,9 @@ export class VehicleMasterEditorComponent {
     return groups;
   });
   readonly vehicleGroups = computed<AttributeEntityGroup[]>(() => {
-    const pools = this.collections.vehiclePools();
+    const pools = this.collections
+      .vehiclePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehiclePool);
     const entries = this.vehicleRecords();
     const groups: AttributeEntityGroup[] = pools.map((pool) => ({
       id: pool.id,
@@ -405,6 +549,45 @@ export class VehicleMasterEditorComponent {
     }
     return groups;
   });
+
+  readonly systemPoolLabels = SYSTEM_POOL_LABELS;
+  readonly systemPoolIds = SYSTEM_POOL_IDS;
+  readonly systemServiceItems = computed(() =>
+    this.resources
+      .vehicleServices()
+      .filter((service) => service.poolId === SYSTEM_POOL_IDS.vehicleServicePool),
+  );
+  readonly systemVehicleItems = computed(() =>
+    this.resources.vehicles().filter((vehicle) => vehicle.poolId === SYSTEM_POOL_IDS.vehiclePool),
+  );
+  readonly serviceCountByPool = computed(() => {
+    const counts = new Map<string, number>();
+    this.resources.vehicleServices().forEach((service) => {
+      if (!service.poolId) {
+        return;
+      }
+      counts.set(service.poolId, (counts.get(service.poolId) ?? 0) + 1);
+    });
+    return counts;
+  });
+  readonly vehicleCountByPool = computed(() => {
+    const counts = new Map<string, number>();
+    this.resources.vehicles().forEach((vehicle) => {
+      if (!vehicle.poolId) {
+        return;
+      }
+      counts.set(vehicle.poolId, (counts.get(vehicle.poolId) ?? 0) + 1);
+    });
+    return counts;
+  });
+  readonly servicePoolTargets = computed(() =>
+    this.collections
+      .vehicleServicePools()
+      .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehicleServicePool),
+  );
+  readonly vehiclePoolTargets = computed(() =>
+    this.collections.vehiclePools().filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehiclePool),
+  );
   readonly servicePoolDefaults = VEHICLE_SERVICE_POOL_DEFAULTS;
   readonly serviceDefaults = VEHICLE_SERVICE_DEFAULTS;
   readonly vehiclePoolDefaults = VEHICLE_POOL_DEFAULTS;
@@ -421,19 +604,25 @@ export class VehicleMasterEditorComponent {
   readonly serviceSelectOptions = computed(() => ({
     poolId: [
       { value: '', label: '— kein Pool —' },
-      ...this.collections.vehicleServicePools().map((pool) => ({
-        value: pool.id,
-        label: pool.name ?? pool.id,
-      })),
+      ...this.collections
+        .vehicleServicePools()
+        .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehicleServicePool)
+        .map((pool) => ({
+          value: pool.id,
+          label: pool.name ?? pool.id,
+        })),
     ],
   }));
   readonly vehicleSelectOptions = computed(() => ({
     poolId: [
       { value: '', label: '— kein Pool —' },
-      ...this.collections.vehiclePools().map((pool) => ({
-        value: pool.id,
-        label: pool.name ?? pool.id,
-      })),
+      ...this.collections
+        .vehiclePools()
+        .filter((pool) => pool.id !== SYSTEM_POOL_IDS.vehiclePool)
+        .map((pool) => ({
+          value: pool.id,
+          label: pool.name ?? pool.id,
+        })),
     ],
     typeId: this.collections.vehicleTypes().map((type) => ({
       value: type.id,
@@ -443,6 +632,7 @@ export class VehicleMasterEditorComponent {
   readonly vehicleServiceOptions = computed(() =>
     this.resources
       .vehicleServices()
+      .filter((service) => service.poolId !== SYSTEM_POOL_IDS.vehicleServicePool)
       .map((service) => ({
         value: service.id,
         label: `${service.name ?? service.id} (${service.id})`,
@@ -515,8 +705,12 @@ export class VehicleMasterEditorComponent {
       this.serviceError.set('Name darf nicht leer sein.');
       return;
     }
-    const poolId = this.cleanString(values['poolId']);
-    if (poolId && !this.serviceSelectOptions().poolId.some((option) => option.value === poolId)) {
+    const poolId = (values['poolId'] ?? '').trim();
+    if (!poolId) {
+      this.serviceError.set('Bitte einen Dienst-Pool auswählen.');
+      return;
+    }
+    if (!this.serviceSelectOptions().poolId.some((option) => option.value === poolId)) {
       this.serviceError.set('Ungültiger Pool.');
       return;
     }
@@ -524,7 +718,7 @@ export class VehicleMasterEditorComponent {
       id,
       name,
       description: this.cleanString(values['description']),
-      poolId: poolId || undefined,
+      poolId,
       startTime: this.cleanString(values['startTime']),
       endTime: this.cleanString(values['endTime']),
       isOvernight: this.parseBoolean(values['isOvernight']),
@@ -620,11 +814,51 @@ export class VehicleMasterEditorComponent {
     this.detachVehiclesFromPools(ids);
   }
 
+  handleSystemServiceDrop(event: CdkDragDrop<string>): void {
+    const serviceId = String(event.item.data ?? '').trim();
+    const targetPoolId = String(event.container.data ?? '').trim();
+    if (!serviceId || !targetPoolId) {
+      return;
+    }
+    if (targetPoolId === SYSTEM_POOL_IDS.vehicleServicePool) {
+      return;
+    }
+    this.moveServiceToPool(serviceId, targetPoolId);
+  }
+
+  handleSystemVehicleDrop(event: CdkDragDrop<string>): void {
+    const vehicleId = String(event.item.data ?? '').trim();
+    const targetPoolId = String(event.container.data ?? '').trim();
+    if (!vehicleId || !targetPoolId) {
+      return;
+    }
+    if (targetPoolId === SYSTEM_POOL_IDS.vehiclePool) {
+      return;
+    }
+    this.moveVehicleToPool(vehicleId, targetPoolId);
+  }
+
   resetToDefaults(): void {
     if (!this.confirmFactoryReset('Fahrzeug-Stammdaten')) {
       return;
     }
     this.planningData.resetResourceSnapshotToDefaults('vehicles');
+  }
+
+  private moveServiceToPool(serviceId: string, poolId: string): void {
+    const list = this.resources.vehicleServices();
+    const next = list.map((service) =>
+      service.id === serviceId ? { ...service, poolId } : service,
+    );
+    this.resources.syncVehicleServices(next);
+  }
+
+  private moveVehicleToPool(vehicleId: string, poolId: string): void {
+    const list = this.resources.vehicles();
+    const next = list.map((vehicle) =>
+      vehicle.id === vehicleId ? { ...vehicle, poolId } : vehicle,
+    );
+    this.resources.syncVehicles(next);
   }
 
   handleVehicleTypeSave(event: EntitySaveEvent): void {
@@ -724,7 +958,7 @@ export class VehicleMasterEditorComponent {
     const next = list.map((service) => {
       if (service.poolId && set.has(service.poolId)) {
         changed = true;
-        return { ...service, poolId: undefined };
+        return { ...service, poolId: SYSTEM_POOL_IDS.vehicleServicePool };
       }
       return service;
     });
@@ -749,7 +983,7 @@ export class VehicleMasterEditorComponent {
     const next = list.map((vehicle) => {
       if (vehicle.poolId && set.has(vehicle.poolId)) {
         changed = true;
-        return { ...vehicle, poolId: undefined };
+        return { ...vehicle, poolId: SYSTEM_POOL_IDS.vehiclePool };
       }
       return vehicle;
     });

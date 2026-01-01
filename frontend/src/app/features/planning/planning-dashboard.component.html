@@ -689,7 +689,7 @@
                     />
                   </mat-form-field>
                 }
-                @if (definitionHasField(selectedActivityDefinition(), 'from')) {
+                @if (definitionHasField(selectedActivityDefinition(), 'from') && !isLocationFieldHidden(selectedActivityDefinition(), 'from')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Von</mat-label>
                     <input matInput formControlName="from" [matAutocomplete]="fromLocationAuto" autocomplete="off" />
@@ -737,7 +737,7 @@
                     }
                   </mat-form-field>
                 }
-                @if (definitionHasField(selectedActivityDefinition(), 'to')) {
+                @if (definitionHasField(selectedActivityDefinition(), 'to') && !isLocationFieldHidden(selectedActivityDefinition(), 'to')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Nach</mat-label>
                     <input matInput formControlName="to" [matAutocomplete]="toLocationAuto" autocomplete="off" />

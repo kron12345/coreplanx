@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   AttributeEntityEditorComponent,
@@ -8,6 +8,7 @@ import {
 import { CustomAttributeDefinition } from '../../../../core/services/custom-attribute.service';
 import { TimetableYearService } from '../../../../core/services/timetable-year.service';
 import { TimetableYearRecord } from '../../../../core/models/timetable-year.model';
+import { AssistantUiContextService } from '../../../../core/services/assistant-ui-context.service';
 
 const TIMETABLE_YEAR_DEFINITIONS: CustomAttributeDefinition[] = [
   {
@@ -59,6 +60,7 @@ const DEFAULT_VALUES = {
 })
 export class TimetableYearMasterEditorComponent {
   private readonly timetableYears = inject(TimetableYearService);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
 
   readonly definitions = TIMETABLE_YEAR_DEFINITIONS;
   readonly defaults = DEFAULT_VALUES;
@@ -68,6 +70,27 @@ export class TimetableYearMasterEditorComponent {
   readonly records = computed<AttributeEntityRecord[]>(() =>
     this.timetableYears.listManagedYearRecords().map((record) => this.toAttributeRecord(record)),
   );
+
+  private readonly updateAssistantContext = effect(() => {
+    const isActive = this.assistantUiContext.docKey() === 'timetable-years';
+    if (!isActive) {
+      return;
+    }
+    this.assistantUiContext.setDocKey('timetable-years');
+    this.assistantUiContext.setDocSubtopic(null);
+    const entries = this.timetableYears.listManagedYearRecords();
+    const limit = 10;
+    const lines = entries.slice(0, limit).map((record) => {
+      const label = record.label ?? record.id;
+      const range =
+        record.startIso && record.endIso ? `${record.startIso} – ${record.endIso}` : '';
+      return `- ${label}${range ? ` (${range})` : ''}`;
+    });
+    const remaining = entries.length > limit ? `\n- … (+${entries.length - limit} weitere)` : '';
+    this.assistantUiContext.setDataSummary(
+      `Aktuelle Liste: Fahrplanjahre\nAnzahl: ${entries.length}${lines.length ? `\n${lines.join('\n')}${remaining}` : ''}`,
+    );
+  });
 
   readonly createDefaultsFactory = () => {
     const defaults = this.timetableYears.nextDefaultRecord();

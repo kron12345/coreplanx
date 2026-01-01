@@ -13,6 +13,7 @@ export class PlanningDashboardOperationsHandlers {
       stageResourceSignal: Signal<Resource[]>;
       updateStageActivities: (stage: PlanningStageId, updater: (activities: Activity[]) => Activity[]) => void;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
+      applyLocationDefaults: (activity: Activity, activities: Activity[]) => Activity;
       activitySelection: PlanningDashboardActivitySelectionFacade;
       activityOwnerId: (activity: Activity) => string | null;
       ensureRequiredParticipants?: (
@@ -86,16 +87,17 @@ export class PlanningDashboardOperationsHandlers {
     };
     const updatedMain = applyUpdate(event.activity);
     const anchorResource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
-    const shouldEnsure = resourceChanged;
-    const ensuredMain =
-      shouldEnsure && this.deps.ensureRequiredParticipants && anchorResource
-        ? await this.deps.ensureRequiredParticipants(stage, anchorResource, updatedMain)
-        : updatedMain;
+    const shouldEnsure = !!this.deps.ensureRequiredParticipants && !!anchorResource;
+    const ensuredMain = shouldEnsure
+      ? await this.deps.ensureRequiredParticipants!(stage, anchorResource!, updatedMain)
+      : updatedMain;
     if (!ensuredMain) {
       return;
     }
+    let ensuredWithDefaults = ensuredMain;
     let shiftedAttachments = new Map<string, Activity>();
     this.deps.updateStageActivities(stage, (activities) => {
+      ensuredWithDefaults = this.deps.applyLocationDefaults(ensuredWithDefaults, activities);
       shiftedAttachments = shiftDeltaMs
         ? this.shiftedGroupAttachmentMap(activities, previousActivityId, shiftDeltaMs)
         : new Map<string, Activity>();
@@ -104,7 +106,7 @@ export class PlanningDashboardOperationsHandlers {
           if (activity.id !== event.activity.id) {
             return shiftedAttachments.get(activity.id) ?? activity;
           }
-          return ensuredMain;
+          return ensuredWithDefaults;
         });
       }
       return activities.map((activity) => {
@@ -114,7 +116,7 @@ export class PlanningDashboardOperationsHandlers {
             ? (currentAttrs['linkGroupId'] as string)
             : null;
         if (activity.id === event.activity.id) {
-          return ensuredMain;
+          return ensuredWithDefaults;
         }
         const shifted = shiftedAttachments.get(activity.id);
         if (shifted) {
@@ -133,7 +135,7 @@ export class PlanningDashboardOperationsHandlers {
     const activeSelection = this.deps.activitySelection.selectedActivityState();
     if (activeSelection?.activity.id === event.activity.id) {
       const resource = targetResource;
-      const updatedSelectionActivity = this.deps.applyActivityTypeConstraints(ensuredMain);
+      const updatedSelectionActivity = this.deps.applyActivityTypeConstraints(ensuredWithDefaults);
       this.deps.activitySelection.selectedActivityState.set({
         activity: updatedSelectionActivity,
         resource,

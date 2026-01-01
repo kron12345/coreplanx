@@ -11,6 +11,16 @@ servers:
   - url: /api/v1
     description: Default Backend-URL (überschreibbar per API_CONFIG).
 paths:
+  /assistant/chat:
+    $ref: './assistant/paths/chat.yaml#/assistant_chat'
+  /assistant/help:
+    $ref: './assistant/paths/help.yaml#/assistant_help'
+  /assistant/actions/preview:
+    $ref: './assistant/paths/actions-preview.yaml#/assistant_actions_preview'
+  /assistant/actions/commit:
+    $ref: './assistant/paths/actions-commit.yaml#/assistant_actions_commit'
+  /assistant/actions/resolve:
+    $ref: './assistant/paths/actions-resolve.yaml#/assistant_actions_resolve'
   /planning/base/templates:
     $ref: './planning/paths/base.yaml#/planning_base_templates'
   /planning/base/templates/{templateId}:

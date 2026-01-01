@@ -12,27 +12,42 @@ import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MATERIAL_IMPORTS } from './core/material.imports.imports';
 import { TtrBusinessAutomationService } from './core/services/ttr-business-automation.service';
+import { AssistantCommandComponent } from './features/assistant/assistant-command.component';
+import { AssistantUiContextService } from './core/services/assistant-ui-context.service';
 
 type AppSection = 'manager' | 'planning' | 'timetable' | 'master-data' | 'settings';
 
 @Component({
     selector: 'app-root',
-    imports: [RouterOutlet, RouterLink, RouterLinkActive, ...MATERIAL_IMPORTS],
+    imports: [
+      RouterOutlet,
+      RouterLink,
+      RouterLinkActive,
+      AssistantCommandComponent,
+      ...MATERIAL_IMPORTS,
+    ],
     templateUrl: './app.component.html',
     styleUrl: './app.component.scss'
 })
 export class AppComponent {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
   // ensure phase automation orchestrator is instantiated once
   private readonly _ttrAutomation = inject(TtrBusinessAutomationService);
 
+  readonly brandTitle = 'CorePlanX';
   readonly pageTitle = signal('Auftragsmanager');
   readonly section = signal<AppSection>('manager');
   readonly sectionTitle = computed(() => this.resolveSectionTitle());
-  readonly showSubtitle = computed(
-    () => this.pageTitle().toLowerCase() !== this.sectionTitle().toLowerCase(),
-  );
+  readonly brandSubtitle = computed(() => {
+    const sectionTitle = this.sectionTitle();
+    const pageTitle = this.pageTitle();
+    if (pageTitle.toLowerCase() === sectionTitle.toLowerCase()) {
+      return sectionTitle;
+    }
+    return `${sectionTitle} · ${pageTitle}`;
+  });
 
   constructor() {
     this.updateTitle();
@@ -50,6 +65,7 @@ export class AppComponent {
     const section = this.extractSection(snapshot) ?? 'manager';
     this.pageTitle.set(title);
     this.section.set(section);
+    this.updateAssistantUiContext();
   }
 
   private extractTitle(route: ActivatedRouteSnapshot): string | undefined {
@@ -91,5 +107,20 @@ export class AppComponent {
       default:
         return 'Auftragsmanager';
     }
+  }
+
+  private updateAssistantUiContext(): void {
+    const route = this.router.url;
+    const sectionTitle = this.sectionTitle();
+    const pageTitle = this.pageTitle();
+    const breadcrumbs =
+      sectionTitle.toLowerCase() === pageTitle.toLowerCase()
+        ? [sectionTitle]
+        : [sectionTitle, pageTitle];
+    this.assistantUiContext.setRoute(route);
+    this.assistantUiContext.setDocKey(null);
+    this.assistantUiContext.setDocSubtopic(null);
+    this.assistantUiContext.setBreadcrumbs(breadcrumbs);
+    this.assistantUiContext.setDataSummary(null);
   }
 }

@@ -5,7 +5,8 @@ import { EMPTY, forkJoin } from 'rxjs';
 import { catchError, finalize, take, tap } from 'rxjs/operators';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const STORAGE_KEY = 'order-management.timetable-years';
+const STORAGE_KEY = 'coreplanx:timetable-years:v1';
+const LEGACY_STORAGE_KEY = 'order-management.timetable-years';
 const DEFAULT_TIMETABLE_YEAR_LABELS = [
   '2023/24',
   '2024/25',
@@ -96,6 +97,10 @@ export class TimetableYearService {
 
   managedYearBoundsSignal(): Signal<TimetableYearBounds[]> {
     return computed(() => this.managedBoundsSignal().map((bounds) => this.cloneBounds(bounds)));
+  }
+
+  refresh(): void {
+    this.refreshFromBackend();
   }
 
   /**
@@ -323,20 +328,40 @@ export class TimetableYearService {
   }
 
   private loadManagedRecords(): TimetableYearRecord[] {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as TimetableYearRecord[];
-          if (Array.isArray(parsed)) {
-            return parsed.map((entry, index) => this.normalizeRecord(entry, index));
-          }
-        }
-      } catch {
-        // ignore malformed storage
-      }
+    if (typeof window === 'undefined') {
+      return this.buildDefaultRecords();
     }
+
+    try {
+      const current = window.localStorage.getItem(STORAGE_KEY);
+      if (current) {
+        return this.parseManagedRecords(current);
+      }
+
+      const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy) {
+        const migrated = this.parseManagedRecords(legacy);
+        try {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+          window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+        } catch {
+          // ignore storage failures
+        }
+        return migrated;
+      }
+    } catch {
+      // ignore malformed storage
+    }
+
     return this.buildDefaultRecords();
+  }
+
+  private parseManagedRecords(raw: string): TimetableYearRecord[] {
+    const parsed = JSON.parse(raw) as TimetableYearRecord[];
+    if (!Array.isArray(parsed)) {
+      return this.buildDefaultRecords();
+    }
+    return parsed.map((entry, index) => this.normalizeRecord(entry, index));
   }
 
   private persistManagedRecords(): void {

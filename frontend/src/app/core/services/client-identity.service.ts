@@ -2,8 +2,8 @@ import { Injectable } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class ClientIdentityService {
-  private static readonly USER_STORAGE_KEY = 'order-mgmt-user-id';
-  private static readonly CONNECTION_STORAGE_KEY = 'order-mgmt-connection-id';
+  private static readonly USER_STORAGE_KEY = 'coreplanx-user-id';
+  private static readonly CONNECTION_STORAGE_KEY = 'coreplanx-connection-id';
 
   private readonly userIdValue: string;
   private readonly connectionIdValue: string;

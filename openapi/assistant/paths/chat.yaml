@@ -1,0 +1,114 @@
+assistant_chat:
+  post:
+    summary: Chat mit dem CorePlanX Assistant
+    description: |
+      Nimmt einen Prompt entgegen, leitet ihn an Ollama (OpenAI-kompatible API) weiter und
+      liefert die Antwort inklusive Conversation-History (Server hält Context in-memory).
+    tags: [assistant]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              prompt:
+                type: string
+                minLength: 1
+                maxLength: 20000
+              clientId:
+                type: string
+                nullable: true
+                maxLength: 200
+              conversationId:
+                type: string
+                nullable: true
+                maxLength: 200
+              uiContext:
+                type: object
+                nullable: true
+                additionalProperties: false
+                properties:
+                  route:
+                    type: string
+                    nullable: true
+                    maxLength: 2000
+                  docKey:
+                    type: string
+                    nullable: true
+                    maxLength: 120
+                  docSubtopic:
+                    type: string
+                    nullable: true
+                    maxLength: 120
+                  breadcrumbs:
+                    type: array
+                    maxItems: 20
+                    items:
+                      type: string
+                      maxLength: 80
+                  dataSummary:
+                    type: string
+                    nullable: true
+                    maxLength: 8000
+            required: [prompt]
+    responses:
+      '200':
+        description: Assistant-Antwort + aktuelle History
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                conversationId:
+                  type: string
+                assistantMessage:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    role:
+                      type: string
+                      enum: [system, user, assistant]
+                    content:
+                      type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+                  required: [role, content, createdAt]
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      role:
+                        type: string
+                        enum: [system, user, assistant]
+                      content:
+                        type: string
+                      createdAt:
+                        type: string
+                        format: date-time
+                    required: [role, content, createdAt]
+                status:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      stage:
+                        type: string
+                      message:
+                        type: string
+                    required: [stage, message]
+              required: [conversationId, assistantMessage, messages]
+      '400':
+        description: Ungültige Eingabe
+      '403':
+        description: conversationId gehört einem anderen Client (clientId mismatch)
+      '429':
+        description: Zu viele Anfragen
+      '502':
+        description: Ollama nicht erreichbar / Fehler beim Upstream

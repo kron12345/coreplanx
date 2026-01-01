@@ -1,0 +1,58 @@
+assistant_actions_commit:
+  post:
+    summary: Vorschau bestätigen und Änderungen übernehmen
+    description: |
+      Bestätigt eine zuvor erzeugte Vorschau und schreibt die Änderungen in die Stammdaten.
+    tags: [assistant]
+    parameters:
+      - in: header
+        name: X-Assistant-Role
+        schema:
+          type: string
+        required: false
+        description: Optional role for action permissions.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              previewId:
+                type: string
+                maxLength: 200
+              clientId:
+                type: string
+                nullable: true
+                maxLength: 200
+            required: [previewId]
+    responses:
+      '200':
+        description: Änderungen übernommen
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                applied:
+                  type: boolean
+                snapshot:
+                  type: object
+                  nullable: true
+                refresh:
+                  type: array
+                  items:
+                    type: string
+              required: [applied]
+      '400':
+        description: Vorschau nicht gefunden oder abgelaufen
+      '403':
+        description: previewId gehört einem anderen Client oder einer anderen Rolle
+      '409':
+        description: Vorschau ist veraltet (Daten wurden zwischenzeitlich geändert)
+      '429':
+        description: Zu viele Anfragen
+      '502':
+        description: Fehler beim Schreiben

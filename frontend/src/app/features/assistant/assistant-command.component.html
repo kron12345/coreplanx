@@ -1,0 +1,222 @@
+<div class="assistant-command" cdkOverlayOrigin #origin="cdkOverlayOrigin">
+  <mat-form-field class="assistant-command__field" appearance="outline">
+    <mat-label>Prompt</mat-label>
+    <input
+      matInput
+      [value]="draft()"
+      placeholder="CorePlanX Assistant…"
+      (focus)="openChatPanel()"
+      (keydown)="handleKeydown($event)"
+      (input)="draft.set(($any($event.target).value ?? '').toString())"
+    />
+    <button
+      mat-icon-button
+      matSuffix
+      type="button"
+      [disabled]="help.isLoading()"
+      (click)="openHelpPanel()"
+      aria-label="Hilfe anzeigen"
+    >
+      <mat-icon>help_outline</mat-icon>
+    </button>
+    <button
+      mat-icon-button
+      matSuffix
+      type="button"
+      [disabled]="chat.isLoading() || actions.isLoading() || actions.isCommitting() || !draft().trim()"
+      (click)="send()"
+      aria-label="Prompt senden"
+    >
+      <mat-icon>send</mat-icon>
+    </button>
+  </mat-form-field>
+</div>
+
+<ng-template
+  cdkConnectedOverlay
+  [cdkConnectedOverlayOrigin]="origin"
+  [cdkConnectedOverlayOpen]="panelOpen()"
+  [cdkConnectedOverlayPositions]="overlayPositions"
+  (overlayOutsideClick)="handleOverlayOutsideClick($event, origin)"
+  (detach)="closePanel()"
+>
+  <section class="assistant-panel" (keydown.escape)="closePanel()">
+    <header class="assistant-panel__header">
+      <div class="assistant-panel__title">
+        <span>Assistant</span>
+        @if (panelMode() === 'chat' && chat.conversationId()) {
+          <small class="assistant-panel__conversation">{{ chat.conversationId() }}</small>
+        }
+        @if (panelMode() === 'help') {
+          <small class="assistant-panel__conversation">
+            @if (help.response()?.available) {
+              {{ help.response()?.title }}
+            } @else {
+              Hilfe
+            }
+          </small>
+        }
+      </div>
+      <span class="assistant-panel__spacer"></span>
+      <mat-button-toggle-group
+        class="assistant-panel__mode"
+        [value]="panelMode()"
+        (change)="switchMode($any($event.value))"
+        aria-label="Ansicht"
+      >
+        <mat-button-toggle value="chat">Chat</mat-button-toggle>
+        <mat-button-toggle value="help">Hilfe</mat-button-toggle>
+      </mat-button-toggle-group>
+      <button mat-stroked-button type="button" (click)="resetConversation()">Reset</button>
+    </header>
+
+    @if (
+      chat.isLoading() ||
+      help.isLoading() ||
+      actions.isLoading() ||
+      actions.isCommitting() ||
+      actions.isResolving()
+    ) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    }
+
+    <div class="assistant-panel__messages" #messageContainer>
+      @if (panelMode() === 'chat') {
+        @if (!chat.messages().length && !chat.isLoading()) {
+          <div class="assistant-panel__empty">
+            Prompt eingeben und mit Enter absenden. Kontext wird serverseitig gehalten.
+          </div>
+        }
+        @if (chat.status().length) {
+          <section class="assistant-panel__status">
+            <div class="assistant-panel__status-title">Status</div>
+            <ul class="assistant-panel__status-list">
+              @for (entry of chat.status(); track $index) {
+                <li>{{ entry.message }}</li>
+              }
+            </ul>
+          </section>
+        }
+
+        @for (message of chat.messages(); track $index) {
+          <article class="assistant-message" [class.assistant-message--user]="message.role === 'user'">
+            <div class="assistant-message__meta">{{ roleLabel(message.role) }}</div>
+            <div
+              class="assistant-message__content assistant-markdown"
+              [innerHTML]="message.content | markdown"
+            ></div>
+          </article>
+        }
+        @if (actions.preview()) {
+          <section class="assistant-action-preview">
+            <div class="assistant-action-preview__header">
+              <div>
+                <div class="assistant-action-preview__title">Änderungsvorschau</div>
+                @if (actions.previewPrompt()) {
+                  <div class="assistant-action-preview__prompt">
+                    Prompt: {{ actions.previewPrompt() }}
+                  </div>
+                }
+              </div>
+              <span class="assistant-action-preview__spacer"></span>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="actions.isCommitting()"
+                (click)="actions.clearPreview()"
+              >
+                Verwerfen
+              </button>
+              @if (actions.preview()?.actionable) {
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  [disabled]="actions.isCommitting() || !actions.preview()?.previewId"
+                  (click)="actions.commitPreview()"
+                >
+                  Übernehmen
+                </button>
+              }
+            </div>
+            @if (actions.preview()?.summary) {
+              <div class="assistant-action-preview__summary">{{ actions.preview()?.summary }}</div>
+            }
+            @if (!actions.preview()?.actionable && actions.preview()?.feedback) {
+              <div class="assistant-action-preview__feedback">
+                {{ actions.preview()?.feedback }}
+              </div>
+            }
+            @if (actions.preview()?.clarification) {
+              <div class="assistant-action-preview__clarification">
+                <div class="assistant-action-preview__clarification-title">
+                  {{ actions.preview()?.clarification?.title }}
+                </div>
+                <div class="assistant-action-preview__clarification-options">
+                  @for (option of actions.preview()?.clarification?.options || []; track option.id) {
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      [disabled]="actions.isResolving()"
+                      (click)="
+                        actions.resolveClarification(
+                          actions.preview()?.clarification?.resolutionId || '',
+                          option.id
+                        )
+                      "
+                    >
+                      <span>{{ option.label }}</span>
+                      @if (option.details) {
+                        <small>{{ option.details }}</small>
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+            @if (actions.preview()?.actionable && actions.preview()?.changes?.length) {
+              <ul class="assistant-action-preview__changes">
+                @for (change of actions.preview()?.changes; track $index) {
+                  <li>
+                    <strong>{{ change.kind }}</strong>
+                    <span>{{ change.entityType }} · {{ change.label }}</span>
+                    @if (change.details) {
+                      <em>{{ change.details }}</em>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
+      } @else {
+        @if (help.response()?.available && help.response()?.markdown) {
+          <div class="assistant-help__meta">
+            <div class="assistant-help__title">{{ help.response()?.title }}</div>
+            @if (help.response()?.subtopic) {
+              <div class="assistant-help__subtopic">Abschnitt: {{ help.response()?.subtopic }}</div>
+            }
+            @if (help.response()?.sourcePath) {
+              <div class="assistant-help__source">{{ help.response()?.sourcePath }}</div>
+            }
+          </div>
+          <div
+            class="assistant-help__content assistant-markdown"
+            [innerHTML]="(help.response()?.markdown || '') | markdown"
+          ></div>
+        } @else if (!help.isLoading()) {
+          <div class="assistant-panel__empty">
+            Keine passende Hilfe gefunden. Öffne einen Stammdaten-Bereich und klicke erneut auf das
+            Fragezeichen.
+          </div>
+        }
+      }
+    </div>
+
+    @if (panelMode() === 'chat' && chatError()) {
+      <div class="assistant-panel__error">{{ chatError() }}</div>
+    } @else if (panelMode() === 'help' && help.error()) {
+      <div class="assistant-panel__error">{{ help.error() }}</div>
+    }
+  </section>
+</ng-template>

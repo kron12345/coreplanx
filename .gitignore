@@ -9,6 +9,9 @@ dist
 .tmp
 .out
 
+# Local logs / profiles
+logs
+
 # Angular
 frontend/.angular
 frontend/.cache
@@ -18,6 +21,8 @@ backend/.nestjs-cache
 backend/.env
 
 # Editor/OS
-.vscode
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea
 .DS_Store

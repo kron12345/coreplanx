@@ -1,6 +1,6 @@
-# OrderManagementMock
+# CorePlanX (Frontend)
 
-Ein Angular-18-Mock, der einen vollständigen Ressourcen- und Aktivitäts-Gantt für Bahn-/SEV-Planung liefert. Das Frontend richtet sich auf eine NestJS-REST-API aus, damit mehrere Disponenten denselben Datenbestand bearbeiten können und Validierungen (Orts-, Kapazitäts-, Arbeitszeit-, Qualifikationskonflikte) serverseitig laufen.
+Das CorePlanX-Frontend (Angular 18) liefert einen Ressourcen- und Aktivitäts-Gantt für Bahn-/SEV-Planung. Es richtet sich auf eine NestJS-REST-API aus, damit mehrere Disponenten denselben Datenbestand bearbeiten können und Validierungen (Orts-, Kapazitäts-, Arbeitszeit-, Qualifikationskonflikte) serverseitig laufen.
 
 ## Inhalt
 
@@ -42,11 +42,11 @@ Ein Angular-18-Mock, der einen vollständigen Ressourcen- und Aktivitäts-Gantt 
    - Der Dev-Server (`ng serve` auf Port 4200) verbindet sich automatisch mit `http://localhost:3000/api/v1`.
    - Abweichende Umgebungen können per Meta-Tag in `src/index.html` übersteuert werden:
      ```html
-     <meta name="order-mgmt-api-base" content="https://staging.example.com/api/v1">
+     <meta name="coreplanx-api-base" content="https://staging.example.com/api/v1">
      ```
    - Alternativ lässt sich vor dem Bootstrap ein globales Flag setzen:
      ```html
-     <script>window.__ORDER_MGMT_API_BASE__ = 'http://localhost:3333/api/v1';</script>
+     <script>window.__COREPLANX_API_BASE__ = 'http://localhost:3333/api/v1';</script>
      ```
    - Als letzte Option kann `API_CONFIG` klassisch überschrieben werden, z. B. in `main.ts`:
      ```ts

@@ -14,6 +14,7 @@ export class PlanningDashboardBaseHandlers {
     private readonly deps: {
       stageResourceSignal: Signal<Resource[]>;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
+      applyLocationDefaults: (activity: Activity, activities: Activity[]) => Activity;
       updateStageActivities: (stage: PlanningStageId, updater: (activities: Activity[]) => Activity[]) => void;
       saveTemplateActivity: (activity: Activity) => void;
       activitySelection: PlanningDashboardActivitySelectionFacade;
@@ -77,30 +78,34 @@ export class PlanningDashboardBaseHandlers {
       : base;
     const normalized = this.deps.applyActivityTypeConstraints(this.markBoundaryManual(updated));
     const anchorResource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
-    const shouldEnsure = resourceChanged;
-    const ensured =
-      shouldEnsure && this.deps.ensureRequiredParticipants && anchorResource
-        ? await this.deps.ensureRequiredParticipants(stage, anchorResource, normalized)
-        : normalized;
+    const shouldEnsure = !!this.deps.ensureRequiredParticipants && !!anchorResource;
+    const ensured = shouldEnsure
+      ? await this.deps.ensureRequiredParticipants!(stage, anchorResource!, normalized)
+      : normalized;
     if (!ensured) {
       return;
     }
+    let ensuredWithDefaults = ensured;
     const baseId = previousActivityId.split('@')[0] ?? previousActivityId;
     const nextMainId = ensured.id;
     let shiftedAttachments: Array<{ originalId: string; activity: Activity }> = [];
     this.deps.updateStageActivities('base', (activities) => {
+      ensuredWithDefaults = this.deps.applyLocationDefaults(
+        ensuredWithDefaults,
+        activities.filter((entry) => entry.id !== previousActivityId),
+      );
       const result = this.applyGroupAttachmentShift({
         activities,
         previousActivityId,
         nextMainId,
-        normalizedMain: ensured,
+        normalizedMain: ensuredWithDefaults,
         shiftDeltaMs,
       });
       shiftedAttachments = result.shiftedAttachments;
       return result.activities;
     });
     if (this.shouldPersistToTemplate(event.activity)) {
-      this.deps.saveTemplateActivity({ ...ensured, id: baseId });
+      this.deps.saveTemplateActivity({ ...ensuredWithDefaults, id: baseId });
       shiftedAttachments.forEach(({ activity }) => {
         if (!this.shouldPersistToTemplate(activity)) {
           return;
@@ -112,7 +117,7 @@ export class PlanningDashboardBaseHandlers {
     const resource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
     const currentSelection = this.deps.activitySelection.selectedActivityState();
     if (resource && currentSelection?.activity.id === previousActivityId) {
-      this.deps.activitySelection.selectedActivityState.set({ activity: ensured, resource });
+      this.deps.activitySelection.selectedActivityState.set({ activity: ensuredWithDefaults, resource });
     }
     if (currentSelection && currentSelection.activity.id !== previousActivityId) {
       const shifted = shiftedAttachments.find((entry) => entry.originalId === currentSelection.activity.id) ?? null;

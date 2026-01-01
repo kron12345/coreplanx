@@ -1,0 +1,128 @@
+assistant_actions_preview:
+  post:
+    summary: Vorschau für Assistant-Aktionen
+    description: |
+      Nimmt einen Prompt entgegen und liefert eine Vorschau der geplanten Stammdaten-Änderungen.
+      Die Vorschau wird serverseitig temporär gespeichert und kann per Commit bestätigt werden.
+    tags: [assistant]
+    parameters:
+      - in: header
+        name: X-Assistant-Role
+        schema:
+          type: string
+        required: false
+        description: Optional role for action permissions.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              prompt:
+                type: string
+                minLength: 1
+                maxLength: 20000
+              clientId:
+                type: string
+                nullable: true
+                maxLength: 200
+              uiContext:
+                type: object
+                nullable: true
+                additionalProperties: false
+                properties:
+                  route:
+                    type: string
+                    nullable: true
+                    maxLength: 2000
+                  docKey:
+                    type: string
+                    nullable: true
+                    maxLength: 120
+                  docSubtopic:
+                    type: string
+                    nullable: true
+                    maxLength: 120
+                  breadcrumbs:
+                    type: array
+                    maxItems: 20
+                    items:
+                      type: string
+                      maxLength: 80
+                  dataSummary:
+                    type: string
+                    nullable: true
+                    maxLength: 8000
+            required: [prompt]
+    responses:
+      '200':
+        description: Vorschau der Änderungen oder Hinweis, dass keine Aktion erkannt wurde.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                actionable:
+                  type: boolean
+                previewId:
+                  type: string
+                  nullable: true
+                summary:
+                  type: string
+                  nullable: true
+                feedback:
+                  type: string
+                  nullable: true
+                clarification:
+                  type: object
+                  nullable: true
+                  additionalProperties: false
+                  properties:
+                    resolutionId:
+                      type: string
+                    title:
+                      type: string
+                    options:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                          id:
+                            type: string
+                          label:
+                            type: string
+                          details:
+                            type: string
+                            nullable: true
+                        required: [id, label]
+                  required: [resolutionId, title, options]
+                changes:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      kind:
+                        type: string
+                        enum: [create, update, delete]
+                      entityType:
+                        type: string
+                      id:
+                        type: string
+                      label:
+                        type: string
+                      details:
+                        type: string
+                        nullable: true
+                    required: [kind, entityType, id, label]
+              required: [actionable]
+      '400':
+        description: Ungültige Eingabe
+      '429':
+        description: Zu viele Anfragen
+      '502':
+        description: Ollama nicht erreichbar / Fehler beim Upstream

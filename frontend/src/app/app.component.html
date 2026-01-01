@@ -1,12 +1,10 @@
 <div class="layout">
   <mat-toolbar class="toolbar" color="primary">
     <div class="toolbar-brand">
-      <mat-icon>assignment</mat-icon>
+      <img class="brand-logo" src="coreplanx-logo.svg" alt="CorePlanX" />
       <div class="toolbar-brand-text">
-        <span class="brand-title">{{ sectionTitle() }}</span>
-        @if (showSubtitle()) {
-          <small class="brand-subtitle">{{ pageTitle() }}</small>
-        }
+        <span class="brand-title">{{ brandTitle }}</span>
+        <small class="brand-subtitle">{{ brandSubtitle() }}</small>
       </div>
     </div>
     <nav class="primary-nav">
@@ -43,6 +41,7 @@
       </a>
     </nav>
     <span class="spacer"></span>
+    <app-assistant-command />
     <button mat-icon-button matTooltip="Benachrichtigungen">
       <mat-icon>notifications</mat-icon>
     </button>

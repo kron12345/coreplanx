@@ -1,5 +1,5 @@
 {
-  "name": "order-management-mock",
+  "name": "coreplanx",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
@@ -22,6 +22,8 @@
     "@angular/router": "^20.3.15",
     "@fontsource/iosevka": "^5.2.5",
     "@fontsource/roboto": "^5.2.8",
+    "dompurify": "^3.3.1",
+    "marked": "^17.0.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.1"

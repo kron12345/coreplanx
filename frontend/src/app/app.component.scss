@@ -24,8 +24,11 @@
   align-items: center;
   gap: 12px;
 
-  mat-icon {
-    font-size: 28px;
+  .brand-logo {
+    width: 48px;
+    height: 48px;
+    display: block;
+    transform: translateY(-3px);
   }
 }
 

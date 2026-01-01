@@ -200,6 +200,13 @@ export class PlanningDataService {
       .subscribe();
   }
 
+  syncResourceSnapshot(snapshot: ResourceSnapshotDto): void {
+    const clone = cloneResourceSnapshot(snapshot);
+    this.resourceSnapshotSignal.set(cloneResourceSnapshot(clone));
+    this.applyResourceSnapshot(clone);
+    this.resourceErrorSignal.set(null);
+  }
+
   private applyResourceSnapshot(snapshot: ResourceSnapshotDto): void {
     const resources = flattenResourceSnapshot(snapshot);
     this.stageDataSignal.update((record) => {

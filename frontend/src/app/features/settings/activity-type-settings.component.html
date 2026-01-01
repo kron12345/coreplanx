@@ -97,6 +97,37 @@
                 </div>
               </section>
 
+              <section class="activity-type-card__location">
+                <label>Ort-Automatik (Von/Nach)</label>
+                <div class="activity-type-card__location-grid">
+                  @if (editTypeForm.controls.fieldFrom.value) {
+                    <mat-form-field appearance="outline">
+                      <mat-label>Von: Modus</mat-label>
+                      <mat-select formControlName="fromLocationMode">
+                        @for (option of locationModeOptions; track option.value) {
+                          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <mat-checkbox formControlName="fromHidden">Von ausblenden</mat-checkbox>
+                  }
+                  @if (editTypeForm.controls.fieldTo.value) {
+                    <mat-form-field appearance="outline">
+                      <mat-label>Nach: Modus</mat-label>
+                      <mat-select formControlName="toLocationMode">
+                        @for (option of locationModeOptions; track option.value) {
+                          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <mat-checkbox formControlName="toHidden">Nach ausblenden</mat-checkbox>
+                  }
+                  @if (!editTypeForm.controls.fieldFrom.value && !editTypeForm.controls.fieldTo.value) {
+                    <p class="activity-type-card__location-empty">Kein Ortsfeld ausgewählt.</p>
+                  }
+                </div>
+              </section>
+
               <div class="activity-type-card__actions">
                 <button mat-button type="button" (click)="cancelEdit()">Abbrechen</button>
                 <button mat-flat-button color="primary" type="submit">Speichern</button>
@@ -220,6 +251,37 @@
                 </div>
               </div>
             }
+          }
+        </div>
+      </section>
+
+      <section class="activity-type-card__location">
+        <label>Ort-Automatik (Von/Nach)</label>
+        <div class="activity-type-card__location-grid">
+          @if (newTypeForm.controls.fieldFrom.value) {
+            <mat-form-field appearance="outline">
+              <mat-label>Von: Modus</mat-label>
+              <mat-select formControlName="fromLocationMode">
+                @for (option of locationModeOptions; track option.value) {
+                  <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-checkbox formControlName="fromHidden">Von ausblenden</mat-checkbox>
+          }
+          @if (newTypeForm.controls.fieldTo.value) {
+            <mat-form-field appearance="outline">
+              <mat-label>Nach: Modus</mat-label>
+              <mat-select formControlName="toLocationMode">
+                @for (option of locationModeOptions; track option.value) {
+                  <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-checkbox formControlName="toHidden">Nach ausblenden</mat-checkbox>
+          }
+          @if (!newTypeForm.controls.fieldFrom.value && !newTypeForm.controls.fieldTo.value) {
+            <p class="activity-type-card__location-empty">Kein Ortsfeld ausgewählt.</p>
           }
         </div>
       </section>

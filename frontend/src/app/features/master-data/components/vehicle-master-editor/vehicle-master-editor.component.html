@@ -25,6 +25,10 @@
         <mat-icon fontIcon="stacked_bar_chart"></mat-icon>
         Kompositionen
       </mat-button-toggle>
+      <mat-button-toggle value="system">
+        <mat-icon fontIcon="delete_sweep"></mat-icon>
+        System
+      </mat-button-toggle>
     </mat-button-toggle-group>
 
     <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
@@ -111,6 +115,95 @@
         (saveEntity)="handleCompositionSave($event)"
         (deleteEntities)="handleCompositionDelete($event)"
       />
+    }
+    @case ('system') {
+      <div class="system-pools">
+        <div class="system-pools__intro">
+          System-Pools sind schreibgeschützt. Ziehe Einträge in einen Zielpool, um sie wieder zu aktivieren.
+        </div>
+
+        <div class="system-pools__section" cdkDropListGroup>
+          <div class="system-pool-card">
+            <div class="system-pool-card__header">
+              <div>
+                <div class="system-pool-card__title">{{ systemPoolLabels.vehicleServicePool }}</div>
+                <div class="system-pool-card__meta">
+                  {{ systemServiceItems().length }} Dienste
+                </div>
+              </div>
+            </div>
+            <div class="system-pool-card__list" cdkDropList [cdkDropListData]="systemPoolIds.vehicleServicePool">
+              @if (!systemServiceItems().length) {
+                <div class="system-pool-card__empty">Keine Einträge im System-Pool.</div>
+              }
+              @for (service of systemServiceItems(); track service.id) {
+                <div class="system-item" cdkDrag [cdkDragData]="service.id">
+                  <div class="system-item__title">{{ service.name }}</div>
+                  <div class="system-item__meta">{{ service.id }}</div>
+                </div>
+              }
+            </div>
+          </div>
+          <div class="system-targets">
+            @for (pool of servicePoolTargets(); track pool.id) {
+              <div
+                class="system-target"
+                cdkDropList
+                [cdkDropListData]="pool.id"
+                (cdkDropListDropped)="handleSystemServiceDrop($event)"
+              >
+                <div class="system-target__title">{{ pool.name }}</div>
+                <div class="system-target__meta">
+                  {{ serviceCountByPool().get(pool.id) ?? 0 }} Dienste
+                </div>
+                <div class="system-target__hint">Hier ablegen</div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="system-pools__section" cdkDropListGroup>
+          <div class="system-pool-card">
+            <div class="system-pool-card__header">
+              <div>
+                <div class="system-pool-card__title">{{ systemPoolLabels.vehiclePool }}</div>
+                <div class="system-pool-card__meta">
+                  {{ systemVehicleItems().length }} Fahrzeuge
+                </div>
+              </div>
+            </div>
+            <div class="system-pool-card__list" cdkDropList [cdkDropListData]="systemPoolIds.vehiclePool">
+              @if (!systemVehicleItems().length) {
+                <div class="system-pool-card__empty">Keine Einträge im System-Pool.</div>
+              }
+              @for (vehicle of systemVehicleItems(); track vehicle.id) {
+                <div class="system-item" cdkDrag [cdkDragData]="vehicle.id">
+                  <div class="system-item__title">
+                    {{ vehicle.vehicleNumber }}
+                  </div>
+                  <div class="system-item__meta">{{ vehicle.id }}</div>
+                </div>
+              }
+            </div>
+          </div>
+          <div class="system-targets">
+            @for (pool of vehiclePoolTargets(); track pool.id) {
+              <div
+                class="system-target"
+                cdkDropList
+                [cdkDropListData]="pool.id"
+                (cdkDropListDropped)="handleSystemVehicleDrop($event)"
+              >
+                <div class="system-target__title">{{ pool.name }}</div>
+                <div class="system-target__meta">
+                  {{ vehicleCountByPool().get(pool.id) ?? 0 }} Fahrzeuge
+                </div>
+                <div class="system-target__hint">Hier ablegen</div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
     }
   }
 </section>

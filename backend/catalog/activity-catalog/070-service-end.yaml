@@ -23,4 +23,6 @@ defaultDurationMinutes: 45
 attributes:
   is_service_end: true
   is_within_service: yes
+  to_hidden: true
+  to_location_mode: previous
   color: '#c62828'

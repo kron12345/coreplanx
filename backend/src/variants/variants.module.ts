@@ -8,6 +8,6 @@ import { VariantsRepository } from './variants.repository';
   imports: [TemplateModule],
   controllers: [TimetableYearController],
   providers: [TimetableYearService, VariantsRepository],
+  exports: [TimetableYearService],
 })
 export class VariantsModule {}
-

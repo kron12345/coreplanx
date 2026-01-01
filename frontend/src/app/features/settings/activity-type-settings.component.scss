@@ -86,6 +86,37 @@
   }
 }
 
+.activity-type-card__location {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  label {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+}
+
+.activity-type-card__location-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: start;
+
+  mat-checkbox {
+    align-self: center;
+  }
+}
+
+.activity-type-card__location-empty {
+  margin: 0;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 0.85rem;
+}
+
 .activity-type-card__field-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

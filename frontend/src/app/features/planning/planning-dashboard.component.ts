@@ -118,6 +118,10 @@ import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.f
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { findActivityTypeById, definitionHasField, shouldShowEndField } from './planning-dashboard-activity.helpers';
 import { STAGE_RESOURCE_GROUPS, TYPE_PICKER_META, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
+import {
+  applyLocationDefaults as applyLocationDefaultsUtil,
+  isLocationFieldHidden as isLocationFieldHiddenUtil,
+} from './planning-dashboard-location-defaults.utils';
 import { ConflictEntry, mapConflictCodesForOwner } from '../../shared/planning-conflicts';
 
 type LocationAutocompleteOption = {
@@ -354,8 +358,9 @@ export class PlanningDashboardComponent {
     const sites = this.planningStore.personnelSites();
     const opMap = this.planningStore.operationalPointMap();
     const mapped = sites
-      .filter((site) => site.uniqueOpId?.trim().length)
+      .filter((site) => site.siteId?.trim().length)
       .map((site) => {
+        const siteId = site.siteId?.trim() ?? '';
         const uniqueId = site.uniqueOpId?.trim() ?? '';
         const opName = uniqueId ? (opMap.get(uniqueId)?.name ?? '').trim() : '';
         const siteName = (site.name ?? '').trim();
@@ -364,13 +369,14 @@ export class PlanningDashboardComponent {
           siteType,
           opName ? opName : null,
           uniqueId ? `(${uniqueId})` : null,
+          siteId && siteId !== uniqueId ? `ID: ${siteId}` : null,
         ].filter(Boolean) as string[];
         return {
           key: `site:${site.siteId}`,
-          value: uniqueId,
-          label: siteName || uniqueId,
+          value: siteId,
+          label: siteName || siteId,
           description: descriptionParts.join(' · '),
-          search: `${siteName} ${siteType} ${uniqueId} ${opName}`.toLowerCase(),
+          search: `${siteName} ${siteType} ${siteId} ${uniqueId} ${opName}`.toLowerCase(),
         } satisfies LocationAutocompleteOption;
       })
       .filter((entry) => entry.value.length > 0);
@@ -425,6 +431,13 @@ export class PlanningDashboardComponent {
     stageResourceSignal: this.stageResourceSignals.operations,
     updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    applyLocationDefaults: (activity, activities) =>
+      applyLocationDefaultsUtil({
+        activity,
+        definition: this.findActivityType(activity.type ?? null),
+        activities,
+        ownerId: this.activityOwnerId(activity),
+      }),
     activitySelection: this.activitySelection,
     activityOwnerId: (activity) => this.activityOwnerId(activity),
     ensureRequiredParticipants: (stage, anchorResource, activity) =>
@@ -681,6 +694,13 @@ export class PlanningDashboardComponent {
   private readonly baseHandlers = new PlanningDashboardBaseHandlers({
     stageResourceSignal: this.stageResourceSignals.base,
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    applyLocationDefaults: (activity, activities) =>
+      applyLocationDefaultsUtil({
+        activity,
+        definition: this.findActivityType(activity.type ?? null),
+        activities,
+        ownerId: this.activityOwnerId(activity),
+      }),
     updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
     saveTemplateActivity: (activity) => this.saveTemplateActivity(activity),
     activitySelection: this.activitySelection,
@@ -701,6 +721,14 @@ export class PlanningDashboardComponent {
     resolveActivityTypeForResource: (resource, typeId) =>
       resolveActivityTypeForResource(resource, typeId, this.activityTypeDefinitions()),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    stageActivities: (stage) => this.normalizedStageActivitySignals[stage](),
+    applyLocationDefaults: (activity, activities) =>
+      applyLocationDefaultsUtil({
+        activity,
+        definition: this.findActivityType(activity.type ?? null),
+        activities,
+        ownerId: this.activityOwnerId(activity),
+      }),
     pendingActivityOriginal: this.pendingActivityOriginal,
     pendingActivitySignal: this.pendingActivitySignal,
     startPendingActivity: (stage, resource, activity) => this.pendingFacade.startPendingActivity(stage, resource, activity),
@@ -1796,6 +1824,10 @@ export class PlanningDashboardComponent {
     field: ActivityFieldKey,
   ): boolean {
     return definitionHasField(definition, field);
+  }
+
+  protected isLocationFieldHidden(definition: ActivityTypeDefinition | null, field: 'from' | 'to'): boolean {
+    return isLocationFieldHiddenUtil(definition, field);
   }
 
   protected shouldShowEndField(definition: ActivityTypeDefinition | null): boolean {

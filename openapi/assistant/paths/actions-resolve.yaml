@@ -1,0 +1,106 @@
+assistant_actions_resolve:
+  post:
+    summary: Auswahl zur Assistant-Aktion aufloesen
+    description: |
+      Nimmt eine Auswahl aus einer Assistant-Rueckfrage entgegen und liefert eine neue Vorschau.
+    tags: [assistant]
+    parameters:
+      - in: header
+        name: X-Assistant-Role
+        schema:
+          type: string
+        required: false
+        description: Optional role for action permissions.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              resolutionId:
+                type: string
+                minLength: 1
+                maxLength: 200
+              selectedId:
+                type: string
+                minLength: 1
+                maxLength: 200
+              clientId:
+                type: string
+                nullable: true
+                maxLength: 200
+            required: [resolutionId, selectedId]
+    responses:
+      '200':
+        description: Vorschau der Aenderungen oder weitere Rueckfrage.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                actionable:
+                  type: boolean
+                previewId:
+                  type: string
+                  nullable: true
+                summary:
+                  type: string
+                  nullable: true
+                feedback:
+                  type: string
+                  nullable: true
+                clarification:
+                  type: object
+                  nullable: true
+                  additionalProperties: false
+                  properties:
+                    resolutionId:
+                      type: string
+                    title:
+                      type: string
+                    options:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                          id:
+                            type: string
+                          label:
+                            type: string
+                          details:
+                            type: string
+                            nullable: true
+                        required: [id, label]
+                  required: [resolutionId, title, options]
+                changes:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      kind:
+                        type: string
+                        enum: [create, update, delete]
+                      entityType:
+                        type: string
+                      id:
+                        type: string
+                      label:
+                        type: string
+                      details:
+                        type: string
+                        nullable: true
+                    required: [kind, entityType, id, label]
+              required: [actionable]
+      '400':
+        description: Ungueltige Eingabe
+      '403':
+        description: resolutionId gehört einem anderen Client oder einer anderen Rolle
+      '409':
+        description: Rueckfrage ist veraltet (Daten wurden zwischenzeitlich geändert)
+      '429':
+        description: Zu viele Anfragen

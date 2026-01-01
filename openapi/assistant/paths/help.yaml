@@ -1,0 +1,66 @@
+assistant_help:
+  post:
+    summary: Hilfe/Dokumentation zum aktuellen UI-Bereich
+    description: |
+      Liefert die passende Markdown-Dokumentation (aus `docs/assistant/*.md`) anhand der UI-Breadcrumbs.
+      Diese Route ist für die Anzeige im Frontend gedacht (formatiert via Markdown-Renderer).
+    tags: [assistant]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              uiContext:
+                type: object
+                nullable: true
+                additionalProperties: false
+                properties:
+                  route:
+                    type: string
+                    nullable: true
+                    maxLength: 2000
+                  docKey:
+                    type: string
+                    nullable: true
+                    maxLength: 120
+                  docSubtopic:
+                    type: string
+                    nullable: true
+                    maxLength: 120
+                  breadcrumbs:
+                    type: array
+                    maxItems: 20
+                    items:
+                      type: string
+                      maxLength: 80
+                  dataSummary:
+                    type: string
+                    nullable: true
+                    maxLength: 8000
+    responses:
+      '200':
+        description: Dokumentation (Markdown) oder `available=false`
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                available:
+                  type: boolean
+                title:
+                  type: string
+                sourcePath:
+                  type: string
+                subtopic:
+                  type: string
+                markdown:
+                  type: string
+              required: [available]
+      '400':
+        description: Ungültige Eingabe
+      '429':
+        description: Zu viele Anfragen

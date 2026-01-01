@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   AttributeEntityEditorComponent,
@@ -8,6 +8,7 @@ import {
 import { CustomAttributeDefinition } from '../../../../core/services/custom-attribute.service';
 import { SimulationService } from '../../../../core/services/simulation.service';
 import { SimulationRecord } from '../../../../core/models/simulation.model';
+import { AssistantUiContextService } from '../../../../core/services/assistant-ui-context.service';
 
 const SIMULATION_DEFINITIONS: CustomAttributeDefinition[] = [
   {
@@ -50,6 +51,7 @@ const DEFAULT_VALUES = {
 })
 export class SimulationMasterEditorComponent {
   private readonly simulations = inject(SimulationService);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
 
   readonly definitions = SIMULATION_DEFINITIONS;
   readonly defaults = DEFAULT_VALUES;
@@ -62,6 +64,26 @@ export class SimulationMasterEditorComponent {
       .filter((record) => !record.productive)
       .map((record) => this.toAttributeRecord(record)),
   );
+
+  private readonly updateAssistantContext = effect(() => {
+    const isActive = this.assistantUiContext.docKey() === 'simulations';
+    if (!isActive) {
+      return;
+    }
+    this.assistantUiContext.setDocKey('simulations');
+    this.assistantUiContext.setDocSubtopic(null);
+
+    const entries = this.simulations.list().filter((record) => !record.productive);
+    const limit = 8;
+    const lines = entries.slice(0, limit).map((record) => {
+      const title = record.label ?? record.id;
+      return `- ${record.id}: ${title} (${record.timetableYearLabel})`;
+    });
+    const remaining = entries.length > limit ? `\n- … (+${entries.length - limit} weitere)` : '';
+    this.assistantUiContext.setDataSummary(
+      `Aktuelle Liste: Simulationen\nAnzahl: ${entries.length}${lines.length ? `\n${lines.join('\n')}${remaining}` : ''}`,
+    );
+  });
 
   readonly createDefaultsFactory = () => ({ ...DEFAULT_VALUES });
 

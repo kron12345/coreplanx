@@ -289,6 +289,10 @@ export class PlanningService {
     return this.masterDataService.replaceResourceSnapshot(snapshot);
   }
 
+  normalizeResourceSnapshot(snapshot: ResourceSnapshot): ResourceSnapshot {
+    return this.masterDataService.normalizeResourceSnapshot(snapshot);
+  }
+
   resetResourcesToDefaults(): Promise<ResourceSnapshot> {
     return this.masterDataService.resetResourcesToDefaults();
   }

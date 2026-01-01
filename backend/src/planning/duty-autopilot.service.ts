@@ -1409,12 +1409,34 @@ export class DutyAutopilotService {
   }
 
   private resolveOperationalPointId(value: string | null | undefined, context: MasterDataContext): string | null {
-    const normalized = this.normalizeLocation(value);
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const normalized = this.normalizeLocation(trimmed);
     if (!normalized) {
       return null;
     }
     if (context.operationalPointsById.has(normalized)) {
       return normalized;
+    }
+    const site = context.personnelSitesById.get(trimmed) ?? null;
+    if (site?.uniqueOpId) {
+      const opId = this.normalizeLocation(site.uniqueOpId);
+      if (opId) {
+        return opId;
+      }
+    }
+    const siteMatches = Array.from(context.personnelSitesById.entries()).filter(([, candidate]) => {
+      const siteName = typeof candidate?.name === 'string' ? candidate.name : '';
+      return this.normalizeLocation(siteName) === normalized;
+    });
+    if (siteMatches.length === 1) {
+      const opId = this.normalizeLocation(siteMatches[0][1]?.uniqueOpId);
+      if (opId) {
+        return opId;
+      }
     }
     const matches = Array.from(context.operationalPointsById.entries()).filter(([, op]) => {
       const opName = typeof op?.name === 'string' ? op.name : '';

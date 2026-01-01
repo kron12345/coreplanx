@@ -8,7 +8,11 @@
       Werkseinstellungen
     </button>
   </header>
-  <mat-tab-group color="primary">
+  <mat-tab-group
+    color="primary"
+    [selectedIndex]="selectedTabIndex()"
+    (selectedIndexChange)="selectedTabIndex.set($event)"
+  >
     <mat-tab label="Operational Points">
       <app-operational-point-editor />
     </mat-tab>

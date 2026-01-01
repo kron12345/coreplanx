@@ -1,10 +1,13 @@
 import { TestBed } from '@angular/core/testing';
+import { RouterTestingModule } from '@angular/router/testing';
 import { AppComponent } from './app.component';
+import { TtrBusinessAutomationService } from './core/services/ttr-business-automation.service';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AppComponent],
+      imports: [RouterTestingModule, AppComponent],
+      providers: [{ provide: TtrBusinessAutomationService, useValue: {} }],
     }).compileComponents();
   });
 
@@ -14,16 +17,16 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it(`should have the 'order-management-mock' title`, () => {
+  it(`should have the 'CorePlanX' brand title`, () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    expect(app.title).toEqual('order-management-mock');
+    expect(app.brandTitle).toBe('CorePlanX');
   });
 
-  it('should render title', () => {
+  it('should render brand title', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, order-management-mock');
+    expect(compiled.querySelector('.brand-title')?.textContent).toContain('CorePlanX');
   });
 });

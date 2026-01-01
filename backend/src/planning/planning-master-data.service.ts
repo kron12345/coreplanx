@@ -56,6 +56,11 @@ import type {
   VehicleTypeListResponse,
 } from './planning.types';
 import { PlanningRepository } from './planning.repository';
+import {
+  SYSTEM_POOL_DESCRIPTIONS,
+  SYSTEM_POOL_IDS,
+  SYSTEM_POOL_LABELS,
+} from './planning-master-data.constants';
 
 interface MasterDataDefaultsFile {
   resources?: Partial<ResourceSnapshot>;
@@ -109,6 +114,7 @@ export class PlanningMasterDataService implements OnModuleInit {
     }
     await this.initializeMasterDataFromDatabase();
     await this.seedDefaultsIfEmpty();
+    this.normalizeState();
   }
 
   listPersonnelServicePools(): PersonnelServicePoolListResponse {
@@ -121,14 +127,11 @@ export class PlanningMasterDataService implements OnModuleInit {
     request?: PersonnelServicePoolListRequest,
   ): Promise<PersonnelServicePoolListResponse> {
     const incoming = request?.items ?? [];
-    this.personnelServicePools = incoming.map((pool) =>
-      this.clonePersonnelServicePool(pool),
+    this.personnelServicePools = this.ensureSystemPersonnelServicePools(
+      incoming.map((pool) => this.clonePersonnelServicePool(pool)),
     );
-    if (this.usingDatabase) {
-      await this.repository.replacePersonnelServicePools(
-        this.personnelServicePools,
-      );
-    }
+    const normalized = this.normalizeState();
+    await this.persistResourceSnapshot(normalized);
     return this.listPersonnelServicePools();
   }
 
@@ -140,10 +143,11 @@ export class PlanningMasterDataService implements OnModuleInit {
     request?: PersonnelPoolListRequest,
   ): Promise<PersonnelPoolListResponse> {
     const incoming = request?.items ?? [];
-    this.personnelPools = incoming.map((pool) => this.clonePersonnelPool(pool));
-    if (this.usingDatabase) {
-      await this.repository.replacePersonnelPools(this.personnelPools);
-    }
+    this.personnelPools = this.ensureSystemPersonnelPools(
+      incoming.map((pool) => this.clonePersonnelPool(pool)),
+    );
+    const normalized = this.normalizeState();
+    await this.persistResourceSnapshot(normalized);
     return this.listPersonnelPools();
   }
 
@@ -157,12 +161,11 @@ export class PlanningMasterDataService implements OnModuleInit {
     request?: VehicleServicePoolListRequest,
   ): Promise<VehicleServicePoolListResponse> {
     const incoming = request?.items ?? [];
-    this.vehicleServicePools = incoming.map((pool) =>
-      this.cloneVehicleServicePool(pool),
+    this.vehicleServicePools = this.ensureSystemVehicleServicePools(
+      incoming.map((pool) => this.cloneVehicleServicePool(pool)),
     );
-    if (this.usingDatabase) {
-      await this.repository.replaceVehicleServicePools(this.vehicleServicePools);
-    }
+    const normalized = this.normalizeState();
+    await this.persistResourceSnapshot(normalized);
     return this.listVehicleServicePools();
   }
 
@@ -174,10 +177,11 @@ export class PlanningMasterDataService implements OnModuleInit {
     request?: VehiclePoolListRequest,
   ): Promise<VehiclePoolListResponse> {
     const incoming = request?.items ?? [];
-    this.vehiclePools = incoming.map((pool) => this.cloneVehiclePool(pool));
-    if (this.usingDatabase) {
-      await this.repository.replaceVehiclePools(this.vehiclePools);
-    }
+    this.vehiclePools = this.ensureSystemVehiclePools(
+      incoming.map((pool) => this.cloneVehiclePool(pool)),
+    );
+    const normalized = this.normalizeState();
+    await this.persistResourceSnapshot(normalized);
     return this.listVehiclePools();
   }
 
@@ -362,58 +366,24 @@ export class PlanningMasterDataService implements OnModuleInit {
   async replaceResourceSnapshot(
     snapshot?: ResourceSnapshot,
   ): Promise<ResourceSnapshot> {
-    const nextPersonnel = snapshot?.personnel ?? [];
-    const nextPersonnelServices = snapshot?.personnelServices ?? [];
-    const nextPersonnelServicePools = snapshot?.personnelServicePools ?? [];
-    const nextPersonnelPools = snapshot?.personnelPools ?? [];
-    const nextHomeDepots = snapshot?.homeDepots ?? [];
-    const nextVehicles = snapshot?.vehicles ?? [];
-    const nextVehicleServices = snapshot?.vehicleServices ?? [];
-    const nextVehicleServicePools = snapshot?.vehicleServicePools ?? [];
-    const nextVehiclePools = snapshot?.vehiclePools ?? [];
-    const nextVehicleTypes = snapshot?.vehicleTypes ?? [];
-    const nextVehicleCompositions = snapshot?.vehicleCompositions ?? [];
+    const nextSnapshot: ResourceSnapshot = {
+      personnel: snapshot?.personnel ?? [],
+      personnelServices: snapshot?.personnelServices ?? [],
+      personnelServicePools: snapshot?.personnelServicePools ?? [],
+      personnelPools: snapshot?.personnelPools ?? [],
+      homeDepots: snapshot?.homeDepots ?? [],
+      vehicles: snapshot?.vehicles ?? [],
+      vehicleServices: snapshot?.vehicleServices ?? [],
+      vehicleServicePools: snapshot?.vehicleServicePools ?? [],
+      vehiclePools: snapshot?.vehiclePools ?? [],
+      vehicleTypes: snapshot?.vehicleTypes ?? [],
+      vehicleCompositions: snapshot?.vehicleCompositions ?? [],
+    };
 
-    this.personnels = nextPersonnel.map((entry) => this.clonePersonnel(entry));
-    this.personnelServices = nextPersonnelServices.map((entry) =>
-      this.clonePersonnelService(entry),
-    );
-    this.personnelServicePools = nextPersonnelServicePools.map((pool) =>
-      this.clonePersonnelServicePool(pool),
-    );
-    this.personnelPools = nextPersonnelPools.map((pool) =>
-      this.clonePersonnelPool(pool),
-    );
-    this.homeDepots = nextHomeDepots.map((item) => this.cloneHomeDepot(item));
-    this.vehicles = nextVehicles.map((entry) => this.cloneVehicle(entry));
-    this.vehicleServices = nextVehicleServices.map((entry) =>
-      this.cloneVehicleService(entry),
-    );
-    this.vehicleServicePools = nextVehicleServicePools.map((pool) =>
-      this.cloneVehicleServicePool(pool),
-    );
-    this.vehiclePools = nextVehiclePools.map((pool) => this.cloneVehiclePool(pool));
-    this.vehicleTypes = nextVehicleTypes.map((type) => this.cloneVehicleType(type));
-    this.vehicleCompositions = nextVehicleCompositions.map((composition) =>
-      this.cloneVehicleComposition(composition),
-    );
+    const normalized = this.normalizeResourceSnapshot(nextSnapshot);
+    this.applySnapshotToState(normalized);
 
-    if (this.usingDatabase) {
-      const persisted = this.prepareSnapshotForPersistence(this.getResourceSnapshot());
-      await Promise.all([
-        this.repository.replacePersonnel(persisted.personnel),
-        this.repository.replacePersonnelServices(persisted.personnelServices),
-        this.repository.replacePersonnelServicePools(persisted.personnelServicePools),
-        this.repository.replacePersonnelPools(persisted.personnelPools),
-        this.repository.replaceHomeDepots(persisted.homeDepots),
-        this.repository.replaceVehicles(persisted.vehicles),
-        this.repository.replaceVehicleServices(persisted.vehicleServices),
-        this.repository.replaceVehicleServicePools(persisted.vehicleServicePools),
-        this.repository.replaceVehiclePools(persisted.vehiclePools),
-        this.repository.replaceVehicleTypes(persisted.vehicleTypes),
-        this.repository.replaceVehicleCompositions(persisted.vehicleCompositions),
-      ]);
-    }
+    await this.persistResourceSnapshot(normalized);
 
     return this.getResourceSnapshot();
   }
@@ -730,21 +700,331 @@ export class PlanningMasterDataService implements OnModuleInit {
     this.logger.log('Seeded master data & topology with factory defaults.');
   }
 
-  private prepareSnapshotForPersistence(snapshot: ResourceSnapshot): ResourceSnapshot {
+  normalizeResourceSnapshot(snapshot: ResourceSnapshot): ResourceSnapshot {
+    const cloned = this.cloneResourceSnapshot(snapshot);
+    const withSystemPools = this.ensureSystemPoolsInSnapshot(cloned);
+    const withAssignments = this.assignMissingPoolIds(withSystemPools);
+    return this.rebuildPoolMembership(withAssignments);
+  }
+
+  private normalizeState(): ResourceSnapshot {
+    const normalized = this.normalizeResourceSnapshot(this.getResourceSnapshot());
+    this.applySnapshotToState(normalized);
+    return normalized;
+  }
+
+  private applySnapshotToState(snapshot: ResourceSnapshot): void {
+    this.personnels = snapshot.personnel.map((entry) => this.clonePersonnel(entry));
+    this.personnelServices = snapshot.personnelServices.map((entry) =>
+      this.clonePersonnelService(entry),
+    );
+    this.personnelServicePools = snapshot.personnelServicePools.map((pool) =>
+      this.clonePersonnelServicePool(pool),
+    );
+    this.personnelPools = snapshot.personnelPools.map((pool) =>
+      this.clonePersonnelPool(pool),
+    );
+    this.homeDepots = snapshot.homeDepots.map((item) => this.cloneHomeDepot(item));
+    this.vehicles = snapshot.vehicles.map((entry) => this.cloneVehicle(entry));
+    this.vehicleServices = snapshot.vehicleServices.map((entry) =>
+      this.cloneVehicleService(entry),
+    );
+    this.vehicleServicePools = snapshot.vehicleServicePools.map((pool) =>
+      this.cloneVehicleServicePool(pool),
+    );
+    this.vehiclePools = snapshot.vehiclePools.map((pool) => this.cloneVehiclePool(pool));
+    this.vehicleTypes = snapshot.vehicleTypes.map((type) => this.cloneVehicleType(type));
+    this.vehicleCompositions = snapshot.vehicleCompositions.map((composition) =>
+      this.cloneVehicleComposition(composition),
+    );
+  }
+
+  private cloneResourceSnapshot(snapshot: ResourceSnapshot): ResourceSnapshot {
+    return {
+      personnel: (snapshot.personnel ?? []).map((entry) => this.clonePersonnel(entry)),
+      personnelServices: (snapshot.personnelServices ?? []).map((entry) =>
+        this.clonePersonnelService(entry),
+      ),
+      personnelServicePools: (snapshot.personnelServicePools ?? []).map((pool) =>
+        this.clonePersonnelServicePool(pool),
+      ),
+      personnelPools: (snapshot.personnelPools ?? []).map((pool) =>
+        this.clonePersonnelPool(pool),
+      ),
+      homeDepots: (snapshot.homeDepots ?? []).map((item) => this.cloneHomeDepot(item)),
+      vehicles: (snapshot.vehicles ?? []).map((entry) => this.cloneVehicle(entry)),
+      vehicleServices: (snapshot.vehicleServices ?? []).map((entry) =>
+        this.cloneVehicleService(entry),
+      ),
+      vehicleServicePools: (snapshot.vehicleServicePools ?? []).map((pool) =>
+        this.cloneVehicleServicePool(pool),
+      ),
+      vehiclePools: (snapshot.vehiclePools ?? []).map((pool) => this.cloneVehiclePool(pool)),
+      vehicleTypes: (snapshot.vehicleTypes ?? []).map((type) => this.cloneVehicleType(type)),
+      vehicleCompositions: (snapshot.vehicleCompositions ?? []).map((composition) =>
+        this.cloneVehicleComposition(composition),
+      ),
+    };
+  }
+
+  private ensureSystemPoolsInSnapshot(snapshot: ResourceSnapshot): ResourceSnapshot {
     return {
       ...snapshot,
-      personnel: snapshot.personnel.map((p) => this.preparePersonnelForPersistence(p)),
-      vehicles: snapshot.vehicles.map((v) => this.prepareVehicleForPersistence(v)),
-      personnelServices: snapshot.personnelServices.map((s) => this.prepareServiceForPersistence(s)),
-      vehicleServices: snapshot.vehicleServices.map((s) => this.prepareServiceForPersistence(s)),
-      personnelServicePools: snapshot.personnelServicePools.map((p) => this.preparePoolForPersistence(p)),
-      personnelPools: snapshot.personnelPools.map((p) => this.preparePoolForPersistence(p)),
-      homeDepots: snapshot.homeDepots.map((d) => this.cloneHomeDepot(d)),
-      vehicleServicePools: snapshot.vehicleServicePools.map((p) => this.preparePoolForPersistence(p)),
-      vehiclePools: snapshot.vehiclePools.map((p) => this.preparePoolForPersistence(p)),
-      vehicleTypes: snapshot.vehicleTypes.map((t) => this.cloneVehicleType(t)),
-      vehicleCompositions: snapshot.vehicleCompositions.map((c) => this.cloneVehicleComposition(c)),
+      personnelServicePools: this.ensureSystemPersonnelServicePools(snapshot.personnelServicePools),
+      personnelPools: this.ensureSystemPersonnelPools(snapshot.personnelPools),
+      vehicleServicePools: this.ensureSystemVehicleServicePools(snapshot.vehicleServicePools),
+      vehiclePools: this.ensureSystemVehiclePools(snapshot.vehiclePools),
     };
+  }
+
+  private ensureSystemPersonnelServicePools(
+    pools: PersonnelServicePool[],
+  ): PersonnelServicePool[] {
+    const systemId = SYSTEM_POOL_IDS.personnelServicePool;
+    const existing = pools.find((pool) => pool.id === systemId);
+    const systemPool: PersonnelServicePool = {
+      id: systemId,
+      name: SYSTEM_POOL_LABELS.personnelServicePool,
+      description: SYSTEM_POOL_DESCRIPTIONS.personnelServicePool,
+      serviceIds: existing?.serviceIds ?? [],
+      homeDepotId: existing?.homeDepotId ?? undefined,
+      shiftCoordinator: existing?.shiftCoordinator ?? undefined,
+      contactEmail: existing?.contactEmail ?? undefined,
+      attributes: this.mergeSystemAttributes(existing?.attributes),
+    };
+    if (existing) {
+      return pools.map((pool) => (pool.id === systemId ? systemPool : pool));
+    }
+    return [...pools, systemPool];
+  }
+
+  private ensureSystemPersonnelPools(pools: PersonnelPool[]): PersonnelPool[] {
+    const systemId = SYSTEM_POOL_IDS.personnelPool;
+    const existing = pools.find((pool) => pool.id === systemId);
+    const systemPool: PersonnelPool = {
+      id: systemId,
+      name: SYSTEM_POOL_LABELS.personnelPool,
+      description: SYSTEM_POOL_DESCRIPTIONS.personnelPool,
+      personnelIds: existing?.personnelIds ?? [],
+      homeDepotId: existing?.homeDepotId ?? undefined,
+      locationCode: existing?.locationCode ?? undefined,
+      attributes: this.mergeSystemAttributes(existing?.attributes),
+    };
+    if (existing) {
+      return pools.map((pool) => (pool.id === systemId ? systemPool : pool));
+    }
+    return [...pools, systemPool];
+  }
+
+  private ensureSystemVehicleServicePools(pools: VehicleServicePool[]): VehicleServicePool[] {
+    const systemId = SYSTEM_POOL_IDS.vehicleServicePool;
+    const existing = pools.find((pool) => pool.id === systemId);
+    const systemPool: VehicleServicePool = {
+      id: systemId,
+      name: SYSTEM_POOL_LABELS.vehicleServicePool,
+      description: SYSTEM_POOL_DESCRIPTIONS.vehicleServicePool,
+      serviceIds: existing?.serviceIds ?? [],
+      dispatcher: existing?.dispatcher ?? undefined,
+      attributes: this.mergeSystemAttributes(existing?.attributes),
+    };
+    if (existing) {
+      return pools.map((pool) => (pool.id === systemId ? systemPool : pool));
+    }
+    return [...pools, systemPool];
+  }
+
+  private ensureSystemVehiclePools(pools: VehiclePool[]): VehiclePool[] {
+    const systemId = SYSTEM_POOL_IDS.vehiclePool;
+    const existing = pools.find((pool) => pool.id === systemId);
+    const systemPool: VehiclePool = {
+      id: systemId,
+      name: SYSTEM_POOL_LABELS.vehiclePool,
+      description: SYSTEM_POOL_DESCRIPTIONS.vehiclePool,
+      vehicleIds: existing?.vehicleIds ?? [],
+      depotManager: existing?.depotManager ?? undefined,
+      attributes: this.mergeSystemAttributes(existing?.attributes),
+    };
+    if (existing) {
+      return pools.map((pool) => (pool.id === systemId ? systemPool : pool));
+    }
+    return [...pools, systemPool];
+  }
+
+  private mergeSystemAttributes(
+    attributes?: Record<string, unknown>,
+  ): Record<string, unknown> {
+    return { ...(attributes ?? {}), systemPool: true };
+  }
+
+  private assignMissingPoolIds(snapshot: ResourceSnapshot): ResourceSnapshot {
+    const servicePoolIds = new Set(snapshot.personnelServicePools.map((pool) => pool.id));
+    const personnelPoolIds = new Set(snapshot.personnelPools.map((pool) => pool.id));
+    const vehicleServicePoolIds = new Set(
+      snapshot.vehicleServicePools.map((pool) => pool.id),
+    );
+    const vehiclePoolIds = new Set(snapshot.vehiclePools.map((pool) => pool.id));
+
+    const personnelServices = snapshot.personnelServices.map((service) => {
+      const poolId = this.normalizePoolId(service.poolId);
+      const resolved =
+        poolId && servicePoolIds.has(poolId)
+          ? poolId
+          : SYSTEM_POOL_IDS.personnelServicePool;
+      return { ...service, poolId: resolved };
+    });
+
+    const personnel = snapshot.personnel.map((person) => {
+      const poolId = this.normalizePoolId(person.poolId);
+      const resolved = poolId
+        ? personnelPoolIds.has(poolId)
+          ? poolId
+          : SYSTEM_POOL_IDS.personnelPool
+        : undefined;
+      return { ...person, poolId: resolved };
+    });
+
+    const vehicleServices = snapshot.vehicleServices.map((service) => {
+      const poolId = this.normalizePoolId(service.poolId);
+      const resolved =
+        poolId && vehicleServicePoolIds.has(poolId)
+          ? poolId
+          : SYSTEM_POOL_IDS.vehicleServicePool;
+      return { ...service, poolId: resolved };
+    });
+
+    const vehicles = snapshot.vehicles.map((vehicle) => {
+      const poolId = this.normalizePoolId(vehicle.poolId);
+      const resolved = poolId
+        ? vehiclePoolIds.has(poolId)
+          ? poolId
+          : SYSTEM_POOL_IDS.vehiclePool
+        : undefined;
+      return { ...vehicle, poolId: resolved };
+    });
+
+    return {
+      ...snapshot,
+      personnelServices,
+      personnel,
+      vehicleServices,
+      vehicles,
+    };
+  }
+
+  private normalizePoolId(value?: string | null): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  }
+
+  private rebuildPoolMembership(snapshot: ResourceSnapshot): ResourceSnapshot {
+    const serviceIdsByPool = new Map<string, string[]>();
+    snapshot.personnelServices.forEach((service) => {
+      if (!service.poolId) {
+        return;
+      }
+      const list = serviceIdsByPool.get(service.poolId) ?? [];
+      if (!list.includes(service.id)) {
+        list.push(service.id);
+      }
+      serviceIdsByPool.set(service.poolId, list);
+    });
+
+    const personnelIdsByPool = new Map<string, string[]>();
+    snapshot.personnel.forEach((person) => {
+      if (!person.poolId) {
+        return;
+      }
+      const list = personnelIdsByPool.get(person.poolId) ?? [];
+      if (!list.includes(person.id)) {
+        list.push(person.id);
+      }
+      personnelIdsByPool.set(person.poolId, list);
+    });
+
+    const vehicleServiceIdsByPool = new Map<string, string[]>();
+    snapshot.vehicleServices.forEach((service) => {
+      if (!service.poolId) {
+        return;
+      }
+      const list = vehicleServiceIdsByPool.get(service.poolId) ?? [];
+      if (!list.includes(service.id)) {
+        list.push(service.id);
+      }
+      vehicleServiceIdsByPool.set(service.poolId, list);
+    });
+
+    const vehicleIdsByPool = new Map<string, string[]>();
+    snapshot.vehicles.forEach((vehicle) => {
+      if (!vehicle.poolId) {
+        return;
+      }
+      const list = vehicleIdsByPool.get(vehicle.poolId) ?? [];
+      if (!list.includes(vehicle.id)) {
+        list.push(vehicle.id);
+      }
+      vehicleIdsByPool.set(vehicle.poolId, list);
+    });
+
+    return {
+      ...snapshot,
+      personnelServicePools: snapshot.personnelServicePools.map((pool) => ({
+        ...pool,
+        serviceIds: serviceIdsByPool.get(pool.id) ?? [],
+      })),
+      personnelPools: snapshot.personnelPools.map((pool) => ({
+        ...pool,
+        personnelIds: personnelIdsByPool.get(pool.id) ?? [],
+      })),
+      vehicleServicePools: snapshot.vehicleServicePools.map((pool) => ({
+        ...pool,
+        serviceIds: vehicleServiceIdsByPool.get(pool.id) ?? [],
+      })),
+      vehiclePools: snapshot.vehiclePools.map((pool) => ({
+        ...pool,
+        vehicleIds: vehicleIdsByPool.get(pool.id) ?? [],
+      })),
+    };
+  }
+
+  private prepareSnapshotForPersistence(snapshot: ResourceSnapshot): ResourceSnapshot {
+    const reconciled = this.rebuildPoolMembership(snapshot);
+    return {
+      ...reconciled,
+      personnel: reconciled.personnel.map((p) => this.preparePersonnelForPersistence(p)),
+      vehicles: reconciled.vehicles.map((v) => this.prepareVehicleForPersistence(v)),
+      personnelServices: reconciled.personnelServices.map((s) => this.prepareServiceForPersistence(s)),
+      vehicleServices: reconciled.vehicleServices.map((s) => this.prepareServiceForPersistence(s)),
+      personnelServicePools: reconciled.personnelServicePools.map((p) => this.preparePoolForPersistence(p)),
+      personnelPools: reconciled.personnelPools.map((p) => this.preparePoolForPersistence(p)),
+      homeDepots: reconciled.homeDepots.map((d) => this.cloneHomeDepot(d)),
+      vehicleServicePools: reconciled.vehicleServicePools.map((p) => this.preparePoolForPersistence(p)),
+      vehiclePools: reconciled.vehiclePools.map((p) => this.preparePoolForPersistence(p)),
+      vehicleTypes: reconciled.vehicleTypes.map((t) => this.cloneVehicleType(t)),
+      vehicleCompositions: reconciled.vehicleCompositions.map((c) => this.cloneVehicleComposition(c)),
+    };
+  }
+
+  private async persistResourceSnapshot(snapshot: ResourceSnapshot): Promise<void> {
+    if (!this.usingDatabase) {
+      return;
+    }
+    const persisted = this.prepareSnapshotForPersistence(snapshot);
+    await Promise.all([
+      this.repository.replacePersonnel(persisted.personnel),
+      this.repository.replacePersonnelServices(persisted.personnelServices),
+      this.repository.replacePersonnelServicePools(persisted.personnelServicePools),
+      this.repository.replacePersonnelPools(persisted.personnelPools),
+      this.repository.replaceHomeDepots(persisted.homeDepots),
+      this.repository.replaceVehicles(persisted.vehicles),
+      this.repository.replaceVehicleServices(persisted.vehicleServices),
+      this.repository.replaceVehicleServicePools(persisted.vehicleServicePools),
+      this.repository.replaceVehiclePools(persisted.vehiclePools),
+      this.repository.replaceVehicleTypes(persisted.vehicleTypes),
+      this.repository.replaceVehicleCompositions(persisted.vehicleCompositions),
+    ]);
   }
 
   private preparePersonnelForPersistence(person: Personnel): Personnel {
@@ -942,6 +1222,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.vehicles = [];
       this.vehicleServices = [];
     }
+    this.normalizeState();
   }
 
   private clonePersonnelServicePool(pool: PersonnelServicePool): PersonnelServicePool {
