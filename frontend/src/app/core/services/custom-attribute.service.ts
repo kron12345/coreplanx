@@ -1,6 +1,6 @@
-import { Injectable, Signal, computed, signal } from '@angular/core';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 
-import { CUSTOM_ATTRIBUTE_TARGETS, DEFAULT_CUSTOM_ATTRIBUTE_STATE } from './custom-attribute.defaults';
+import { CUSTOM_ATTRIBUTE_TARGETS } from './custom-attribute.defaults';
 import type {
   CustomAttributeDefinition,
   CustomAttributeInput,
@@ -8,6 +8,7 @@ import type {
   CustomAttributeState,
   CustomAttributeTarget,
 } from './custom-attribute.types';
+import { PlanningCatalogApiService } from '../api/planning-catalog-api.service';
 
 export type {
   CustomAttributeDefinition,
@@ -21,11 +22,25 @@ export type {
   providedIn: 'root',
 })
 export class CustomAttributeService {
-  private readonly state = signal<CustomAttributeState>(structuredClone(DEFAULT_CUSTOM_ATTRIBUTE_STATE));
+  private readonly api = inject(PlanningCatalogApiService);
+  private readonly state = signal<CustomAttributeState>({});
   private readonly dirty = signal(false);
+  private loadingPromise: Promise<void> | null = null;
 
   readonly definitions: Signal<CustomAttributeState> = computed(() => this.state());
   readonly isDirty: Signal<boolean> = computed(() => this.dirty());
+
+  constructor() {
+    void this.init();
+  }
+
+  async init(): Promise<void> {
+    await this.loadFromApi();
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
+  }
 
   getTargets(): CustomAttributeTarget[] {
     return CUSTOM_ATTRIBUTE_TARGETS;
@@ -61,6 +76,7 @@ export class CustomAttributeService {
       return next;
     });
     this.markDirty();
+    void this.persistState();
     return definition;
   }
 
@@ -110,6 +126,7 @@ export class CustomAttributeService {
       };
     });
     this.markDirty();
+    void this.persistState();
   }
 
   remove(entityId: string, id: string): void {
@@ -129,6 +146,7 @@ export class CustomAttributeService {
       return nextState;
     });
     this.markDirty();
+    void this.persistState();
   }
 
   loadFromServer(snapshot: CustomAttributeState): void {
@@ -144,14 +162,57 @@ export class CustomAttributeService {
     this.dirty.set(false);
   }
 
-  resetToDefaults(): void {
-    this.state.set(structuredClone(DEFAULT_CUSTOM_ATTRIBUTE_STATE));
-    this.dirty.set(false);
+  async resetToDefaults(): Promise<void> {
+    try {
+      const snapshot = await this.api.getCatalogDefaults();
+      this.state.set(structuredClone(snapshot.customAttributes ?? {}));
+      this.dirty.set(false);
+      await this.persistState();
+    } catch {
+      // Reset-Fehler wird ignoriert, aktueller State bleibt bestehen.
+    }
   }
 
   private markDirty(): void {
     if (!this.dirty()) {
       this.dirty.set(true);
+    }
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loadingPromise) {
+      const pending = this.loadingPromise;
+      await pending;
+      if (!force) {
+        return;
+      }
+    }
+    this.loadingPromise = (async () => {
+      try {
+        const state = await this.api.getCustomAttributes();
+        if (state && Object.keys(state).length) {
+          this.loadFromServer(state);
+          return;
+        }
+        this.state.set({});
+        this.dirty.set(false);
+      } catch {
+        if (!Object.keys(this.state()).length) {
+          this.state.set({});
+        }
+      } finally {
+        this.loadingPromise = null;
+      }
+    })();
+    await this.loadingPromise;
+  }
+
+  private async persistState(): Promise<void> {
+    try {
+      await this.api.replaceCustomAttributes(this.preparePersistPayload());
+      this.markPersisted();
+    } catch {
+      // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }
   }
 

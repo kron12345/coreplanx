@@ -34,6 +34,7 @@ export class PlanningDashboardCopyHandlers {
         roles: ActivityLinkRoleDialogResult,
       ) => void;
       updateStageActivities: (stage: PlanningStageId, updater: (activities: Activity[]) => Activity[]) => void;
+      onActivityMutated?: (activity: Activity, stage: PlanningStageId) => void;
     },
   ) {}
 
@@ -70,11 +71,13 @@ export class PlanningDashboardCopyHandlers {
       );
       if (stage === 'base') {
         this.deps.saveTemplateActivity(updated);
+        this.deps.onActivityMutated?.(updated, stage);
         return;
       }
       this.deps.updateStageActivities(stage, (activities) =>
         activities.map((activity) => (activity.id === source.id ? updated : activity)),
       );
+      this.deps.onActivityMutated?.(updated, stage);
       return;
     }
 
@@ -90,11 +93,13 @@ export class PlanningDashboardCopyHandlers {
       );
       if (stage === 'base') {
         this.deps.saveTemplateActivity(updated);
+        this.deps.onActivityMutated?.(updated, stage);
         return;
       }
       this.deps.updateStageActivities(stage, (activities) =>
         activities.map((activity) => (activity.id === source.id ? updated : activity)),
       );
+      this.deps.onActivityMutated?.(updated, stage);
       return;
     }
     const dialogRef = this.deps.dialog.open<
@@ -142,7 +147,9 @@ export class PlanningDashboardCopyHandlers {
           (act, owner, partner, partnerRole, opts) =>
             addParticipantToActivity(act, owner, partner, partnerRole, opts),
         );
-        return this.deps.applyActivityTypeConstraints(withRoles);
+        const updated = this.deps.applyActivityTypeConstraints(withRoles);
+        this.deps.onActivityMutated?.(updated, stage);
+        return updated;
       }),
     );
   }

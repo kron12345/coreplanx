@@ -1,0 +1,77 @@
+<h2 mat-dialog-title>{{ data.title }}</h2>
+
+<mat-dialog-content class="optimizer-dialog">
+  <div class="optimizer-dialog__meta">
+    <div class="optimizer-dialog__meta-item">
+      <div class="optimizer-dialog__label">Ruleset</div>
+      <div class="optimizer-dialog__value">{{ rulesetLabel }}</div>
+    </div>
+    @if (summary) {
+      <div class="optimizer-dialog__meta-item">
+        <div class="optimizer-dialog__label">Summary</div>
+        <div class="optimizer-dialog__value">{{ summary }}</div>
+      </div>
+    }
+    @if (stats) {
+      <div class="optimizer-dialog__meta-item">
+        <div class="optimizer-dialog__label">Templates</div>
+        <div class="optimizer-dialog__value">
+          Break {{ stats.breakTemplates }} · Travel {{ stats.travelTemplates }} · Duty {{ stats.dutyTemplates }} · Split {{ stats.dutySplitTemplates }}
+        </div>
+      </div>
+      <div class="optimizer-dialog__meta-item">
+        <div class="optimizer-dialog__label">Kandidaten</div>
+        <div class="optimizer-dialog__value">{{ stats.candidateCount }}</div>
+      </div>
+    }
+  </div>
+
+  <mat-divider></mat-divider>
+
+  @if (data.mode === 'autopilot' || data.mode === 'solver') {
+    <section class="optimizer-dialog__section">
+      <div class="optimizer-dialog__section-title">Vorschau</div>
+      <div class="optimizer-dialog__chips">
+        <span class="optimizer-chip">Upserts: {{ upserts.length }}</span>
+        <span class="optimizer-chip">Deletes: {{ deletedIds.length }}</span>
+      </div>
+      @if (upserts.length) {
+        <ul class="optimizer-dialog__list">
+          @for (item of upserts.slice(0, 8); track item.id) {
+            <li>
+              <div class="optimizer-dialog__list-title">{{ item.title }}</div>
+              <div class="optimizer-dialog__list-meta">
+                {{ item.type || '—' }} · {{ item.start }} → {{ item.end || '—' }}
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="optimizer-dialog__empty">Keine Vorschlaege.</div>
+      }
+    </section>
+  }
+
+  @if (candidatePreviews.length) {
+    <section class="optimizer-dialog__section">
+      <div class="optimizer-dialog__section-title">
+        {{ data.mode === 'candidates' ? 'Kandidaten (Auszug)' : 'Ausgewaehlte Kandidaten' }}
+      </div>
+      <ul class="optimizer-dialog__list">
+        @for (candidate of candidatePreviews; track candidate.id) {
+          <li>
+            <div class="optimizer-dialog__list-title">{{ candidate.label }}</div>
+            <div class="optimizer-dialog__list-meta">{{ candidate.detail }}</div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Schliessen</button>
+  @if (canApply) {
+    <button mat-flat-button color="primary" type="button" (click)="apply()">Uebernehmen</button>
+  }
+</mat-dialog-actions>

@@ -229,6 +229,14 @@ export class MigrationService implements OnModuleInit {
       'planning_activity',
       'planning_resource',
       'planning_stage',
+      // Activity catalog tables
+      'activity_translation',
+      'activity_layer_group',
+      'activity_definition',
+      'activity_template',
+      'activity_type_definition',
+      'custom_attribute_definition',
+      'activity_catalog_entry',
       // Variant/year metadata
       'planning_variant',
       'timetable_year',

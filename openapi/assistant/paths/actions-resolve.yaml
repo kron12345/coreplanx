@@ -75,6 +75,26 @@ assistant_actions_resolve:
                             type: string
                             nullable: true
                         required: [id, label]
+                    input:
+                      type: object
+                      nullable: true
+                      additionalProperties: false
+                      properties:
+                        label:
+                          type: string
+                          nullable: true
+                        placeholder:
+                          type: string
+                          nullable: true
+                        hint:
+                          type: string
+                          nullable: true
+                        minLength:
+                          type: integer
+                          nullable: true
+                        maxLength:
+                          type: integer
+                          nullable: true
                   required: [resolutionId, title, options]
                 changes:
                   type: array

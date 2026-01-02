@@ -1,0 +1,15 @@
+activities: []
+templates: []
+layerGroups:
+  - id: background
+    label: Hintergrund
+    order: 10
+    description: Flächige Hintergründe
+  - id: default
+    label: Standard
+    order: 50
+    description: Normale Activities
+  - id: marker
+    label: Marker
+    order: 90
+    description: Marker/Overlay

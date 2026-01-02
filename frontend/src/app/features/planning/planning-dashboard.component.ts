@@ -24,10 +24,7 @@ import {
   ActivityCategory,
 } from '../../core/services/activity-type.service';
 import { TranslationService } from '../../core/services/translation.service';
-import {
-  ActivityCatalogService,
-  ActivityAttributeValue as ActivityCatalogAttribute,
-} from '../../core/services/activity-catalog.service';
+import { ActivityCatalogService } from '../../core/services/activity-catalog.service';
 import {
   PLANNING_STAGE_METAS,
   PlanningResourceCategory,
@@ -44,6 +41,14 @@ import { ActivityGroupDialogComponent, ActivityGroupDialogData, ActivityGroupDia
 import { TemplateTimelineStoreService } from './template-timeline-store.service';
 import { TimelineApiService } from '../../core/api/timeline-api.service';
 import { ActivityApiService } from '../../core/api/activity-api.service';
+import { PlanningOptimizerApiService } from '../../core/api/planning-optimizer-api.service';
+import type { PlanningApiContext } from '../../core/api/planning-api-context';
+import type {
+  AutopilotPreviewResponseDto,
+  PlanningCandidateBuildResponseDto,
+  RulesetSelectionRequestDto,
+  PlanningSolverResponseDto,
+} from '../../core/api/planning-optimizer-api.types';
 import { PlanningBoard, PlanningStageStore, StageRuntimeState } from './stores/planning-stage.store';
 import { PlanningDashboardBoardFacade } from './planning-dashboard-board.facade';
 import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
@@ -101,8 +106,8 @@ import { PlanningDashboardOperationsHandlers } from './planning-dashboard-operat
 import { PlanningDashboardFormFacade } from './planning-dashboard-form.facade';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { PlanningStoreService } from '../../shared/planning-store.service';
-import { EMPTY } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, finalize, map, startWith, take, tap } from 'rxjs/operators';
+import { EMPTY, Subject } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, map, startWith, switchMap, take, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PlanningDashboardAssignmentFacade } from './planning-dashboard-assignment.facade';
 import { PlanningDashboardActivityOpsFacade } from './planning-dashboard-activity-ops.facade';
@@ -120,9 +125,11 @@ import { findActivityTypeById, definitionHasField, shouldShowEndField } from './
 import { STAGE_RESOURCE_GROUPS, TYPE_PICKER_META, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
 import {
   applyLocationDefaults as applyLocationDefaultsUtil,
+  type ActivityLocationDefinition,
   isLocationFieldHidden as isLocationFieldHiddenUtil,
 } from './planning-dashboard-location-defaults.utils';
 import { ConflictEntry, mapConflictCodesForOwner } from '../../shared/planning-conflicts';
+import { PlanningOptimizerDialogComponent } from './planning-optimizer-dialog.component';
 
 type LocationAutocompleteOption = {
   key: string;
@@ -131,6 +138,34 @@ type LocationAutocompleteOption = {
   description?: string;
   search: string;
 };
+
+type SolverPreviewSource = 'auto' | 'manual';
+
+type SolverPreviewState = {
+  source: SolverPreviewSource;
+  payload: PlanningSolverResponseDto;
+  createdAt: Date;
+  activityIds: string[];
+  window?: { start: Date; end: Date } | null;
+};
+
+type AutoSolverStatusState = 'idle' | 'running' | 'ready' | 'error';
+
+type AutoSolverStatus = {
+  state: AutoSolverStatusState;
+  message?: string | null;
+  updatedAt?: Date | null;
+};
+
+type AutoSolverRequest = {
+  stage: PlanningStageId;
+  activityIds: string[];
+  windowStart: Date;
+  windowEnd: Date;
+};
+
+const AUTO_SOLVER_WINDOW_MS = 14 * 60 * 60 * 1000;
+const AUTO_SOLVER_STORAGE_KEY = 'coreplanx:planning:auto-solver:v1';
 
 @Component({
     selector: 'app-planning-dashboard',
@@ -157,11 +192,29 @@ export class PlanningDashboardComponent {
   private readonly templateStore = inject(TemplateTimelineStoreService);
   private readonly timelineApi = inject(TimelineApiService);
   private readonly activityApi = inject(ActivityApiService);
+  private readonly optimizerApi = inject(PlanningOptimizerApiService);
   private readonly templateMetaLoad = signal(false);
   private readonly simulationService = inject(SimulationService);
   private readonly publishInProgress = signal(false);
   private readonly snapshotInProgress = signal(false);
+  private readonly optimizerLoadingSignal = signal({ preview: false, candidates: false, solve: false });
   private readonly planningStore = inject(PlanningStoreService);
+  private readonly autoSolverEnabledSignal = signal(this.readAutoSolverEnabled());
+  private readonly autoSolverStatusSignal = signal<Record<PlanningStageId, AutoSolverStatus>>({
+    base: { state: 'idle', message: null, updatedAt: null },
+    operations: { state: 'idle', message: null, updatedAt: null },
+  });
+  private readonly solverPreviewSignal = signal<Record<PlanningStageId, SolverPreviewState | null>>({
+    base: null,
+    operations: null,
+  });
+  private readonly autoSolverRequest$ = new Subject<AutoSolverRequest>();
+  private readonly solverTimestampFormatter = new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   private readonly fromLocationQuerySignal = signal('');
   private readonly toLocationQuerySignal = signal('');
@@ -311,6 +364,49 @@ export class PlanningDashboardComponent {
   private readonly queryTo = signal<string | null>(null);
   private readonly selectedSimulationSignal = signal<SimulationRecord | null>(null);
   protected readonly planningVariant = this.data.planningVariant();
+  protected readonly optimizerLoading = computed(() => this.optimizerLoadingSignal());
+  protected readonly autoSolverEnabled = computed(() => this.autoSolverEnabledSignal());
+  protected readonly autoSolverStatus = computed(
+    () => this.autoSolverStatusSignal()[this.activeStageSignal()],
+  );
+  protected readonly solverPreviewState = computed(
+    () => this.solverPreviewSignal()[this.activeStageSignal()],
+  );
+  protected readonly solverPreviewActivities = computed(() =>
+    this.buildPreviewActivities(this.solverPreviewState()?.payload ?? null),
+  );
+  protected readonly autoSolverStatusLabel = computed(() => {
+    if (!this.autoSolverEnabledSignal()) {
+      return 'Deaktiviert';
+    }
+    const status = this.autoSolverStatus();
+    if (status.state === 'running') {
+      return 'Auto-Solver laeuft...';
+    }
+    if (status.state === 'ready') {
+      return 'Preview bereit';
+    }
+    if (status.state === 'error') {
+      return status.message?.trim().length ? status.message : 'Solver fehlgeschlagen';
+    }
+    return 'Bereit';
+  });
+  protected readonly autoSolverStatusIcon = computed(() => {
+    if (!this.autoSolverEnabledSignal()) {
+      return 'toggle_off';
+    }
+    const status = this.autoSolverStatus();
+    switch (status.state) {
+      case 'running':
+        return 'hourglass_top';
+      case 'ready':
+        return 'check_circle';
+      case 'error':
+        return 'error';
+      default:
+        return 'radio_button_unchecked';
+    }
+  });
   protected readonly currentPeriods = computed(() => {
     const tpl = this.templateStore.selectedTemplateWithFallback();
     if (!tpl?.periods?.length) {
@@ -434,7 +530,7 @@ export class PlanningDashboardComponent {
     applyLocationDefaults: (activity, activities) =>
       applyLocationDefaultsUtil({
         activity,
-        definition: this.findActivityType(activity.type ?? null),
+        definition: this.buildLocationDefinitionForActivity(activity),
         activities,
         ownerId: this.activityOwnerId(activity),
       }),
@@ -442,6 +538,7 @@ export class PlanningDashboardComponent {
     activityOwnerId: (activity) => this.activityOwnerId(activity),
     ensureRequiredParticipants: (stage, anchorResource, activity) =>
       this.activityHandlers.ensureRequiredParticipantsForActivity(stage, anchorResource, activity),
+    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
   private readonly assignmentFacade = new PlanningDashboardAssignmentFacade({
     activeStage: () => this.activeStageSignal(),
@@ -460,6 +557,7 @@ export class PlanningDashboardComponent {
     applyBaseCopyWithRoles: (source, sourceResource, targetResource, roles) =>
       this.baseHandlers.applyCopyWithRoles(source, sourceResource, targetResource, roles),
     updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
+    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
   private readonly selectionState = new PlanningDashboardSelectionState({
     activitySelection: this.activitySelection,
@@ -579,6 +677,59 @@ export class PlanningDashboardComponent {
       moveTargetOptions: this.moveTargetOptions,
       activityMoveTargetSignal: this.activityMoveTargetSignal,
     });
+
+    this.data.setAutopilotSuppressed(this.autoSolverEnabledSignal());
+
+    this.autoSolverRequest$
+      .pipe(
+        debounceTime(240),
+        tap((request) => {
+          this.clearSolverPreview(request.stage, 'auto');
+          this.setAutoSolverStatus(request.stage, {
+            state: 'running',
+            message: 'Solver wird ausgefuehrt...',
+            updatedAt: new Date(),
+          });
+        }),
+        switchMap((request) => {
+          if (!this.autoSolverEnabledSignal()) {
+            return EMPTY;
+          }
+          const payload = this.buildOptimizerPayload(request.stage, {
+            activityIds: request.activityIds,
+            timelineRange: { start: request.windowStart, end: request.windowEnd },
+          });
+          if (!payload) {
+            this.setAutoSolverStatus(request.stage, {
+              state: 'error',
+              message: 'Keine Leistungen im Zeitfenster gefunden.',
+              updatedAt: new Date(),
+            });
+            return EMPTY;
+          }
+          return this.optimizerApi.solve(request.stage, payload, this.buildOptimizerContext()).pipe(
+            take(1),
+            tap((response) => {
+              this.setSolverPreview(request.stage, response, 'auto', request.activityIds, {
+                start: request.windowStart,
+                end: request.windowEnd,
+              });
+              this.setAutoSolverStatus(request.stage, { state: 'ready', message: null, updatedAt: new Date() });
+            }),
+            catchError((error) => {
+              this.handleOptimizerError('Auto-Solver', error);
+              this.setAutoSolverStatus(request.stage, {
+                state: 'error',
+                message: 'Solver fehlgeschlagen.',
+                updatedAt: new Date(),
+              });
+              return EMPTY;
+            }),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
   }
 
   protected readonly activeStageId = computed(() => this.activeStageSignal());
@@ -697,7 +848,7 @@ export class PlanningDashboardComponent {
     applyLocationDefaults: (activity, activities) =>
       applyLocationDefaultsUtil({
         activity,
-        definition: this.findActivityType(activity.type ?? null),
+        definition: this.buildLocationDefinitionForActivity(activity),
         activities,
         ownerId: this.activityOwnerId(activity),
       }),
@@ -707,6 +858,7 @@ export class PlanningDashboardComponent {
     templateId: () => this.templateStore.selectedTemplate()?.id ?? null,
     ensureRequiredParticipants: (stage, anchorResource, activity) =>
       this.activityHandlers.ensureRequiredParticipantsForActivity(stage, anchorResource, activity),
+    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
   private readonly activityHandlers = new PlanningDashboardActivityHandlersFacade({
     activeStage: () => this.activeStageSignal(),
@@ -725,7 +877,7 @@ export class PlanningDashboardComponent {
     applyLocationDefaults: (activity, activities) =>
       applyLocationDefaultsUtil({
         activity,
-        definition: this.findActivityType(activity.type ?? null),
+        definition: this.buildLocationDefinitionForActivity(activity),
         activities,
         ownerId: this.activityOwnerId(activity),
       }),
@@ -743,6 +895,7 @@ export class PlanningDashboardComponent {
     replaceActivity: (activity) => this.activityOpsFacade.replaceActivity(activity),
     clearEditingPreview: () => this.pendingFacade.clearEditingPreview(),
     deleteTemplateActivity: (templateId, baseId) => this.data.deleteTemplateActivity(templateId, baseId),
+    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
 
   protected readonly activityTypeDefinitions = this.activityTypeService.definitions;
@@ -1826,8 +1979,8 @@ export class PlanningDashboardComponent {
     return definitionHasField(definition, field);
   }
 
-  protected isLocationFieldHidden(definition: ActivityTypeDefinition | null, field: 'from' | 'to'): boolean {
-    return isLocationFieldHiddenUtil(definition, field);
+  protected isLocationFieldHidden(definition: ActivityCatalogOption | null, field: 'from' | 'to'): boolean {
+    return isLocationFieldHiddenUtil(this.buildLocationDefinitionForOption(definition), field);
   }
 
   protected shouldShowEndField(definition: ActivityTypeDefinition | null): boolean {
@@ -1877,8 +2030,374 @@ export class PlanningDashboardComponent {
     return getActivityOwnerId(activity);
   }
 
+  private buildOptimizerContext(): PlanningApiContext {
+    const variant = this.planningVariant();
+    return {
+      variantId: variant?.id ?? 'default',
+      timetableYearLabel: variant?.timetableYearLabel ?? null,
+    };
+  }
+
+  private setOptimizerLoading(
+    key: 'preview' | 'candidates' | 'solve',
+    value: boolean,
+  ): void {
+    this.optimizerLoadingSignal.update((state) => ({ ...state, [key]: value }));
+  }
+
+  private handleOptimizerError(label: string, error: unknown): void {
+    console.warn(`[PlanningDashboard] ${label} fehlgeschlagen`, error);
+  }
+
+  private openOptimizerDialog(
+    mode: 'autopilot',
+    payload: AutopilotPreviewResponseDto,
+    title: string,
+  ): void;
+  private openOptimizerDialog(
+    mode: 'candidates',
+    payload: PlanningCandidateBuildResponseDto,
+    title: string,
+  ): void;
+  private openOptimizerDialog(
+    mode: 'solver',
+    payload: PlanningSolverResponseDto,
+    title: string,
+  ): void;
+  private openOptimizerDialog(
+    mode: 'autopilot' | 'candidates' | 'solver',
+    payload: AutopilotPreviewResponseDto | PlanningCandidateBuildResponseDto | PlanningSolverResponseDto,
+    title: string,
+  ): void {
+    this.dialog.open(PlanningOptimizerDialogComponent, {
+      data: { title, mode, payload },
+      width: '720px',
+    });
+  }
+
+  private resolveCatalogOptionForActivity(activity: Activity): ActivityCatalogOption | null {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const key =
+      typeof attrs?.['activityKey'] === 'string'
+        ? (attrs['activityKey'] as string)
+        : (activity.type ?? '').trim();
+    if (!key) {
+      return null;
+    }
+    return this.activityCatalogOptionMap().get(key) ?? null;
+  }
+
+  private buildLocationDefinitionForActivity(activity: Activity): ActivityLocationDefinition | null {
+    const option = this.resolveCatalogOptionForActivity(activity);
+    const typeDefinition = option?.typeDefinition ?? this.findActivityType(activity.type ?? null);
+    if (!typeDefinition) {
+      return null;
+    }
+    return {
+      type: typeDefinition,
+      attributes: option?.attributes ?? null,
+    };
+  }
+
+  private buildLocationDefinitionForOption(
+    option: ActivityCatalogOption | null,
+  ): ActivityLocationDefinition | null {
+    if (!option?.typeDefinition) {
+      return null;
+    }
+    return {
+      type: option.typeDefinition,
+      attributes: option.attributes ?? null,
+    };
+  }
+
   protected createBoardFromSelection(): void {
     this.boardActionsFacade.createBoardFromSelection();
+  }
+
+  protected openAutopilotPreview(): void {
+    if (this.optimizerLoadingSignal().preview) {
+      return;
+    }
+    const stage = this.activeStageSignal();
+    this.setOptimizerLoading('preview', true);
+    this.optimizerApi
+      .previewAutopilot(stage, this.buildOptimizerContext())
+      .pipe(
+        take(1),
+        finalize(() => this.setOptimizerLoading('preview', false)),
+        catchError((error) => {
+          this.handleOptimizerError('Autopilot-Preview', error);
+          return EMPTY;
+        }),
+      )
+      .subscribe((payload) => {
+        this.openOptimizerDialog('autopilot', payload, 'Autopilot-Preview');
+      });
+  }
+
+  protected openOptimizerCandidates(): void {
+    if (this.optimizerLoadingSignal().candidates) {
+      return;
+    }
+    const stage = this.activeStageSignal();
+    const activityIds = this.selectedActivityIdsArray();
+    if (!activityIds.length) {
+      return;
+    }
+    const selection = this.buildOptimizerPayload(stage, { activityIds });
+    if (!selection) {
+      return;
+    }
+    this.setOptimizerLoading('candidates', true);
+    this.optimizerApi
+      .buildCandidates(stage, selection, this.buildOptimizerContext())
+      .pipe(
+        take(1),
+        finalize(() => this.setOptimizerLoading('candidates', false)),
+        catchError((error) => {
+          this.handleOptimizerError('Solver-Kandidaten', error);
+          return EMPTY;
+        }),
+      )
+      .subscribe((payload) => {
+        this.openOptimizerDialog('candidates', payload, 'Solver-Kandidaten');
+      });
+  }
+
+  protected openOptimizerSolve(): void {
+    if (this.optimizerLoadingSignal().solve) {
+      return;
+    }
+    const stage = this.activeStageSignal();
+    const activityIds = this.selectedActivityIdsArray();
+    if (!activityIds.length) {
+      return;
+    }
+    const selection = this.buildOptimizerPayload(stage, { activityIds });
+    if (!selection) {
+      return;
+    }
+    this.clearSolverPreview(stage, 'manual');
+    this.setOptimizerLoading('solve', true);
+    this.optimizerApi
+      .solve(stage, selection, this.buildOptimizerContext())
+      .pipe(
+        take(1),
+        finalize(() => this.setOptimizerLoading('solve', false)),
+        catchError((error) => {
+          this.handleOptimizerError('Solver-Preview', error);
+          return EMPTY;
+        }),
+      )
+      .subscribe((payload) => {
+        this.setSolverPreview(stage, payload, 'manual', activityIds, null);
+      });
+  }
+
+  private buildOptimizerPayload(
+    stage: PlanningStageId,
+    options?: { activityIds?: string[]; timelineRange?: { start: Date; end: Date } },
+  ): RulesetSelectionRequestDto | undefined {
+    const activityIds = (options?.activityIds ?? []).filter((entry) => !!entry);
+    const selection: RulesetSelectionRequestDto | undefined = activityIds.length
+      ? { activityIds }
+      : undefined;
+    if (stage !== 'base') {
+      return selection;
+    }
+    const template = this.templateStore.selectedTemplateWithFallback();
+    const range = options?.timelineRange ?? this.timelineRange();
+    if (!template || !range?.start || !range?.end) {
+      return selection;
+    }
+    return {
+      ...selection,
+      templateId: template.id,
+      timelineRange: {
+        start: range.start.toISOString(),
+        end: range.end.toISOString(),
+      },
+    };
+  }
+
+  protected applySolverPreview(): void {
+    const preview = this.solverPreviewState();
+    if (!preview) {
+      return;
+    }
+    const stage = this.activeStageSignal();
+    const payload = preview.payload;
+    if (payload.upserts.length === 0 && payload.deletedIds.length === 0) {
+      this.clearSolverPreview(stage);
+      return;
+    }
+    this.data.applyActivityMutation(stage, payload.upserts ?? [], payload.deletedIds ?? []);
+    this.clearSolverPreview(stage);
+  }
+
+  protected discardSolverPreview(): void {
+    this.clearSolverPreview(this.activeStageSignal());
+  }
+
+  protected setAutoSolverEnabled(enabled: boolean): void {
+    this.autoSolverEnabledSignal.set(enabled);
+    this.persistAutoSolverEnabled(enabled);
+    this.data.setAutopilotSuppressed(enabled);
+    if (!enabled) {
+      this.clearSolverPreview('base', 'auto');
+      this.clearSolverPreview('operations', 'auto');
+      this.setAutoSolverStatus('base', { state: 'idle', message: null, updatedAt: new Date() });
+      this.setAutoSolverStatus('operations', { state: 'idle', message: null, updatedAt: new Date() });
+    }
+  }
+
+  private setAutoSolverStatus(stage: PlanningStageId, status: AutoSolverStatus): void {
+    this.autoSolverStatusSignal.update((current) => ({ ...current, [stage]: status }));
+  }
+
+  private setSolverPreview(
+    stage: PlanningStageId,
+    payload: PlanningSolverResponseDto,
+    source: SolverPreviewSource,
+    activityIds: string[],
+    window?: { start: Date; end: Date } | null,
+  ): void {
+    this.solverPreviewSignal.update((current) => ({
+      ...current,
+      [stage]: {
+        source,
+        payload,
+        createdAt: new Date(),
+        activityIds,
+        window: window ?? null,
+      },
+    }));
+  }
+
+  private clearSolverPreview(stage: PlanningStageId, source?: SolverPreviewSource): void {
+    const current = this.solverPreviewSignal()[stage];
+    if (!current) {
+      return;
+    }
+    if (source && current.source !== source) {
+      return;
+    }
+    this.solverPreviewSignal.update((state) => ({ ...state, [stage]: null }));
+    if (current.source === 'auto') {
+      this.setAutoSolverStatus(stage, { state: 'idle', message: null, updatedAt: new Date() });
+    }
+  }
+
+  private handleSolverActivityMutation(activity: Activity, stage: PlanningStageId): void {
+    if (!this.autoSolverEnabledSignal()) {
+      return;
+    }
+    const request = this.buildAutoSolverRequest(activity, stage);
+    if (!request) {
+      this.setAutoSolverStatus(stage, {
+        state: 'error',
+        message: 'Kein passendes Zeitfenster gefunden.',
+        updatedAt: new Date(),
+      });
+      return;
+    }
+    this.autoSolverRequest$.next(request);
+  }
+
+  private buildAutoSolverRequest(activity: Activity, stage: PlanningStageId): AutoSolverRequest | null {
+    const window = this.buildAutoSolverWindow(activity);
+    if (!window) {
+      return null;
+    }
+    const resourceIds = new Set(getActivityParticipantIds(activity));
+    if (!resourceIds.size) {
+      return null;
+    }
+    const startMs = window.start.getTime();
+    const endMs = window.end.getTime();
+    const activityIds = Array.from(
+      new Set(
+        this.normalizedStageActivitySignals[stage]()
+          .filter((entry) => this.activityOverlapsWindow(entry, startMs, endMs))
+          .filter((entry) => this.activityTouchesResources(entry, resourceIds))
+          .map((entry) => entry.id),
+      ),
+    );
+    if (!activityIds.length) {
+      return null;
+    }
+    return {
+      stage,
+      activityIds,
+      windowStart: window.start,
+      windowEnd: window.end,
+    };
+  }
+
+  private buildAutoSolverWindow(activity: Activity): { start: Date; end: Date } | null {
+    const startMs = new Date(activity.start).getTime();
+    const endMs = activity.end ? new Date(activity.end).getTime() : startMs;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      return null;
+    }
+    const baseStart = Math.min(startMs, endMs);
+    const baseEnd = Math.max(startMs, endMs);
+    return {
+      start: new Date(baseStart - AUTO_SOLVER_WINDOW_MS),
+      end: new Date(baseEnd + AUTO_SOLVER_WINDOW_MS),
+    };
+  }
+
+  private activityOverlapsWindow(activity: Activity, windowStartMs: number, windowEndMs: number): boolean {
+    const startMs = new Date(activity.start).getTime();
+    const endMs = activity.end ? new Date(activity.end).getTime() : startMs;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      return false;
+    }
+    return endMs >= windowStartMs && startMs <= windowEndMs;
+  }
+
+  private activityTouchesResources(activity: Activity, resourceIds: ReadonlySet<string>): boolean {
+    const ids = getActivityParticipantIds(activity);
+    return ids.some((id) => resourceIds.has(id));
+  }
+
+  private buildPreviewActivities(payload: PlanningSolverResponseDto | null): Activity[] {
+    if (!payload?.upserts?.length) {
+      return [];
+    }
+    return payload.upserts.map((activity, index) => ({
+      ...activity,
+      id: `preview:${index}:${activity.id}`,
+    }));
+  }
+
+  protected formatSolverTimestamp(value?: Date | null): string {
+    if (!value) {
+      return '';
+    }
+    return this.solverTimestampFormatter.format(value);
+  }
+
+  private readAutoSolverEnabled(): boolean {
+    try {
+      const value = localStorage.getItem(AUTO_SOLVER_STORAGE_KEY);
+      if (value === null) {
+        return false;
+      }
+      return value === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  private persistAutoSolverEnabled(enabled: boolean): void {
+    try {
+      localStorage.setItem(AUTO_SOLVER_STORAGE_KEY, enabled ? 'true' : 'false');
+    } catch {
+      // Ignore storage errors (e.g. privacy mode).
+    }
   }
 
   protected addSelectionToBoard(boardId: string): void {

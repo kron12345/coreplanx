@@ -7,6 +7,7 @@ export interface PreparedActivity extends Activity {
   startMs: number;
   endMs: number;
   ownerResourceId: string | null;
+  isPreview?: boolean;
 }
 
 export interface PreparedActivitySlot {

@@ -186,6 +186,41 @@ Weitere: delete_personnel_service_pool, delete_vehicle_service_pool, delete_pers
   ]
 }
 
+18) Einstellungen (Activity-Editor / Types / Layer / Übersetzungen / Attribute):
+- Activity-Editor ist der Standardweg fuer neue Activities (Templates/Definitions). Activity-Types nur aendern, wenn explizit verlangt.
+- Activity Types:
+{ "schemaVersion": 1, "action": "create_activity_type", "activityTypes": [ { "id": "service-start", "label": "Dienstanfang", "appliesTo": ["personnel"], "relevantFor": ["personnel"], "category": "service", "timeMode": "point", "fields": ["start","end","from","to"], "defaultDurationMinutes": 45, "attributes": { "is_service_start": true }, "meta": {} } ] }
+{ "schemaVersion": 1, "action": "update_activity_type", "target": { "id": "service-start" }, "patch": { "label": "Dienstbeginn" } }
+{ "schemaVersion": 1, "action": "delete_activity_type", "target": { "id": "service-start" } }
+
+- Activity Templates/Definitions (attributes ist Liste von { key, meta }):
+{ "schemaVersion": 1, "action": "create_activity_template", "activityTemplates": [ { "id": "pause-30-template", "label": "Pause 30", "activityType": "break", "defaultDurationMinutes": 30, "attributes": [ { "key": "is_break", "meta": { "value": "true" } } ] } ] }
+{ "schemaVersion": 1, "action": "create_activity_definition", "activityDefinitions": [ { "id": "pause-30", "label": "Pause 30", "activityType": "break", "templateId": "pause-30-template", "presets": { "withinService": "yes", "color": "#ffb74d", "drawAs": "background", "layerGroup": "default", "locationBehavior": "ortsunveraenderlich" }, "attributes": [ { "key": "default_duration", "meta": { "value": "30" } } ] } ] }
+{ "schemaVersion": 1, "action": "update_activity_definition", "target": { "id": "pause-30" }, "patch": { "label": "Pause kurz" } }
+{ "schemaVersion": 1, "action": "delete_activity_template", "target": { "id": "pause-30-template" } }
+
+- Presets fuer Activity Definitions:
+  - withinService: yes|no|both
+  - color: Freitext (z.B. rot oder #ff0000)
+  - drawAs: line-above|line-below|shift-up|shift-down|dot|square|triangle-up|triangle-down|thick|background
+  - layerGroup: ID einer Layer-Gruppe
+  - locationBehavior: manuell|ortsunveraenderlich|vorher|nachher
+  - Alternativ: fromLocationMode|toLocationMode (fix|previous|next) und fromHidden|toHidden (true/false)
+
+- Layer-Gruppen:
+{ "schemaVersion": 1, "action": "create_layer_group", "layerGroups": [ { "id": "marker", "label": "Marker", "order": 90 } ] }
+{ "schemaVersion": 1, "action": "update_layer_group", "target": { "id": "marker" }, "patch": { "label": "Marker/Overlay" } }
+{ "schemaVersion": 1, "action": "delete_layer_group", "target": { "id": "marker" } }
+
+- Übersetzungen:
+{ "schemaVersion": 1, "action": "update_translations", "translations": [ { "locale": "de", "key": "activityType:break", "label": "Pause", "abbreviation": "PA" } ] }
+{ "schemaVersion": 1, "action": "delete_translation_locale", "locale": "de" }
+
+- Custom Attributes:
+{ "schemaVersion": 1, "action": "create_custom_attribute", "customAttributes": [ { "entityId": "personnel", "label": "Perso-Nr", "key": "perso-nr", "type": "string", "description": "Personalnummer", "temporal": false, "required": true } ] }
+{ "schemaVersion": 1, "action": "update_custom_attribute", "target": { "entityId": "personnel", "key": "perso-nr" }, "patch": { "label": "Personalnummer" } }
+{ "schemaVersion": 1, "action": "delete_custom_attribute", "target": { "entityId": "personnel", "key": "perso-nr" } }
+
 Wenn der Prompt keine passende Aktion beschreibt oder Informationen fehlen, antworte:
 { "schemaVersion": 1, "action": "none", "reason": "kurze Erklärung" }
 

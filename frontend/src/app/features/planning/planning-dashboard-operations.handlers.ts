@@ -21,6 +21,7 @@ export class PlanningDashboardOperationsHandlers {
         anchorResource: Resource,
         activity: Activity,
       ) => Promise<Activity | null>;
+      onActivityMutated?: (activity: Activity, stage: PlanningStageId) => void;
     },
   ) {}
 
@@ -140,6 +141,7 @@ export class PlanningDashboardOperationsHandlers {
         activity: updatedSelectionActivity,
         resource,
       });
+      this.deps.onActivityMutated?.(updatedSelectionActivity, stage);
       return;
     }
     if (activeSelection) {
@@ -151,6 +153,7 @@ export class PlanningDashboardOperationsHandlers {
         });
       }
     }
+    this.deps.onActivityMutated?.(ensuredWithDefaults, stage);
   }
 
   private markBoundaryManual(activity: Activity): Activity {

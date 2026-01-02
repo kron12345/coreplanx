@@ -1,0 +1,413 @@
+activities: []
+templates: []
+customAttributes:
+  personnel-service-pools:
+    - id: attr-psp-coordinator
+      key: shiftCoordinator
+      label: Schichtkoordinator:in
+      type: string
+      description: Verantwortliche Person für die Dienstkoordination.
+    - id: attr-psp-contact-email
+      key: contactEmail
+      label: Kontakt E-Mail
+      type: string
+      description: E-Mail-Adresse für kurzfristige Abstimmungen.
+  personnel-services:
+    - id: attr-ps-start
+      key: startTime
+      label: Dienstbeginn
+      type: time
+      description: Geplanter Beginn der Schicht.
+    - id: attr-ps-end
+      key: endTime
+      label: Dienstende
+      type: time
+      description: Geplantes Ende der Schicht.
+    - id: attr-ps-night
+      key: isNightService
+      label: Nachtleistung
+      type: boolean
+      description: Kennzeichnet Schichten mit Nachtarbeitsanteilen.
+  personnel-pools:
+    - id: attr-pp-location
+      key: locationCode
+      label: Standortcode
+      type: string
+      description: Kurzkennung des Heimatstandortes.
+  personnel:
+    - id: attr-personnel-home
+      key: homeStation
+      label: Heimatbahnhof
+      type: string
+      description: Station, an der das Personal regulär startet.
+    - id: attr-personnel-status
+      key: availabilityStatus
+      label: Verfügbarkeitsstatus
+      type: string
+      description: Aktueller Dispositionsstatus.
+    - id: attr-personnel-qual-expiry
+      key: qualificationExpires
+      label: Qualifikation gültig bis
+      type: date
+      description: Nächstes Ablaufdatum der wichtigsten Berechtigungen.
+    - id: attr-personnel-reserve
+      key: isReserve
+      label: In Reserveplanung
+      type: boolean
+      description: Markiert Personal, das als Reserve geführt wird.
+  vehicle-service-pools:
+    - id: attr-vsp-dispatcher
+      key: dispatcher
+      label: Leitstelle
+      type: string
+      description: Zuständige Dispositionseinheit.
+  vehicle-services:
+    - id: attr-vs-start
+      key: startTime
+      label: Planstart
+      type: time
+      description: Planmäßiger Startzeitpunkt des Umlaufs.
+    - id: attr-vs-end
+      key: endTime
+      label: Planende
+      type: time
+      description: Planmäßiger Endzeitpunkt des Umlaufs.
+    - id: attr-vs-route
+      key: primaryRoute
+      label: Hauptlaufweg
+      type: string
+      description: Kurzbeschreibung der Strecke.
+    - id: attr-vs-overnight
+      key: isOvernight
+      label: Mit Nachtlage
+      type: boolean
+      description: Enthält nächtliche Abstellung oder Nachtfahrt.
+  vehicle-pools:
+    - id: attr-vp-manager
+      key: depotManager
+      label: Depotleitung
+      type: string
+      description: Verantwortliche Leitung des Fuhrparkstandorts.
+  vehicles:
+    - id: attr-vehicle-wifi
+      key: hasWifi
+      label: WLAN an Bord
+      type: boolean
+      description: Verfügt das Fahrzeug über WLAN für Fahrgäste?
+    - id: attr-vehicle-status
+      key: fleetStatus
+      label: Flottenstatus
+      type: string
+      description: Aktueller Einsatzstatus des Fahrzeugs.
+    - id: attr-vehicle-inspection
+      key: lastInspectionDate
+      label: Letzte HU
+      type: date
+      description: Datum der letzten Hauptuntersuchung.
+    - id: attr-vehicle-range
+      key: rangeKm
+      label: Reichweite (km)
+      type: number
+      description: Effektive Reichweite ohne Nachladung.
+    - id: attr-vehicle-seat-res
+      key: seatReservation
+      label: Sitzplatzreservierung
+      type: boolean
+      description: Unterstützt das Fahrzeug Reservierungen?
+  vehicle-types:
+    - id: attr-vt-max-speed
+      key: maxSpeed
+      label: Höchstgeschwindigkeit (km/h)
+      type: number
+      description: Technisch zugelassene Geschwindigkeit.
+    - id: attr-vt-maintenance
+      key: maintenanceIntervalDays
+      label: Wartungsintervall (Tage)
+      type: number
+      description: Abstand zwischen turnusmäßigen Werkstattaufenthalten.
+    - id: attr-vt-energy
+      key: energyType
+      label: Energieart
+      type: string
+      description: Primäre Energiequelle des Fahrzeugs.
+    - id: attr-vt-manufacturer
+      key: manufacturer
+      label: Hersteller
+      type: string
+      description: Produzent des Fahrzeugtyps.
+  vehicle-compositions:
+    - id: attr-vc-turnaround
+      key: turnaroundBuffer
+      label: Wendezeit Puffer
+      type: time
+      description: Geplanter Zeitpuffer zwischen zwei Einsätzen.
+    - id: attr-vc-remark
+      key: remark
+      label: Bemerkung
+      type: string
+      description: Zusätzliche Hinweise zur Verwendung.
+  topology-replacement-stops:
+    - id: attr-topology-rs-name
+      key: name
+      label: Name
+      type: string
+      description: Anzeigename der Ersatzhaltestelle.
+      temporal: true
+      required: true
+    - id: attr-topology-rs-stop-code
+      key: stopCode
+      label: Stop-Code
+      type: string
+      description: Interner Code der Ersatzhaltestelle.
+      temporal: true
+    - id: attr-topology-rs-op
+      key: nearestUniqueOpId
+      label: Nächster OP (uniqueOpId)
+      type: string
+      description: UniqueOpId der Betriebsstelle, zu der der Ersatzhalt gehört.
+      temporal: true
+    - id: attr-topology-rs-lat
+      key: lat
+      label: Latitude
+      type: number
+      description: Geografische Breite des Ersatzhalts.
+      temporal: true
+      required: true
+    - id: attr-topology-rs-lng
+      key: lng
+      label: Longitude
+      type: number
+      description: Geografische Länge des Ersatzhalts.
+      temporal: true
+      required: true
+    - id: attr-topology-rs-shelter
+      key: shelter
+      label: Haltestellenüberdachung
+      type: string
+      description: Art der Haltestellenüberdachung (z. B. Überdacht, Offen).
+      temporal: true
+  topology-operational-points:
+    - id: attr-topology-op-unique-id
+      key: uniqueOpId
+      label: Unique OP ID
+      type: string
+      description: Technische ID der Betriebsstelle.
+      required: true
+    - id: attr-topology-op-name
+      key: name
+      label: Name
+      type: string
+      description: Anzeigename der Betriebsstelle.
+      temporal: true
+      required: true
+    - id: attr-topology-op-country
+      key: countryCode
+      label: Land (ISO)
+      type: string
+      description: Ländercode des OP.
+      temporal: true
+      required: true
+    - id: attr-topology-op-type
+      key: opType
+      label: OP-Typ
+      type: string
+      description: Art der Betriebsstelle.
+      temporal: true
+      required: true
+    - id: attr-topology-op-lat
+      key: lat
+      label: Latitude
+      type: number
+      description: Geografische Breite.
+      temporal: true
+      required: true
+    - id: attr-topology-op-lng
+      key: lng
+      label: Longitude
+      type: number
+      description: Geografische Länge.
+      temporal: true
+      required: true
+  topology-sections-of-line:
+    - id: attr-topology-sol-start
+      key: startUniqueOpId
+      label: Start-OP
+      type: string
+      description: UniqueOpId des Startpunkts.
+      required: true
+    - id: attr-topology-sol-end
+      key: endUniqueOpId
+      label: End-OP
+      type: string
+      description: UniqueOpId des Endpunkts.
+      required: true
+    - id: attr-topology-sol-length
+      key: lengthKm
+      label: Länge (km)
+      type: number
+      description: Streckenlänge in Kilometern.
+    - id: attr-topology-sol-nature
+      key: nature
+      label: Nature
+      type: string
+      description: REGULAR oder LINK.
+      required: true
+  topology-personnel-sites:
+    - id: attr-topology-site-name
+      key: name
+      label: Name
+      type: string
+      description: Bezeichnung der Personaleinsatzstelle.
+      temporal: true
+      required: true
+    - id: attr-topology-site-type
+      key: siteType
+      label: Typ
+      type: string
+      description: Art der Einsatzstelle.
+      required: true
+    - id: attr-topology-site-op
+      key: uniqueOpId
+      label: Zugeordneter OP
+      type: string
+      description: Optionaler Bezug zu einem Operational Point.
+    - id: attr-topology-site-lat
+      key: lat
+      label: Latitude
+      type: number
+      description: Geografische Breite.
+      required: true
+    - id: attr-topology-site-lng
+      key: lng
+      label: Longitude
+      type: number
+      description: Geografische Länge.
+      required: true
+    - id: attr-topology-site-hours
+      key: openingHoursJson
+      label: Öffnungszeiten (JSON)
+      type: string
+      description: Frei definierte Öffnungszeiten im JSON-Format.
+  topology-replacement-routes:
+    - id: attr-topology-rr-name
+      key: name
+      label: Name
+      type: string
+      description: Bezeichnung der Ersatzlinie.
+      required: true
+    - id: attr-topology-rr-operator
+      key: operator
+      label: Betreiber
+      type: string
+      description: Verantwortlicher Betreiber.
+  topology-replacement-edges:
+    - id: attr-topology-re-route
+      key: replacementRouteId
+      label: Route
+      type: string
+      description: ID der zugehörigen Ersatzlinie.
+      required: true
+    - id: attr-topology-re-from
+      key: fromStopId
+      label: Von (Stop)
+      type: string
+      description: Start-Ersatzhalt.
+      required: true
+    - id: attr-topology-re-to
+      key: toStopId
+      label: Nach (Stop)
+      type: string
+      description: Ziel-Ersatzhalt.
+      required: true
+    - id: attr-topology-re-seq
+      key: seq
+      label: Sequenz
+      type: number
+      description: Sortierreihenfolge innerhalb der Route.
+      required: true
+    - id: attr-topology-re-duration
+      key: avgDurationSec
+      label: Dauer (Sek.)
+      type: number
+      description: Durchschnittliche Fahrzeit.
+    - id: attr-topology-re-distance
+      key: distanceM
+      label: Distanz (Meter)
+      type: number
+      description: Streckenlänge in Metern.
+  topology-op-replacement-links:
+    - id: attr-topology-link-op
+      key: uniqueOpId
+      label: Operational Point
+      type: string
+      description: UniqueOpId der Betriebsstelle.
+      required: true
+    - id: attr-topology-link-stop
+      key: replacementStopId
+      label: Replacement Stop
+      type: string
+      description: Verknüpfter Ersatzhalt.
+      required: true
+    - id: attr-topology-link-relation
+      key: relationType
+      label: Relation
+      type: string
+      description: Art der Verknüpfung.
+      required: true
+    - id: attr-topology-link-walking
+      key: walkingTimeSec
+      label: Fußweg (Sek.)
+      type: number
+      description: Gehzeit zwischen OP und Ersatzhalt.
+    - id: attr-topology-link-distance
+      key: distanceM
+      label: Distanz (Meter)
+      type: number
+      description: Distanz zwischen OP und Ersatzhalt.
+  topology-transfer-edges:
+    - id: attr-topology-te-from-kind
+      key: fromKind
+      label: Von - Typ
+      type: string
+      description: OP, PERSONNEL_SITE oder REPLACEMENT_STOP.
+      required: true
+    - id: attr-topology-te-from-ref
+      key: fromRef
+      label: Von - Referenz
+      type: string
+      description: UniqueOpId, SiteId oder ReplacementStopId.
+      required: true
+    - id: attr-topology-te-to-kind
+      key: toKind
+      label: Nach - Typ
+      type: string
+      description: OP, PERSONNEL_SITE oder REPLACEMENT_STOP.
+      required: true
+    - id: attr-topology-te-to-ref
+      key: toRef
+      label: Nach - Referenz
+      type: string
+      description: UniqueOpId, SiteId oder ReplacementStopId.
+      required: true
+    - id: attr-topology-te-mode
+      key: mode
+      label: Modus
+      type: string
+      description: Transfermodus (WALK/SHUTTLE/INTERNAL).
+      required: true
+    - id: attr-topology-te-duration
+      key: avgDurationSec
+      label: Dauer (Sek.)
+      type: number
+      description: Durchschnittliche Dauer.
+    - id: attr-topology-te-distance
+      key: distanceM
+      label: Distanz (Meter)
+      type: number
+      description: Geschätzte Distanz.
+    - id: attr-topology-te-bidirectional
+      key: bidirectional
+      label: Bidirektional
+      type: boolean
+      description: Ist die Kante in beide Richtungen gültig?
+      required: true

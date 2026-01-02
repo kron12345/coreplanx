@@ -1,26 +1,32 @@
-id: vehicle-on
-label: Einschalten
-description: Fahrzeug einschalten bzw. bereitstellen.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: service
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - remark
-defaultDurationMinutes: 15
-attributes:
-  is_within_service: yes
-  requires_vehicle: true
-  is_vehicle_on: true
-  color: '#2e7d32'
+activities: []
+templates: []
+types:
+  - id: vehicle-on
+    label: Einschalten
+    description: Fahrzeug einschalten bzw. bereitstellen.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: service
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - remark
+    defaultDurationMinutes: 15
+    attributes:
+      is_service_start: true
+      is_within_service: yes
+      to_hidden: true
+      to_location_mode: previous
+      requires_vehicle: true
+      is_vehicle_on: true
+      color: '#2e7d32'

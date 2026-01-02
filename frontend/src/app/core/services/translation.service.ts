@@ -1,12 +1,12 @@
-import { Injectable, Signal, computed, signal } from '@angular/core';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { PlanningCatalogApiService, type TranslationState } from '../api/planning-catalog-api.service';
 
 export interface TranslationEntry {
-  label?: string;
-  abbreviation?: string;
+  label?: string | null;
+  abbreviation?: string | null;
 }
 
 type LocaleBucket = Record<string, TranslationEntry>;
-type TranslationState = Record<string, LocaleBucket>;
 
 const STORAGE_KEY = 'app-translations.v1';
 const LOCALE_KEY = 'app-translations.locale';
@@ -15,8 +15,10 @@ const LEGACY_ACTIVITY_KEY = 'activity-type-i18n.v2';
 
 @Injectable({ providedIn: 'root' })
 export class TranslationService {
+  private readonly api = inject(PlanningCatalogApiService);
   private readonly state = signal<TranslationState>({});
   private readonly activeLocaleSignal = signal<string>(DEFAULT_LOCALE);
+  private loadingPromise: Promise<void> | null = null;
 
   readonly activeLocale: Signal<string> = computed(() => this.activeLocaleSignal());
   readonly translations: Signal<LocaleBucket> = computed(
@@ -29,7 +31,16 @@ export class TranslationService {
   });
 
   constructor() {
-    this.load();
+    this.loadLocale();
+    void this.init();
+  }
+
+  async init(): Promise<void> {
+    await this.loadFromApi();
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
   }
 
   setActiveLocale(locale: string): void {
@@ -68,9 +79,9 @@ export class TranslationService {
       } else {
         next[targetLocale] = bucket;
       }
-      this.persist(next);
       return next;
     });
+    void this.persist();
   }
 
   clearLocale(locale?: string): void {
@@ -79,20 +90,20 @@ export class TranslationService {
       const next = { ...this.state() };
       delete next[targetLocale];
       this.state.set(next);
-      this.persist(next);
+      void this.persist();
     }
   }
 
   clearAll(): void {
     this.state.set({});
-    this.persist({});
+    void this.persist();
   }
 
   resetToDefaults(): void {
     this.activeLocaleSignal.set(DEFAULT_LOCALE);
     this.persistLocale(DEFAULT_LOCALE);
     this.state.set({});
-    this.persist({});
+    void this.persist();
   }
 
   private getValue(
@@ -145,16 +156,50 @@ export class TranslationService {
       } else {
         next[targetLocale] = bucket;
       }
-      this.persist(next);
       return next;
     });
+    void this.persist();
   }
 
   private normalizeLocale(locale?: string): string {
     return (locale || this.activeLocaleSignal() || DEFAULT_LOCALE).trim().toLowerCase() || DEFAULT_LOCALE;
   }
 
-  private load(): void {
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loadingPromise) {
+      const pending = this.loadingPromise;
+      await pending;
+      if (!force) {
+        return;
+      }
+    }
+    this.loadingPromise = (async () => {
+      try {
+        const state = await this.api.getTranslations();
+        if (state && Object.keys(state).length) {
+          this.state.set(state);
+          return;
+        }
+        const legacy = this.loadLegacyState();
+        if (legacy) {
+          this.state.set(legacy);
+          await this.persist();
+          return;
+        }
+        this.state.set({});
+      } catch {
+        const legacy = this.loadLegacyState();
+        if (legacy) {
+          this.state.set(legacy);
+        }
+      } finally {
+        this.loadingPromise = null;
+      }
+    })();
+    await this.loadingPromise;
+  }
+
+  private loadLocale(): void {
     try {
       const savedLocale = localStorage.getItem(LOCALE_KEY);
       if (savedLocale) {
@@ -163,33 +208,48 @@ export class TranslationService {
     } catch {
       // ignore
     }
+  }
 
+  private loadLegacyState(): TranslationState | null {
+    const fromStorage = this.readTranslationStorage();
+    if (fromStorage && Object.keys(fromStorage).length) {
+      return fromStorage;
+    }
+    const legacy = this.readLegacyActivityStore();
+    return legacy && Object.keys(legacy).length ? legacy : null;
+  }
+
+  private readTranslationStorage(): TranslationState | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          this.state.set(parsed as TranslationState);
-          return;
-        }
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return parsed as TranslationState;
       }
     } catch {
       // ignore parse/storage errors
     }
-
-    // Migration from legacy activity-type store
-    this.migrateLegacyActivityStore();
+    return null;
   }
 
-  private migrateLegacyActivityStore(): void {
+  private readLegacyActivityStore(): TranslationState | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
     try {
       const raw = localStorage.getItem(LEGACY_ACTIVITY_KEY);
       if (!raw) {
-        return;
+        return null;
       }
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') {
-        return;
+        return null;
       }
       const bucket: LocaleBucket = {};
       Object.entries(parsed as Record<string, any>).forEach(([id, value]) => {
@@ -207,20 +267,19 @@ export class TranslationService {
         }
       });
       if (Object.keys(bucket).length) {
-        const next: TranslationState = { [this.activeLocaleSignal()]: bucket };
-        this.state.set(next);
-        this.persist(next);
+        return { [this.activeLocaleSignal()]: bucket };
       }
     } catch {
       // ignore
     }
+    return null;
   }
 
-  private persist(state: TranslationState): void {
+  private async persist(): Promise<void> {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      await this.api.replaceTranslations(this.state());
     } catch {
-      // ignore storage errors
+      // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }
   }
 

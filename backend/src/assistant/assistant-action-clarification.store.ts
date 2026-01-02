@@ -17,6 +17,13 @@ export interface StoredAssistantActionClarification {
   baseHash: string;
   apply: AssistantActionClarificationApply;
   options: AssistantActionClarificationOptionDto[];
+  input?: {
+    label?: string;
+    placeholder?: string;
+    hint?: string;
+    minLength?: number;
+    maxLength?: number;
+  };
   createdAt: number;
   updatedAt: number;
 }

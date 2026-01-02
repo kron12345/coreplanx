@@ -1,21 +1,24 @@
-id: crew-change
-label: Personalwechsel
-description: Übergabe zwischen zwei Personalen an einem Bahnhof.
-appliesTo:
-  - personnel
-  - personnel-service
-relevantFor:
-  - personnel
-  - personnel-service
-category: service
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - remark
-defaultDurationMinutes: 20
-attributes:
-  is_within_service: yes
-  is_crew_change: true
-  color: '#5e35b1'
+activities: []
+templates: []
+types:
+  - id: crew-change
+    label: Personalwechsel
+    description: Übergabe zwischen zwei Personalen an einem Bahnhof.
+    appliesTo:
+      - personnel
+      - personnel-service
+    relevantFor:
+      - personnel
+      - personnel-service
+    category: service
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - remark
+    defaultDurationMinutes: 20
+    attributes:
+      is_within_service: yes
+      is_crew_change: true
+      color: '#5e35b1'

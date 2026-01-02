@@ -686,6 +686,11 @@ export interface ActivityAttributes {
   [key: string]: unknown;
 }
 
+export interface ActivityAttributeValue {
+  key: string;
+  meta?: Record<string, unknown>;
+}
+
 export type ActivityCategory = 'rest' | 'movement' | 'service' | 'other';
 export type ActivityTimeMode = 'duration' | 'range' | 'point';
 export type ActivityFieldKey = 'start' | 'end' | 'from' | 'to' | 'remark';
@@ -700,6 +705,8 @@ export interface ActivityTypeDefinition {
   timeMode: ActivityTimeMode;
   fields: ActivityFieldKey[];
   defaultDurationMinutes: number;
+  attributes?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
 }
 
 export interface ActivityTemplate {
@@ -708,7 +715,7 @@ export interface ActivityTemplate {
   description?: string | null;
   activityType?: string | null;
   defaultDurationMinutes?: number | null;
-  attributes?: ActivityAttributes;
+  attributes?: ActivityAttributeValue[];
 }
 
 export interface ActivityDefinition {
@@ -719,7 +726,7 @@ export interface ActivityDefinition {
   templateId?: string | null;
   defaultDurationMinutes?: number | null;
   relevantFor?: ResourceKind[];
-  attributes?: ActivityAttributes;
+  attributes?: ActivityAttributeValue[];
 }
 
 export interface LayerGroup {
@@ -741,12 +748,35 @@ export type TranslationState = Record<
   Record<string, { label?: string | null; abbreviation?: string | null }>
 >;
 
+export type CustomAttributePrimitiveType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'time';
+
+export interface CustomAttributeDefinition {
+  id: string;
+  key: string;
+  label: string;
+  type: CustomAttributePrimitiveType;
+  description?: string | null;
+  entityId: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  temporal?: boolean;
+  required?: boolean;
+}
+
+export type CustomAttributeState = Record<string, CustomAttributeDefinition[]>;
+
 export interface ActivityCatalogSnapshot {
   types: ActivityTypeDefinition[];
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];
   translations: TranslationState;
+  customAttributes: CustomAttributeState;
 }
 
 export interface ResourceSnapshot {
@@ -814,6 +844,7 @@ export interface PlanningStageSnapshot {
 export interface ActivityMutationRequest {
   upserts?: Activity[];
   deleteIds?: string[];
+  skipAutopilot?: boolean;
   clientRequestId?: string;
 }
 

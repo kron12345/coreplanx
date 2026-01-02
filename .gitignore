@@ -12,6 +12,20 @@ dist
 # Local logs / profiles
 logs
 
+# Python
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
 # Angular
 frontend/.angular
 frontend/.cache
@@ -24,5 +38,7 @@ backend/.env
 .vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea
 .DS_Store

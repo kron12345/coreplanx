@@ -1,28 +1,31 @@
-id: commute
-label: Wegezeit
-description: An- oder Abreise zwischen Standorten.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: movement
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - to
-  - remark
-defaultDurationMinutes: 45
-attributes:
-  is_within_service: yes
-  is_travel: true
-  is_commute: true
-  consider_location_conflicts: true
-  color: '#0288d1'
+activities: []
+templates: []
+types:
+  - id: commute
+    label: Wegezeit
+    description: An- oder Abreise zwischen Standorten.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: movement
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - to
+      - remark
+    defaultDurationMinutes: 45
+    attributes:
+      is_within_service: yes
+      is_travel: true
+      is_commute: true
+      consider_location_conflicts: true
+      color: '#0288d1'

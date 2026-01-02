@@ -340,6 +340,115 @@
   gap: 8px;
 }
 
+.planning-solver-section {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.planning-solver-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.planning-solver-section__title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.planning-solver-section__subtitle {
+  font-size: 0.76rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.planning-solver-section__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planning-panel--solver {
+  width: clamp(320px, 22vw, 420px);
+}
+
+.planning-solver__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.planning-solver__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.planning-solver__status mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.planning-solver__status-title {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.planning-solver__status-time {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.planning-solver__preview {
+  border-radius: 12px;
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.planning-solver__preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.planning-solver__preview-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.planning-solver__preview-subtitle {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.planning-solver__preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.planning-solver__preview-window {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
 .planning-time-tools {
   margin-top: 8px;
   display: flex;

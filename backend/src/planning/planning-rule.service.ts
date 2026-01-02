@@ -14,6 +14,12 @@ import { PlanningRuleRepository } from './planning-rule.repository';
 export interface DutyAutopilotConfig {
   serviceStartTypeId: string;
   serviceEndTypeId: string;
+  personnelStartTypeId?: string | null;
+  personnelEndTypeId?: string | null;
+  vehicleStartTypeId?: string | null;
+  vehicleEndTypeId?: string | null;
+  rulesetId?: string | null;
+  rulesetVersion?: string | null;
   breakTypeIds: string[];
   shortBreakTypeId: string;
   commuteTypeId: string;
@@ -164,8 +170,30 @@ export class PlanningRuleService {
     };
 
     const params = generator.params ?? {};
+    const readOptionalTypeId = (key: string): string | null => {
+      const raw = params[key];
+      if (typeof raw !== 'string') {
+        return null;
+      }
+      const trimmed = raw.trim();
+      return trimmed.length ? trimmed : null;
+    };
     const serviceStartTypeId = String(params['serviceStartTypeId'] ?? 'service-start');
     const serviceEndTypeId = String(params['serviceEndTypeId'] ?? 'service-end');
+    const personnelStartTypeId =
+      readOptionalTypeId('personnelStartTypeId') ??
+      readOptionalTypeId('personnelServiceStartTypeId');
+    const personnelEndTypeId =
+      readOptionalTypeId('personnelEndTypeId') ??
+      readOptionalTypeId('personnelServiceEndTypeId');
+    const vehicleStartTypeId =
+      readOptionalTypeId('vehicleStartTypeId') ??
+      readOptionalTypeId('vehicleServiceStartTypeId');
+    const vehicleEndTypeId =
+      readOptionalTypeId('vehicleEndTypeId') ??
+      readOptionalTypeId('vehicleServiceEndTypeId');
+    const rulesetId = readOptionalTypeId('rulesetId');
+    const rulesetVersion = readOptionalTypeId('rulesetVersion');
     const breakTypeIdsRaw = params['breakTypeIds'];
     const breakTypeIds = Array.isArray(breakTypeIdsRaw)
       ? breakTypeIdsRaw.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
@@ -214,6 +242,12 @@ export class PlanningRuleService {
     return {
       serviceStartTypeId,
       serviceEndTypeId,
+      personnelStartTypeId,
+      personnelEndTypeId,
+      vehicleStartTypeId,
+      vehicleEndTypeId,
+      rulesetId,
+      rulesetVersion,
       breakTypeIds,
       shortBreakTypeId,
       commuteTypeId,

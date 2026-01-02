@@ -250,6 +250,9 @@ export class GanttSelectionFacade {
       const elements = this.deps.host().querySelectorAll('.gantt-activity[data-activity-id]');
       elements.forEach((element: Element) => {
         const activityElement = element as HTMLElement;
+        if (activityElement.dataset['preview'] === 'true') {
+          return;
+        }
         const activityId = activityElement.dataset['activityId'] ?? '';
         const resourceId = activityElement.dataset['resourceId'] ?? '';
         if (!activityId || !resourceId) {
@@ -310,6 +313,9 @@ export class GanttSelectionFacade {
     }> = [];
     elements.forEach((element: Element) => {
       const activityElement = element as HTMLElement;
+      if (activityElement.dataset['preview'] === 'true') {
+        return;
+      }
       const activityId = activityElement.dataset['activityId'] ?? '';
       const resourceId = activityElement.dataset['resourceId'] ?? '';
       if (!activityId || !resourceId) {

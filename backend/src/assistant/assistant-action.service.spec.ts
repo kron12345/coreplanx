@@ -7,6 +7,7 @@ import type { AssistantDocumentationService } from './assistant.documentation.se
 import type { OllamaOpenAiClient } from './ollama-openai.client';
 import type { PlanningService } from '../planning/planning.service';
 import type { ResourceSnapshot } from '../planning/planning.types';
+import type { TimetableYearService } from '../variants/timetable-year.service';
 
 const baseSnapshot: ResourceSnapshot = {
   personnel: [],
@@ -64,7 +65,24 @@ function createService(responses: string[], overrides?: Partial<AssistantConfig>
       currentSnapshot = snapshot;
       return snapshot;
     }),
+    listOperationalPoints: jest.fn(() => []),
+    listSectionsOfLine: jest.fn(() => []),
+    listPersonnelSites: jest.fn(() => []),
+    listReplacementStops: jest.fn(() => []),
+    listReplacementRoutes: jest.fn(() => []),
+    listReplacementEdges: jest.fn(() => []),
+    listOpReplacementStopLinks: jest.fn(() => []),
+    listTransferEdges: jest.fn(() => []),
   } as unknown as PlanningService;
+
+  const timetableYears = {
+    createYear: jest.fn(),
+    deleteYear: jest.fn(),
+    createSimulationVariant: jest.fn(),
+    updateSimulationVariant: jest.fn(),
+    deleteVariant: jest.fn(),
+    listVariants: jest.fn(() => []),
+  } as unknown as TimetableYearService;
 
   const ollama = {
     createChatCompletion: jest
@@ -88,6 +106,7 @@ function createService(responses: string[], overrides?: Partial<AssistantConfig>
     config,
     docs,
     planning,
+    timetableYears,
     ollama,
     previews,
     clarifications,

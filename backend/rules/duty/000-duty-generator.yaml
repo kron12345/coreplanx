@@ -5,6 +5,12 @@ enabled: true
 params:
   serviceStartTypeId: service-start
   serviceEndTypeId: service-end
+  personnelStartTypeId: service-start
+  personnelEndTypeId: service-end
+  vehicleStartTypeId: vehicle-on
+  vehicleEndTypeId: vehicle-off
+  rulesetId: coreplanx
+  rulesetVersion: v1
   breakTypeIds:
     - break
   shortBreakTypeId: short-break

@@ -1,53 +1,84 @@
 # Stammdaten · Simulationen
 
-Diese Seite beschreibt Simulationen (Varianten) in CorePlanX und wie du sie in der Stammdaten-UI verwaltest.
+Diese Seite beschreibt Simulationen (Varianten) in CorePlanX und die Pflege in der Stammdaten-UI.
+Sie ist als Referenz fuer den CorePlanX Assistant gedacht.
 
 ## Wo finde ich das?
 
+Navigation:
+
 - **Stammdaten → Simulationen**
 
-## Zweck
+## Überblick
 
 Simulationen sind Varianten innerhalb eines Fahrplanjahres.
-Sie erlauben es, Planungen zu testen/zu verändern, ohne produktive Daten zu überschreiben.
+Sie erlauben es, Planungen zu testen oder zu veraendern, ohne produktive Daten zu ueberschreiben.
 
-## Felder (Basisfelder)
+## Simulationen
 
-Ein Simulationseintrag enthält:
+### Feldlexikon
 
-- `label` (Pflicht) – Titel der Simulation
-- `timetableYearLabel` (Pflicht) – zugehöriges Fahrplanjahr (z. B. `2030/31`)
-- `description` (optional)
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `label` | string | Titel/Name der Simulation | ja |
+| `timetableYearLabel` | string | Fahrplanjahr (z. B. `2026/27`) | ja |
+| `description` | string | Freitext | nein |
 
-## Regeln & Validierung
+### Regeln & Validierung
 
-- Ohne Titel (`label`) ist Speichern nicht möglich.
-- Ohne Fahrplanjahr (`timetableYearLabel`) ist Speichern nicht möglich.
-- **Fahrplanjahr kann nach dem Anlegen nicht geändert werden.**
-  - Wenn sich das Fahrplanjahr ändern soll, muss eine neue Simulation angelegt werden.
+- `label` ist Pflicht.
+- `timetableYearLabel` ist Pflicht.
+- **Fahrplanjahr kann nach dem Anlegen nicht geaendert werden.**
+  - Wenn das Jahr falsch ist, muss eine neue Simulation erstellt werden.
+- In der UI werden **nur nicht-produktive** Simulationen angezeigt und bearbeitet.
 
-## Produktive Variante vs. Simulation
+### Produktiv vs. Simulation
 
-CorePlanX unterscheidet:
+CorePlanX unterscheidet Varianten nach `kind`:
 
-- **productive**: produktive Variante (wird i. d. R. systemseitig pro Fahrplanjahr geführt)
-- **simulation**: nicht-produktive Variante, die du in der UI anlegst/änderst/löschst
+- **productive**: produktive Variante pro Fahrplanjahr (systemseitig verwaltet).
+- **simulation**: von Nutzern gepflegte Test-Variante.
 
-In der Stammdaten-UI werden typischerweise **nur nicht-produktive Simulationen** bearbeitet.
+Die Stammdaten-UI zeigt und editiert ausschliesslich `simulation`.
+
+## Praxisbeispiele
+
+- **Neue Variante fuer 2026/27**
+  - `label=Variante A`, `timetableYearLabel=2026/27`, `description=Sommerfahrplan`.
+- **Simulation umbenennen**
+  - Titel anpassen, Beschreibung ergaenzen.
+- **Falsches Fahrplanjahr**
+  - Neue Simulation anlegen (Jahr ist nicht editierbar).
+
+## Fehlerbilder & Loesungen
+
+- **"Titel ist erforderlich."**
+  - `label` setzen.
+- **"Fahrplanjahr ist erforderlich."**
+  - `timetableYearLabel` setzen (am besten ein bestehendes Fahrplanjahr).
+- **"Fahrplanjahr kann nach dem Anlegen nicht geaendert werden."**
+  - Neue Simulation anlegen und alte ggf. loeschen.
+- **"Simulation konnte nicht gespeichert werden."**
+  - Backend-Fehler pruefen (Konsole/Netzwerk).
+
+## Kontext-FAQ
+
+- **Warum sehe ich eine Simulation nicht?**
+  - Die UI zeigt nur `simulation`-Varianten (nicht `productive`).
+  - Backend-Loading/Fehler pruefen.
+- **Kann ich die produktive Variante bearbeiten?**
+  - Nein, produktive Varianten sind systemseitig verwaltet.
+
+## Abhaengigkeiten & Fluss
+
+- Fahrplanjahr → Simulation (jede Simulation gehoert zu genau einem Jahr)
+- Simulation → Planung/Varianten-Auswahl
 
 ## Datenquellen & Persistenz (technisch)
 
-Simulationen werden über das Backend geladen und verwaltet:
-
-- Liste: `GET /timetable-years/variants`
-- Create/Update/Delete: entsprechende Variant-Endpunkte
-
-Hinweis für den Assistant:
-
-- Wenn Simulationen „verschwinden“, zuerst prüfen ob ein Fahrplanjahr-Filter aktiv ist oder ob Backend-Loading/Error vorliegt.
-
-## Typische Aufgaben (Beispiele)
-
-- „Neue Simulation für 2026/27“ → Simulation anlegen, Fahrplanjahr setzen.
-- „Fahrplanjahr einer Simulation ändern“ → Nicht möglich → neue Simulation anlegen.
-
+- **Backend-Quelle:** `GET /timetable-years/variants`
+- **Create/Update/Delete:**
+  - `POST /timetable-years/variants`
+  - `PUT /timetable-years/variants/{id}`
+  - `DELETE /timetable-years/variants/{id}`
+- **IDs** werden vom Backend erzeugt (encodieren das Fahrplanjahr).

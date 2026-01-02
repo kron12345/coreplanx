@@ -30,9 +30,10 @@
 <div
   class="gantt-activity"
   role="button"
-  tabindex="0"
+  [attr.tabindex]="isPreview ? -1 : 0"
   [attr.data-activity-id]="activity.id"
   [attr.data-resource-id]="dragData.resourceId"
+  [attr.data-preview]="isPreview ? 'true' : null"
   cdkDrag
   cdkDragPreviewContainer="global"
   [cdkDragData]="dragData"

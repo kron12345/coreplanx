@@ -1,20 +1,23 @@
-id: briefing
-label: Dienstbesprechung
-description: Briefing oder Debriefing vor bzw. nach dem Dienst.
-appliesTo:
-  - personnel
-  - personnel-service
-relevantFor:
-  - personnel
-  - personnel-service
-category: service
-timeMode: duration
-fields:
-  - start
-  - end
-  - remark
-defaultDurationMinutes: 20
-attributes:
-  is_within_service: yes
-  is_briefing: true
-  color: '#3949ab'
+activities: []
+templates: []
+types:
+  - id: briefing
+    label: Dienstbesprechung
+    description: Briefing oder Debriefing vor bzw. nach dem Dienst.
+    appliesTo:
+      - personnel
+      - personnel-service
+    relevantFor:
+      - personnel
+      - personnel-service
+    category: service
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - remark
+    defaultDurationMinutes: 20
+    attributes:
+      is_within_service: yes
+      is_briefing: true
+      color: '#3949ab'

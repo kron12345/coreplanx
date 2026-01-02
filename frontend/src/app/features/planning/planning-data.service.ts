@@ -79,6 +79,7 @@ export class PlanningDataService {
   private baseTemplateSpecialDays: Set<string> = new Set();
   private baseTimelineLoading = false;
   private lastBaseTimelineSignature: string | null = null;
+  private skipAutopilot = false;
   private readonly planningVariantContext = signal<PlanningVariantContext | null>(null);
   private readonly clonedResourceCache = new WeakMap<Resource[], Resource[]>();
   private readonly clonedResourceItemCache = new WeakMap<Resource, Resource>();
@@ -205,6 +206,13 @@ export class PlanningDataService {
     this.resourceSnapshotSignal.set(cloneResourceSnapshot(clone));
     this.applyResourceSnapshot(clone);
     this.resourceErrorSignal.set(null);
+  }
+
+  applyActivityMutation(stage: PlanningStageId, upserts: Activity[], deleteIds: string[]): void {
+    if (!upserts.length && !deleteIds.length) {
+      return;
+    }
+    this.enqueueActivityMutations(stage, upserts, deleteIds);
   }
 
   private applyResourceSnapshot(snapshot: ResourceSnapshotDto): void {
@@ -396,6 +404,10 @@ export class PlanningDataService {
         timelineRange: next,
       },
     }));
+  }
+
+  setAutopilotSuppressed(value: boolean): void {
+    this.skipAutopilot = value;
   }
 
   setStageTimelineRange(stage: PlanningStageId, range: PlanningTimelineRange): void {
@@ -1148,6 +1160,7 @@ export class PlanningDataService {
         {
           upserts: effectiveUpserts,
           deleteIds,
+          skipAutopilot: this.skipAutopilot,
           clientRequestId: inFlight.clientRequestId,
         },
         this.currentApiContext(),

@@ -1,12 +1,9 @@
-<mat-tab-group>
+<mat-tab-group [selectedIndex]="selectedTabIndex()" (selectedIndexChange)="handleTabChange($event)">
   <mat-tab label="Attribut-Editor">
     <app-attribute-definition-editor></app-attribute-definition-editor>
   </mat-tab>
   <mat-tab label="Activity-Editor">
     <app-activity-catalog-settings></app-activity-catalog-settings>
-  </mat-tab>
-  <mat-tab label="Activity-Types">
-    <app-activity-type-settings></app-activity-type-settings>
   </mat-tab>
   <mat-tab label="Layer-Gruppen">
     <app-layer-group-settings></app-layer-group-settings>

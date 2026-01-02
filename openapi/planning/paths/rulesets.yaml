@@ -1,0 +1,111 @@
+planning_rulesets:
+  get:
+    summary: Rulesets auflisten
+    responses:
+      '200':
+        description: Liste der Rulesets
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/RulesetListResponse'
+
+planning_rulesets_rulesetId_versions:
+  get:
+    summary: Versionsliste eines Rulesets abrufen
+    parameters:
+      - in: path
+        name: rulesetId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Verfuegbare Versionen
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/RulesetVersionListResponse'
+
+planning_rulesets_rulesetId_version:
+  get:
+    summary: Ruleset-Dokument abrufen
+    parameters:
+      - in: path
+        name: rulesetId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: version
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Ruleset-Dokument
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/RulesetDocument'
+
+planning_rulesets_rulesetId_version_ir:
+  get:
+    summary: Ruleset-IR abrufen
+    parameters:
+      - in: path
+        name: rulesetId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: version
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Kompilierte Ruleset-IR
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/RulesetIR'
+
+planning_rulesets_validate:
+  post:
+    summary: Ruleset validieren
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/RulesetPayload'
+    responses:
+      '200':
+        description: Validierungsresultat
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/RulesetValidationResponse'
+
+planning_rulesets_preview:
+  post:
+    summary: Ruleset-Preview (IR)
+    parameters:
+      - in: query
+        name: resolveIncludes
+        required: false
+        schema:
+          type: boolean
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/RulesetPayload'
+    responses:
+      '200':
+        description: Kompilierte Ruleset-IR
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/RulesetIR'

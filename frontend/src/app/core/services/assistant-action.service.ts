@@ -13,6 +13,11 @@ import { PlanningDataService } from '../../features/planning/planning-data.servi
 import { PlanningStoreService } from '../../shared/planning-store.service';
 import { SimulationService } from './simulation.service';
 import { TimetableYearService } from './timetable-year.service';
+import { ActivityTypeService } from './activity-type.service';
+import { ActivityCatalogService } from './activity-catalog.service';
+import { LayerGroupService } from './layer-group.service';
+import { TranslationService } from './translation.service';
+import { CustomAttributeService } from './custom-attribute.service';
 
 type PreviewResult = 'actionable' | 'feedback' | 'not-actionable' | 'error';
 
@@ -24,6 +29,11 @@ export class AssistantActionService {
   private readonly planningStore = inject(PlanningStoreService);
   private readonly simulations = inject(SimulationService);
   private readonly timetableYears = inject(TimetableYearService);
+  private readonly activityTypes = inject(ActivityTypeService);
+  private readonly activityCatalog = inject(ActivityCatalogService);
+  private readonly layerGroups = inject(LayerGroupService);
+  private readonly translations = inject(TranslationService);
+  private readonly customAttributes = inject(CustomAttributeService);
   private readonly chat = inject(AssistantChatService);
 
   readonly preview = signal<AssistantActionPreviewResponseDto | null>(null);
@@ -38,7 +48,7 @@ export class AssistantActionService {
     if (!normalized) {
       return false;
     }
-    return /(^|\s)(lege|anlegen|erstelle|erstellen|erstellt|erstell|erzeuge|füge|hinzu|mach|mache|lösche|entferne|ändere|bearbeite|aktualisiere)\b/.test(
+    return /(^|\s)(l?ege|anlege|anlegen|erstelle|erstellen|erstellt|erstell|erzeuge|erzeugen|fuege|füge|hinzu|mach|mache|loesche|lösche|entferne|aendere|ändere|bearbeite|aktualisiere|aktualisieren|update|löschen|entfernen|ändern)\b/.test(
       normalized,
     );
   }
@@ -173,6 +183,25 @@ export class AssistantActionService {
     }
     if (hintSet.has('timetable-years')) {
       this.timetableYears.refresh();
+    }
+    if (hintSet.has('activity-types')) {
+      void this.activityTypes.refresh();
+    }
+    if (
+      hintSet.has('activity-types') ||
+      hintSet.has('activity-templates') ||
+      hintSet.has('activity-definitions')
+    ) {
+      void this.activityCatalog.refresh();
+    }
+    if (hintSet.has('layer-groups')) {
+      void this.layerGroups.refresh();
+    }
+    if (hintSet.has('translations')) {
+      void this.translations.refresh();
+    }
+    if (hintSet.has('custom-attributes')) {
+      void this.customAttributes.refresh();
     }
   }
 }

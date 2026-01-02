@@ -1,25 +1,28 @@
-id: standby
-label: Bereitschaft
-description: Bereitschaftszeit mit möglichen Ortsangaben.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: service
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - remark
-defaultDurationMinutes: 60
-attributes:
-  is_within_service: yes
-  is_standby: true
-  color: '#6a1b9a'
+activities: []
+templates: []
+types:
+  - id: standby
+    label: Bereitschaft
+    description: Bereitschaftszeit mit möglichen Ortsangaben.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: service
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - remark
+    defaultDurationMinutes: 60
+    attributes:
+      is_within_service: yes
+      is_standby: true
+      color: '#6a1b9a'

@@ -13,6 +13,7 @@ import type {
   ActivityDefinition,
   ActivityTemplate,
   ActivityTypeDefinition,
+  CustomAttributeState,
   LayerGroup,
   TranslationState,
 } from './planning.types';
@@ -27,6 +28,17 @@ export class PlanningCatalogController {
     return this.planningService.getActivityCatalog();
   }
 
+  @Get('defaults')
+  getCatalogDefaults() {
+    return this.planningService.getActivityCatalogDefaults();
+  }
+
+  @Post('reset')
+  @HttpCode(200)
+  resetCatalog() {
+    return this.planningService.resetActivityCatalogToDefaults();
+  }
+
   @Put()
   replaceCatalog(@Body() payload: ActivityCatalogSnapshot) {
     return this.planningService.replaceActivityCatalog(payload);
@@ -35,6 +47,11 @@ export class PlanningCatalogController {
   @Get('types')
   listTypes() {
     return this.planningService.listActivityTypes();
+  }
+
+  @Put('types')
+  replaceTypes(@Body() payload: ActivityTypeDefinition[]) {
+    return this.planningService.replaceActivityTypes(payload);
   }
 
   @Post('types')
@@ -66,6 +83,11 @@ export class PlanningCatalogController {
     return this.planningService.listActivityTemplates();
   }
 
+  @Put('templates')
+  replaceTemplates(@Body() payload: ActivityTemplate[]) {
+    return this.planningService.replaceActivityTemplates(payload);
+  }
+
   @Post('templates')
   createTemplate(@Body() payload: ActivityTemplate) {
     return this.planningService.createActivityTemplate(payload);
@@ -95,6 +117,11 @@ export class PlanningCatalogController {
     return this.planningService.listActivityDefinitions();
   }
 
+  @Put('definitions')
+  replaceDefinitions(@Body() payload: ActivityDefinition[]) {
+    return this.planningService.replaceActivityDefinitions(payload);
+  }
+
   @Post('definitions')
   createDefinition(@Body() payload: ActivityDefinition) {
     return this.planningService.createActivityDefinition(payload);
@@ -122,6 +149,11 @@ export class PlanningCatalogController {
   @Get('layers')
   listLayerGroups() {
     return this.planningService.listLayerGroups();
+  }
+
+  @Put('layers')
+  replaceLayerGroups(@Body() payload: LayerGroup[]) {
+    return this.planningService.replaceLayerGroups(payload);
   }
 
   @Post('layers')
@@ -156,6 +188,16 @@ export class PlanningCatalogController {
   @Put('translations')
   replaceTranslations(@Body() payload: TranslationState) {
     return this.planningService.replaceTranslations(payload);
+  }
+
+  @Get('custom-attributes')
+  getCustomAttributes() {
+    return this.planningService.getCustomAttributes();
+  }
+
+  @Put('custom-attributes')
+  replaceCustomAttributes(@Body() payload: CustomAttributeState) {
+    return this.planningService.replaceCustomAttributes(payload);
   }
 
   @Get('translations/:locale')

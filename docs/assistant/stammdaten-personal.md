@@ -14,137 +14,162 @@ Navigation:
   - **Personalpools**
   - **Heimdepots**
   - **Personal**
+  - **System** (System-Pools fuer geloeschte Eintraege)
 
-## Überblick: Datenmodell & Begriffe
+## Überblick
 
-CorePlanX trennt die Stammdaten bewusst in „Sammlungen“ (Pools/Typen/Compositions) und „Ressourcen“ (konkrete Services/Personen).
-Im Personal-Bereich sind die relevanten Entitäten:
+CorePlanX trennt die Stammdaten bewusst in „Sammlungen“ (Pools) und „Ressourcen“ (konkrete Services/Personen).
+Im Personal-Bereich sind die relevanten Entitaeten:
 
-- **Dienstpool** (`PersonnelServicePool`)
-  - Gruppiert „Dienste“ (z. B. Schichten/Leistungsarten) für Personal.
-  - Optional an ein **Heimdepot** gekoppelt.
-- **Dienst** (`PersonnelService`)
-  - Ein konkreter Dienst/Service (z. B. Frühschicht, bestimmte Qualifikation etc.).
-  - Kann einem Dienstpool zugeordnet werden.
-- **Personalpool** (`PersonnelPool`)
-  - Gruppiert Mitarbeitende (Personal).
-  - Optional an ein **Heimdepot** gekoppelt.
-- **Heimdepot** (`HomeDepot`)
-  - Beschreibt Start-/Endorte und Pausen-/Übernachtungsorte (i. d. R. verknüpft über „Personnel Sites“ aus der Topologie).
-- **Personal** (`Personnel`)
-  - Konkrete Person inkl. Qualifikationen und Zuordnung zu Personalpool und (optional) Diensten.
+- **Dienstpool** (`PersonnelServicePool`) gruppiert Personaldienste.
+- **Dienst** (`PersonnelService`) beschreibt eine konkrete Dienstart (z. B. Frueh-/Spaetdienst).
+- **Personalpool** (`PersonnelPool`) gruppiert Mitarbeitende.
+- **Heimdepot** (`HomeDepot`) referenziert Personnel Sites aus der Topologie.
+- **Personal** (`Personnel`) ist eine konkrete Person mit Qualifikationen.
 
 ## Dienstpools
 
-Zweck:
+### Feldlexikon
 
-- Dienstpools sind eine organisatorische Ebene, um viele Dienste sinnvoll zu bündeln.
-- In der UI ist der Dienstpool ein Einstiegspunkt, um nachgelagerte Einträge (Dienste) konsistent zu pflegen.
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `name` | string | Anzeigename | ja |
+| `description` | string | Beschreibung | nein |
+| `homeDepotId` | string | Referenz auf Heimdepot | nein |
+| `shiftCoordinator` | string | Schichtkoordination | nein |
+| `contactEmail` | string | Kontakt | nein |
 
-Wichtige Felder (Basisfelder, erweiterbar durch Custom Attributes):
+### Regeln & Validierung
 
-- `name` (Pflicht)
-- `description` (optional)
-- `homeDepotId` (optional)
-
-Hinweise zur Konsistenz:
-
-- Beim Löschen von Dienstpools werden zugeordnete Dienste in CorePlanX automatisch „entkoppelt“ (Pool-Zuordnung wird entfernt), damit keine ungültigen Referenzen bleiben.
+- `name` darf nicht leer sein.
+- Beim Loeschen werden zugeordnete Dienste entkoppelt (Pool-ID wird entfernt).
 
 ## Dienste
 
-Zweck:
+### Feldlexikon
 
-- Ein Dienst beschreibt ein planungsrelevantes Angebot/Profil (z. B. Dienstzeitfenster, Nachtleistung, Qualifikationsanforderungen).
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `name` | string | Dienstname | ja |
+| `description` | string | Beschreibung | nein |
+| `poolId` | string | Zugehoeriger Dienstpool | nein |
+| `startTime` | time | Startzeit | nein |
+| `endTime` | time | Endzeit | nein |
+| `isNightService` | boolean | Nachtleistung | nein |
+| `requiredQualifications` | string | Qualifikationen (kommagetrennt) | nein |
+| `maxDailyInstances` | number | Anzahl Einsaetze pro Tag | nein |
+| `maxResourcesPerInstance` | number | Ressourcen pro Einsatz | nein |
 
-Wichtige Felder (Basisfelder, erweiterbar durch Custom Attributes):
+### Regeln & Validierung
 
-- `name` (Pflicht)
-- `description` (optional)
-- `poolId` (optional, Zuordnung zum Dienstpool)
-- `startTime`, `endTime` (optional)
-- `isNightService` (optional)
-- `requiredQualifications` (optional, Liste)
-- `maxDailyInstances`, `maxResourcesPerInstance` (optional)
-
-Gruppierung in der UI:
-
-- Dienste können in der UI nach Dienstpool gruppiert angezeigt werden.
-- Einträge ohne Pool werden i. d. R. in einer Gruppe „Ohne Pool“ geführt.
+- `name` ist Pflicht.
+- Dienste ohne Pool erscheinen in der Gruppe **Ohne Pool**.
 
 ## Personalpools
 
-Zweck:
+### Feldlexikon
 
-- Personalpools bündeln Mitarbeitende (z. B. Standort-/Team-Zuordnung).
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `name` | string | Poolname | ja |
+| `description` | string | Beschreibung | nein |
+| `homeDepotId` | string | Referenz auf Heimdepot | nein |
+| `locationCode` | string | Standortcode | nein |
 
-Wichtige Felder (Basisfelder, erweiterbar durch Custom Attributes):
+### Regeln & Validierung
 
-- `name` (Pflicht)
-- `description` (optional)
-- `homeDepotId` (optional)
-- `locationCode` (optional)
-
-Hinweise zur Konsistenz:
-
-- Wenn Personalpools gelöscht werden, kann zugeordnetes Personal „entkoppelt“ werden, damit keine ungültigen Pool-Referenzen bleiben.
+- `name` ist Pflicht.
+- Beim Loeschen werden zugeordnete Personen entkoppelt.
 
 ## Heimdepots
 
-Zweck:
+### Feldlexikon
 
-- Heimdepots referenzieren Orte, die für Start/Ende, Pausen und Übernachtung relevant sind.
-- Die Orte kommen typischerweise aus der **Topologie** („Personnel Sites“).
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `name` | string | Heimdepot-Name | ja |
+| `description` | string | Beschreibung | nein |
+| `siteIds` | string | Start/Endstellen (Personnel Sites) | ja |
+| `breakSiteIds` | string | Pausenraeume | nein |
+| `shortBreakSiteIds` | string | Kurzpausenraeume | nein |
+| `overnightSiteIds` | string | Uebernachtung | nein |
 
-Wichtige Felder (Basisfelder, erweiterbar durch Custom Attributes):
+### Regeln & Validierung
 
-- `name` (Pflicht)
-- `description` (optional)
-- `siteIds` (Pflicht; Start/Endstellen – „Personnel Sites“)
-- `breakSiteIds` (optional; Pausenräume)
-- `shortBreakSiteIds` (optional; Kurzpausen)
-- `overnightSiteIds` (optional; Übernachtung)
+- `siteIds` muessen gueltige Personnel Site IDs enthalten.
+- Heimdepots verwenden **Topologie → Personnel Sites** als Quelle.
 
 ## Personal
 
-Zweck:
+### Feldlexikon
 
-- Konkrete Mitarbeitende, die in der Planung als Ressourcen genutzt werden.
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `firstName` | string | Vorname | ja |
+| `lastName` | string | Nachname | ja |
+| `preferredName` | string | Rufname | nein |
+| `qualifications` | string | Qualifikationen (kommagetrennt) | nein |
+| `serviceIds` | string | Dienste (kommagetrennt) | nein |
+| `poolId` | string | Personalpool | ja |
+| `homeStation` | string | Heimatbahnhof | nein |
+| `availabilityStatus` | string | Status | nein |
+| `qualificationExpires` | date | Qualifikation gueltig bis | nein |
+| `isReserve` | boolean | Reserve | nein |
 
-Wichtige Felder (Basisfelder, erweiterbar durch Custom Attributes):
+### Regeln & Validierung
 
-- `firstName`, `lastName` (Pflicht)
-- `preferredName` (optional)
-- `poolId` (Pflicht; Zuordnung zu Personalpool)
-- `serviceIds` (optional; Dienste, die diese Person grundsätzlich fahren/ausführen kann)
-- `qualifications` (optional; Liste)
-- `homeStation`, `availabilityStatus`, `qualificationExpires`, `isReserve` (optional)
+- Vor- und Nachname sind Pflicht.
+- `poolId` muss auf einen bestehenden Personalpool zeigen.
 
-Validierung:
+## System (geloeschte Ressourcen)
 
-- Ohne Vor- und Nachname kann kein Personal gespeichert werden.
-- Ohne gültigen Personalpool (`poolId`) kann kein Personal gespeichert werden.
+- Es gibt System-Pools fuer geloeschte **Dienste** und **Personal**.
+- Eintraege lassen sich per Drag & Drop wieder einem normalen Pool zuordnen.
+- System-Pools sind getrennt vom normalen Pool-Listing.
 
-## Werkseinstellungen (Reset)
+## Praxisbeispiele
 
-In der UI gibt es einen Button **„Werkseinstellungen“**.
-Dieser setzt die Personal-Stammdaten auf Beispielwerte zurück (Scope „personnel“ im Ressourcen-Snapshot).
+- **Personaldienstpool Olten anlegen**
+  - Dienstpool mit `name=Olten` erstellen.
+  - Danach 10 Dienste (z. B. „Fruehdienst 100–104“, „Spaetdienst 105–109“) im Pool anlegen.
+- **Personalpool „Team Olten“ mit Mitarbeitenden**
+  - Personalpool erstellen, dann Personal mit `poolId=Team Olten` anlegen.
+- **Heimdepot Olten mit Pausenorten**
+  - Personnel Sites in der Topologie pflegen und im Heimdepot referenzieren.
+
+## Fehlerbilder & Loesungen
+
+- **Speichern nicht moeglich**
+  - Pruefen: Pflichtfelder gesetzt? Pool-IDs gueltig?
+- **Dienst/Person erscheint unter „Ohne Pool“**
+  - `poolId` fehlt oder zeigt auf einen geloeschten Pool.
+- **Heimdepot kann nicht gespeichert werden**
+  - `siteIds` fehlen oder verweisen auf nicht existierende Personnel Sites.
+
+## Kontext-FAQ
+
+- **Wie finde ich die richtige Pool-ID?**
+  - In der Pool-Liste den Eintrag oeffnen, ID wird im Formular angezeigt.
+- **Warum sehe ich geloeschte Eintraege?**
+  - Im System-Tab koennen geloeschte Ressourcen wiederhergestellt werden.
+
+## Abhaengigkeiten & Fluss
+
+- Topologie (Personnel Sites) → Heimdepots
+- Heimdepots → Dienstpools / Personalpools
+- Dienstpools → Dienste
+- Personalpools → Personal
+- Personal/Dienste → Planung (Ressourcenverwendung)
 
 ## Datenquellen & Persistenz (technisch)
 
-CorePlanX pflegt Personal-Stammdaten über den **Ressourcen-Snapshot**:
+CorePlanX pflegt Personal-Stammdaten ueber den **Ressourcen-Snapshot**:
 
-- Laden: Backend liefert einen Snapshot mit u. a. `personnelServicePools`, `personnelPools`, `homeDepots`, `personnelServices`, `personnel`.
-- Speichern: Änderungen werden als kompletter Snapshot zurückgeschrieben (replace).
-- Reset: Backend kann Beispielwerte für „personnel“ liefern.
+- Laden: Backend liefert `personnelServicePools`, `personnelPools`, `homeDepots`, `personnelServices`, `personnel`.
+- Speichern: Aenderungen werden als kompletter Snapshot zurueckgeschrieben (replace).
+- Reset: Backend liefert Beispielwerte fuer „personnel“.
 
-Wichtig für den Assistant:
+## Werkseinstellungen (Reset)
 
-- „Was ist aktuell sichtbar?“ kann über eine **kompakte Daten-Zusammenfassung** (Count + Beispiele) als UI-Kontext an das LLM geliefert werden.
-
-## Typische Aufgaben (Beispiele)
-
-- „Ich will einen neuen Dienstpool für Team Berlin anlegen“ → In **Dienstpools** einen Eintrag mit `name` anlegen.
-- „Ein Dienst soll zu einem Pool gehören“ → In **Dienste** `poolId` setzen.
-- „Personal ist nicht speicherbar“ → Prüfen: Vor-/Nachname + gültiger Personalpool gesetzt?
-
+In der UI gibt es den Button **„Werkseinstellungen“**.
+Dieser setzt die Personal-Stammdaten auf Beispielwerte zurueck (Scope „personnel“).

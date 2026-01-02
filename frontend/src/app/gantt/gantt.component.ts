@@ -113,9 +113,17 @@ export class GanttComponent implements AfterViewInit {
   });
   private readonly resourcesSignal = signal<Resource[]>([]);
   private readonly activitiesInputSignal = signal<Activity[]>([]);
+  private readonly previewActivitiesInputSignal = signal<Activity[]>([]);
   private readonly activitiesSignal = computed<PreparedActivity[]>(() =>
     this.prepareActivities(this.activitiesInputSignal()),
   );
+  private readonly previewActivitiesSignal = computed<PreparedActivity[]>(() =>
+    this.prepareActivities(this.previewActivitiesInputSignal(), true),
+  );
+  private readonly displayActivitiesSignal = computed<PreparedActivity[]>(() => [
+    ...this.activitiesSignal(),
+    ...this.previewActivitiesSignal(),
+  ]);
   private readonly pendingActivitySignal = signal<PreparedActivity | null>(null);
   private readonly syncingActivityIdsSignal = signal<ReadonlySet<string>>(new Set<string>());
   private readonly filterTerm = signal('');
@@ -228,6 +236,11 @@ export class GanttComponent implements AfterViewInit {
   @Input({ required: true })
   set activities(value: Activity[]) {
     this.activitiesInputSignal.set(value ?? []);
+  }
+
+  @Input()
+  set previewActivities(value: Activity[] | null) {
+    this.previewActivitiesInputSignal.set(value ?? []);
   }
 
   @Input()
@@ -349,7 +362,7 @@ export class GanttComponent implements AfterViewInit {
         map.set(slot.resourceId, [slot]);
       }
     };
-    this.activitiesSignal().forEach((activity) => {
+    this.displayActivitiesSignal().forEach((activity) => {
       this.rowBuilder.buildParticipantSlots(activity).forEach(addSlot);
     });
     const pending = this.pendingActivitySignal();
@@ -828,7 +841,7 @@ export class GanttComponent implements AfterViewInit {
     this.hostElement.nativeElement.style.setProperty('--gantt-scrollbar-width', `${width}px`);
   }
 
-  private prepareActivities(value: Activity[]): PreparedActivity[] {
+  private prepareActivities(value: Activity[], isPreview = false): PreparedActivity[] {
     const prepared: PreparedActivity[] = [];
     for (const activity of value ?? []) {
       const startMs = new Date(activity.start).getTime();
@@ -838,6 +851,7 @@ export class GanttComponent implements AfterViewInit {
         startMs,
         endMs,
         ownerResourceId: getActivityOwnerId(activity),
+        isPreview,
       });
     }
     return prepared;

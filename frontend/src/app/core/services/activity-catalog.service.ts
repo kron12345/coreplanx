@@ -1,6 +1,6 @@
-import { Injectable, Signal, computed, signal, inject } from '@angular/core';
-import { ActivityTypeDefinition, ActivityTypeService } from './activity-type.service';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { ResourceKind } from '../../models/resource';
+import { PlanningCatalogApiService } from '../api/planning-catalog-api.service';
 
 export interface ActivityAttributeValue {
   key: string;
@@ -55,91 +55,66 @@ export interface ActivityDefinitionInput {
   attributes?: ActivityAttributeValue[];
 }
 
-const STORAGE_KEY = 'activity-catalog.v1';
-
-interface PersistedCatalog {
-  definitions: ActivityDefinition[];
-  templates: ActivityTemplate[];
-}
-
-const DEFAULT_TEMPLATES: ActivityTemplate[] = [
-  {
-    id: 'pause-30-template',
-    label: 'Pause 30 min',
-    description: 'Standardpause mit 30 Minuten',
-    activityType: 'break',
-    defaultDurationMinutes: 30,
-    attributes: [
-      { key: 'category', meta: { value: 'pause' } },
-      { key: 'is_break', meta: { value: 'true' } },
-      { key: 'is_short_break', meta: { value: 'true' } },
-      { key: 'consider_capacity_conflicts', meta: { value: 'true' } },
-    ],
-  },
-  {
-    id: 'pause-60-template',
-    label: 'Pause 60 min',
-    description: 'Längere Pause mit 60 Minuten',
-    activityType: 'break',
-    defaultDurationMinutes: 60,
-    attributes: [
-      { key: 'category', meta: { value: 'pause' } },
-      { key: 'is_break', meta: { value: 'true' } },
-      { key: 'consider_capacity_conflicts', meta: { value: 'true' } },
-    ],
-  },
-];
-
-const DEFAULT_DEFINITIONS: ActivityDefinition[] = [
-  {
-    id: 'pause-30',
-    label: 'Pause 30',
-    activityType: 'break',
-    templateId: 'pause-30-template',
-    defaultDurationMinutes: 30,
-    attributes: [
-      { key: 'default-duration', meta: { datatype: 'number', value: '30' } },
-      { key: 'kind', meta: { value: 'pause' } },
-      { key: 'is_break', meta: { value: 'true' } },
-      { key: 'is_short_break', meta: { value: 'true' } },
-      { key: 'consider_capacity_conflicts', meta: { value: 'true' } },
-    ],
-  },
-  {
-    id: 'pause-60',
-    label: 'Pause 60',
-    activityType: 'break',
-    templateId: 'pause-60-template',
-    defaultDurationMinutes: 60,
-    attributes: [
-      { key: 'default-duration', meta: { datatype: 'number', value: '60' } },
-      { key: 'kind', meta: { value: 'pause' } },
-      { key: 'is_break', meta: { value: 'true' } },
-      { key: 'consider_capacity_conflicts', meta: { value: 'true' } },
-    ],
-  },
-];
-
 @Injectable({ providedIn: 'root' })
 export class ActivityCatalogService {
-  private readonly activityTypes = inject(ActivityTypeService, { optional: true });
+  private readonly api = inject(PlanningCatalogApiService);
   private readonly definitionsSignal = signal<ActivityDefinition[]>([]);
   private readonly templatesSignal = signal<ActivityTemplate[]>([]);
+  private loadingPromise: Promise<void> | null = null;
 
   readonly definitions: Signal<ActivityDefinition[]> = computed(() => this.definitionsSignal());
   readonly templates: Signal<ActivityTemplate[]> = computed(() => this.templatesSignal());
 
   constructor() {
-    const loaded = this.load();
-    this.definitionsSignal.set(loaded.definitions);
-    this.templatesSignal.set(loaded.templates);
-    this.mergeMissingFromActivityTypes();
+    void this.init();
+  }
+
+  async init(): Promise<void> {
+    await this.loadFromApi();
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loadingPromise) {
+      const pending = this.loadingPromise;
+      await pending;
+      if (!force) {
+        return;
+      }
+    }
+    this.loadingPromise = (async () => {
+      try {
+        const [definitions, templates] = await Promise.all([
+          this.api.listDefinitions(),
+          this.api.listTemplates(),
+        ]);
+        const normalizedDefinitions = (definitions ?? []).map((entry) =>
+          this.normalizeDefinition(entry),
+        );
+        const normalizedTemplates = (templates ?? []).map((entry) =>
+          this.normalizeTemplate(entry),
+        );
+        this.definitionsSignal.set(normalizedDefinitions);
+        this.templatesSignal.set(normalizedTemplates);
+      } catch {
+        if (!this.definitionsSignal().length && !this.templatesSignal().length) {
+          this.definitionsSignal.set([]);
+          this.templatesSignal.set([]);
+        }
+      } finally {
+        this.loadingPromise = null;
+      }
+    })();
+    await this.loadingPromise;
   }
 
   addDefinition(input: ActivityDefinitionInput): void {
     const next = this.normalizeDefinition(input);
     this.definitionsSignal.set([...this.definitionsSignal(), next]);
-    this.persist();
+    void this.persistDefinitions();
   }
 
   updateDefinition(id: string, patch: Partial<ActivityDefinitionInput>): void {
@@ -151,18 +126,18 @@ export class ActivityCatalogService {
         return this.normalizeDefinition({ ...item, ...patch });
       }),
     );
-    this.persist();
+    void this.persistDefinitions();
   }
 
   removeDefinition(id: string): void {
     this.definitionsSignal.set(this.definitionsSignal().filter((item) => item.id !== id));
-    this.persist();
+    void this.persistDefinitions();
   }
 
   addTemplate(input: ActivityTemplateInput): void {
     const next = this.normalizeTemplate(input);
     this.templatesSignal.set([...this.templatesSignal(), next]);
-    this.persist();
+    void this.persistTemplates();
   }
 
   updateTemplate(id: string, patch: Partial<ActivityTemplateInput>): void {
@@ -174,7 +149,7 @@ export class ActivityCatalogService {
         return this.normalizeTemplate({ ...item, ...patch });
       }),
     );
-    this.persist();
+    void this.persistTemplates();
   }
 
   removeTemplate(id: string): void {
@@ -184,14 +159,22 @@ export class ActivityCatalogService {
         def.templateId === id ? { ...def, templateId: null } : def,
       ),
     );
-    this.persist();
+    void this.persistTemplates();
+    void this.persistDefinitions();
   }
 
-  resetToDefaults(): void {
-    this.definitionsSignal.set(DEFAULT_DEFINITIONS.map((def) => this.normalizeDefinition(def)));
-    this.templatesSignal.set(DEFAULT_TEMPLATES.map((tpl) => this.normalizeTemplate(tpl)));
-    this.persist();
-    this.mergeMissingFromActivityTypes();
+  async resetToDefaults(): Promise<void> {
+    try {
+      const snapshot = await this.api.resetCatalog();
+      this.definitionsSignal.set(
+        (snapshot.definitions ?? []).map((def) => this.normalizeDefinition(def)),
+      );
+      this.templatesSignal.set(
+        (snapshot.templates ?? []).map((tpl) => this.normalizeTemplate(tpl)),
+      );
+    } catch {
+      // Reset-Fehler wird ignoriert, aktueller State bleibt bestehen.
+    }
   }
 
   private normalizeDefinition(input: ActivityDefinitionInput): ActivityDefinition {
@@ -275,44 +258,19 @@ export class ActivityCatalogService {
     return Number.isFinite(normalized) ? normalized : null;
   }
 
-  private load(): PersistedCatalog {
-    if (typeof window === 'undefined') {
-      return { definitions: DEFAULT_DEFINITIONS, templates: DEFAULT_TEMPLATES };
-    }
+  private async persistDefinitions(): Promise<void> {
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        return { definitions: DEFAULT_DEFINITIONS, templates: DEFAULT_TEMPLATES };
-      }
-      const parsed = JSON.parse(raw) as PersistedCatalog;
-      if (!parsed || typeof parsed !== 'object') {
-        return { definitions: DEFAULT_DEFINITIONS, templates: DEFAULT_TEMPLATES };
-      }
-      return {
-        definitions: Array.isArray(parsed.definitions)
-          ? parsed.definitions.map((d) => this.normalizeDefinition(d))
-          : DEFAULT_DEFINITIONS,
-        templates: Array.isArray(parsed.templates)
-          ? parsed.templates.map((t) => this.normalizeTemplate(t))
-          : DEFAULT_TEMPLATES,
-      };
+      await this.api.replaceDefinitions(this.definitionsSignal());
     } catch {
-      return { definitions: DEFAULT_DEFINITIONS, templates: DEFAULT_TEMPLATES };
+      // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }
   }
 
-  private persist(): void {
-    if (typeof window === 'undefined') {
-      return;
-    }
+  private async persistTemplates(): Promise<void> {
     try {
-      const payload: PersistedCatalog = {
-        definitions: this.definitionsSignal(),
-        templates: this.templatesSignal(),
-      };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      await this.api.replaceTemplates(this.templatesSignal());
     } catch {
-      // ignore storage errors
+      // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }
   }
 
@@ -323,110 +281,6 @@ export class ActivityCatalogService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .replace(/-{2,}/g, '-');
-  }
-
-  private mergeMissingFromActivityTypes(): void {
-    const typeDefinitions = this.activityTypes?.definitions() ?? [];
-    if (!typeDefinitions.length) {
-      return;
-    }
-    const existing = this.definitionsSignal();
-    const typeMap = new Map(typeDefinitions.map((type) => [type.id, type] as const));
-    let changed = false;
-    const updatedExisting = existing.map((definition) => {
-      const type = typeMap.get(definition.id);
-      if (!type) {
-        return definition;
-      }
-      if (definition.activityType !== type.id) {
-        return definition;
-      }
-      const extras = this.mapTypeAttributes(type);
-      if (!extras.length) {
-        return definition;
-      }
-      const keys = new Set((definition.attributes ?? []).map((attr) => attr.key));
-      const toAppend = extras.filter((attr) => !keys.has(attr.key));
-      if (!toAppend.length) {
-        return definition;
-      }
-      changed = true;
-      return { ...definition, attributes: [...(definition.attributes ?? []), ...toAppend] };
-    });
-    const toAdd: ActivityDefinition[] = [];
-    typeDefinitions.forEach((type) => {
-      if (updatedExisting.some((def) => def.id === type.id)) {
-        return;
-      }
-      toAdd.push(this.mapTypeToActivityDefinition(type));
-    });
-    if (toAdd.length || changed) {
-      this.definitionsSignal.set([...updatedExisting, ...toAdd]);
-      this.persist();
-    }
-  }
-
-  private mapTypeToActivityDefinition(type: ActivityTypeDefinition): ActivityDefinition {
-    const baseAttrs: ActivityAttributeValue[] = [
-      { key: 'category', meta: { value: type.category } },
-      { key: 'timeMode', meta: { value: type.timeMode } },
-      ...type.fields.map((field) => ({
-        key: `field:${field}`,
-        meta: FIELD_META[field] ?? {},
-      })),
-    ];
-    const typeAttrs = this.mapTypeAttributes(type);
-    const seen = new Set(baseAttrs.map((attr) => attr.key));
-    const mergedAttrs = [...baseAttrs];
-    typeAttrs.forEach((attr) => {
-      if (!attr.key || seen.has(attr.key)) {
-        return;
-      }
-      seen.add(attr.key);
-      mergedAttrs.push(attr);
-    });
-    const attrs = this.ensureBehaviorAttributes(
-      mergedAttrs,
-      type.defaultDurationMinutes,
-      type.relevantFor,
-    );
-    return {
-      id: type.id,
-      label: type.label,
-      description: type.description ?? '',
-      activityType: type.id,
-      templateId: null,
-      defaultDurationMinutes: type.defaultDurationMinutes,
-      relevantFor: type.relevantFor,
-      attributes: attrs,
-    };
-  }
-
-  private mapTypeAttributes(type: ActivityTypeDefinition): ActivityAttributeValue[] {
-    const attrs = type.attributes;
-    if (!attrs || typeof attrs !== 'object' || Array.isArray(attrs)) {
-      return [];
-    }
-    const result: ActivityAttributeValue[] = [];
-    Object.entries(attrs).forEach(([key, value]) => {
-      const trimmedKey = (key ?? '').trim();
-      if (!trimmedKey) {
-        return;
-      }
-      const meta: Record<string, string> = {};
-      const lowered = trimmedKey.toLowerCase();
-      const isColorKey = lowered === 'color' || lowered.endsWith('_color') || lowered.endsWith('color');
-      if (isColorKey) {
-        meta['datatype'] = 'color';
-      } else if (typeof value === 'boolean') {
-        meta['datatype'] = 'boolean';
-      } else if (typeof value === 'number') {
-        meta['datatype'] = 'number';
-      }
-      meta['value'] = value === null || value === undefined ? '' : String(value);
-      result.push({ key: trimmedKey, meta });
-    });
-    return result;
   }
 
   private normalizeRelevantFor(values: ResourceKind[] | undefined): ResourceKind[] | undefined {

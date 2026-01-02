@@ -1,0 +1,50 @@
+planning_stages_stageId_autopilot_preview:
+  post:
+    summary: Autopilot-Preview fuer eine Stage
+    parameters:
+      - $ref: '#/components/parameters/StageId'
+    responses:
+      '200':
+        description: Autopilot-Preview Ergebnis
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutopilotPreviewResponse'
+
+planning_stages_stageId_optimizer_candidates:
+  post:
+    summary: Kandidaten fuer Solver erzeugen
+    parameters:
+      - $ref: '#/components/parameters/StageId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RulesetSelectionRequest'
+    responses:
+      '200':
+        description: Kandidatenliste fuer Solver
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningCandidateBuildResponse'
+
+planning_stages_stageId_optimizer_solve:
+  post:
+    summary: Solver-Lauf (Preview) starten
+    parameters:
+      - $ref: '#/components/parameters/StageId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RulesetSelectionRequest'
+    responses:
+      '200':
+        description: Solver-Preview Ergebnis
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningSolverResponse'

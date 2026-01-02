@@ -224,6 +224,14 @@ schemas:
       defaultDurationMinutes:
         type: integer
         format: int32
+      attributes:
+        type: object
+        additionalProperties: true
+        nullable: true
+      meta:
+        type: object
+        additionalProperties: true
+        nullable: true
     required: [id, label, appliesTo, relevantFor, category, timeMode, fields, defaultDurationMinutes]
     example:
       id: service-start
@@ -243,8 +251,10 @@ schemas:
       activityType: { type: string, nullable: true }
       defaultDurationMinutes: { type: integer, format: int32, nullable: true }
       attributes:
-        $ref: '#/components/schemas/ActivityAttributes'
-    required: [id, label, attributes]
+        type: array
+        items:
+          $ref: '#/components/schemas/ActivityAttributeValue'
+    required: [id, label]
     example:
       id: pause-30-template
       label: Pause 30 min
@@ -252,12 +262,15 @@ schemas:
       activityType: break
       defaultDurationMinutes: 30
       attributes:
-        category:
-          value: pause
-        is_break:
-          value: true
-        is_short_break:
-          value: true
+        - key: category
+          meta:
+            value: pause
+        - key: is_break
+          meta:
+            value: true
+        - key: is_short_break
+          meta:
+            value: true
   ActivityDefinition:
     type: object
     properties:
@@ -273,8 +286,10 @@ schemas:
           type: string
           enum: [personnel, vehicle, personnel-service, vehicle-service]
       attributes:
-        $ref: '#/components/schemas/ActivityAttributes'
-    required: [id, label, activityType, attributes]
+        type: array
+        items:
+          $ref: '#/components/schemas/ActivityAttributeValue'
+    required: [id, label, activityType]
     example:
       id: pause-30
       label: Pause 30
@@ -282,14 +297,19 @@ schemas:
       templateId: pause-30-template
       defaultDurationMinutes: 30
       attributes:
-        default_duration:
-          value: 30
-        kind:
-          value: pause
-        is_break:
-          value: true
-        is_short_break:
-          value: true
+        - key: default-duration
+          meta:
+            datatype: number
+            value: 30
+        - key: kind
+          meta:
+            value: pause
+        - key: is_break
+          meta:
+            value: true
+        - key: is_short_break
+          meta:
+            value: true
   ActivityCatalogSnapshot:
     type: object
     description: "Gesamter Katalog für Activity Types, Templates, Definitions, Layer und Übersetzungen."
@@ -312,7 +332,9 @@ schemas:
           $ref: '#/components/schemas/LayerGroup'
       translations:
         $ref: '#/components/schemas/TranslationState'
-    required: [types, templates, definitions, layerGroups, translations]
+      customAttributes:
+        $ref: '#/components/schemas/CustomAttributeState'
+    required: [types, templates, definitions, layerGroups, translations, customAttributes]
     example:
       types:
         - id: service-start
@@ -337,36 +359,64 @@ schemas:
           activityType: break
           defaultDurationMinutes: 30
           attributes:
-            is_break: { value: true }
-            is_short_break: { value: true }
-            consider_capacity_conflicts: { value: true }
+            - key: is_break
+              meta:
+                value: true
+            - key: is_short_break
+              meta:
+                value: true
+            - key: consider_capacity_conflicts
+              meta:
+                value: true
         - id: pause-60-template
           label: Pause 60 min
           activityType: break
           defaultDurationMinutes: 60
           attributes:
-            is_break: { value: true }
-            consider_capacity_conflicts: { value: true }
+            - key: is_break
+              meta:
+                value: true
+            - key: consider_capacity_conflicts
+              meta:
+                value: true
       definitions:
         - id: pause-30
           label: Pause 30
           activityType: break
           templateId: pause-30-template
           attributes:
-            default_duration: { value: 30 }
-            kind: { value: pause }
-            is_break: { value: true }
-            is_short_break: { value: true }
-            consider_capacity_conflicts: { value: true }
+            - key: default-duration
+              meta:
+                value: 30
+            - key: kind
+              meta:
+                value: pause
+            - key: is_break
+              meta:
+                value: true
+            - key: is_short_break
+              meta:
+                value: true
+            - key: consider_capacity_conflicts
+              meta:
+                value: true
         - id: pause-60
           label: Pause 60
           activityType: break
           templateId: pause-60-template
           attributes:
-            default_duration: { value: 60 }
-            kind: { value: pause }
-            is_break: { value: true }
-            consider_capacity_conflicts: { value: true }
+            - key: default-duration
+              meta:
+                value: 60
+            - key: kind
+              meta:
+                value: pause
+            - key: is_break
+              meta:
+                value: true
+            - key: consider_capacity_conflicts
+              meta:
+                value: true
       layerGroups:
         - id: background
           label: Hintergrund
@@ -387,6 +437,7 @@ schemas:
             abbreviation: "DA"
           "layer:background":
             label: "Hintergrund"
+      customAttributes: {}
   PlanningStageRealtimeEvent:
     type: object
     description: "Nachricht, die \xFCber den SSE-Stream `/planning/stages/{stageId}/events`\
@@ -501,6 +552,18 @@ schemas:
         description: "Kennzeichnet Reserve-/Bereitschaftszeiten."
         default: false
     additionalProperties: true
+  ActivityAttributeValue:
+    type: object
+    description: "Key/Meta-Paar für Activity-Attribute (Catalog-Definition)."
+    properties:
+      key:
+        type: string
+      meta:
+        type: object
+        additionalProperties: true
+        nullable: true
+    required:
+    - key
   LayerGroup:
     type: object
     properties:
@@ -566,6 +629,44 @@ schemas:
       en:
         "activityType:service-start":
           label: "Service start"
+  CustomAttributeDefinition:
+    type: object
+    description: "Definition eines benutzerdefinierten Feldes."
+    properties:
+      id:
+        type: string
+      key:
+        type: string
+      label:
+        type: string
+      type:
+        type: string
+        enum: [string, number, boolean, date, time]
+      description:
+        type: string
+        nullable: true
+      entityId:
+        type: string
+      createdAt:
+        type: string
+        format: date-time
+        nullable: true
+      updatedAt:
+        type: string
+        format: date-time
+        nullable: true
+      temporal:
+        type: boolean
+      required:
+        type: boolean
+    required: [id, key, label, type, entityId]
+  CustomAttributeState:
+    type: object
+    description: "Map Entity-ID -> Custom Attribute Definitionen."
+    additionalProperties:
+      type: array
+      items:
+        $ref: '#/components/schemas/CustomAttributeDefinition'
   Personnel:
     type: object
     properties:
@@ -817,6 +918,8 @@ schemas:
         type: array
         items:
           type: string
+      skipAutopilot:
+        type: boolean
       clientRequestId:
         type: string
     additionalProperties: false
@@ -2323,3 +2426,396 @@ schemas:
       meta:
         type: object
         additionalProperties: true
+  RulesetListResponse:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          type: string
+    required:
+    - items
+  RulesetVersionListResponse:
+    type: object
+    properties:
+      rulesetId:
+        type: string
+      versions:
+        type: array
+        items:
+          type: string
+    required:
+    - rulesetId
+    - versions
+  RulesetInclude:
+    type: object
+    properties:
+      id:
+        type: string
+      version:
+        type: string
+    required:
+    - id
+    - version
+  RulesetExpression:
+    type: object
+    additionalProperties: true
+  RulesetCondition:
+    type: object
+    properties:
+      id:
+        type: string
+      description:
+        type: string
+      expr:
+        $ref: '#/components/schemas/RulesetExpression'
+    required:
+    - id
+    - expr
+  RulesetConstraintDef:
+    type: object
+    properties:
+      type:
+        type: string
+      params:
+        type: object
+        additionalProperties: true
+    required:
+    - type
+  RulesetConstraint:
+    type: object
+    properties:
+      id:
+        type: string
+      description:
+        type: string
+      when:
+        $ref: '#/components/schemas/RulesetExpression'
+      constraint:
+        $ref: '#/components/schemas/RulesetConstraintDef'
+    required:
+    - id
+    - constraint
+  RulesetPenalty:
+    type: object
+    properties:
+      weight:
+        type: number
+      maxPenalty:
+        type: number
+    required:
+    - weight
+  RulesetSoftConstraint:
+    allOf:
+    - $ref: '#/components/schemas/RulesetConstraint'
+    - type: object
+      properties:
+        penalty:
+          $ref: '#/components/schemas/RulesetPenalty'
+      required:
+      - penalty
+  RulesetObjective:
+    type: object
+    properties:
+      id:
+        type: string
+      description:
+        type: string
+      when:
+        $ref: '#/components/schemas/RulesetExpression'
+      term:
+        $ref: '#/components/schemas/RulesetConstraintDef'
+      weight:
+        type: number
+    required:
+    - id
+    - term
+    - weight
+  RulesetActionDef:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+        - insert_break
+        - insert_travel
+        - create_duty
+        - split_duty
+        - shift_activity
+        - set_duty_start_end
+      params:
+        type: object
+        additionalProperties: true
+    required:
+    - type
+  RulesetAction:
+    type: object
+    properties:
+      id:
+        type: string
+      description:
+        type: string
+      when:
+        $ref: '#/components/schemas/RulesetExpression'
+      action:
+        $ref: '#/components/schemas/RulesetActionDef'
+    required:
+    - id
+    - action
+  RulesetTemplateDef:
+    type: object
+    properties:
+      type:
+      type: string
+      enum:
+      - break
+      - travel
+      - duty
+      - duty_split
+        - shift
+        - assignment_swap
+      params:
+        type: object
+        additionalProperties: true
+    required:
+    - type
+  RulesetTemplate:
+    type: object
+    properties:
+      id:
+        type: string
+      description:
+        type: string
+      when:
+        $ref: '#/components/schemas/RulesetExpression'
+      template:
+        $ref: '#/components/schemas/RulesetTemplateDef'
+    required:
+    - id
+    - template
+  RulesetDocument:
+    type: object
+    properties:
+      id:
+        type: string
+      version:
+        type: string
+      label:
+        type: string
+      description:
+        type: string
+      includes:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetInclude'
+      conditions:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetCondition'
+      hardConstraints:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetConstraint'
+      softConstraints:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetSoftConstraint'
+      objectives:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetObjective'
+      actions:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetAction'
+      templates:
+        type: array
+        items:
+          $ref: '#/components/schemas/RulesetTemplate'
+    required:
+    - id
+    - version
+  RulesetRawPayload:
+    type: object
+    properties:
+      raw:
+        type: string
+      format:
+        type: string
+        enum:
+        - yaml
+        - yml
+        - json
+    required:
+    - raw
+    additionalProperties: false
+  RulesetPayload:
+    oneOf:
+    - $ref: '#/components/schemas/RulesetDocument'
+    - $ref: '#/components/schemas/RulesetRawPayload'
+  RulesetIR:
+    allOf:
+    - $ref: '#/components/schemas/RulesetDocument'
+    - type: object
+      properties:
+        resolvedIncludes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RulesetInclude'
+        sourceHash:
+          type: string
+      required:
+      - resolvedIncludes
+      - sourceHash
+  RulesetValidationResponse:
+    type: object
+    properties:
+      valid:
+        type: boolean
+      errors:
+        type: array
+        items:
+          type: string
+    required:
+    - valid
+    - errors
+  RulesetSelectionRequest:
+    type: object
+    properties:
+      rulesetId:
+        type: string
+      rulesetVersion:
+        type: string
+      activityIds:
+        type: array
+        items:
+          type: string
+      templateId:
+        type: string
+      timelineRange:
+        type: object
+        properties:
+          start:
+            type: string
+            format: date-time
+          end:
+            type: string
+            format: date-time
+        required:
+        - start
+        - end
+    additionalProperties: false
+  AutopilotPreviewResponse:
+    type: object
+    properties:
+      rulesetId:
+        type: string
+        nullable: true
+      rulesetVersion:
+        type: string
+        nullable: true
+      upserts:
+        type: array
+        items:
+          $ref: '#/components/schemas/Activity'
+      deletedIds:
+        type: array
+        items:
+          type: string
+      touchedIds:
+        type: array
+        items:
+          type: string
+    required:
+    - upserts
+    - deletedIds
+    - touchedIds
+  PlanningCandidate:
+    type: object
+    properties:
+      id:
+        type: string
+      templateId:
+        type: string
+      type:
+        type: string
+        enum:
+        - break
+        - travel
+        - duty_split
+      params:
+        type: object
+        additionalProperties: true
+    required:
+    - id
+    - templateId
+    - type
+    - params
+  PlanningCandidateBuildStats:
+    type: object
+    properties:
+      breakTemplates:
+        type: integer
+      travelTemplates:
+        type: integer
+      dutyTemplates:
+        type: integer
+      dutySplitTemplates:
+        type: integer
+      candidateCount:
+        type: integer
+    required:
+    - breakTemplates
+    - travelTemplates
+    - dutyTemplates
+    - dutySplitTemplates
+    - candidateCount
+  PlanningCandidateBuildResponse:
+    type: object
+    properties:
+      rulesetId:
+        type: string
+      rulesetVersion:
+        type: string
+      candidates:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanningCandidate'
+      stats:
+        $ref: '#/components/schemas/PlanningCandidateBuildStats'
+    required:
+    - rulesetId
+    - rulesetVersion
+    - candidates
+    - stats
+  PlanningSolverResponse:
+    type: object
+    properties:
+      rulesetId:
+        type: string
+      rulesetVersion:
+        type: string
+      summary:
+        type: string
+      upserts:
+        type: array
+        items:
+          $ref: '#/components/schemas/Activity'
+      deletedIds:
+        type: array
+        items:
+          type: string
+      candidatesUsed:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanningCandidate'
+      stats:
+        $ref: '#/components/schemas/PlanningCandidateBuildStats'
+    required:
+    - rulesetId
+    - rulesetVersion
+    - summary
+    - upserts
+    - deletedIds
+    - candidatesUsed
+    - stats

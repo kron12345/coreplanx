@@ -29,7 +29,7 @@ import type {
 import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
 import { DutyAutopilotService } from './duty-autopilot.service';
-import { ActivityCatalogService } from '../activity-catalog/activity-catalog.service';
+import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 
 const DEFAULT_VARIANT_ID: PlanningVariantId = 'default';
 
@@ -66,7 +66,7 @@ export class PlanningStageService implements OnModuleInit {
   constructor(
     private readonly repository: PlanningRepository,
     private readonly dutyAutopilot: DutyAutopilotService,
-    private readonly activityCatalog: ActivityCatalogService,
+    private readonly activityCatalog: PlanningActivityCatalogService,
   ) {
     this.usingDatabase = this.repository.isEnabled;
     if (!this.usingDatabase) {
@@ -137,6 +137,7 @@ export class PlanningStageService implements OnModuleInit {
     const previousVersion = stage.version;
     const upserts = request?.upserts ?? [];
     const deleteIds = new Set(request?.deleteIds ?? []);
+    const skipAutopilot = request?.skipAutopilot === true;
     const appliedUpserts: string[] = [];
     const deletedIds: string[] = [];
     const changedUpsertIds = new Set<string>();
@@ -188,22 +189,24 @@ export class PlanningStageService implements OnModuleInit {
         });
       }
 
-      const autopilot = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
-      if (autopilot.upserts.length) {
-        autopilot.upserts.forEach((activity) => {
-          this.upsertActivity(stage, activity);
-          changedUpsertIds.add(activity.id);
-        });
-      }
-      if (autopilot.deletedIds.length) {
-        const toDelete = new Set(autopilot.deletedIds);
-        stage.activities = stage.activities.filter((activity) => {
-          if (toDelete.has(activity.id)) {
-            deletedIds.push(activity.id);
-            return false;
-          }
-          return true;
-        });
+      if (!skipAutopilot) {
+        const autopilot = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
+        if (autopilot.upserts.length) {
+          autopilot.upserts.forEach((activity) => {
+            this.upsertActivity(stage, activity);
+            changedUpsertIds.add(activity.id);
+          });
+        }
+        if (autopilot.deletedIds.length) {
+          const toDelete = new Set(autopilot.deletedIds);
+          stage.activities = stage.activities.filter((activity) => {
+            if (toDelete.has(activity.id)) {
+              deletedIds.push(activity.id);
+              return false;
+            }
+            return true;
+          });
+        }
       }
 
       const changedActivities = requestedUpsertIds.size
@@ -359,6 +362,10 @@ export class PlanningStageService implements OnModuleInit {
     previousById?: Map<string, Activity>,
     resources?: Resource[],
   ): Promise<void> {
+    if (stageId === 'base') {
+      // Base stage is a template timeline; resource bindings are optional here.
+      return;
+    }
     if (!activities.length) {
       return;
     }
@@ -478,7 +485,7 @@ export class PlanningStageService implements OnModuleInit {
       return this.activityTypeRequirements;
     }
     try {
-      const entries = await this.activityCatalog.list();
+      const entries = this.activityCatalog.listActivityTypes();
       const toBool = (value: unknown) => {
         if (typeof value === 'boolean') {
           return value;
@@ -520,6 +527,10 @@ export class PlanningStageService implements OnModuleInit {
     activities: Activity[],
     scopeGroupKeys?: Set<string>,
   ): Promise<void> {
+    if (stageId === 'base') {
+      // Vehicle duty boundary validation is only enforced for planning stages.
+      return;
+    }
     if (!activities.length) {
       return;
     }

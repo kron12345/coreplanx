@@ -2,6 +2,31 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "solver: start",
+      "type": "shell",
+      "command": ".venv/bin/python3 -m uvicorn app:app --host 127.0.0.1 --port 8099",
+      "options": {
+        "cwd": "${workspaceFolder}/tools/solver_service"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running on"
+        }
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "backend: start:debug",
       "type": "npm",
       "script": "start:debug",
@@ -46,6 +71,161 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "solver: setup",
+      "type": "shell",
+      "command": "bash -lc \"python3 -m venv .venv && .venv/bin/python3 -m pip install -r requirements.txt\"",
+      "options": {
+        "cwd": "${workspaceFolder}/tools/solver_service"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "backend: install",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "frontend: install",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "setup: all",
+      "dependsOn": [
+        "solver: setup",
+        "backend: install",
+        "frontend: install"
+      ],
+      "dependsOrder": "sequence"
+    },
+    {
+      "label": "backend: build",
+      "type": "npm",
+      "script": "build",
+      "path": "backend",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "frontend: build",
+      "type": "npm",
+      "script": "build",
+      "path": "frontend",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "build: all",
+      "dependsOn": [
+        "backend: build",
+        "frontend: build"
+      ],
+      "dependsOrder": "sequence",
+      "group": "build"
+    },
+    {
+      "label": "backend: test",
+      "type": "npm",
+      "script": "test",
+      "path": "backend",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "frontend: test",
+      "type": "shell",
+      "command": "npm run test -- --watch=false",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "test: all",
+      "dependsOn": [
+        "backend: test",
+        "frontend: test"
+      ],
+      "dependsOrder": "sequence",
+      "group": "test"
+    },
+    {
+      "label": "solver: stop",
+      "type": "shell",
+      "command": "bash -lc \"lsof -ti tcp:8099 | xargs -r kill\"",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "backend: stop",
+      "type": "shell",
+      "command": "bash -lc \"lsof -ti tcp:3000 | xargs -r kill\"",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "frontend: stop",
+      "type": "shell",
+      "command": "bash -lc \"lsof -ti tcp:4200 | xargs -r kill\"",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "stop: all",
+      "dependsOn": [
+        "solver: stop",
+        "backend: stop",
+        "frontend: stop"
+      ],
+      "dependsOrder": "sequence"
     }
   ]
 }

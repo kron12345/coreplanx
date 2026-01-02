@@ -59,11 +59,11 @@ export class LayerGroupSettingsComponent {
     });
   }
 
-  protected resetToDefaults(): void {
+  protected async resetToDefaults(): Promise<void> {
     if (!this.confirmFactoryReset('Layer-Gruppen')) {
       return;
     }
-    this.service.resetToDefaults();
+    await this.service.resetToDefaults();
     this.newGroup();
   }
 

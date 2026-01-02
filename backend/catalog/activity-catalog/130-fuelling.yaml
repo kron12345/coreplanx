@@ -1,26 +1,29 @@
-id: fuelling
-label: Betankung
-description: Betankung oder Stromaufnahme eines Fahrzeugs.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: movement
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - remark
-defaultDurationMinutes: 30
-attributes:
-  is_within_service: yes
-  is_fuelling: true
-  requires_vehicle: true
-  color: '#e64a19'
+activities: []
+templates: []
+types:
+  - id: fuelling
+    label: Betankung
+    description: Betankung oder Stromaufnahme eines Fahrzeugs.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: movement
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - remark
+    defaultDurationMinutes: 30
+    attributes:
+      is_within_service: yes
+      is_fuelling: true
+      requires_vehicle: true
+      color: '#e64a19'

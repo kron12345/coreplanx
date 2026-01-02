@@ -1,28 +1,31 @@
-id: service-start
-label: Dienstanfang
-description: Startleistung mit exaktem Ort und Übergabe.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: service
-timeMode: point
-fields:
-  - start
-  - end
-  - from
-  - to
-  - remark
-defaultDurationMinutes: 45
-attributes:
-  is_service_start: true
-  is_within_service: yes
-  to_hidden: true
-  to_location_mode: previous
-  color: '#43a047'
+activities: []
+templates: []
+types:
+  - id: service-start
+    label: Dienstanfang
+    description: Startleistung mit exaktem Ort und Übergabe.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: service
+    timeMode: point
+    fields:
+      - start
+      - end
+      - from
+      - to
+      - remark
+    defaultDurationMinutes: 45
+    attributes:
+      is_service_start: true
+      is_within_service: yes
+      to_hidden: true
+      to_location_mode: previous
+      color: '#43a047'

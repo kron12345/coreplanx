@@ -1,0 +1,771 @@
+import { Injectable, Logger } from '@nestjs/common';
+import type { Activity, ActivityParticipant, ActivityTypeDefinition, ResourceKind } from './planning.types';
+import type { PlanningStageSnapshot } from './planning.types';
+import type { RulesetIR } from './planning-ruleset.types';
+import type { PlanningCandidate, PlanningCandidateBuildResult } from './planning-candidate-builder.service';
+import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
+
+export interface PlanningSolverResult {
+  summary: string;
+  upserts: Activity[];
+  deletedIds: string[];
+  candidatesUsed: PlanningCandidate[];
+}
+
+interface PlanningSolverRequestOptions {
+  max_per_service_type?: number;
+  max_per_service?: number;
+  weight_key?: string;
+  time_limit_seconds?: number;
+  random_seed?: number;
+}
+
+interface PlanningSolverRequestPayload {
+  rulesetId: string;
+  rulesetVersion: string;
+  candidates: PlanningCandidate[];
+  snapshot: {
+    stageId: string;
+    variantId: string;
+    timetableYearLabel?: string | null;
+  };
+  options?: PlanningSolverRequestOptions;
+}
+
+interface PlanningSolverRemoteResponse {
+  summary?: string;
+  selectedIds?: string[];
+  selectedCandidates?: PlanningCandidate[];
+  score?: number;
+  status?: string;
+}
+
+@Injectable()
+export class PlanningSolverService {
+  private readonly logger = new Logger(PlanningSolverService.name);
+  private readonly solverMode = normalizeMode(process.env.PLANNING_SOLVER_MODE ?? 'python');
+  private readonly solverUrl = normalizeUrl(process.env.PLANNING_SOLVER_URL ?? 'http://localhost:8099');
+  private readonly solverTimeoutMs = toNumber(process.env.PLANNING_SOLVER_TIMEOUT_MS, 15_000);
+  private readonly solverTimeLimitSeconds = toOptionalNumber(
+    process.env.PLANNING_SOLVER_TIME_LIMIT_SECONDS,
+  );
+
+  constructor(private readonly catalog: PlanningActivityCatalogService) {}
+
+  async solve(
+    snapshot: PlanningStageSnapshot,
+    ruleset: RulesetIR,
+    candidateResult: PlanningCandidateBuildResult,
+  ): Promise<PlanningSolverResult> {
+    if (!this.shouldUseRemote()) {
+      return this.solveLocally(snapshot, ruleset, candidateResult);
+    }
+
+    const request = this.buildRequest(snapshot, ruleset, candidateResult);
+    try {
+      const response = await this.requestSolver(request);
+      const selectedCandidates = this.resolveSelectedCandidates(
+        response,
+        candidateResult,
+      );
+      const upserts = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+
+      const summary =
+        response.summary ??
+        (upserts.length
+          ? `${upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
+          : 'Keine geeigneten Kandidaten gefunden.');
+
+      return {
+        summary,
+        upserts,
+        deletedIds: [],
+        candidatesUsed: selectedCandidates,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Solver-Request fehlgeschlagen, fallback auf lokal: ${message}`);
+      return this.solveLocally(snapshot, ruleset, candidateResult);
+    }
+  }
+
+  private shouldUseRemote(): boolean {
+    if (!this.solverUrl) {
+      return false;
+    }
+    if (this.solverMode === 'local') {
+      return false;
+    }
+    return this.solverMode === 'python' || this.solverMode === 'auto';
+  }
+
+  private buildRequest(
+    snapshot: PlanningStageSnapshot,
+    ruleset: RulesetIR,
+    candidateResult: PlanningCandidateBuildResult,
+  ): PlanningSolverRequestPayload {
+    const options: PlanningSolverRequestOptions = {
+      max_per_service_type: 1,
+      weight_key: 'dutySpanMinutes',
+    };
+    if (this.solverTimeLimitSeconds !== null) {
+      options.time_limit_seconds = this.solverTimeLimitSeconds;
+    }
+    return {
+      rulesetId: ruleset.id,
+      rulesetVersion: ruleset.version,
+      candidates: candidateResult.candidates,
+      snapshot: {
+        stageId: snapshot.stageId,
+        variantId: snapshot.variantId,
+        timetableYearLabel: snapshot.timetableYearLabel ?? null,
+      },
+      options,
+    };
+  }
+
+  private async requestSolver(
+    payload: PlanningSolverRequestPayload,
+  ): Promise<PlanningSolverRemoteResponse> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.solverTimeoutMs);
+    try {
+      const response = await fetch(`${this.solverUrl}/solve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Solver-HTTP ${response.status} ${response.statusText}: ${text}`);
+      }
+      return (await response.json()) as PlanningSolverRemoteResponse;
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') {
+        throw new Error(`Solver-Request Timeout nach ${this.solverTimeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private resolveSelectedCandidates(
+    response: PlanningSolverRemoteResponse,
+    candidateResult: PlanningCandidateBuildResult,
+  ): PlanningCandidate[] {
+    if (response.selectedCandidates?.length) {
+      const byId = new Map(candidateResult.candidates.map((entry) => [entry.id, entry]));
+      return response.selectedCandidates
+        .map((entry) => byId.get(entry.id))
+        .filter((entry): entry is PlanningCandidate => !!entry);
+    }
+    if (response.selectedIds?.length) {
+      const byId = new Map(candidateResult.candidates.map((entry) => [entry.id, entry]));
+      return response.selectedIds
+        .map((id) => byId.get(id))
+        .filter((entry): entry is PlanningCandidate => !!entry);
+    }
+    return [];
+  }
+
+  private solveLocally(
+    snapshot: PlanningStageSnapshot,
+    ruleset: RulesetIR,
+    candidateResult: PlanningCandidateBuildResult,
+  ): PlanningSolverResult {
+    const selectedCandidates = [
+      ...candidateResult.candidates.filter((c) => c.type === 'duty'),
+      ...this.selectBestByService(candidateResult.candidates.filter((c) => c.type === 'break')),
+      ...this.selectBestByService(candidateResult.candidates.filter((c) => c.type === 'travel')),
+    ];
+
+    const upserts = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+
+    const summary =
+      upserts.length > 0
+        ? `${upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
+        : 'Keine geeigneten Kandidaten gefunden.';
+
+    return {
+      summary,
+      upserts,
+      deletedIds: [],
+      candidatesUsed: selectedCandidates,
+    };
+  }
+
+  private selectBestByService(candidates: PlanningCandidate[]): PlanningCandidate[] {
+    const byService = new Map<string, PlanningCandidate>();
+    for (const candidate of candidates) {
+      const serviceId = this.readString(candidate.params, 'serviceId');
+      const key = serviceId || '_';
+      const gap = this.readNumber(candidate.params, 'gapMinutes', 0);
+      const current = byService.get(key);
+      if (!current) {
+        byService.set(key, candidate);
+        continue;
+      }
+      const currentGap = this.readNumber(current.params, 'gapMinutes', 0);
+      if (gap > currentGap) {
+        byService.set(key, candidate);
+      }
+    }
+    return Array.from(byService.values());
+  }
+
+  private buildUpsertsFromCandidates(
+    candidates: PlanningCandidate[],
+    ruleset: RulesetIR,
+    snapshot: PlanningStageSnapshot,
+  ): Activity[] {
+    const activityById = new Map(snapshot.activities.map((activity) => [activity.id, activity]));
+    const activityUpdates = new Map<string, Activity>();
+    const boundaryUpserts: Activity[] = [];
+    const dutyCandidates = candidates.filter((candidate) => candidate.type === 'duty');
+
+    if (dutyCandidates.length) {
+      const boundaryTypeIndex = this.resolveBoundaryTypeIndex();
+      for (const candidate of dutyCandidates) {
+        const dutyResult = this.buildDutyUpserts(
+          candidate,
+          ruleset,
+          snapshot,
+          activityById,
+          boundaryTypeIndex,
+          activityUpdates,
+        );
+        boundaryUpserts.push(...dutyResult.boundaries);
+      }
+    }
+
+    const generated = candidates
+      .map((candidate) => this.buildActivityFromCandidate(candidate, ruleset, snapshot))
+      .filter((entry): entry is Activity => !!entry);
+
+    return [
+      ...generated,
+      ...boundaryUpserts,
+      ...Array.from(activityUpdates.values()),
+    ];
+  }
+
+  private buildActivityFromCandidate(
+    candidate: PlanningCandidate,
+    ruleset: RulesetIR,
+    snapshot: PlanningStageSnapshot,
+  ): Activity | null {
+    if (candidate.type !== 'break' && candidate.type !== 'travel') {
+      return null;
+    }
+    const startIso = this.readString(candidate.params, 'windowStart');
+    const endIso = this.readString(candidate.params, 'windowEnd');
+    if (!startIso || !endIso) {
+      return null;
+    }
+    const startMs = this.toMs(startIso);
+    const endMs = this.toMs(endIso);
+    if (startMs === null || endMs === null || endMs <= startMs) {
+      return null;
+    }
+
+    const durationMinutes = this.readNumber(candidate.params, 'durationMinutes', 30);
+    const maxEnd = candidate.type === 'break'
+      ? Math.min(endMs, startMs + durationMinutes * 60_000)
+      : endMs;
+    const resolvedEndMs = Math.max(startMs, maxEnd);
+    const activityType = this.resolveActivityType(candidate);
+    const title = candidate.type === 'break' ? 'Pause (Optimierung)' : 'Wegzeit (Optimierung)';
+    const serviceId = this.readString(candidate.params, 'serviceId');
+    const fromLocation = this.readString(candidate.params, 'fromLocation');
+    const toLocation = this.readString(candidate.params, 'toLocation');
+    const participants = this.resolveParticipants(candidate.params, snapshot.activities, serviceId);
+
+    return {
+      id: this.buildActivityId(candidate),
+      title,
+      start: new Date(startMs).toISOString(),
+      end: new Date(resolvedEndMs).toISOString(),
+      type: activityType,
+      serviceId: serviceId || null,
+      from: fromLocation || null,
+      to: toLocation || null,
+      participants: participants.length ? participants : undefined,
+      meta: {
+        optimizer: true,
+        candidateId: candidate.id,
+        templateId: candidate.templateId,
+        rulesetId: ruleset.id,
+        rulesetVersion: ruleset.version,
+        snapshotStage: snapshot.stageId,
+      },
+    };
+  }
+
+  private resolveActivityType(candidate: PlanningCandidate): string {
+    const type = this.readString(candidate.params, 'activityTypeId')
+      || this.readString(candidate.params, 'typeId')
+      || this.readString(candidate.params, 'activityType');
+    if (type) {
+      return type;
+    }
+    return candidate.type === 'break' ? 'break' : 'travel';
+  }
+
+  private buildActivityId(candidate: PlanningCandidate): string {
+    const raw = `opt-${candidate.id}`;
+    const safe = raw.replace(/[^a-zA-Z0-9_-]/g, '-');
+    return safe.length > 96 ? safe.slice(0, 96) : safe;
+  }
+
+  private parseParticipants(raw: unknown): ActivityParticipant[] {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    const parsed = raw
+      .map((entry) => (typeof entry === 'string' ? entry : ''))
+      .map((entry) => entry.split('|'))
+      .filter((parts) => parts.length >= 2 && parts[0] && parts[1])
+      .map((parts) => ({
+        kind: parts[0],
+        resourceId: parts[1],
+        role: parts[2] ? parts[2] : null,
+      }));
+    return parsed as ActivityParticipant[];
+  }
+
+  private resolveParticipants(
+    params: Record<string, unknown>,
+    activities: Activity[],
+    serviceId: string,
+  ): ActivityParticipant[] {
+    const parsed = this.parseParticipants(params['participantKeys']);
+    if (parsed.length) {
+      return parsed;
+    }
+    if (!serviceId) {
+      return [];
+    }
+    return this.inferParticipantsForService(activities, serviceId);
+  }
+
+  private inferParticipantsForService(activities: Activity[], serviceId: string): ActivityParticipant[] {
+    const participants: ActivityParticipant[] = [];
+    const seen = new Set<string>();
+
+    const addParticipant = (participant: ActivityParticipant) => {
+      if (!participant?.resourceId) {
+        return;
+      }
+      const key = `${participant.kind ?? ''}|${participant.resourceId}|${participant.role ?? ''}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      participants.push(participant);
+    };
+
+    for (const activity of activities) {
+      if (!this.activityMatchesService(activity, serviceId)) {
+        continue;
+      }
+      const owners = this.resolveDutyOwners(activity);
+      if (owners.length) {
+        owners.forEach((owner) => addParticipant(owner));
+      } else {
+        (activity.participants ?? []).forEach((participant) => addParticipant(participant));
+      }
+    }
+
+    return participants;
+  }
+
+  private activityMatchesService(activity: Activity, serviceId: string): boolean {
+    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct && direct === serviceId) {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const map = attrs?.['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      return Object.values(map as Record<string, any>).some((entry) => {
+        const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+        return candidate === serviceId;
+      });
+    }
+    return false;
+  }
+
+  private readString(params: Record<string, unknown>, key: string): string {
+    const raw = params[key];
+    if (typeof raw === 'string') {
+      return raw.trim();
+    }
+    return '';
+  }
+
+  private readStringArray(params: Record<string, unknown>, key: string): string[] {
+    const raw = params[key];
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    return raw
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => entry.length > 0);
+  }
+
+  private readNumber(params: Record<string, unknown>, key: string, fallback: number): number {
+    const raw = params[key];
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const parsed = Number.parseFloat(raw);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return fallback;
+  }
+
+  private toMs(value: string): number | null {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private buildDutyUpserts(
+    candidate: PlanningCandidate,
+    ruleset: RulesetIR,
+    snapshot: PlanningStageSnapshot,
+    activityById: Map<string, Activity>,
+    boundaryTypes: ServiceBoundaryTypeIndex,
+    activityUpdates: Map<string, Activity>,
+  ): { boundaries: Activity[] } {
+    if (candidate.type !== 'duty') {
+      return { boundaries: [] };
+    }
+    const serviceId = this.readString(candidate.params, 'serviceId');
+    const ownerId = this.readString(candidate.params, 'ownerId');
+    const ownerKind = this.readResourceKind(candidate.params['ownerKind']);
+    if (!serviceId || !ownerId || !ownerKind) {
+      return { boundaries: [] };
+    }
+
+    const activityIds = this.readStringArray(candidate.params, 'activityIds');
+    const activityEntries = activityIds
+      .map((id) => activityUpdates.get(id) ?? activityById.get(id))
+      .filter((entry): entry is Activity => !!entry);
+    if (!activityEntries.length) {
+      return { boundaries: [] };
+    }
+
+    const ownerRole = this.readString(candidate.params, 'ownerRole') || null;
+    const owner: ActivityParticipant = { resourceId: ownerId, kind: ownerKind, role: ownerRole };
+    const ownerGroup = this.resolveOwnerGroup(owner.kind);
+    const startTypeId = ownerGroup === 'vehicle' ? boundaryTypes.vehicleStart : boundaryTypes.personnelStart;
+    const endTypeId = ownerGroup === 'vehicle' ? boundaryTypes.vehicleEnd : boundaryTypes.personnelEnd;
+
+    const startMs = this.resolveDutyStartMs(candidate, activityEntries);
+    const endMs = this.resolveDutyEndMs(candidate, activityEntries, startMs);
+    if (startMs === null || endMs === null) {
+      return { boundaries: [] };
+    }
+    const safeEndMs = Math.max(endMs, startMs);
+
+    for (const activity of activityEntries) {
+      const updated = this.applyServiceAssignment(activity, owner, serviceId);
+      if (updated) {
+        activityUpdates.set(updated.id, updated);
+      }
+    }
+
+    const boundaries: Activity[] = [];
+    const startId = `svcstart:${serviceId}`;
+    const endId = `svcend:${serviceId}`;
+    const existingStart = activityById.get(startId) ?? activityUpdates.get(startId) ?? null;
+    const existingEnd = activityById.get(endId) ?? activityUpdates.get(endId) ?? null;
+
+    boundaries.push(
+      this.buildBoundaryActivity({
+        id: startId,
+        title: existingStart?.title ?? 'Dienstanfang',
+        type: startTypeId,
+        role: 'start',
+        startMs,
+        owner,
+        serviceId,
+        ruleset,
+        snapshot,
+        candidateId: candidate.id,
+      }),
+    );
+    boundaries.push(
+      this.buildBoundaryActivity({
+        id: endId,
+        title: existingEnd?.title ?? 'Dienstende',
+        type: endTypeId,
+        role: 'end',
+        startMs: safeEndMs,
+        owner,
+        serviceId,
+        ruleset,
+        snapshot,
+        candidateId: candidate.id,
+      }),
+    );
+
+    return { boundaries };
+  }
+
+  private resolveDutyStartMs(candidate: PlanningCandidate, activities: Activity[]): number | null {
+    const startIso = this.readString(candidate.params, 'dutyStart');
+    const explicit = startIso ? this.toMs(startIso) : null;
+    if (explicit !== null) {
+      return explicit;
+    }
+    let min = Number.POSITIVE_INFINITY;
+    for (const activity of activities) {
+      const start = this.toMs(activity.start);
+      if (start !== null) {
+        min = Math.min(min, start);
+      }
+    }
+    return Number.isFinite(min) ? min : null;
+  }
+
+  private resolveDutyEndMs(
+    candidate: PlanningCandidate,
+    activities: Activity[],
+    fallbackStart: number | null,
+  ): number | null {
+    const endIso = this.readString(candidate.params, 'dutyEnd');
+    const explicit = endIso ? this.toMs(endIso) : null;
+    if (explicit !== null) {
+      return explicit;
+    }
+    let max = Number.NEGATIVE_INFINITY;
+    for (const activity of activities) {
+      const end = this.toMs(activity.end ?? activity.start);
+      if (end !== null) {
+        max = Math.max(max, end);
+      }
+    }
+    if (Number.isFinite(max)) {
+      return max;
+    }
+    return fallbackStart;
+  }
+
+  private applyServiceAssignment(
+    activity: Activity,
+    owner: ActivityParticipant,
+    serviceId: string,
+  ): Activity | null {
+    const owners = this.resolveDutyOwners(activity);
+    const hasMultipleOwners = owners.length > 1;
+    const nextAttrs: Record<string, unknown> = { ...(activity.attributes ?? {}) };
+    const serviceByOwner = this.ensureServiceByOwner(nextAttrs);
+    const currentEntry = serviceByOwner[owner.resourceId];
+    const currentServiceId = typeof currentEntry?.serviceId === 'string' ? currentEntry.serviceId : null;
+    let changed = false;
+
+    if (currentServiceId !== serviceId) {
+      serviceByOwner[owner.resourceId] = { ...(currentEntry ?? {}), serviceId };
+      changed = true;
+    }
+
+    const next: Activity = { ...activity };
+    if (!hasMultipleOwners && activity.serviceId !== serviceId) {
+      next.serviceId = serviceId;
+      changed = true;
+    }
+
+    if (!changed) {
+      return null;
+    }
+    next.attributes = nextAttrs;
+    return next;
+  }
+
+  private ensureServiceByOwner(attrs: Record<string, unknown>): Record<string, any> {
+    const raw = attrs['service_by_owner'];
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, any>;
+    }
+    const next: Record<string, any> = {};
+    attrs['service_by_owner'] = next;
+    return next;
+  }
+
+  private resolveDutyOwners(activity: Activity): ActivityParticipant[] {
+    const participants = activity.participants ?? [];
+    const preferred = participants.filter(
+      (p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service',
+    );
+    if (preferred.length) {
+      return preferred;
+    }
+    const fallback = participants.filter((p) => p.kind === 'personnel' || p.kind === 'vehicle');
+    return fallback.length ? fallback : [];
+  }
+
+  private resolveOwnerGroup(kind: ActivityParticipant['kind']): 'personnel' | 'vehicle' {
+    if (kind === 'vehicle' || kind === 'vehicle-service') {
+      return 'vehicle';
+    }
+    return 'personnel';
+  }
+
+  private buildBoundaryActivity(options: {
+    id: string;
+    title: string;
+    type: string;
+    role: 'start' | 'end';
+    startMs: number;
+    owner: ActivityParticipant;
+    serviceId: string;
+    ruleset: RulesetIR;
+    snapshot: PlanningStageSnapshot;
+    candidateId: string;
+  }): Activity {
+    return {
+      id: options.id,
+      title: options.title,
+      start: new Date(options.startMs).toISOString(),
+      end: null,
+      type: options.type,
+      serviceId: options.serviceId,
+      serviceRole: options.role,
+      participants: [this.buildOwnerParticipant(options.owner)],
+      meta: {
+        optimizer: true,
+        candidateId: options.candidateId,
+        rulesetId: options.ruleset.id,
+        rulesetVersion: options.ruleset.version,
+        snapshotStage: options.snapshot.stageId,
+      },
+    };
+  }
+
+  private buildOwnerParticipant(owner: ActivityParticipant): ActivityParticipant {
+    return {
+      resourceId: owner.resourceId,
+      kind: owner.kind,
+      role:
+        owner.role ??
+        (owner.kind === 'vehicle' || owner.kind === 'vehicle-service' ? 'primary-vehicle' : 'primary-personnel'),
+    };
+  }
+
+  private resolveBoundaryTypeIndex(): ServiceBoundaryTypeIndex {
+    try {
+      const types = this.catalog.listActivityTypes();
+      return this.pickBoundaryTypes(types);
+    } catch (error) {
+      this.logger.warn(`Konnte Activity Types nicht laden: ${(error as Error).message ?? String(error)}`);
+      return {
+        personnelStart: 'service-start',
+        personnelEnd: 'service-end',
+        vehicleStart: 'vehicle-on',
+        vehicleEnd: 'vehicle-off',
+      };
+    }
+  }
+
+  private pickBoundaryTypes(types: ActivityTypeDefinition[]): ServiceBoundaryTypeIndex {
+    const flags = {
+      serviceStart: [] as string[],
+      serviceEnd: [] as string[],
+      vehicleOn: [] as string[],
+      vehicleOff: [] as string[],
+    };
+    const toBool = (value: unknown) =>
+      typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
+    types.forEach((type) => {
+      const id = `${type?.id ?? ''}`.trim();
+      if (!id) {
+        return;
+      }
+      const attrs = (type.attributes ?? {}) as Record<string, unknown>;
+      if (toBool(attrs['is_service_start'])) {
+        flags.serviceStart.push(id);
+      }
+      if (toBool(attrs['is_service_end'])) {
+        flags.serviceEnd.push(id);
+      }
+      if (toBool(attrs['is_vehicle_on'])) {
+        flags.vehicleOn.push(id);
+      }
+      if (toBool(attrs['is_vehicle_off'])) {
+        flags.vehicleOff.push(id);
+      }
+    });
+
+    const vehicleOnSet = new Set(flags.vehicleOn);
+    const vehicleOffSet = new Set(flags.vehicleOff);
+    const serviceStartCandidates = flags.serviceStart.filter((id) => !vehicleOnSet.has(id));
+    const serviceEndCandidates = flags.serviceEnd.filter((id) => !vehicleOffSet.has(id));
+
+    return {
+      personnelStart: serviceStartCandidates[0] ?? flags.serviceStart[0] ?? 'service-start',
+      personnelEnd: serviceEndCandidates[0] ?? flags.serviceEnd[0] ?? 'service-end',
+      vehicleStart: flags.vehicleOn[0] ?? flags.serviceStart[0] ?? 'vehicle-on',
+      vehicleEnd: flags.vehicleOff[0] ?? flags.serviceEnd[0] ?? 'vehicle-off',
+    };
+  }
+
+  private readResourceKind(value: unknown): ResourceKind | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (
+      trimmed === 'personnel' ||
+      trimmed === 'vehicle' ||
+      trimmed === 'personnel-service' ||
+      trimmed === 'vehicle-service'
+    ) {
+      return trimmed;
+    }
+    return null;
+  }
+}
+
+type ServiceBoundaryTypeIndex = {
+  personnelStart: string;
+  personnelEnd: string;
+  vehicleStart: string;
+  vehicleEnd: string;
+};
+
+function normalizeMode(value: string): 'python' | 'local' | 'auto' {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'local') {
+    return 'local';
+  }
+  if (normalized === 'auto') {
+    return 'auto';
+  }
+  return 'python';
+}
+
+function normalizeUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '');
+}
+
+function toNumber(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toOptionalNumber(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}

@@ -29,10 +29,8 @@ import {
   applyMessageBudget,
   buildUiContextMessage,
 } from './assistant-context-budget';
-import {
-  AssistantContextService,
-  type AssistantContextResult,
-} from './assistant-context.service';
+import { AssistantContextService } from './assistant-context.service';
+import type { AssistantContextResult } from './assistant-context.types';
 
 @Injectable()
 export class AssistantService {

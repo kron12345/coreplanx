@@ -1,28 +1,31 @@
-id: travel
-label: Fahrt
-description: Geplante Fahrtleistung zwischen zwei Orten.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: movement
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - to
-  - remark
-defaultDurationMinutes: 60
-attributes:
-  is_within_service: yes
-  is_travel: true
-  requires_vehicle: true
-  consider_location_conflicts: true
-  color: '#00796b'
+activities: []
+templates: []
+types:
+  - id: travel
+    label: Fahrt
+    description: Geplante Fahrtleistung zwischen zwei Orten.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: movement
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - to
+      - remark
+    defaultDurationMinutes: 60
+    attributes:
+      is_within_service: yes
+      is_travel: true
+      requires_vehicle: true
+      consider_location_conflicts: true
+      color: '#00796b'

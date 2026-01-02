@@ -1,61 +1,90 @@
 # Stammdaten · Fahrplanjahre
 
-Diese Seite beschreibt, wie CorePlanX Fahrplanjahre verwaltet und wie du sie in der Stammdaten-UI pflegst.
+Diese Seite beschreibt die Fahrplanjahre in CorePlanX und die Pflege in der Stammdaten-UI.
+Sie ist als Referenz fuer den CorePlanX Assistant gedacht.
 
 ## Wo finde ich das?
 
+Navigation:
+
 - **Stammdaten → Fahrplanjahre**
 
-## Zweck
+## Überblick
 
-Fahrplanjahre sind der fachliche Rahmen, in dem weitere Daten (z. B. Simulationen/Varianten) strukturiert werden.
-Viele Auswahldialoge und Import-/Planungsfunktionen benötigen ein gültiges Fahrplanjahr.
+Fahrplanjahre definieren den zeitlichen Rahmen fuer Planung und Varianten.
+Sie werden u. a. verwendet fuer:
 
-## UI: Editor
+- **Simulationen/Varianten** (jede Simulation gehoert zu einem Fahrplanjahr)
+- **Validierungen** bei Importen (Fahrtage muessen in einem Fahrplanjahr liegen)
+- **Filter/Defaults** in Planungs- und Auswahl-Dialogen
 
-Die Stammdaten-UI zeigt eine Liste von Fahrplanjahren und erlaubt:
+## Fahrplanjahre
 
-- Anlegen
-- Bearbeiten
-- Löschen
+### Feldlexikon
 
-## Felder (Basisfelder)
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `label` | string | Bezeichnung, z. B. `2026/27` | ja |
+| `startIso` | date | Beginn (inkl.) im Format `YYYY-MM-DD` | ja |
+| `endIso` | date | Ende (inkl.) im Format `YYYY-MM-DD` | ja |
+| `description` | string | Freitext | nein |
 
-Ein Fahrplanjahr ist als Record modelliert und enthält mindestens:
-
-- `label` (Pflicht) – z. B. `2025/26`
-- `startIso` (Pflicht) – Beginn (inkl.) als `YYYY-MM-DD`
-- `endIso` (Pflicht) – Ende (inkl.) als `YYYY-MM-DD`
-- `description` (optional)
-
-Validierungslogik:
+### Regeln & Validierung
 
 - `label` darf nicht leer sein.
-- `startIso` ist erforderlich.
-- Wenn `endIso` leer ist, wird es auf `startIso` gesetzt.
-- Wenn `endIso < startIso`, wird `endIso` auf `startIso` korrigiert.
+- `startIso` ist Pflicht.
+- `endIso` wird auf `startIso` gesetzt, wenn es fehlt.
+- Wenn `endIso` vor `startIso` liegt, wird `endIso` auf `startIso` korrigiert.
+- Ungueltige Datumsformate werden als leer behandelt und blockieren das Speichern.
 
-## Defaults / Komfortfunktionen
+### Defaults & Vorschlaege
 
-Beim Erstellen eines neuen Fahrplanjahres werden Vorschläge generiert:
+- Beim Anlegen wird ein Vorschlag aus dem zuletzt bekannten Fahrplanjahr abgeleitet.
+- Der Standard orientiert sich am Fahrplanwechsel im Dezember:
+  - Start = erster Sonntag ab dem 10.12.
+  - Ende = Tag vor dem naechsten Fahrplanjahr.
 
-- Standardmäßig wird das nächste Jahr hinter dem letzten bekannten Jahr vorgeschlagen.
+### Technische IDs
+
+- Datensaetze haben eine technische `id` (z. B. `ty-202627`).
+- Die `id` wird automatisch erzeugt; die fachliche Referenz ist das `label`.
+
+## Praxisbeispiele
+
+- **Neues Fahrplanjahr 2026/27**
+  - `label=2026/27`, `startIso=2026-12-13`, `endIso=2027-12-11`.
+- **Korrektur eines Jahres**
+  - `endIso` versehentlich vor `startIso` gesetzt → System korrigiert auf `startIso`.
+- **Eintrag fuer interne Tests**
+  - `label=Testjahr`, `startIso=2025-01-01`, `endIso=2025-12-31`, `description=QA`.
+
+## Fehlerbilder & Loesungen
+
+- **"Label darf nicht leer sein."**
+  - `label` setzen (z. B. `2027/28`).
+- **"Beginn ist erforderlich."**
+  - `startIso` setzen (ISO-Format).
+- **Jahr wird nicht gespeichert**
+  - Pruefen: Datum im Format `YYYY-MM-DD`? `endIso` nach `startIso`?
+
+## Kontext-FAQ
+
+- **Warum taucht ein Fahrplanjahr nicht im Backend auf?**
+  - Nach dem Speichern erfolgt eine Backend-Synchronisation. Bei Fehlern im Netzwerk oder Backend kann der Sync fehlen.
+- **Warum stimmen Start/Ende nicht mit dem Label ueberein?**
+  - Das Label ist frei. Die gueltige Zeitspanne kommt aus `startIso`/`endIso`.
+
+## Abhaengigkeiten & Fluss
+
+- Fahrplanjahre → Simulationen/Varianten
+- Fahrplanjahre → Import-/Validierungslogik (Fahrtage/Zeitraeume)
+- Fahrplanjahre → Default-Auswahl in der Planung
 
 ## Datenquellen & Persistenz (technisch)
 
-CorePlanX nutzt zwei Ebenen:
-
-1) **User-managed Liste (UI/LocalStorage)**
-   - Die Stammdaten-UI pflegt eine Liste verwalteter Fahrplanjahre.
-2) **Backend-Sync**
-   - Die UI synchronisiert Fahrplanjahre/Varianten zusätzlich mit dem Backend.
-
-Hinweis für den Assistant:
-
-- Beim Support ist wichtig zu unterscheiden, ob ein Fahrplanjahr „nur lokal“ existiert oder bereits im Backend synchronisiert wurde.
-
-## Typische Aufgaben (Beispiele)
-
-- „Neues Fahrplanjahr 2026/27 anlegen“ → Label + Start/Ende setzen.
-- „Fehler: Zeitraum überschreitet Fahrplanjahr“ → Range prüfen und ggf. in zwei Fahrplanjahre splitten.
-
+- **UI-Verwaltung:** lokale Liste (LocalStorage `coreplanx:timetable-years:v1`).
+- **Backend-Sync:** Labels werden mit dem Backend abgeglichen:
+  - `GET /timetable-years`
+  - `POST /timetable-years` (neu)
+  - `DELETE /timetable-years?label=...` (entfernen)
+- **Refresh-Logik:** Backend-Labels koennen die lokale Liste beim Laden ersetzen/erganzen.

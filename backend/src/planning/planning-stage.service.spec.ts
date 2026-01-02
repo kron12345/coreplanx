@@ -9,7 +9,7 @@ describe('PlanningStageService', () => {
       apply: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], touchedIds: [] }),
     } as any;
     const activityCatalog = {
-      list: jest.fn().mockResolvedValue([
+      listActivityTypes: jest.fn().mockReturnValue([
         { id: 'travel', attributes: { requires_vehicle: true } },
         { id: 'vehicle-on', attributes: { requires_vehicle: true, is_vehicle_on: true } },
         { id: 'vehicle-off', attributes: { requires_vehicle: true, is_vehicle_off: true } },
@@ -27,7 +27,7 @@ describe('PlanningStageService', () => {
 
   it('validates participant requirements only for changed activities', async () => {
     const { service } = makeService();
-    const stage = getStage(service, 'base', 'default');
+    const stage = getStage(service, 'operations', 'default');
     stage.activities = [
       {
         id: 'legacy-invalid',
@@ -39,7 +39,7 @@ describe('PlanningStageService', () => {
       },
     ];
 
-    const result = await service.mutateActivities('base', 'default', {
+    const result = await service.mutateActivities('operations', 'default', {
       upserts: [
         {
           id: 'new-valid',
@@ -62,11 +62,11 @@ describe('PlanningStageService', () => {
 
   it('rolls back stage mutations when participant validation fails', async () => {
     const { service } = makeService();
-    const stage = getStage(service, 'base', 'default');
+    const stage = getStage(service, 'operations', 'default');
     stage.activities = [];
 
     await expect(
-      service.mutateActivities('base', 'default', {
+      service.mutateActivities('operations', 'default', {
         upserts: [
           {
             id: 'invalid-travel',
@@ -85,7 +85,7 @@ describe('PlanningStageService', () => {
 
   it('does not block unrelated mutations because of existing boundary violations', async () => {
     const { service } = makeService();
-    const stage = getStage(service, 'base', 'default');
+    const stage = getStage(service, 'operations', 'default');
     stage.activities = [
       {
         id: 't1',
@@ -111,7 +111,7 @@ describe('PlanningStageService', () => {
       },
     ];
 
-    const result = await service.mutateActivities('base', 'default', {
+    const result = await service.mutateActivities('operations', 'default', {
       upserts: [
         {
           id: 'personnel-only',
@@ -130,7 +130,7 @@ describe('PlanningStageService', () => {
 
   it('enforces boundary order when a boundary group is touched', async () => {
     const { service } = makeService();
-    const stage = getStage(service, 'base', 'default');
+    const stage = getStage(service, 'operations', 'default');
     stage.activities = [
       {
         id: 'on-first',
@@ -157,7 +157,7 @@ describe('PlanningStageService', () => {
     ];
 
     await expect(
-      service.mutateActivities('base', 'default', {
+      service.mutateActivities('operations', 'default', {
         upserts: [
           {
             ...stage.activities.find((a) => a.id === 'on-first')!,
@@ -171,10 +171,10 @@ describe('PlanningStageService', () => {
 
   it('allows creating a vehicle-on activity without vehicle-off', async () => {
     const { service } = makeService();
-    const stage = getStage(service, 'base', 'default');
+    const stage = getStage(service, 'operations', 'default');
     stage.activities = [];
 
-    const result = await service.mutateActivities('base', 'default', {
+    const result = await service.mutateActivities('operations', 'default', {
       upserts: [
         {
           id: 'on-only',
@@ -194,4 +194,3 @@ describe('PlanningStageService', () => {
     expect(stage.activities.some((activity) => activity.id === 'on-only')).toBe(true);
   });
 });
-

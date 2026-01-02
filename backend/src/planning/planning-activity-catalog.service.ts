@@ -6,18 +6,36 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { join } from 'path';
+import yaml from 'js-yaml';
 import type {
-  ActivityAttributes,
+  ActivityAttributeValue,
   ActivityCatalogSnapshot,
   ActivityDefinition,
   ActivityFieldKey,
   ActivityTemplate,
   ActivityTypeDefinition,
+  CustomAttributeDefinition,
+  CustomAttributeState,
   LayerGroup,
   ResourceKind,
   TranslationState,
 } from './planning.types';
 import { PlanningRepository } from './planning.repository';
+
+type ActivityCatalogDefaultsFile = {
+  activities?: ActivityDefinition | ActivityDefinition[];
+  activityDefinitions?: ActivityDefinition | ActivityDefinition[];
+  definitions?: ActivityDefinition | ActivityDefinition[];
+  templates?: ActivityTemplate | ActivityTemplate[];
+  activityTemplates?: ActivityTemplate | ActivityTemplate[];
+  types?: ActivityTypeDefinition | ActivityTypeDefinition[];
+  activityTypes?: ActivityTypeDefinition | ActivityTypeDefinition[];
+  layerGroups?: LayerGroup | LayerGroup[];
+  translations?: TranslationState;
+  customAttributes?: CustomAttributeState;
+};
 
 @Injectable()
 export class PlanningActivityCatalogService implements OnModuleInit {
@@ -27,6 +45,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   private activityDefinitions: ActivityDefinition[] = [];
   private activityLayerGroups: LayerGroup[] = [];
   private activityTranslations: TranslationState = {};
+  private customAttributes: CustomAttributeState = {};
+  private defaultsLoaded = false;
+  private defaultCatalog: ActivityCatalogSnapshot | null = null;
 
   private readonly usingDatabase: boolean;
 
@@ -39,6 +60,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       return;
     }
     await this.initializeActivityCatalogFromDatabase();
+    await this.seedDefaultsIfEmpty();
   }
 
   getActivityCatalog(): ActivityCatalogSnapshot {
@@ -54,8 +76,35 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return this.buildActivityCatalogSnapshot();
   }
 
+  getActivityCatalogDefaults(): ActivityCatalogSnapshot {
+    const defaults = this.getDefaultCatalogSnapshot();
+    if (!defaults) {
+      throw new NotFoundException('Activity-Katalog Defaults sind nicht konfiguriert.');
+    }
+    return defaults;
+  }
+
+  async resetActivityCatalogToDefaults(): Promise<ActivityCatalogSnapshot> {
+    const defaults = this.getDefaultCatalogSnapshot();
+    if (!defaults) {
+      throw new BadRequestException('Activity-Katalog Defaults sind nicht konfiguriert.');
+    }
+    return this.replaceActivityCatalog(defaults);
+  }
+
   listActivityTypes(): ActivityTypeDefinition[] {
     return this.activityTypes.map((type) => this.cloneActivityType(type));
+  }
+
+  async replaceActivityTypes(
+    payload: ActivityTypeDefinition[],
+  ): Promise<ActivityTypeDefinition[]> {
+    this.activityTypes = (payload ?? []).map((type) =>
+      this.normalizeActivityTypeDefinition(type),
+    );
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.listActivityTypes();
   }
 
   getActivityType(typeId: string): ActivityTypeDefinition {
@@ -110,6 +159,17 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return this.activityTemplates.map((template) =>
       this.cloneActivityTemplate(template),
     );
+  }
+
+  async replaceActivityTemplates(
+    payload: ActivityTemplate[],
+  ): Promise<ActivityTemplate[]> {
+    this.activityTemplates = (payload ?? []).map((template) =>
+      this.normalizeActivityTemplate(template),
+    );
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.listActivityTemplates();
   }
 
   getActivityTemplate(templateId: string): ActivityTemplate {
@@ -178,6 +238,17 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     );
   }
 
+  async replaceActivityDefinitions(
+    payload: ActivityDefinition[],
+  ): Promise<ActivityDefinition[]> {
+    this.activityDefinitions = (payload ?? []).map((definition) =>
+      this.normalizeActivityDefinition(definition),
+    );
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.listActivityDefinitions();
+  }
+
   getActivityDefinition(definitionId: string): ActivityDefinition {
     const found = this.activityDefinitions.find(
       (definition) => definition.id === definitionId,
@@ -242,6 +313,15 @@ export class PlanningActivityCatalogService implements OnModuleInit {
 
   listLayerGroups(): LayerGroup[] {
     return this.activityLayerGroups.map((layer) => this.cloneLayerGroup(layer));
+  }
+
+  async replaceLayerGroups(payload: LayerGroup[]): Promise<LayerGroup[]> {
+    this.activityLayerGroups = (payload ?? []).map((layer) =>
+      this.normalizeLayerGroup(layer),
+    );
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.listLayerGroups();
   }
 
   getLayerGroup(layerId: string): LayerGroup {
@@ -337,6 +417,66 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     await this.persistActivityCatalog();
   }
 
+  getCustomAttributes(): CustomAttributeState {
+    return this.cloneCustomAttributeState(this.customAttributes);
+  }
+
+  async replaceCustomAttributes(
+    payload: CustomAttributeState,
+  ): Promise<CustomAttributeState> {
+    this.customAttributes = this.normalizeCustomAttributes(payload);
+    await this.persistActivityCatalog();
+    return this.cloneCustomAttributeState(this.customAttributes);
+  }
+
+  private getDefaultCatalogSnapshot(): ActivityCatalogSnapshot | null {
+    this.loadDefaultsOnce();
+    if (!this.defaultCatalog) {
+      return null;
+    }
+    return this.cloneActivityCatalogSnapshot(this.defaultCatalog);
+  }
+
+  private loadDefaultsOnce(): void {
+    if (this.defaultsLoaded) {
+      return;
+    }
+    this.defaultsLoaded = true;
+    const defaultsLocation = this.resolveDefaultsLocation();
+    if (!defaultsLocation) {
+      this.logger.warn('Activity-Katalog Defaults nicht gefunden; ueberspringe Seeding.');
+      return;
+    }
+    const doc = this.loadDefaultsDocument(defaultsLocation);
+    if (!doc) {
+      return;
+    }
+    this.defaultCatalog = this.materializeDefaultsSnapshot(doc);
+  }
+
+  private async seedDefaultsIfEmpty(): Promise<void> {
+    if (!this.usingDatabase) {
+      return;
+    }
+    const hasAny =
+      this.activityTypes.length > 0 ||
+      this.activityTemplates.length > 0 ||
+      this.activityDefinitions.length > 0 ||
+      this.activityLayerGroups.length > 0 ||
+      Object.keys(this.activityTranslations).length > 0 ||
+      Object.keys(this.customAttributes).length > 0;
+    if (hasAny) {
+      return;
+    }
+    const defaults = this.getDefaultCatalogSnapshot();
+    if (!defaults) {
+      return;
+    }
+    this.applyCatalogState(this.normalizeCatalogSnapshot(defaults));
+    await this.persistActivityCatalog();
+    this.logger.log('Seeded activity catalog with factory defaults.');
+  }
+
   private async initializeActivityCatalogFromDatabase(): Promise<void> {
     try {
       const catalog = await this.repository.loadActivityCatalog();
@@ -354,9 +494,258 @@ export class PlanningActivityCatalogService implements OnModuleInit {
           definitions: [],
           layerGroups: [],
           translations: {},
+          customAttributes: {},
         }),
       );
     }
+  }
+
+  private resolveDefaultsLocation(): string | null {
+    const candidates = [
+      join(process.cwd(), 'catalog', 'activity-catalog', 'defaults'),
+      join(process.cwd(), 'backend', 'catalog', 'activity-catalog', 'defaults'),
+      join(__dirname, '..', '..', '..', 'catalog', 'activity-catalog', 'defaults'),
+      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'activity-catalog', 'defaults'),
+      join(process.cwd(), 'catalog', 'activity-catalog'),
+      join(process.cwd(), 'backend', 'catalog', 'activity-catalog'),
+      join(__dirname, '..', '..', '..', 'catalog', 'activity-catalog'),
+      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'activity-catalog'),
+      join(process.cwd(), 'catalog', 'activity-catalog', 'defaults.yaml'),
+      join(process.cwd(), 'backend', 'catalog', 'activity-catalog', 'defaults.yaml'),
+      join(__dirname, '..', '..', '..', 'catalog', 'activity-catalog', 'defaults.yaml'),
+      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'activity-catalog', 'defaults.yaml'),
+    ];
+    for (const candidate of candidates) {
+      try {
+        const stat = statSync(candidate);
+        if (stat.isDirectory()) {
+          const entries = readdirSync(candidate).filter((entry) =>
+            entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'),
+          );
+          if (entries.length) {
+            return candidate;
+          }
+          continue;
+        }
+        if (stat.isFile()) {
+          readFileSync(candidate, 'utf-8');
+          return candidate;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  }
+
+  private loadDefaultsDocument(location: string): ActivityCatalogDefaultsFile | null {
+    let stat: ReturnType<typeof statSync> | null = null;
+    try {
+      stat = statSync(location);
+    } catch {
+      stat = null;
+    }
+    if (stat?.isDirectory()) {
+      return this.loadDefaultsFromDirectory(location);
+    }
+    return this.loadDefaultsFromFile(location);
+  }
+
+  private loadDefaultsFromFile(path: string): ActivityCatalogDefaultsFile | null {
+    const raw = readFileSync(path, 'utf-8');
+    try {
+      const parsed = path.endsWith('.json') ? JSON.parse(raw) : yaml.load(raw);
+      return (parsed ?? {}) as ActivityCatalogDefaultsFile;
+    } catch (error) {
+      this.logger.error(
+        `Failed to parse activity catalog defaults file ${path}`,
+        (error as Error).stack ?? String(error),
+      );
+      return null;
+    }
+  }
+
+  private loadDefaultsFromDirectory(dir: string): ActivityCatalogDefaultsFile | null {
+    let files: string[] = [];
+    try {
+      files = readdirSync(dir)
+        .filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'))
+        .sort((a, b) => a.localeCompare(b));
+    } catch (error) {
+      this.logger.error(
+        `Failed to read activity catalog defaults directory ${dir}`,
+        (error as Error).stack ?? String(error),
+      );
+      return null;
+    }
+    const merged: ActivityCatalogDefaultsFile = {};
+    for (const filename of files) {
+      const fullPath = join(dir, filename);
+      let raw: string;
+      try {
+        raw = readFileSync(fullPath, 'utf-8');
+      } catch {
+        continue;
+      }
+      const format = filename.endsWith('.json') ? 'json' : 'yaml';
+      let parsed: any;
+      try {
+        parsed = format === 'json' ? JSON.parse(raw) : yaml.load(raw);
+      } catch (error) {
+        this.logger.error(
+          `Failed to parse activity catalog defaults file ${fullPath}`,
+          (error as Error).stack ?? String(error),
+        );
+        continue;
+      }
+      this.deepMergeDefaults(merged, (parsed ?? {}) as ActivityCatalogDefaultsFile);
+    }
+    return merged;
+  }
+
+  private deepMergeDefaults(target: any, source: any): any {
+    if (!source || typeof source !== 'object') {
+      return target;
+    }
+    if (!target || typeof target !== 'object') {
+      return source;
+    }
+    if (Array.isArray(target) && Array.isArray(source)) {
+      target.push(...source);
+      return target;
+    }
+    if (Array.isArray(target) || Array.isArray(source)) {
+      return source;
+    }
+    Object.entries(source).forEach(([key, value]) => {
+      if (!(key in target)) {
+        target[key] = value;
+        return;
+      }
+      const current = target[key];
+      if (Array.isArray(current) && Array.isArray(value)) {
+        target[key] = [...current, ...value];
+        return;
+      }
+      if (
+        current &&
+        value &&
+        typeof current === 'object' &&
+        typeof value === 'object' &&
+        !Array.isArray(current) &&
+        !Array.isArray(value)
+      ) {
+        target[key] = this.deepMergeDefaults({ ...current }, value);
+        return;
+      }
+      target[key] = value;
+    });
+    return target;
+  }
+
+  private materializeDefaultsSnapshot(
+    doc: ActivityCatalogDefaultsFile,
+  ): ActivityCatalogSnapshot {
+    const definitions = [
+      ...this.collectDefaultsList<ActivityDefinition>(doc.activities),
+      ...this.collectDefaultsList<ActivityDefinition>(doc.activityDefinitions),
+      ...this.collectDefaultsList<ActivityDefinition>(doc.definitions),
+    ];
+    const templates = [
+      ...this.collectDefaultsList<ActivityTemplate>(doc.templates),
+      ...this.collectDefaultsList<ActivityTemplate>(doc.activityTemplates),
+    ];
+    const types = [
+      ...this.collectDefaultsList<ActivityTypeDefinition>(doc.types),
+      ...this.collectDefaultsList<ActivityTypeDefinition>(doc.activityTypes),
+    ];
+    const layerGroups = this.collectDefaultsList<LayerGroup>(doc.layerGroups);
+    const translations = (doc.translations ?? {}) as TranslationState;
+    const customAttributes = (doc.customAttributes ?? {}) as CustomAttributeState;
+
+    const snapshot: ActivityCatalogSnapshot = {
+      types,
+      templates,
+      definitions,
+      layerGroups,
+      translations,
+      customAttributes,
+    };
+
+    if (!snapshot.definitions.length && snapshot.types.length) {
+      snapshot.definitions = this.buildDefinitionsFromTypes(snapshot.types);
+    }
+    return this.normalizeCatalogSnapshot(snapshot);
+  }
+
+  private collectDefaultsList<T>(value: T | T[] | undefined): T[] {
+    if (!value) {
+      return [];
+    }
+    return Array.isArray(value) ? value : [value];
+  }
+
+  private buildDefinitionsFromTypes(
+    types: ActivityTypeDefinition[],
+  ): ActivityDefinition[] {
+    return types.map((type) => ({
+      id: type.id,
+      label: type.label,
+      description: type.description ?? undefined,
+      activityType: type.id,
+      defaultDurationMinutes: type.defaultDurationMinutes,
+      relevantFor: type.relevantFor,
+      attributes: this.buildDefinitionAttributesFromType(type.attributes),
+    }));
+  }
+
+  private buildDefinitionAttributesFromType(
+    attributes?: Record<string, unknown> | null,
+  ): ActivityAttributeValue[] {
+    if (!attributes || typeof attributes !== 'object') {
+      return [];
+    }
+    return Object.entries(attributes).map(([key, value]) => ({
+      key,
+      meta: this.normalizeDefinitionAttributeMeta(value),
+    }));
+  }
+
+  private normalizeDefinitionAttributeMeta(
+    value: unknown,
+  ): Record<string, string> | undefined {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      const meta: Record<string, string> = {};
+      Object.entries(value as Record<string, unknown>).forEach(([k, v]) => {
+        const key = (k ?? '').trim();
+        if (!key) {
+          return;
+        }
+        meta[key] = (v ?? '').toString().trim();
+      });
+      return Object.keys(meta).length ? meta : undefined;
+    }
+    return { value: String(value) };
+  }
+
+  private cloneActivityCatalogSnapshot(
+    snapshot: ActivityCatalogSnapshot,
+  ): ActivityCatalogSnapshot {
+    return {
+      types: snapshot.types.map((type) => this.cloneActivityType(type)),
+      templates: snapshot.templates.map((template) =>
+        this.cloneActivityTemplate(template),
+      ),
+      definitions: snapshot.definitions.map((definition) =>
+        this.cloneActivityDefinition(definition),
+      ),
+      layerGroups: snapshot.layerGroups.map((layer) => this.cloneLayerGroup(layer)),
+      translations: this.cloneTranslationState(snapshot.translations),
+      customAttributes: this.cloneCustomAttributeState(snapshot.customAttributes),
+    };
   }
 
   private cloneActivityType(type: ActivityTypeDefinition): ActivityTypeDefinition {
@@ -366,6 +755,8 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       appliesTo: [...(type.appliesTo ?? [])],
       relevantFor: [...(type.relevantFor ?? [])],
       fields: [...(type.fields ?? [])],
+      attributes: type.attributes ? { ...type.attributes } : undefined,
+      meta: type.meta ? { ...type.meta } : undefined,
     };
   }
 
@@ -375,7 +766,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       description: template.description ?? undefined,
       activityType: template.activityType ?? undefined,
       defaultDurationMinutes: template.defaultDurationMinutes ?? undefined,
-      attributes: this.cloneActivityAttributes(template.attributes),
+      attributes: this.cloneAttributeList(template.attributes),
     };
   }
 
@@ -386,7 +777,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       templateId: definition.templateId ?? undefined,
       defaultDurationMinutes: definition.defaultDurationMinutes ?? undefined,
       relevantFor: definition.relevantFor ? [...definition.relevantFor] : undefined,
-      attributes: this.cloneActivityAttributes(definition.attributes),
+      attributes: this.cloneAttributeList(definition.attributes),
     };
   }
 
@@ -398,16 +789,30 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     };
   }
 
-  private cloneActivityAttributes(
-    attributes?: ActivityAttributes,
-  ): ActivityAttributes | undefined {
-    return attributes ? { ...attributes } : undefined;
+  private cloneAttributeList(
+    attributes?: ActivityAttributeValue[],
+  ): ActivityAttributeValue[] | undefined {
+    if (!attributes?.length) {
+      return attributes ? [] : undefined;
+    }
+    return attributes.map((attr) => ({
+      key: attr.key,
+      meta: attr.meta ? { ...attr.meta } : undefined,
+    }));
   }
 
   private cloneTranslationState(state: TranslationState): TranslationState {
     const clone: TranslationState = {};
     Object.entries(state ?? {}).forEach(([locale, entries]) => {
       clone[locale] = { ...(entries ?? {}) };
+    });
+    return clone;
+  }
+
+  private cloneCustomAttributeState(state: CustomAttributeState): CustomAttributeState {
+    const clone: CustomAttributeState = {};
+    Object.entries(state ?? {}).forEach(([entityId, entries]) => {
+      clone[entityId] = (entries ?? []).map((entry) => ({ ...entry }));
     });
     return clone;
   }
@@ -426,6 +831,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
         this.cloneLayerGroup(layer),
       ),
       translations: this.cloneTranslationState(this.activityTranslations),
+      customAttributes: this.cloneCustomAttributeState(this.customAttributes),
     };
   }
 
@@ -441,6 +847,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       this.cloneLayerGroup(layer),
     );
     this.activityTranslations = this.cloneTranslationState(snapshot.translations);
+    this.customAttributes = this.cloneCustomAttributeState(snapshot.customAttributes);
     this.sortActivityCatalog();
   }
 
@@ -482,6 +889,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
         this.normalizeLayerGroup(layer),
       ),
       translations: this.normalizeTranslations(snapshot.translations),
+      customAttributes: this.normalizeCustomAttributes(snapshot.customAttributes),
     };
   }
 
@@ -536,6 +944,8 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       timeMode: payload.timeMode,
       fields,
       defaultDurationMinutes: defaultDuration,
+      attributes: this.normalizeMetaRecord(payload.attributes) ?? undefined,
+      meta: this.normalizeMetaRecord(payload.meta) ?? undefined,
     };
   }
 
@@ -564,7 +974,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       description: payload.description?.trim() || undefined,
       activityType: activityType || undefined,
       defaultDurationMinutes: defaultDuration,
-      attributes: this.applyActivityAttributeDefaults(payload.attributes),
+      attributes: this.normalizeAttributeList(payload.attributes),
     };
   }
 
@@ -600,7 +1010,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       templateId: payload.templateId ?? undefined,
       defaultDurationMinutes: defaultDuration,
       relevantFor: relevantFor.length ? relevantFor : undefined,
-      attributes: this.applyActivityAttributeDefaults(payload.attributes),
+      attributes: this.normalizeAttributeList(payload.attributes),
     };
   }
 
@@ -635,6 +1045,55 @@ export class PlanningActivityCatalogService implements OnModuleInit {
         };
       });
       normalized[localeKey] = normalizedEntries;
+    });
+    return normalized;
+  }
+
+  private normalizeCustomAttributes(state?: CustomAttributeState): CustomAttributeState {
+    const normalized: CustomAttributeState = {};
+    const allowedTypes: CustomAttributeDefinition['type'][] = [
+      'string',
+      'number',
+      'boolean',
+      'date',
+      'time',
+    ];
+    Object.entries(state ?? {}).forEach(([entityId, entries]) => {
+      const normalizedEntityId = (entityId ?? '').trim();
+      if (!normalizedEntityId) {
+        return;
+      }
+      const seenKeys = new Set<string>();
+      const normalizedEntries = (entries ?? []).map((entry) => {
+        const id = this.normalizeIdentifier(entry?.id, 'Custom Attribute ID');
+        const key = this.normalizeIdentifier(entry?.key, 'Custom Attribute Key');
+        if (seenKeys.has(key)) {
+          throw new BadRequestException(
+            `Custom Attribute Key ${key} ist in ${normalizedEntityId} doppelt.`,
+          );
+        }
+        seenKeys.add(key);
+        const label = this.normalizeIdentifier(entry?.label, 'Custom Attribute Label');
+        const type = entry?.type;
+        if (!type || !allowedTypes.includes(type)) {
+          throw new BadRequestException(
+            `Custom Attribute Type ${type ?? ''} ist ungültig.`,
+          );
+        }
+        return {
+          id,
+          key,
+          label,
+          type,
+          description: entry?.description?.trim() || undefined,
+          entityId: normalizedEntityId,
+          createdAt: entry?.createdAt ?? undefined,
+          updatedAt: entry?.updatedAt ?? undefined,
+          temporal: entry?.temporal ?? false,
+          required: entry?.required ?? false,
+        } satisfies CustomAttributeDefinition;
+      });
+      normalized[normalizedEntityId] = normalizedEntries;
     });
     return normalized;
   }
@@ -689,27 +1148,30 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return normalized;
   }
 
-  private applyActivityAttributeDefaults(attributes?: ActivityAttributes): ActivityAttributes {
-    const defaults: ActivityAttributes = {
-      draw_as: 'thick',
-      layer_group: 'default',
-      color: '#1976d2',
-      consider_capacity_conflicts: true,
-      is_short_break: false,
-      is_break: false,
-      is_service_start: false,
-      is_service_end: false,
-      is_absence: false,
-      is_reserve: false,
-    };
-    const incoming = attributes ?? {};
-    const result: ActivityAttributes = { ...defaults };
-    Object.entries(incoming).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        result[key] = value;
+  private normalizeAttributeList(
+    attributes?: ActivityAttributeValue[] | null,
+  ): ActivityAttributeValue[] {
+    const list: ActivityAttributeValue[] = [];
+    (attributes ?? []).forEach((attr) => {
+      const key = (attr?.key ?? '').trim();
+      if (!key) {
+        return;
       }
+      const meta =
+        attr?.meta && typeof attr.meta === 'object' && !Array.isArray(attr.meta)
+          ? { ...attr.meta }
+          : undefined;
+      list.push({ key, meta });
     });
-    return result;
+    return list;
+  }
+
+  private normalizeMetaRecord(
+    value?: Record<string, unknown> | null,
+  ): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return { ...value };
   }
 }
-

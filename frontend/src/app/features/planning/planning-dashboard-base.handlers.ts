@@ -24,6 +24,7 @@ export class PlanningDashboardBaseHandlers {
         anchorResource: Resource,
         activity: Activity,
       ) => Promise<Activity | null>;
+      onActivityMutated?: (activity: Activity, stage: PlanningStageId) => void;
     },
   ) {}
 
@@ -128,6 +129,7 @@ export class PlanningDashboardBaseHandlers {
         });
       }
     }
+    this.deps.onActivityMutated?.(ensuredWithDefaults, stage);
   }
 
   applyCopyWithRoles(
@@ -148,7 +150,9 @@ export class PlanningDashboardBaseHandlers {
       (act, owner, partner, partnerRole, opts) =>
         addParticipantToActivity(act, owner, partner, partnerRole, opts),
     );
-    this.deps.saveTemplateActivity(this.deps.applyActivityTypeConstraints(updated));
+    const normalized = this.deps.applyActivityTypeConstraints(updated);
+    this.deps.saveTemplateActivity(normalized);
+    this.deps.onActivityMutated?.(normalized, 'base');
   }
 
   private shouldPersistToTemplate(activity: Activity): boolean {

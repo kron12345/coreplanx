@@ -67,10 +67,19 @@ export interface AssistantActionClarificationOptionDto {
   details?: string;
 }
 
+export interface AssistantActionClarificationInputDto {
+  label?: string;
+  placeholder?: string;
+  hint?: string;
+  minLength?: number;
+  maxLength?: number;
+}
+
 export interface AssistantActionClarificationDto {
   resolutionId: string;
   title: string;
   options: AssistantActionClarificationOptionDto[];
+  input?: AssistantActionClarificationInputDto;
 }
 
 export interface AssistantActionPreviewResponseDto {

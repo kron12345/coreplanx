@@ -17,6 +17,15 @@ type MasterDataDocKey =
   | 'vehicles'
   | 'topology';
 
+type SettingsDocKey =
+  | 'settings-attributes'
+  | 'settings-activity-catalog'
+  | 'settings-layer-groups'
+  | 'settings-translations'
+  | 'settings-planning-rules';
+
+type AssistantDocKey = MasterDataDocKey | SettingsDocKey;
+
 const MASTER_DATA_DOCS: Record<MasterDataDocKey, AssistantDocDescriptor> = {
   personnel: {
     title: 'Stammdaten · Personal',
@@ -48,6 +57,42 @@ const MASTER_DATA_TITLE_TO_DOC_KEY: Record<string, MasterDataDocKey> = {
   Topologie: 'topology',
 };
 
+const SETTINGS_DOCS: Record<SettingsDocKey, AssistantDocDescriptor> = {
+  'settings-attributes': {
+    title: 'Einstellungen · Attribut-Editor',
+    relativePath: 'docs/assistant/einstellungen-attribut-editor.md',
+  },
+  'settings-activity-catalog': {
+    title: 'Einstellungen · Activity-Editor',
+    relativePath: 'docs/assistant/einstellungen-activity-editor.md',
+  },
+  'settings-layer-groups': {
+    title: 'Einstellungen · Layer-Gruppen',
+    relativePath: 'docs/assistant/einstellungen-layer-gruppen.md',
+  },
+  'settings-translations': {
+    title: 'Einstellungen · Übersetzungen',
+    relativePath: 'docs/assistant/einstellungen-uebersetzungen.md',
+  },
+  'settings-planning-rules': {
+    title: 'Einstellungen · Regeln',
+    relativePath: 'docs/assistant/einstellungen-regeln.md',
+  },
+};
+
+const SETTINGS_TITLE_TO_DOC_KEY: Record<string, SettingsDocKey> = {
+  'Attribut-Editor': 'settings-attributes',
+  'Activity-Editor': 'settings-activity-catalog',
+  'Layer-Gruppen': 'settings-layer-groups',
+  Übersetzungen: 'settings-translations',
+  Regeln: 'settings-planning-rules',
+};
+
+const ASSISTANT_DOCS: Record<AssistantDocKey, AssistantDocDescriptor> = {
+  ...MASTER_DATA_DOCS,
+  ...SETTINGS_DOCS,
+};
+
 @Injectable()
 export class AssistantDocumentationService {
   constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
@@ -60,7 +105,7 @@ export class AssistantDocumentationService {
       return null;
     }
 
-    const descriptor = MASTER_DATA_DOCS[docKey];
+    const descriptor = ASSISTANT_DOCS[docKey];
     if (!descriptor) {
       return null;
     }
@@ -126,10 +171,10 @@ export class AssistantDocumentationService {
     return normalized[masterIndex + 1] ?? null;
   }
 
-  private resolveDocKey(uiContext?: AssistantUiContextDto): MasterDataDocKey | null {
+  private resolveDocKey(uiContext?: AssistantUiContextDto): AssistantDocKey | null {
     const explicit = uiContext?.docKey?.trim();
-    if (explicit && explicit in MASTER_DATA_DOCS) {
-      return explicit as MasterDataDocKey;
+    if (explicit && explicit in ASSISTANT_DOCS) {
+      return explicit as AssistantDocKey;
     }
 
     const breadcrumbs = uiContext?.breadcrumbs ?? [];
@@ -138,11 +183,30 @@ export class AssistantDocumentationService {
     }
 
     const masterDataTitle = this.extractMasterDataArea(breadcrumbs);
-    if (!masterDataTitle) {
-      return null;
+    const masterKey = masterDataTitle ? MASTER_DATA_TITLE_TO_DOC_KEY[masterDataTitle] ?? null : null;
+    if (masterKey) {
+      return masterKey;
     }
 
-    return MASTER_DATA_TITLE_TO_DOC_KEY[masterDataTitle] ?? null;
+    const settingsTitle = this.extractSettingsArea(breadcrumbs);
+    if (!settingsTitle) {
+      return null;
+    }
+    return SETTINGS_TITLE_TO_DOC_KEY[settingsTitle] ?? null;
+  }
+
+  private extractSettingsArea(breadcrumbs: string[]): string | null {
+    const normalized = breadcrumbs.map((crumb) => crumb?.trim?.() ?? '').filter((c) => c.length);
+    if (!normalized.length) {
+      return null;
+    }
+    const settingsIndex = normalized.findIndex(
+      (entry) => entry.toLowerCase() === 'einstellungen',
+    );
+    if (settingsIndex < 0) {
+      return null;
+    }
+    return normalized[settingsIndex + 1] ?? null;
   }
 
   private readMarkdownFromRepo(relativePath: string): string | null {

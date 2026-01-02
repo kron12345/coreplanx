@@ -139,6 +139,7 @@ export class GanttRowBuilderFacade {
       const serviceMap = new Map<string, ServiceRangeAccumulator>();
       for (const slot of slots) {
         const activity = slot.activity;
+        const isPreview = !!activity.isPreview;
         if (
           activity.endMs < startMs - 2 * 60 * 60 * 1000 ||
           activity.startMs > endMs + 2 * 60 * 60 * 1000
@@ -164,7 +165,7 @@ export class GanttRowBuilderFacade {
         if (isMilestone) {
           classes.push('gantt-activity--milestone');
         }
-        if (syncingIds && syncingIds.has(activity.id)) {
+        if (syncingIds && syncingIds.has(activity.id) && !isPreview) {
           classes.push('gantt-activity--syncing');
         }
         const attrMap = activity.attributes as Record<string, unknown> | undefined;
@@ -225,6 +226,7 @@ export class GanttRowBuilderFacade {
           classes.push('gantt-activity--mirror');
         }
         const primarySelected = options.primarySlots.has(encodeSelectionSlot(activity.id, slot.resourceId));
+        const baseZIndex = layerGroup?.order ?? 0;
         bars.push({
           id: slot.id,
           activity,
@@ -232,19 +234,24 @@ export class GanttRowBuilderFacade {
           width: barWidth,
           classes,
           color: this.extractActivityColor(activity),
-          dragDisabled: false,
-          selected: options.selectedIds.has(activity.id),
-          primarySelected,
+          dragDisabled: isPreview,
+          selected: isPreview ? false : options.selectedIds.has(activity.id),
+          primarySelected: isPreview ? false : primarySelected,
           label: displayInfo.label,
           showRoute: !isMilestone && displayInfo.showRoute && !!(activity.from || activity.to),
           isMirror,
-          zIndex: layerGroup?.order,
+          zIndex: isPreview ? baseZIndex + 40 : baseZIndex,
           participantResourceId: slot.resourceId,
           participantCategory: slot.category,
           isOwner: slot.isOwner,
           roleIcon: slot.icon,
           roleLabel: slot.iconLabel,
+          isPreview,
         });
+
+        if (isPreview) {
+          continue;
+        }
 
         const serviceId = this.serviceIdForSlot(activity, slot.resourceId);
         if (!serviceId) {

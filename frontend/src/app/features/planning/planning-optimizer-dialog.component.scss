@@ -1,0 +1,94 @@
+.optimizer-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.optimizer-dialog__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.optimizer-dialog__meta-item {
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.optimizer-dialog__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.optimizer-dialog__value {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+  font-size: 0.85rem;
+}
+
+.optimizer-dialog__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.optimizer-dialog__section-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.optimizer-dialog__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.optimizer-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: rgba(15, 23, 42, 0.85);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.optimizer-dialog__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.optimizer-dialog__list li {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.optimizer-dialog__list-title {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.optimizer-dialog__list-meta {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.optimizer-dialog__empty {
+  font-size: 0.8rem;
+  color: rgba(15, 23, 42, 0.6);
+}

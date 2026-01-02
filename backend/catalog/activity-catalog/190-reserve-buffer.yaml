@@ -1,24 +1,27 @@
-id: reserve-buffer
-label: Reserven / Puffer
-description: Geplanter Puffer zur Abfederung von Störungen.
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: other
-timeMode: duration
-fields:
-  - start
-  - end
-  - remark
-defaultDurationMinutes: 30
-attributes:
-  is_within_service: yes
-  is_reserve: true
-  color: '#546e7a'
+activities: []
+templates: []
+types:
+  - id: reserve-buffer
+    label: Reserven / Puffer
+    description: Geplanter Puffer zur Abfederung von Störungen.
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: other
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - remark
+    defaultDurationMinutes: 30
+    attributes:
+      is_within_service: yes
+      is_reserve: true
+      color: '#546e7a'

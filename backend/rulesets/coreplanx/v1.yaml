@@ -1,0 +1,80 @@
+id: coreplanx
+version: v1
+label: CorePlanX Default Ruleset
+description: Baseline Regeln fuer Autopilot und Solver.
+includes: []
+
+hardConstraints:
+  - id: duty.max_work_minutes
+    description: Maximal 10h Arbeitszeit pro Dienst.
+    when:
+      op: gt
+      left: { var: duty.work_minutes }
+      right: { value: 600 }
+    constraint:
+      type: duty.max_work_minutes
+      params:
+        maxMinutes: 600
+
+softConstraints:
+  - id: duty.break_required
+    description: Pause wenn Dienst laenger als 6h.
+    when:
+      op: gt
+      left: { var: duty.work_minutes }
+      right: { value: 360 }
+    constraint:
+      type: duty.require_break
+      params:
+        minMinutes: 30
+    penalty:
+      weight: 50
+
+objectives:
+  - id: duty.variance
+    description: Gleichmaessige Dienstlaengen.
+    term:
+      type: duty.length_variance
+      params:
+        weightHint: 1
+    weight: 10
+
+actions:
+  - id: autopilot.insert_break
+    description: Fuege eine Standardpause ein.
+    when:
+      op: gt
+      left: { var: duty.work_minutes }
+      right: { value: 360 }
+    action:
+      type: insert_break
+      params:
+        durationMinutes: 30
+        strategy: gap
+
+templates:
+  - id: break-30
+    description: Kandidat fuer 30 Minuten Pause.
+    when:
+      op: gt
+      left: { var: duty.work_minutes }
+      right: { value: 360 }
+    template:
+      type: break
+      params:
+        durationMinutes: 30
+        maxShiftMinutes: 15
+  - id: duty-personnel
+    description: Dienstaufbau fuer Personal (ein Dienst pro Tag).
+    template:
+      type: duty
+      params:
+        ownerGroup: personnel
+        minActivities: 1
+  - id: duty-vehicle
+    description: Dienstaufbau fuer Fahrzeuge (ein Dienst pro Tag).
+    template:
+      type: duty
+      params:
+        ownerGroup: vehicle
+        minActivities: 1

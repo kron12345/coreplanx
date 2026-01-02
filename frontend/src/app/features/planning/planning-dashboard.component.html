@@ -310,6 +310,7 @@
                       <app-gantt
                         [resources]="boardResources(board)"
                         [activities]="boardActivities(board)"
+                        [previewActivities]="solverPreviewActivities()"
                         [pendingActivity]="boardPendingActivity(board)"
                         [syncingActivityIds]="activeSyncingActivityIds()"
                         [timelineRange]="timelineRange()"
@@ -414,6 +415,34 @@
             }
           </mat-chip-set>
 
+          <div class="planning-solver-section">
+            <div class="planning-solver-section__header">
+              <div>
+                <div class="planning-solver-section__title">Solver (Auswahl)</div>
+                <div class="planning-solver-section__subtitle">Nutzt nur die markierten Leistungen.</div>
+              </div>
+            </div>
+            <div class="planning-solver-section__actions">
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="openOptimizerCandidates()"
+                [disabled]="optimizerLoading().candidates"
+              >
+                Kandidaten
+              </button>
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="openOptimizerSolve()"
+                [disabled]="optimizerLoading().solve"
+              >
+                Preview
+              </button>
+            </div>
+          </div>
+
           <div class="planning-side-panels__shift">
             <span>Zeit</span>
             <button mat-stroked-button type="button" (click)="shiftSelectionBy(-30)">-30</button>
@@ -495,6 +524,73 @@
         </div>
       </div>
     }
+    <div class="planning-panel planning-panel--solver" cdkDrag>
+      <div class="planning-panel__header" cdkDragHandle>
+        <div>
+          <div class="planning-panel__title">Solver</div>
+          <div class="planning-panel__subtitle">Auswahl und Auto-Solver</div>
+        </div>
+      </div>
+      <div class="planning-panel__body">
+        <div class="planning-solver__section">
+          <mat-slide-toggle
+            [checked]="autoSolverEnabled()"
+            (change)="setAutoSolverEnabled($event.checked)"
+          >
+            Auto-Solver (±14h)
+          </mat-slide-toggle>
+          <div class="planning-solver__status">
+            <mat-icon [fontIcon]="autoSolverStatusIcon()"></mat-icon>
+            <div>
+              <div class="planning-solver__status-title">{{ autoSolverStatusLabel() }}</div>
+              @if (autoSolverStatus().updatedAt) {
+                <div class="planning-solver__status-time">
+                  {{ formatSolverTimestamp(autoSolverStatus().updatedAt) }}
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        @if (solverPreviewState(); as preview) {
+          <div class="planning-solver__preview">
+            <div class="planning-solver__preview-header">
+              <div class="planning-solver__preview-title">Preview aktiv</div>
+              <div class="planning-solver__preview-subtitle">
+                {{ preview.source === 'auto' ? 'Auto-Solver' : 'Auswahl-Solver' }}
+              </div>
+            </div>
+            <div class="planning-solver__preview-meta">
+              <span>{{ preview.payload.upserts.length }} Einfügungen</span>
+              <span>{{ preview.payload.deletedIds.length }} Löschungen</span>
+              <span>{{ preview.payload.candidatesUsed.length }} Kandidaten</span>
+            </div>
+            @if (preview.window) {
+              <div class="planning-solver__preview-window">
+                Zeitfenster:
+                {{ formatSolverTimestamp(preview.window.start) }} –
+                {{ formatSolverTimestamp(preview.window.end) }}
+              </div>
+            }
+            @if (preview.payload.upserts.length === 0 && preview.payload.deletedIds.length === 0) {
+              <div class="planning-solver__preview-window">Keine Änderungen gefunden.</div>
+            }
+            <div class="planning-panel__actions">
+              <button mat-stroked-button type="button" (click)="discardSolverPreview()">Verwerfen</button>
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="applySolverPreview()"
+                [disabled]="preview.payload.upserts.length === 0 && preview.payload.deletedIds.length === 0"
+              >
+                Übernehmen
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
     @if (selectedActivity(); as selected) {
       <div class="planning-panel planning-panel--form" cdkDrag>
       <div class="planning-panel__header" cdkDragHandle>
@@ -689,7 +785,7 @@
                     />
                   </mat-form-field>
                 }
-                @if (definitionHasField(selectedActivityDefinition(), 'from') && !isLocationFieldHidden(selectedActivityDefinition(), 'from')) {
+                @if (definitionHasField(selectedActivityDefinition(), 'from') && !isLocationFieldHidden(selectedCatalogOption(), 'from')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Von</mat-label>
                     <input matInput formControlName="from" [matAutocomplete]="fromLocationAuto" autocomplete="off" />
@@ -737,7 +833,7 @@
                     }
                   </mat-form-field>
                 }
-                @if (definitionHasField(selectedActivityDefinition(), 'to') && !isLocationFieldHidden(selectedActivityDefinition(), 'to')) {
+                @if (definitionHasField(selectedActivityDefinition(), 'to') && !isLocationFieldHidden(selectedCatalogOption(), 'to')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Nach</mat-label>
                     <input matInput formControlName="to" [matAutocomplete]="toLocationAuto" autocomplete="off" />

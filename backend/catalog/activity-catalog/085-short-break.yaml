@@ -1,30 +1,33 @@
-id: short-break
-label: Kurzpause (Arbeitsunterbrechung)
-description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
-appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-relevantFor:
-  - personnel
-  - vehicle
-  - personnel-service
-  - vehicle-service
-category: service
-timeMode: duration
-fields:
-  - start
-  - end
-  - from
-  - to
-  - remark
-defaultDurationMinutes: 15
-attributes:
-  is_break: true
-  is_short_break: true
-  is_within_service: yes
-  to_hidden: true
-  to_location_mode: previous
-  consider_capacity_conflicts: true
-  color: '#ffe082'
+activities: []
+templates: []
+types:
+  - id: short-break
+    label: Kurzpause (Arbeitsunterbrechung)
+    description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
+    appliesTo:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    relevantFor:
+      - personnel
+      - vehicle
+      - personnel-service
+      - vehicle-service
+    category: service
+    timeMode: duration
+    fields:
+      - start
+      - end
+      - from
+      - to
+      - remark
+    defaultDurationMinutes: 15
+    attributes:
+      is_break: true
+      is_short_break: true
+      is_within_service: yes
+      to_hidden: true
+      to_location_mode: previous
+      consider_capacity_conflicts: true
+      color: '#ffe082'

@@ -4,210 +4,33 @@ import {
   AssistantSystemMessage,
   truncateText,
 } from './assistant-context-budget';
-import { PlanningService } from '../planning/planning.service';
+import { AssistantContextSerializer } from './assistant-context.serializer';
 import type {
-  HomeDepot,
-  OperationalPoint,
-  OpReplacementStopLink,
-  Personnel,
-  PersonnelPool,
-  PersonnelSite,
-  PersonnelService,
-  PersonnelServicePool,
-  ReplacementEdge,
-  ReplacementRoute,
-  ReplacementStop,
-  ResourceSnapshot,
-  SectionOfLine,
-  TemporalValue,
-  TransferEdge,
-  Vehicle,
-  VehicleComposition,
-  VehiclePool,
-  VehicleService,
-  VehicleServicePool,
-  VehicleType,
-} from '../planning/planning.types';
+  AssistantContextQuery,
+  AssistantContextResource,
+  AssistantContextResult,
+} from './assistant-context.types';
+import { RESOURCE_FIELDS, RESOURCE_LABELS } from './assistant-context.resources';
+import { PlanningService } from '../planning/planning.service';
+import type { ResourceSnapshot } from '../planning/planning.types';
 import { SYSTEM_POOL_IDS } from '../planning/planning-master-data.constants';
 import { TimetableYearService } from '../variants/timetable-year.service';
 import type { PlanningVariantRecord } from '../variants/variants.repository';
-
-export type AssistantContextResource =
-  | 'personnelServices'
-  | 'vehicleServices'
-  | 'personnel'
-  | 'vehicles'
-  | 'personnelServicePools'
-  | 'vehicleServicePools'
-  | 'personnelPools'
-  | 'vehiclePools'
-  | 'homeDepots'
-  | 'vehicleTypes'
-  | 'vehicleCompositions'
-  | 'timetableYears'
-  | 'simulations'
-  | 'operationalPoints'
-  | 'sectionsOfLine'
-  | 'personnelSites'
-  | 'replacementStops'
-  | 'replacementRoutes'
-  | 'replacementEdges'
-  | 'opReplacementStopLinks'
-  | 'transferEdges';
-
-export interface AssistantContextQuery {
-  resource: AssistantContextResource;
-  poolName?: string;
-  poolId?: string;
-  timetableYearLabel?: string;
-  search?: string;
-  limit?: number;
-  fields?: string[];
-}
-
-export interface AssistantContextResult {
-  query: AssistantContextQuery;
-  poolLabel?: string;
-  total: number;
-  items: Array<Record<string, unknown>>;
-  truncated: boolean;
-  error?: string;
-}
 
 const CONTEXT_REQUEST_PATTERN = /<CONTEXT_REQUEST>([\s\S]+?)<\/CONTEXT_REQUEST>/i;
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 80;
 
-const RESOURCE_LABELS: Record<AssistantContextResource, string> = {
-  personnelServicePools: 'Personaldienstpools',
-  personnelServices: 'Personaldienste',
-  personnelPools: 'Personalpools',
-  homeDepots: 'Heimdepots',
-  personnel: 'Personal',
-  vehicleServicePools: 'Fahrzeugdienstpools',
-  vehicleServices: 'Fahrzeugdienste',
-  vehiclePools: 'Fahrzeugpools',
-  vehicles: 'Fahrzeuge',
-  vehicleTypes: 'Fahrzeugtypen',
-  vehicleCompositions: 'Fahrzeugkompositionen',
-  timetableYears: 'Fahrplanjahre',
-  simulations: 'Simulationen',
-  operationalPoints: 'Operational Points',
-  sectionsOfLine: 'Sections of Line',
-  personnelSites: 'Personnel Sites',
-  replacementStops: 'Replacement Stops',
-  replacementRoutes: 'Replacement Routes',
-  replacementEdges: 'Replacement Edges',
-  opReplacementStopLinks: 'OP <-> Replacement Links',
-  transferEdges: 'Transfer Edges',
-};
-
-const RESOURCE_FIELDS: Record<AssistantContextResource, string[]> = {
-  personnelServicePools: [
-    'name',
-    'description',
-    'homeDepotId',
-    'serviceCount',
-    'shiftCoordinator',
-    'contactEmail',
-  ],
-  personnelServices: [
-    'name',
-    'startTime',
-    'endTime',
-    'isNightService',
-    'maxDailyInstances',
-    'maxResourcesPerInstance',
-  ],
-  personnelPools: [
-    'name',
-    'description',
-    'homeDepotId',
-    'locationCode',
-    'personnelCount',
-  ],
-  homeDepots: [
-    'name',
-    'description',
-    'siteCount',
-    'breakSiteCount',
-    'shortBreakSiteCount',
-    'overnightSiteCount',
-  ],
-  personnel: ['fullName', 'qualifications', 'serviceCount', 'poolId'],
-  vehicleServicePools: [
-    'name',
-    'description',
-    'dispatcher',
-    'serviceCount',
-  ],
-  vehicleServices: [
-    'name',
-    'startTime',
-    'endTime',
-    'isOvernight',
-    'primaryRoute',
-  ],
-  vehiclePools: [
-    'name',
-    'description',
-    'depotManager',
-    'vehicleCount',
-  ],
-  vehicles: ['vehicleNumber', 'typeId', 'depot', 'serviceCount', 'description', 'poolId'],
-  vehicleTypes: [
-    'label',
-    'category',
-    'capacity',
-    'maxSpeed',
-    'energyType',
-    'manufacturer',
-    'lengthMeters',
-  ],
-  vehicleCompositions: ['name', 'entrySummary', 'entryCount', 'turnaroundBuffer'],
-  timetableYears: ['label', 'simulationCount', 'variantCount'],
-  simulations: ['label', 'timetableYearLabel', 'description'],
-  operationalPoints: ['uniqueOpId', 'name', 'countryCode', 'opType'],
-  sectionsOfLine: [
-    'solId',
-    'startUniqueOpId',
-    'endUniqueOpId',
-    'lengthKm',
-    'nature',
-  ],
-  personnelSites: ['siteId', 'name', 'siteType', 'uniqueOpId'],
-  replacementStops: ['replacementStopId', 'name', 'stopCode', 'nearestUniqueOpId'],
-  replacementRoutes: ['replacementRouteId', 'name', 'operator'],
-  replacementEdges: [
-    'replacementEdgeId',
-    'replacementRouteId',
-    'fromStopId',
-    'toStopId',
-    'seq',
-    'avgDurationSec',
-  ],
-  opReplacementStopLinks: [
-    'linkId',
-    'uniqueOpId',
-    'replacementStopId',
-    'relationType',
-  ],
-  transferEdges: [
-    'transferId',
-    'from',
-    'to',
-    'mode',
-    'avgDurationSec',
-    'bidirectional',
-  ],
-};
-
 @Injectable()
 export class AssistantContextService {
+  private readonly serializer: AssistantContextSerializer;
+
   constructor(
     private readonly planning: PlanningService,
     private readonly timetableYears: TimetableYearService,
-  ) {}
+  ) {
+    this.serializer = new AssistantContextSerializer();
+  }
 
   async prefetch(
     prompt: string,
@@ -803,7 +626,7 @@ export class AssistantContextService {
     const filtered = this.filterEntries(query.resource, entries, query.search);
     const limited = filtered.slice(0, limit);
     const items = limited
-      .map((entry) => this.serializeEntry(query.resource, entry))
+      .map((entry) => this.serializer.serializeEntry(query.resource, entry))
       .map((entry) => this.pickFields(entry, fields))
       .filter((entry) => Object.keys(entry).length > 0);
     const total = filtered.length;
@@ -814,238 +637,6 @@ export class AssistantContextService {
       items,
       truncated: filtered.length > limit,
     };
-  }
-
-  private serializeEntry(
-    resource: AssistantContextResource,
-    entry: unknown,
-  ): Record<string, unknown> {
-    switch (resource) {
-      case 'personnelServicePools': {
-        const pool = entry as PersonnelServicePool;
-        return {
-          name: pool.name,
-          description: pool.description,
-          homeDepotId: pool.homeDepotId ?? undefined,
-          serviceCount: Array.isArray(pool.serviceIds) ? pool.serviceIds.length : undefined,
-          shiftCoordinator: pool.shiftCoordinator ?? undefined,
-          contactEmail: pool.contactEmail ?? undefined,
-        };
-      }
-      case 'personnelServices': {
-        const service = entry as PersonnelService;
-        return {
-          name: service.name,
-          startTime: service.startTime,
-          endTime: service.endTime,
-          isNightService: service.isNightService,
-          maxDailyInstances: service.maxDailyInstances,
-          maxResourcesPerInstance: service.maxResourcesPerInstance,
-        };
-      }
-      case 'personnelPools': {
-        const pool = entry as PersonnelPool;
-        return {
-          name: pool.name,
-          description: pool.description,
-          homeDepotId: pool.homeDepotId ?? undefined,
-          locationCode: pool.locationCode ?? undefined,
-          personnelCount: Array.isArray(pool.personnelIds) ? pool.personnelIds.length : undefined,
-        };
-      }
-      case 'homeDepots': {
-        const depot = entry as HomeDepot;
-        return {
-          name: depot.name,
-          description: depot.description,
-          siteCount: Array.isArray(depot.siteIds) ? depot.siteIds.length : undefined,
-          breakSiteCount: Array.isArray(depot.breakSiteIds) ? depot.breakSiteIds.length : undefined,
-          shortBreakSiteCount: Array.isArray(depot.shortBreakSiteIds)
-            ? depot.shortBreakSiteIds.length
-            : undefined,
-          overnightSiteCount: Array.isArray(depot.overnightSiteIds)
-            ? depot.overnightSiteIds.length
-            : undefined,
-        };
-      }
-      case 'vehicleServices': {
-        const service = entry as VehicleService;
-        return {
-          name: service.name,
-          startTime: service.startTime,
-          endTime: service.endTime,
-          isOvernight: service.isOvernight,
-          primaryRoute: service.primaryRoute,
-        };
-      }
-      case 'vehicleServicePools': {
-        const pool = entry as VehicleServicePool;
-        return {
-          name: pool.name,
-          description: pool.description,
-          dispatcher: pool.dispatcher ?? undefined,
-          serviceCount: Array.isArray(pool.serviceIds) ? pool.serviceIds.length : undefined,
-        };
-      }
-      case 'vehiclePools': {
-        const pool = entry as VehiclePool;
-        return {
-          name: pool.name,
-          description: pool.description,
-          depotManager: pool.depotManager ?? undefined,
-          vehicleCount: Array.isArray(pool.vehicleIds) ? pool.vehicleIds.length : undefined,
-        };
-      }
-      case 'personnel': {
-        const person = entry as Personnel;
-        const firstName = this.resolveTemporalString(person.firstName);
-        const lastName = person.lastName ?? '';
-        const fullName =
-          this.cleanText([firstName, lastName].filter(Boolean).join(' ')) ??
-          this.cleanText(person.name) ??
-          person.id;
-        return {
-          fullName,
-          qualifications: person.qualifications,
-          serviceCount: Array.isArray(person.serviceIds) ? person.serviceIds.length : undefined,
-          poolId: person.poolId ?? undefined,
-        };
-      }
-      case 'vehicles': {
-        const vehicle = entry as Vehicle;
-        return {
-          vehicleNumber: this.cleanText(vehicle.vehicleNumber ?? vehicle.name) ?? vehicle.id,
-          typeId: vehicle.typeId ?? undefined,
-          depot: vehicle.depot ?? undefined,
-          description: vehicle.description,
-          serviceCount: Array.isArray(vehicle.serviceIds) ? vehicle.serviceIds.length : undefined,
-          poolId: vehicle.poolId ?? undefined,
-        };
-      }
-      case 'vehicleTypes': {
-        const type = entry as VehicleType;
-        return {
-          label: type.label,
-          category: type.category ?? undefined,
-          capacity: type.capacity ?? undefined,
-          maxSpeed: type.maxSpeed ?? undefined,
-          energyType: type.energyType ?? undefined,
-          manufacturer: type.manufacturer ?? undefined,
-          lengthMeters: type.lengthMeters ?? undefined,
-        };
-      }
-      case 'vehicleCompositions': {
-        const composition = entry as VehicleComposition;
-        const entries = composition.entries ?? [];
-        const entrySummary = entries
-          .map((item) => `${item.typeId}x${item.quantity}`)
-          .join(', ');
-        return {
-          name: composition.name,
-          entrySummary: entrySummary || undefined,
-          entryCount: entries.length || undefined,
-          turnaroundBuffer: composition.turnaroundBuffer ?? undefined,
-        };
-      }
-      case 'timetableYears': {
-        const record = entry as {
-          label?: string;
-          simulationCount?: number;
-          variantCount?: number;
-        };
-        return {
-          label: record.label,
-          simulationCount: record.simulationCount ?? undefined,
-          variantCount: record.variantCount ?? undefined,
-        };
-      }
-      case 'simulations': {
-        const simulation = entry as PlanningVariantRecord;
-        return {
-          label: simulation.label,
-          timetableYearLabel: simulation.timetableYearLabel,
-          description: simulation.description ?? undefined,
-        };
-      }
-      case 'operationalPoints': {
-        const point = entry as OperationalPoint;
-        return {
-          uniqueOpId: point.uniqueOpId,
-          name: point.name,
-          countryCode: point.countryCode,
-          opType: point.opType,
-        };
-      }
-      case 'sectionsOfLine': {
-        const section = entry as SectionOfLine;
-        return {
-          solId: section.solId,
-          startUniqueOpId: section.startUniqueOpId,
-          endUniqueOpId: section.endUniqueOpId,
-          lengthKm: section.lengthKm ?? undefined,
-          nature: section.nature,
-        };
-      }
-      case 'personnelSites': {
-        const site = entry as PersonnelSite;
-        return {
-          siteId: site.siteId,
-          name: site.name,
-          siteType: site.siteType,
-          uniqueOpId: site.uniqueOpId ?? undefined,
-        };
-      }
-      case 'replacementStops': {
-        const stop = entry as ReplacementStop;
-        return {
-          replacementStopId: stop.replacementStopId,
-          name: stop.name,
-          stopCode: stop.stopCode ?? undefined,
-          nearestUniqueOpId: stop.nearestUniqueOpId ?? undefined,
-        };
-      }
-      case 'replacementRoutes': {
-        const route = entry as ReplacementRoute;
-        return {
-          replacementRouteId: route.replacementRouteId,
-          name: route.name,
-          operator: route.operator ?? undefined,
-        };
-      }
-      case 'replacementEdges': {
-        const edge = entry as ReplacementEdge;
-        return {
-          replacementEdgeId: edge.replacementEdgeId,
-          replacementRouteId: edge.replacementRouteId,
-          fromStopId: edge.fromStopId,
-          toStopId: edge.toStopId,
-          seq: edge.seq,
-          avgDurationSec: edge.avgDurationSec ?? undefined,
-        };
-      }
-      case 'opReplacementStopLinks': {
-        const link = entry as OpReplacementStopLink;
-        return {
-          linkId: link.linkId,
-          uniqueOpId: link.uniqueOpId,
-          replacementStopId: link.replacementStopId,
-          relationType: link.relationType,
-        };
-      }
-      case 'transferEdges': {
-        const edge = entry as TransferEdge;
-        return {
-          transferId: edge.transferId,
-          from: this.formatTransferNode(edge.from),
-          to: this.formatTransferNode(edge.to),
-          mode: edge.mode,
-          avgDurationSec: edge.avgDurationSec ?? undefined,
-          bidirectional: edge.bidirectional,
-        };
-      }
-      default:
-        return {};
-    }
   }
 
   private pickFields(
@@ -1151,7 +742,7 @@ export class AssistantContextService {
     entry: unknown,
     needle: string,
   ): boolean {
-    const serialized = this.serializeEntry(resource, entry);
+    const serialized = this.serializer.serializeEntry(resource, entry);
     const haystack = Object.values(serialized)
       .map((value) => {
         if (value === null || value === undefined) {
@@ -1197,16 +788,6 @@ export class AssistantContextService {
     }
   }
 
-  private formatTransferNode(node: TransferEdge['from']): string {
-    if (node.kind === 'OP') {
-      return `OP:${node.uniqueOpId}`;
-    }
-    if (node.kind === 'PERSONNEL_SITE') {
-      return `SITE:${node.siteId}`;
-    }
-    return `STOP:${node.replacementStopId}`;
-  }
-
   private groupVariantsByYear(
     variants: PlanningVariantRecord[],
   ): Map<string, { total: number; simulations: number }> {
@@ -1238,26 +819,6 @@ export class AssistantContextService {
 
   private normalizeKey(value: string): string {
     return value.trim().toLowerCase().replace(/\s+/g, ' ');
-  }
-
-  private resolveTemporalString(
-    value?: string | TemporalValue<string>[],
-  ): string | undefined {
-    if (!value) {
-      return undefined;
-    }
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (!Array.isArray(value)) {
-      return undefined;
-    }
-    for (const entry of value) {
-      if (entry && typeof entry.value === 'string') {
-        return entry.value;
-      }
-    }
-    return undefined;
   }
 
   private cleanText(value: unknown): string | undefined {

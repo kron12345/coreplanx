@@ -130,6 +130,22 @@ export class ActivityCatalogSettingsComponent {
       'field:from': { datatype: 'string', oncreate: 'edit', onupdate: 'edit' },
       'field:to': { datatype: 'string', oncreate: 'edit', onupdate: 'edit' },
       'field:remark': { datatype: 'string', oncreate: 'edit', onupdate: 'edit' },
+      from_hidden: { datatype: 'boolean', value: 'false' },
+      to_hidden: { datatype: 'boolean', value: 'false' },
+      from_location_mode: {
+        datatype: 'enum',
+        options: 'fix,previous,next',
+        value: 'fix',
+        oncreate: 'edit',
+        onupdate: 'edit',
+      },
+      to_location_mode: {
+        datatype: 'enum',
+        options: 'fix,previous,next',
+        value: 'fix',
+        oncreate: 'edit',
+        onupdate: 'edit',
+      },
       color: { datatype: 'color', value: '#1976d2' },
       consider_capacity_conflicts: { datatype: 'boolean', value: 'true' },
       consider_location_conflicts: { datatype: 'boolean', value: 'true' },
@@ -306,11 +322,12 @@ export class ActivityCatalogSettingsComponent {
     }
   }
 
-  protected resetToDefaults(): void {
+  protected async resetToDefaults(): Promise<void> {
     if (!this.confirmFactoryReset('Activity-Katalog')) {
       return;
     }
-    this.catalog.resetToDefaults();
+    await this.catalog.resetToDefaults();
+    await Promise.all([this.activityTypes.refresh(), this.layerGroups.refresh()]);
     this.cancelTemplateEdit();
     this.cancelActivityEdit();
   }

@@ -168,11 +168,11 @@ export class AttributeDefinitionEditorComponent implements OnDestroy {
     }
   }
 
-  protected resetToDefaults(): void {
+  protected async resetToDefaults(): Promise<void> {
     if (!this.confirmFactoryReset('Attribut-Editor')) {
       return;
     }
-    this.customAttributes.resetToDefaults();
+    await this.customAttributes.resetToDefaults();
     this.cancelEdit();
     this.newAttributeForm.reset(ATTRIBUTE_FORM_DEFAULTS);
   }

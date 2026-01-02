@@ -10,6 +10,7 @@
         "run",
         "start:debug"
       ],
+      "preLaunchTask": "solver: start",
       "cwd": "${workspaceFolder}/backend",
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
@@ -18,7 +19,9 @@
         "<node_internals>/**"
       ],
       "env": {
-        "NODE_ENV": "development"
+        "NODE_ENV": "development",
+        "PLANNING_SOLVER_URL": "http://localhost:8099",
+        "PLANNING_SOLVER_MODE": "python"
       }
     },
     {

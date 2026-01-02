@@ -30,6 +30,7 @@ export class AssistantCommandComponent {
   readonly draft = signal('');
   readonly panelOpen = signal(false);
   readonly panelMode = signal<'chat' | 'help'>('chat');
+  readonly clarificationDraft = signal('');
 
   readonly messageContainer = viewChild<ElementRef<HTMLDivElement>>('messageContainer');
 
@@ -66,6 +67,11 @@ export class AssistantCommandComponent {
         this.actions.isLoading();
         this.actions.isCommitting();
         this.actions.isResolving();
+        const clarificationId = this.actions.preview()?.clarification?.resolutionId ?? null;
+        if (clarificationId !== this.lastClarificationId) {
+          this.lastClarificationId = clarificationId;
+          this.clarificationDraft.set('');
+        }
       } else {
         this.help.response();
         this.help.isLoading();
@@ -173,6 +179,22 @@ export class AssistantCommandComponent {
     return this.actions.error() ?? this.chat.error();
   }
 
+  updateClarificationDraft(event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    this.clarificationDraft.set(target?.value ?? '');
+  }
+
+  async resolveClarificationInput(): Promise<void> {
+    const clarification = this.actions.preview()?.clarification;
+    const value = this.clarificationDraft().trim();
+    if (!clarification?.resolutionId || !value) {
+      return;
+    }
+    await this.actions.resolveClarification(clarification.resolutionId, value);
+    this.clarificationDraft.set('');
+    this.scrollToBottom();
+  }
+
   private scrollToBottom(): void {
     const container = this.messageContainer()?.nativeElement;
     if (!container) {
@@ -180,4 +202,6 @@ export class AssistantCommandComponent {
     }
     container.scrollTop = container.scrollHeight;
   }
+
+  private lastClarificationId: string | null = null;
 }

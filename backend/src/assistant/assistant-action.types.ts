@@ -1,4 +1,9 @@
 import type {
+  ActivityDefinition,
+  ActivityTemplate,
+  ActivityTypeDefinition,
+  CustomAttributeState,
+  LayerGroup,
   OperationalPoint,
   OpReplacementStopLink,
   PersonnelSite,
@@ -9,7 +14,16 @@ import type {
   TransferEdge,
 } from '../planning/planning.types';
 
-export type AssistantActionRefreshHint = 'topology' | 'simulations' | 'timetable-years';
+export type AssistantActionRefreshHint =
+  | 'topology'
+  | 'simulations'
+  | 'timetable-years'
+  | 'activity-types'
+  | 'activity-templates'
+  | 'activity-definitions'
+  | 'layer-groups'
+  | 'translations'
+  | 'custom-attributes';
 
 export type AssistantActionTopologyScope =
   | 'operationalPoints'
@@ -50,4 +64,30 @@ export type AssistantActionCommitTask =
         | OpReplacementStopLink
         | TransferEdge
       >;
+    }
+  | {
+      type: 'activityTypes';
+      items: ActivityTypeDefinition[];
+    }
+  | {
+      type: 'activityTemplates';
+      items: ActivityTemplate[];
+    }
+  | {
+      type: 'activityDefinitions';
+      items: ActivityDefinition[];
+    }
+  | {
+      type: 'layerGroups';
+      items: LayerGroup[];
+    }
+  | {
+      type: 'translations';
+      action: 'replace-locale' | 'delete-locale';
+      locale: string;
+      entries?: Record<string, { label?: string | null; abbreviation?: string | null }>;
+    }
+  | {
+      type: 'customAttributes';
+      items: CustomAttributeState;
     };

@@ -3,6 +3,7 @@ import type {
   ActivityDefinition,
   ActivityTemplate,
   ActivityTypeDefinition,
+  CustomAttributeState,
   LayerGroup,
   OperationalPoint,
   OpReplacementStopLink,
@@ -71,4 +72,5 @@ export interface ActivityCatalogData {
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];
   translations: TranslationState;
+  customAttributes: CustomAttributeState;
 }

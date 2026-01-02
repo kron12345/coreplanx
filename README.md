@@ -48,9 +48,13 @@ npm start
 - Backend: `npm test`, `npm run test:e2e`
 
 ## Nützliche VS Code-Konfiguration
-- Launch-Compound „Start frontend + backend“ in `.vscode/launch.json`.
-- Tasks `frontend: start` und `backend: start:debug` in `.vscode/tasks.json`.
-- Empfohlene Extensions/Settings: Angular Language Service, ESLint, Prettier, Thunder Client; TypeScript-SDK aus `frontend/node_modules/typescript` (siehe `.vscode/settings.json`).
+- Die `.vscode`-Dateien sind bewusst Teil des Repos, damit alle die gleichen Start-/Stop- und Setup-Tasks finden.
+- Launch-Compound „Start frontend + backend“ in `.vscode/launch.json` (inkl. Solver-Start).
+- Tasks in `.vscode/tasks.json`:
+  - `setup: all` (npm + Solver-Venv)
+  - `build: all`, `test: all`
+  - `solver: start`, `backend: start:debug`, `frontend: start`, `stop: all`
+- Empfohlene Extensions/Settings: Angular Language Service, ESLint, Prettier, Python/Pylance (siehe `.vscode/extensions.json`, `.vscode/settings.json`).
 
 ## Lizenz
 GPLv3 – siehe `LICENSE`.

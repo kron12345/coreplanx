@@ -47,6 +47,12 @@ paths:
     $ref: './planning/paths/stages.yaml#/planning_stages_stageId_activities_validate'
   /planning/stages/{stageId}/events:
     $ref: './planning/paths/stages.yaml#/planning_stages_stageId_events'
+  /planning/stages/{stageId}/autopilot/preview:
+    $ref: './planning/paths/optimizer.yaml#/planning_stages_stageId_autopilot_preview'
+  /planning/stages/{stageId}/optimizer/candidates:
+    $ref: './planning/paths/optimizer.yaml#/planning_stages_stageId_optimizer_candidates'
+  /planning/stages/{stageId}/optimizer/solve:
+    $ref: './planning/paths/optimizer.yaml#/planning_stages_stageId_optimizer_solve'
   /planning/master-data/personnel-service-pools:
     $ref: './planning/paths/master-data.yaml#/planning_master_data_personnel_service_pools'
   /planning/master-data/personnel-pools:
@@ -79,38 +85,15 @@ paths:
     $ref: './planning/paths/topology.yaml#/planning_topology_transfer_edges'
   /planning/topology/import:
     $ref: './planning/paths/topology.yaml#/planning_topology_import'
-  /activity-catalog:
-    get:
-      summary: List activity catalog entries
-      tags: [activity-catalog]
-      responses:
-        '200':
-          description: Catalog entries
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ActivityCatalogEntry'
-    put:
-      summary: Replace the entire activity catalog
-      tags: [activity-catalog]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/ActivityCatalogEntry'
-      responses:
-        '204':
-          description: Catalog replaced
   /planning/topology/import/events:
     $ref: './planning/paths/topology.yaml#/planning_topology_import_events'
   # Catalog (Activity Types, Templates, Definitions, Layers, Translations)
   /planning/catalog:
     $ref: './planning/paths/catalog.yaml#/planning_catalog_snapshot'
+  /planning/catalog/defaults:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_defaults'
+  /planning/catalog/reset:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_reset'
   /planning/catalog/types:
     $ref: './planning/paths/catalog.yaml#/planning_catalog_types'
   /planning/catalog/types/{typeId}:
@@ -131,6 +114,20 @@ paths:
     $ref: './planning/paths/catalog.yaml#/planning_catalog_translations'
   /planning/catalog/translations/{locale}:
     $ref: './planning/paths/catalog.yaml#/planning_catalog_translations_locale'
+  /planning/catalog/custom-attributes:
+    $ref: './planning/paths/catalog.yaml#/planning_catalog_custom_attributes'
+  /planning/rulesets:
+    $ref: './planning/paths/rulesets.yaml#/planning_rulesets'
+  /planning/rulesets/{rulesetId}/versions:
+    $ref: './planning/paths/rulesets.yaml#/planning_rulesets_rulesetId_versions'
+  /planning/rulesets/{rulesetId}/{version}:
+    $ref: './planning/paths/rulesets.yaml#/planning_rulesets_rulesetId_version'
+  /planning/rulesets/{rulesetId}/{version}/ir:
+    $ref: './planning/paths/rulesets.yaml#/planning_rulesets_rulesetId_version_ir'
+  /planning/rulesets/validate:
+    $ref: './planning/paths/rulesets.yaml#/planning_rulesets_validate'
+  /planning/rulesets/preview:
+    $ref: './planning/paths/rulesets.yaml#/planning_rulesets_preview'
   /planning/resources:
     get:
       summary: Gebündelte Ressourcen für die Plantafel abrufen

@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type {
   Activity,
   ActivityAttributes,
   ActivityParticipant,
+  ActivityTypeDefinition,
   HomeDepot,
   OperationalPoint,
   Personnel,
@@ -16,7 +17,11 @@ import type {
 } from './planning.types';
 import { PlanningMasterDataService } from './planning-master-data.service';
 import { PlanningRuleService } from './planning-rule.service';
+import type { DutyAutopilotConfig } from './planning-rule.service';
+import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { deriveTimetableYearLabelFromVariantId } from '../shared/variant-scope';
+import { PlanningRulesetService } from './planning-ruleset.service';
+import type { RulesetIR } from './planning-ruleset.types';
 
 export interface DutyAutopilotResult {
   upserts: Activity[];
@@ -88,11 +93,35 @@ type PlannedPause = {
   breakEndMs: number;
 };
 
+type DutyOwnerGroup = 'personnel' | 'vehicle';
+
+type ResolvedAutopilotTypeIndex = {
+  startTypeIdByOwnerGroup: Record<DutyOwnerGroup, string>;
+  endTypeIdByOwnerGroup: Record<DutyOwnerGroup, string>;
+  startTypeIds: Set<string>;
+  endTypeIds: Set<string>;
+  boundaryTypeIds: Set<string>;
+  breakTypeIds: string[];
+  shortBreakTypeId: string;
+  commuteTypeId: string;
+};
+
+type ResolvedDutyAutopilotConfig = DutyAutopilotConfig & {
+  resolvedTypeIds: ResolvedAutopilotTypeIndex;
+  resolvedRuleset?: RulesetIR | null;
+  resolvedRulesetId?: string;
+  resolvedRulesetVersion?: string;
+};
+
 @Injectable()
 export class DutyAutopilotService {
+  private readonly logger = new Logger(DutyAutopilotService.name);
+
   constructor(
     private readonly rules: PlanningRuleService,
     private readonly masterData: PlanningMasterDataService,
+    private readonly activityCatalog: PlanningActivityCatalogService,
+    private readonly rulesets: PlanningRulesetService,
   ) {}
 
   async apply(stageId: StageId, variantId: string, activities: Activity[]): Promise<DutyAutopilotResult> {
@@ -104,6 +133,7 @@ export class DutyAutopilotService {
       return { upserts: [], deletedIds: [], touchedIds: [] };
     }
 
+    const resolvedConfig = this.resolveAutopilotConfig(config);
     const masterDataContext = this.buildMasterDataContext();
 
     const byId = new Map<string, Activity>(activities.map((a) => [a.id, a]));
@@ -125,14 +155,14 @@ export class DutyAutopilotService {
       touched.add(normalized.id);
     }
 
-    const groups = this.groupActivities(stageId, Array.from(byId.values()), config);
+    const groups = this.groupActivities(stageId, Array.from(byId.values()), resolvedConfig);
 
     for (const group of groups) {
       const hydratedGroup: DutyActivityGroup = {
         ...group,
         activities: group.activities.map((activity) => byId.get(activity.id) ?? activity),
       };
-      const result = this.autoframeDuty(stageId, hydratedGroup, config, masterDataContext);
+      const result = this.autoframeDuty(stageId, hydratedGroup, resolvedConfig, masterDataContext);
       result.upserts.forEach((activity) => {
         byId.set(activity.id, activity);
         upserts.set(activity.id, activity);
@@ -162,7 +192,7 @@ export class DutyAutopilotService {
 
     const deletedSet = new Set(deletedIds);
     const activeActivities = Array.from(byId.values()).filter((activity) => !deletedSet.has(activity.id));
-    const complianceUpserts = this.applyAzgCompliance(stageId, variantId, activeActivities, config);
+    const complianceUpserts = this.applyAzgCompliance(stageId, variantId, activeActivities, resolvedConfig);
     for (const activity of complianceUpserts) {
       if (deletedSet.has(activity.id)) {
         continue;
@@ -175,12 +205,225 @@ export class DutyAutopilotService {
     return { upserts: Array.from(upserts.values()), deletedIds, touchedIds: Array.from(touched) };
   }
 
+  private resolveAutopilotConfig(config: DutyAutopilotConfig): ResolvedDutyAutopilotConfig {
+    const resolvedTypeIds = this.resolveAutopilotTypeIndex(config);
+    const resolvedRuleset = this.resolveRulesetSelection(config);
+    return {
+      ...config,
+      breakTypeIds: resolvedTypeIds.breakTypeIds,
+      shortBreakTypeId: resolvedTypeIds.shortBreakTypeId,
+      commuteTypeId: resolvedTypeIds.commuteTypeId,
+      resolvedTypeIds,
+      ...resolvedRuleset,
+    };
+  }
+
+  private resolveRulesetSelection(config: DutyAutopilotConfig): {
+    resolvedRuleset?: RulesetIR | null;
+    resolvedRulesetId?: string;
+    resolvedRulesetVersion?: string;
+  } {
+    const rawId = (config.rulesetId ?? '').toString().trim();
+    const rawVersion = (config.rulesetVersion ?? '').toString().trim();
+    if (!rawId && !rawVersion) {
+      return {};
+    }
+    if (!rawId) {
+      this.logger.warn('Ruleset version provided without rulesetId. Skipping ruleset selection.');
+      return {};
+    }
+    let version = rawVersion;
+    if (!version) {
+      try {
+        const versions = this.rulesets.listVersions(rawId);
+        version = versions[versions.length - 1] ?? '';
+      } catch (error) {
+        this.logger.warn(
+          `Ruleset ${rawId} could not be listed: ${(error as Error).message ?? String(error)}`,
+        );
+        return { resolvedRulesetId: rawId };
+      }
+    }
+    if (!version) {
+      this.logger.warn(`Ruleset ${rawId} has no usable version. Skipping ruleset selection.`);
+      return { resolvedRulesetId: rawId };
+    }
+    try {
+      const ruleset = this.rulesets.getCompiledRuleset(rawId, version);
+      return {
+        resolvedRuleset: ruleset,
+        resolvedRulesetId: rawId,
+        resolvedRulesetVersion: version,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Ruleset ${rawId}/${version} could not be loaded: ${(error as Error).message ?? String(error)}`,
+      );
+      return {
+        resolvedRuleset: null,
+        resolvedRulesetId: rawId,
+        resolvedRulesetVersion: version,
+      };
+    }
+  }
+
+  private resolveAutopilotTypeIndex(config: DutyAutopilotConfig): ResolvedAutopilotTypeIndex {
+    const types = this.activityCatalog.listActivityTypes();
+    const typeIds = new Set(
+      types.map((type) => `${type?.id ?? ''}`.trim()).filter((id) => id.length > 0),
+    );
+
+    const flags = {
+      serviceStart: [] as string[],
+      serviceEnd: [] as string[],
+      break: [] as string[],
+      shortBreak: [] as string[],
+      commute: [] as string[],
+      vehicleOn: [] as string[],
+      vehicleOff: [] as string[],
+    };
+
+    const toBool = (value: unknown): boolean => {
+      if (typeof value === 'boolean') {
+        return value;
+      }
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+      }
+      if (typeof value === 'number') {
+        return Number.isFinite(value) && value !== 0;
+      }
+      return false;
+    };
+
+    const recordFlag = (list: string[], id: string, value: unknown) => {
+      if (toBool(value)) {
+        list.push(id);
+      }
+    };
+
+    types.forEach((type: ActivityTypeDefinition) => {
+      const id = `${type?.id ?? ''}`.trim();
+      if (!id) {
+        return;
+      }
+      const attrs = (type.attributes ?? {}) as Record<string, unknown>;
+      recordFlag(flags.serviceStart, id, attrs['is_service_start']);
+      recordFlag(flags.serviceEnd, id, attrs['is_service_end']);
+      recordFlag(flags.break, id, attrs['is_break']);
+      recordFlag(flags.shortBreak, id, attrs['is_short_break']);
+      recordFlag(flags.commute, id, attrs['is_commute']);
+      recordFlag(flags.vehicleOn, id, attrs['is_vehicle_on']);
+      recordFlag(flags.vehicleOff, id, attrs['is_vehicle_off']);
+    });
+
+    const pickExisting = (value: string | null | undefined): string | null => {
+      const trimmed = `${value ?? ''}`.trim();
+      if (!trimmed) {
+        return null;
+      }
+      if (!typeIds.size) {
+        return trimmed;
+      }
+      return typeIds.has(trimmed) ? trimmed : null;
+    };
+
+    const pickExistingList = (values: string[] | null | undefined): string[] => {
+      const normalized = (values ?? [])
+        .map((entry) => `${entry ?? ''}`.trim())
+        .filter((entry) => entry.length > 0);
+      if (!typeIds.size) {
+        return normalized;
+      }
+      return normalized.filter((entry) => typeIds.has(entry));
+    };
+
+    const vehicleOnIds = new Set(flags.vehicleOn);
+    const vehicleOffIds = new Set(flags.vehicleOff);
+    const serviceStartCandidates = flags.serviceStart.filter((id) => !vehicleOnIds.has(id));
+    const serviceEndCandidates = flags.serviceEnd.filter((id) => !vehicleOffIds.has(id));
+
+    const fallbackStart = pickExisting(config.serviceStartTypeId) ?? serviceStartCandidates[0] ?? flags.serviceStart[0];
+    const fallbackEnd = pickExisting(config.serviceEndTypeId) ?? serviceEndCandidates[0] ?? flags.serviceEnd[0];
+
+    const personnelStart =
+      pickExisting(config.personnelStartTypeId) ??
+      pickExisting(config.serviceStartTypeId) ??
+      serviceStartCandidates[0] ??
+      flags.serviceStart[0] ??
+      config.serviceStartTypeId;
+    const personnelEnd =
+      pickExisting(config.personnelEndTypeId) ??
+      pickExisting(config.serviceEndTypeId) ??
+      serviceEndCandidates[0] ??
+      flags.serviceEnd[0] ??
+      config.serviceEndTypeId;
+
+    const vehicleStart =
+      pickExisting(config.vehicleStartTypeId) ??
+      flags.vehicleOn[0] ??
+      fallbackStart ??
+      config.serviceStartTypeId;
+    const vehicleEnd =
+      pickExisting(config.vehicleEndTypeId) ??
+      flags.vehicleOff[0] ??
+      fallbackEnd ??
+      config.serviceEndTypeId;
+
+    const shortBreakTypeId =
+      pickExisting(config.shortBreakTypeId) ??
+      flags.shortBreak[0] ??
+      config.shortBreakTypeId ??
+      'short-break';
+
+    const breakTypeIdsRaw = pickExistingList(config.breakTypeIds);
+    const breakCandidates = flags.break.filter((id) => id !== shortBreakTypeId);
+    const breakTypeIds =
+      breakTypeIdsRaw.length > 0
+        ? breakTypeIdsRaw
+        : breakCandidates.length > 0
+          ? breakCandidates
+          : shortBreakTypeId
+            ? [shortBreakTypeId]
+            : ['break'];
+
+    const commuteTypeId =
+      pickExisting(config.commuteTypeId) ??
+      flags.commute[0] ??
+      config.commuteTypeId ??
+      'commute';
+
+    const startTypeIds = new Set([personnelStart, vehicleStart].filter((id) => id));
+    const endTypeIds = new Set([personnelEnd, vehicleEnd].filter((id) => id));
+    const boundaryTypeIds = new Set([...startTypeIds, ...endTypeIds]);
+
+    return {
+      startTypeIdByOwnerGroup: { personnel: personnelStart, vehicle: vehicleStart },
+      endTypeIdByOwnerGroup: { personnel: personnelEnd, vehicle: vehicleEnd },
+      startTypeIds,
+      endTypeIds,
+      boundaryTypeIds,
+      breakTypeIds,
+      shortBreakTypeId,
+      commuteTypeId,
+    };
+  }
+
+  private resolveOwnerGroup(kind: ActivityParticipant['kind'] | null | undefined): DutyOwnerGroup {
+    if (kind === 'vehicle' || kind === 'vehicle-service') {
+      return 'vehicle';
+    }
+    return 'personnel';
+  }
+
   private groupActivities(
     stageId: StageId,
     activities: Activity[],
-    config: NonNullable<Awaited<ReturnType<PlanningRuleService['getDutyAutopilotConfig']>>>,
+    config: ResolvedDutyAutopilotConfig,
   ): DutyActivityGroup[] {
     const breakTypeIds = config.breakTypeIds;
+    const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
     const byOwner = new Map<string, { owner: ActivityParticipant; activities: Activity[] }>();
 
     const isBoundary = (activity: Activity) => {
@@ -188,8 +431,7 @@ export class DutyAutopilotService {
       return (
         role === 'start' ||
         role === 'end' ||
-        activity.type === config.serviceStartTypeId ||
-        activity.type === config.serviceEndTypeId
+        boundaryTypeIds.has((activity.type ?? '').trim())
       );
     };
 
@@ -318,7 +560,7 @@ export class DutyAutopilotService {
   private autoframeDuty(
     stageId: StageId,
     group: DutyActivityGroup,
-    config: Awaited<ReturnType<PlanningRuleService['getDutyAutopilotConfig']>>,
+    config: ResolvedDutyAutopilotConfig,
     context: MasterDataContext,
   ): { upserts: Activity[]; deletedIds: string[]; managedIds: string[] } {
     if (!config) {
@@ -328,6 +570,7 @@ export class DutyAutopilotService {
     const owner = group.owner;
     const ownerId = owner.resourceId;
 
+    const typeIndex = config.resolvedTypeIds;
     const breakTypeIds = config.breakTypeIds;
     const shortBreakTypeId = config.shortBreakTypeId || 'short-break';
     const commuteTypeId = config.commuteTypeId || 'commute';
@@ -342,8 +585,7 @@ export class DutyAutopilotService {
       return (
         role === 'start' ||
         role === 'end' ||
-        a.type === config.serviceStartTypeId ||
-        a.type === config.serviceEndTypeId
+        typeIndex.boundaryTypeIds.has((a.type ?? '').trim())
       );
     };
 
@@ -365,10 +607,14 @@ export class DutyAutopilotService {
     const dutyEndMs = payloadIntervals.maxEndMs;
 
     const startCandidates = dutyActivities.filter(
-      (a) => this.resolveServiceRole(a) === 'start' || a.type === config.serviceStartTypeId,
+      (a) =>
+        this.resolveServiceRole(a) === 'start' ||
+        typeIndex.startTypeIds.has((a.type ?? '').trim()),
     );
     const endCandidates = dutyActivities.filter(
-      (a) => this.resolveServiceRole(a) === 'end' || a.type === config.serviceEndTypeId,
+      (a) =>
+        this.resolveServiceRole(a) === 'end' ||
+        typeIndex.endTypeIds.has((a.type ?? '').trim()),
     );
     const startId = `svcstart:${serviceId}`;
     const endId = `svcend:${serviceId}`;
@@ -504,10 +750,14 @@ export class DutyAutopilotService {
     const framedStartMs = boundaryStartMs;
     const framedEndMs = boundaryEndMs;
 
+    const ownerGroup = this.resolveOwnerGroup(owner.kind);
+    const startTypeId = typeIndex.startTypeIdByOwnerGroup[ownerGroup];
+    const endTypeId = typeIndex.endTypeIdByOwnerGroup[ownerGroup];
+
     let serviceStart: Activity = this.buildBoundaryActivity({
       id: startId,
       title: existingStart?.title ?? 'Dienstanfang',
-      type: config.serviceStartTypeId,
+      type: startTypeId,
       role: 'start',
       startMs: boundaryStartMs,
       owner,
@@ -520,7 +770,7 @@ export class DutyAutopilotService {
     let serviceEnd: Activity = this.buildBoundaryActivity({
       id: endId,
       title: existingEnd?.title ?? 'Dienstende',
-      type: config.serviceEndTypeId,
+      type: endTypeId,
       role: 'end',
       startMs: boundaryEndMs,
       owner,
@@ -2194,7 +2444,7 @@ export class DutyAutopilotService {
     stageId: StageId,
     variantId: string,
     activities: Activity[],
-    config: NonNullable<Awaited<ReturnType<PlanningRuleService['getDutyAutopilotConfig']>>>,
+    config: ResolvedDutyAutopilotConfig,
   ): Activity[] {
     if (!config.azg?.enabled) {
       return [];
@@ -2211,13 +2461,13 @@ export class DutyAutopilotService {
     const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
     const updated = new Map<string, Activity>();
 
+    const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
     const isBoundary = (activity: Activity) => {
       const role = this.resolveServiceRole(activity);
       return (
         role === 'start' ||
         role === 'end' ||
-        activity.type === config.serviceStartTypeId ||
-        activity.type === config.serviceEndTypeId
+        boundaryTypeIds.has((activity.type ?? '').trim())
       );
     };
 

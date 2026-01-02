@@ -1,22 +1,25 @@
-id: vacation
-label: Ferien
-description: Urlaubszeitraum für Personalressourcen.
-appliesTo:
-  - personnel
-  - personnel-service
-relevantFor:
-  - personnel
-  - personnel-service
-category: rest
-timeMode: range
-fields:
-  - start
-  - end
-  - remark
-defaultDurationMinutes: 1440
-attributes:
-  is_within_service: no
-  is_absence: true
-  consider_capacity_conflicts: false
-  consider_location_conflicts: false
-  color: '#6d4c41'
+activities: []
+templates: []
+types:
+  - id: vacation
+    label: Ferien
+    description: Urlaubszeitraum für Personalressourcen.
+    appliesTo:
+      - personnel
+      - personnel-service
+    relevantFor:
+      - personnel
+      - personnel-service
+    category: rest
+    timeMode: range
+    fields:
+      - start
+      - end
+      - remark
+    defaultDurationMinutes: 1440
+    attributes:
+      is_within_service: no
+      is_absence: true
+      consider_capacity_conflicts: false
+      consider_location_conflicts: false
+      color: '#6d4c41'

@@ -408,6 +408,18 @@
   height: 24px;
 }
 
+.gantt-activity--preview-overlay {
+  pointer-events: none;
+  opacity: 0.45;
+  border-style: dashed;
+  border-width: 2px;
+  box-shadow: none;
+}
+
+.gantt-activity--preview-overlay .gantt-activity__content {
+  opacity: 0.85;
+}
+
 .cdk-drag-preview.gantt-activity {
   position: fixed !important;
   top: var(--drag-start-top, 0px) !important;

@@ -1,4 +1,5 @@
-import { Injectable, Signal, computed, signal } from '@angular/core';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { PlanningCatalogApiService } from '../api/planning-catalog-api.service';
 
 export interface LayerGroup {
   id: string;
@@ -7,16 +8,11 @@ export interface LayerGroup {
   description?: string;
 }
 
-const STORAGE_KEY = 'activity-layer-groups.v1';
-const DEFAULT_GROUPS: LayerGroup[] = [
-  { id: 'background', label: 'Hintergrund', order: 10, description: 'Flächige Hintergründe' },
-  { id: 'default', label: 'Standard', order: 50, description: 'Normale Activities' },
-  { id: 'marker', label: 'Marker', order: 90, description: 'Marker/Overlay' },
-];
-
 @Injectable({ providedIn: 'root' })
 export class LayerGroupService {
+  private readonly api = inject(PlanningCatalogApiService);
   private readonly groupsState = signal<Record<string, LayerGroup>>({});
+  private loadingPromise: Promise<void> | null = null;
 
   readonly groups: Signal<LayerGroup[]> = computed(() =>
     Object.values(this.groupsState())
@@ -24,8 +20,54 @@ export class LayerGroupService {
   );
 
   constructor() {
-    this.load();
-    this.ensureDefaults();
+    void this.init();
+  }
+
+  async init(): Promise<void> {
+    await this.loadFromApi();
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loadingPromise) {
+      const pending = this.loadingPromise;
+      await pending;
+      if (!force) {
+        return;
+      }
+    }
+    this.loadingPromise = (async () => {
+      try {
+        const list = await this.api.listLayerGroups();
+        if (list && list.length) {
+          const next: Record<string, LayerGroup> = {};
+          list.forEach((group) => {
+            if (!group?.id) {
+              return;
+            }
+            next[group.id] = {
+              id: group.id,
+              label: group.label,
+              order: group.order ?? 50,
+              description: group.description ?? undefined,
+            };
+          });
+          this.groupsState.set(next);
+          return;
+        }
+        this.groupsState.set({});
+      } catch {
+        if (!Object.keys(this.groupsState()).length) {
+          this.groupsState.set({});
+        }
+      } finally {
+        this.loadingPromise = null;
+      }
+    })();
+    await this.loadingPromise;
   }
 
   getById(id: string | null | undefined): LayerGroup | null {
@@ -48,9 +90,9 @@ export class LayerGroupService {
     };
     this.groupsState.update((current) => {
       const next = { ...current, [id]: nextGroup };
-      this.persist(next);
       return next;
     });
+    void this.persistGroups();
   }
 
   update(id: string, patch: Partial<LayerGroup>): void {
@@ -66,21 +108,18 @@ export class LayerGroupService {
         order: Number.isFinite(patch.order) ? (patch.order as number) : existing.order,
       };
       const state = { ...current, [id]: next };
-      this.persist(state);
       return state;
     });
+    void this.persistGroups();
   }
 
   remove(id: string): void {
-    if (DEFAULT_GROUPS.some((g) => g.id === id)) {
-      return;
-    }
     this.groupsState.update((current) => {
       const next = { ...current };
       delete next[id];
-      this.persist(next);
       return next;
     });
+    void this.persistGroups();
   }
 
   move(id: string, direction: 'up' | 'down'): void {
@@ -100,27 +139,29 @@ export class LayerGroupService {
     const nextState: Record<string, LayerGroup> = {};
     swapped.forEach((g) => (nextState[g.id] = g));
     this.groupsState.set(nextState);
-    this.persist(nextState);
+    void this.persistGroups();
   }
 
-  resetToDefaults(): void {
-    const next: Record<string, LayerGroup> = {};
-    DEFAULT_GROUPS.forEach((group) => {
-      next[group.id] = group;
-    });
-    this.groupsState.set(next);
-    this.persist(next);
-  }
-
-  private ensureDefaults(): void {
-    const current = { ...this.groupsState() };
-    DEFAULT_GROUPS.forEach((group) => {
-      if (!current[group.id]) {
-        current[group.id] = group;
-      }
-    });
-    this.groupsState.set(current);
-    this.persist(current);
+  async resetToDefaults(): Promise<void> {
+    try {
+      const snapshot = await this.api.getCatalogDefaults();
+      const next: Record<string, LayerGroup> = {};
+      (snapshot.layerGroups ?? []).forEach((group) => {
+        if (!group?.id) {
+          return;
+        }
+        next[group.id] = {
+          id: group.id,
+          label: group.label,
+          order: group.order ?? 50,
+          description: group.description ?? undefined,
+        };
+      });
+      this.groupsState.set(next);
+      await this.persistGroups();
+    } catch {
+      // Reset-Fehler wird ignoriert, aktueller State bleibt bestehen.
+    }
   }
 
   private nextOrder(): number {
@@ -131,25 +172,11 @@ export class LayerGroupService {
     return Math.max(...values.map((g) => g.order)) + 10;
   }
 
-  private load(): void {
+  private async persistGroups(): Promise<void> {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          this.groupsState.set(parsed as Record<string, LayerGroup>);
-        }
-      }
+      await this.api.replaceLayerGroups(this.groups());
     } catch {
-      // ignore
-    }
-  }
-
-  private persist(state: Record<string, LayerGroup>): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // ignore
+      // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }
   }
 

@@ -60,6 +60,7 @@ export class PlanningDashboardActivityHandlersFacade {
       replaceActivity: (activity: Activity) => void;
       clearEditingPreview: () => void;
       deleteTemplateActivity: (templateId: string, baseId: string) => void;
+      onActivityMutated?: (activity: Activity, stage: PlanningStageId) => void;
     },
   ) {}
 
@@ -159,6 +160,7 @@ export class PlanningDashboardActivityHandlersFacade {
       this.deps.pendingActivityOriginal.set(null);
       this.deps.activitySelection.selectedActivityState.set({ activity: withDefaults, resource: selection.resource });
       this.deps.clearEditingPreview();
+      this.deps.onActivityMutated?.(withDefaults, stage);
       return;
     }
     if (stage === 'base') {
@@ -203,9 +205,11 @@ export class PlanningDashboardActivityHandlersFacade {
 
       this.deps.activitySelection.selectedActivityState.set({ activity: normalizedMain, resource: selection.resource });
       this.deps.clearEditingPreview();
+      this.deps.onActivityMutated?.(normalizedMain, stage);
       return;
     }
     this.deps.replaceActivity(withDefaults);
+    this.deps.onActivityMutated?.(withDefaults, stage);
   }
 
   private shouldPersistToTemplate(activityId: string): boolean {

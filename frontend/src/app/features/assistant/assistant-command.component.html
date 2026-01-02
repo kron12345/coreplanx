@@ -172,6 +172,34 @@
                     </button>
                   }
                 </div>
+                @if (actions.preview()?.clarification?.input) {
+                  <div class="assistant-action-preview__clarification-input">
+                    <mat-form-field appearance="outline" class="assistant-action-preview__clarification-field">
+                      <mat-label>{{ actions.preview()?.clarification?.input?.label || 'Antwort' }}</mat-label>
+                      <input
+                        matInput
+                        type="text"
+                        [disabled]="actions.isResolving()"
+                        [placeholder]="actions.preview()?.clarification?.input?.placeholder || ''"
+                        [value]="clarificationDraft()"
+                        (input)="updateClarificationDraft($event)"
+                        (keydown.enter)="resolveClarificationInput()"
+                      />
+                      @if (actions.preview()?.clarification?.input?.hint) {
+                        <mat-hint>{{ actions.preview()?.clarification?.input?.hint }}</mat-hint>
+                      }
+                    </mat-form-field>
+                    <button
+                      mat-flat-button
+                      color="primary"
+                      type="button"
+                      [disabled]="actions.isResolving() || !clarificationDraft().trim()"
+                      (click)="resolveClarificationInput()"
+                    >
+                      Senden
+                    </button>
+                  </div>
+                }
               </div>
             }
             @if (actions.preview()?.actionable && actions.preview()?.changes?.length) {

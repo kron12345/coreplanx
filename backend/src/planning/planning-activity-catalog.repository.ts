@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import type {
+  ActivityAttributeValue,
   ActivityDefinition,
   ActivityFieldKey,
   ActivityTemplate,
   ActivityTypeDefinition,
+  CustomAttributeDefinition,
+  CustomAttributeState,
   LayerGroup,
   ResourceKind,
   TranslationState,
@@ -21,6 +24,8 @@ interface ActivityTypeDefinitionRow {
   time_mode: string;
   fields: string[];
   default_duration_minutes: number;
+  attributes: Record<string, unknown> | null;
+  meta: Record<string, unknown> | null;
 }
 
 interface ActivityTemplateRow {
@@ -29,7 +34,7 @@ interface ActivityTemplateRow {
   description: string | null;
   activity_type: string | null;
   default_duration_minutes: number | null;
-  attributes: Record<string, unknown> | null;
+  attributes: unknown | null;
 }
 
 interface ActivityDefinitionRow {
@@ -40,7 +45,7 @@ interface ActivityDefinitionRow {
   template_id: string | null;
   default_duration_minutes: number | null;
   relevant_for: string[] | null;
-  attributes: Record<string, unknown> | null;
+  attributes: unknown | null;
 }
 
 interface ActivityLayerGroupRow {
@@ -55,6 +60,19 @@ interface ActivityTranslationRow {
   translation_key: string;
   label: string | null;
   abbreviation: string | null;
+}
+
+interface CustomAttributeDefinitionRow {
+  id: string;
+  entity_id: string;
+  key: string;
+  label: string;
+  type: string;
+  description: string | null;
+  temporal: boolean | null;
+  required: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 @Injectable()
@@ -72,7 +90,14 @@ export class PlanningActivityCatalogRepository {
       return this.createEmptyActivityCatalog();
     }
 
-    const [typeResult, templateResult, definitionResult, layerResult, translationResult] =
+    const [
+      typeResult,
+      templateResult,
+      definitionResult,
+      layerResult,
+      translationResult,
+      customAttributeResult,
+    ] =
       await Promise.all([
         this.database.query<ActivityTypeDefinitionRow>(
           `
@@ -85,7 +110,9 @@ export class PlanningActivityCatalogRepository {
               category,
               time_mode,
               fields,
-              default_duration_minutes
+              default_duration_minutes,
+              attributes,
+              meta
             FROM activity_type_definition
             ORDER BY id
           `,
@@ -132,6 +159,23 @@ export class PlanningActivityCatalogRepository {
             ORDER BY locale, translation_key
           `,
         ),
+        this.database.query<CustomAttributeDefinitionRow>(
+          `
+            SELECT
+              id,
+              entity_id,
+              key,
+              label,
+              type,
+              description,
+              temporal,
+              required,
+              created_at,
+              updated_at
+            FROM custom_attribute_definition
+            ORDER BY entity_id, key
+          `,
+        ),
       ]);
 
     return {
@@ -140,6 +184,7 @@ export class PlanningActivityCatalogRepository {
       definitions: definitionResult.rows.map((row) => this.mapActivityDefinition(row)),
       layerGroups: layerResult.rows.map((row) => this.mapActivityLayerGroup(row)),
       translations: this.mapTranslations(translationResult.rows),
+      customAttributes: this.mapCustomAttributes(customAttributeResult.rows),
     };
   }
 
@@ -155,6 +200,7 @@ export class PlanningActivityCatalogRepository {
         await client.query('DELETE FROM activity_type_definition');
         await client.query('DELETE FROM activity_layer_group');
         await client.query('DELETE FROM activity_translation');
+        await client.query('DELETE FROM custom_attribute_definition');
 
         if (catalog.layerGroups.length) {
           await client.query(
@@ -199,7 +245,9 @@ export class PlanningActivityCatalogRepository {
                   category TEXT,
                   "timeMode" TEXT,
                   fields TEXT[],
-                  "defaultDurationMinutes" INTEGER
+                  "defaultDurationMinutes" INTEGER,
+                  attributes JSONB,
+                  meta JSONB
                 )
               )
               INSERT INTO activity_type_definition (
@@ -211,7 +259,9 @@ export class PlanningActivityCatalogRepository {
                 category,
                 time_mode,
                 fields,
-                default_duration_minutes
+                default_duration_minutes,
+                attributes,
+                meta
               )
               SELECT
                 id,
@@ -222,7 +272,9 @@ export class PlanningActivityCatalogRepository {
                 category,
                 "timeMode",
                 fields,
-                COALESCE("defaultDurationMinutes", 0)
+                COALESCE("defaultDurationMinutes", 0),
+                attributes,
+                meta
               FROM incoming
             `,
             [JSON.stringify(catalog.types)],
@@ -331,6 +383,54 @@ export class PlanningActivityCatalogRepository {
           );
         }
 
+        const customAttributeRows = this.flattenCustomAttributes(catalog.customAttributes);
+        if (customAttributeRows.length) {
+          await client.query(
+            `
+              WITH incoming AS (
+                SELECT *
+                FROM jsonb_to_recordset($1::jsonb) AS t(
+                  id TEXT,
+                  entity_id TEXT,
+                  key TEXT,
+                  label TEXT,
+                  type TEXT,
+                  description TEXT,
+                  temporal BOOLEAN,
+                  required BOOLEAN,
+                  "createdAt" TIMESTAMPTZ,
+                  "updatedAt" TIMESTAMPTZ
+                )
+              )
+              INSERT INTO custom_attribute_definition (
+                id,
+                entity_id,
+                key,
+                label,
+                type,
+                description,
+                temporal,
+                required,
+                created_at,
+                updated_at
+              )
+              SELECT
+                id,
+                entity_id,
+                key,
+                label,
+                type,
+                description,
+                COALESCE(temporal, false),
+                COALESCE(required, false),
+                COALESCE("createdAt", now()),
+                COALESCE("updatedAt", now())
+              FROM incoming
+            `,
+            [JSON.stringify(customAttributeRows)],
+          );
+        }
+
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
@@ -350,6 +450,7 @@ export class PlanningActivityCatalogRepository {
       definitions: [],
       layerGroups: [],
       translations: {},
+      customAttributes: {},
     };
   }
 
@@ -364,6 +465,8 @@ export class PlanningActivityCatalogRepository {
       timeMode: row.time_mode as ActivityTypeDefinition['timeMode'],
       fields: this.toActivityFields(row.fields),
       defaultDurationMinutes: row.default_duration_minutes,
+      attributes: this.normalizeMetaRecord(row.attributes) ?? undefined,
+      meta: this.normalizeMetaRecord(row.meta) ?? undefined,
     };
   }
 
@@ -374,7 +477,7 @@ export class PlanningActivityCatalogRepository {
       description: row.description ?? undefined,
       activityType: row.activity_type ?? undefined,
       defaultDurationMinutes: row.default_duration_minutes ?? undefined,
-      attributes: row.attributes ?? undefined,
+      attributes: this.normalizeAttributeList(row.attributes),
     };
   }
 
@@ -387,7 +490,7 @@ export class PlanningActivityCatalogRepository {
       templateId: row.template_id ?? undefined,
       defaultDurationMinutes: row.default_duration_minutes ?? undefined,
       relevantFor: this.toResourceKinds(row.relevant_for),
-      attributes: row.attributes ?? undefined,
+      attributes: this.normalizeAttributeList(row.attributes),
     };
   }
 
@@ -413,6 +516,27 @@ export class PlanningActivityCatalogRepository {
     return state;
   }
 
+  private mapCustomAttributes(rows: CustomAttributeDefinitionRow[]): CustomAttributeState {
+    const state: CustomAttributeState = {};
+    rows.forEach((row) => {
+      const bucket = state[row.entity_id] ?? [];
+      bucket.push({
+        id: row.id,
+        key: row.key,
+        label: row.label,
+        type: row.type as CustomAttributeDefinition['type'],
+        description: row.description ?? undefined,
+        entityId: row.entity_id,
+        createdAt: row.created_at ?? undefined,
+        updatedAt: row.updated_at ?? undefined,
+        temporal: row.temporal ?? undefined,
+        required: row.required ?? undefined,
+      });
+      state[row.entity_id] = bucket;
+    });
+    return state;
+  }
+
   private flattenTranslations(state: TranslationState): ActivityTranslationRow[] {
     const rows: ActivityTranslationRow[] = [];
     Object.entries(state ?? {}).forEach(([locale, entries]) => {
@@ -428,6 +552,33 @@ export class PlanningActivityCatalogRepository {
           translation_key: key,
           label: value?.label ?? null,
           abbreviation: value?.abbreviation ?? null,
+        });
+      });
+    });
+    return rows;
+  }
+
+  private flattenCustomAttributes(state: CustomAttributeState): CustomAttributeDefinitionRow[] {
+    const rows: CustomAttributeDefinitionRow[] = [];
+    Object.entries(state ?? {}).forEach(([entityId, entries]) => {
+      if (!entityId) {
+        return;
+      }
+      (entries ?? []).forEach((entry) => {
+        if (!entry?.id) {
+          return;
+        }
+        rows.push({
+          id: entry.id,
+          entity_id: entityId,
+          key: entry.key,
+          label: entry.label,
+          type: entry.type,
+          description: entry.description ?? null,
+          temporal: entry.temporal ?? null,
+          required: entry.required ?? null,
+          created_at: entry.createdAt ?? null,
+          updated_at: entry.updatedAt ?? null,
         });
       });
     });
@@ -460,5 +611,57 @@ export class PlanningActivityCatalogRepository {
           Boolean(entry) && allowedSet.has(entry as ActivityFieldKey),
       );
   }
-}
 
+  private normalizeMetaRecord(value?: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return { ...(value as Record<string, unknown>) };
+  }
+
+  private normalizeAttributeList(value?: unknown): ActivityAttributeValue[] {
+    if (!value) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      const list: ActivityAttributeValue[] = [];
+      value.forEach((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          return;
+        }
+        const key = (entry as { key?: unknown }).key;
+        if (typeof key !== 'string' || !key.trim()) {
+          return;
+        }
+        const metaValue = (entry as { meta?: unknown }).meta;
+        const meta =
+          metaValue && typeof metaValue === 'object' && !Array.isArray(metaValue)
+            ? { ...(metaValue as Record<string, unknown>) }
+            : undefined;
+        list.push({ key: key.trim(), meta });
+      });
+      return list;
+    }
+    if (typeof value === 'object') {
+      const list: ActivityAttributeValue[] = [];
+      Object.entries(value as Record<string, unknown>).forEach(([key, metaValue]) => {
+        if (!key.trim()) {
+          return;
+        }
+        if (metaValue && typeof metaValue === 'object' && !Array.isArray(metaValue)) {
+          list.push({ key: key.trim(), meta: { ...(metaValue as Record<string, unknown>) } });
+        } else {
+          list.push({
+            key: key.trim(),
+            meta:
+              metaValue === undefined || metaValue === null
+                ? undefined
+                : { value: String(metaValue) },
+          });
+        }
+      });
+      return list;
+    }
+    return [];
+  }
+}

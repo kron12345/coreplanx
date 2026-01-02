@@ -30,6 +30,19 @@ function createMasterDataStub() {
   };
 }
 
+function createActivityCatalogStub() {
+  return {
+    listActivityTypes: () => [],
+  };
+}
+
+function createRulesetStub() {
+  return {
+    listVersions: () => [],
+    getCompiledRuleset: () => null,
+  };
+}
+
 describe('DutyAutopilotService', () => {
   const config: DutyAutopilotConfig = {
     serviceStartTypeId: 'service-start',
@@ -49,7 +62,12 @@ describe('DutyAutopilotService', () => {
     const rules = {
       getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
     };
-    const service = new DutyAutopilotService(rules as any, createMasterDataStub() as any);
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
 
     const stageId: StageId = 'base';
     const variantId = 'default';
@@ -102,7 +120,12 @@ describe('DutyAutopilotService', () => {
     const rules = {
       getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
     };
-    const service = new DutyAutopilotService(rules as any, createMasterDataStub() as any);
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
 
     const stageId: StageId = 'base';
     const variantId = 'default';
@@ -168,7 +191,12 @@ describe('DutyAutopilotService', () => {
     const rules = {
       getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
     };
-    const service = new DutyAutopilotService(rules as any, createMasterDataStub() as any);
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
 
     const stageId: StageId = 'base';
     const variantId = 'default';
@@ -205,7 +233,12 @@ describe('DutyAutopilotService', () => {
     const rules = {
       getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
     };
-    const service = new DutyAutopilotService(rules as any, createMasterDataStub() as any);
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
 
     const stageId: StageId = 'base';
     const variantId = 'default';
@@ -243,7 +276,12 @@ describe('DutyAutopilotService', () => {
     const rules = {
       getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
     };
-    const service = new DutyAutopilotService(rules as any, createMasterDataStub() as any);
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
 
     const stageId: StageId = 'base';
     const variantId = 'default';

@@ -78,6 +78,7 @@ export class GanttActivityComponent {
   @Input() showRouteDetails = false;
   @Input() dragDisabled = false;
   @Input() isMirror = false;
+  @Input() isPreview = false;
   @Input() isPrimarySelection = false;
   @Input() roleIcon: string | null = null;
   @Input() roleLabel: string | null = null;
@@ -151,6 +152,9 @@ export class GanttActivityComponent {
     }
     if (this.isMirror) {
       classes.push('gantt-activity--mirror');
+    }
+    if (this.isPreview) {
+      classes.push('gantt-activity--preview-overlay');
     }
     if (this.displayMode === 'block') {
       classes.push('gantt-activity--block');

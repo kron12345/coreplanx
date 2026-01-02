@@ -27,12 +27,53 @@ planning_catalog_snapshot:
             schema:
               $ref: '../components/schemas.yaml#/schemas/ActivityCatalogSnapshot'
 
+planning_catalog_defaults:
+  get:
+    summary: Activity-Katalog Defaults abrufen
+    responses:
+      '200':
+        description: Defaults Snapshot
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityCatalogSnapshot'
+
+planning_catalog_reset:
+  post:
+    summary: Activity-Katalog auf Werkseinstellungen zurücksetzen
+    responses:
+      '200':
+        description: Persistierter Defaults Snapshot
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/ActivityCatalogSnapshot'
+
 planning_catalog_types:
   get:
     summary: Activity Types auflisten
     responses:
       '200':
         description: Liste der Activity Types
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+  put:
+    summary: Activity Types vollständig ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTypeDefinition'
+    responses:
+      '200':
+        description: Persistierte Activity Types
         content:
           application/json:
             schema:
@@ -116,6 +157,25 @@ planning_catalog_templates:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+  put:
+    summary: Activity Templates vollständig ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
+    responses:
+      '200':
+        description: Persistierte Templates
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/ActivityTemplate'
   post:
     summary: Activity Template anlegen
     requestBody:
@@ -193,6 +253,25 @@ planning_catalog_definitions:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+  put:
+    summary: Activity Definitions vollständig ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
+    responses:
+      '200':
+        description: Persistierte Definitions
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/ActivityDefinition'
   post:
     summary: Activity Definition anlegen
     requestBody:
@@ -264,6 +343,25 @@ planning_catalog_layers:
     responses:
       '200':
         description: Liste der Layer-Gruppen
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+  put:
+    summary: Layer-Gruppen vollständig ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas.yaml#/schemas/LayerGroup'
+    responses:
+      '200':
+        description: Persistierte Layer-Gruppen
         content:
           application/json:
             schema:
@@ -423,3 +521,29 @@ planning_catalog_translations_locale:
     responses:
       '204':
         description: Gelöscht
+
+planning_catalog_custom_attributes:
+  get:
+    summary: Custom Attribute Definitionen abrufen
+    responses:
+      '200':
+        description: Custom Attribute State
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/CustomAttributeState'
+  put:
+    summary: Custom Attribute Definitionen ersetzen
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/schemas/CustomAttributeState'
+    responses:
+      '200':
+        description: Persistierter Custom Attribute State
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/schemas/CustomAttributeState'

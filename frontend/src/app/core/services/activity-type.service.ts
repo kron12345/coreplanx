@@ -1,6 +1,6 @@
-import { Injectable, Signal, computed, signal } from '@angular/core';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { ResourceKind } from '../../models/resource';
-import { ActivityCatalogApiService } from '../api/activity-catalog-api.service';
+import { PlanningCatalogApiService } from '../api/planning-catalog-api.service';
 
 export type ActivityFieldKey = 'start' | 'end' | 'from' | 'to' | 'remark';
 export type ActivityCategory = 'rest' | 'movement' | 'service' | 'other';
@@ -33,386 +33,10 @@ export interface ActivityTypeInput {
   attributes?: Record<string, unknown> | null;
   meta?: Record<string, unknown> | null;
 }
-
-const STORAGE_KEY = 'activity-type-definitions.v1';
-
-const DEFAULT_TYPES: ActivityTypeDefinition[] = [
-  {
-    id: 'service',
-    label: 'Dienstleistung',
-    description: 'Standardaktivität innerhalb eines Dienstes.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 120,
-    attributes: { is_within_service: 'yes', consider_location_conflicts: true, color: '#1976d2' },
-  },
-  {
-    id: 'rest-day',
-    label: 'Ruhetag',
-    description: 'Ganztägiger Ruhetag ohne Ortsangaben.',
-    appliesTo: ['personnel', 'personnel-service'],
-    relevantFor: ['personnel', 'personnel-service'],
-    category: 'rest',
-    timeMode: 'range',
-    fields: ['start', 'end', 'remark'],
-    defaultDurationMinutes: 24 * 60,
-    attributes: {
-      is_within_service: 'no',
-      is_absence: true,
-      consider_capacity_conflicts: false,
-      consider_location_conflicts: false,
-      color: '#8d6e63',
-    },
-  },
-  {
-    id: 'vacation',
-    label: 'Ferien',
-    description: 'Urlaubszeitraum für Personalressourcen.',
-    appliesTo: ['personnel', 'personnel-service'],
-    relevantFor: ['personnel', 'personnel-service'],
-    category: 'rest',
-    timeMode: 'range',
-    fields: ['start', 'end', 'remark'],
-    defaultDurationMinutes: 24 * 60,
-    attributes: {
-      is_within_service: 'no',
-      is_absence: true,
-      consider_capacity_conflicts: false,
-      consider_location_conflicts: false,
-      color: '#6d4c41',
-    },
-  },
-  {
-    id: 'maintenance',
-    label: 'Werkstattbuchung',
-    description: 'Werkstattaufenthalt inkl. Ort und Zeitraum.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'range',
-    fields: ['from', 'start', 'end', 'remark'],
-    defaultDurationMinutes: 8 * 60,
-    attributes: {
-      is_within_service: 'no',
-      is_maintenance: true,
-      requires_vehicle: true,
-      consider_capacity_conflicts: false,
-      consider_location_conflicts: false,
-      color: '#455a64',
-    },
-  },
-  {
-    id: 'service-start',
-    label: 'Dienstanfang',
-    description: 'Startleistung mit exaktem Ort und Übergabe.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'point',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 45,
-    attributes: {
-      is_service_start: true,
-      is_within_service: 'yes',
-      to_hidden: true,
-      to_location_mode: 'previous',
-      color: '#43a047',
-    },
-  },
-  {
-    id: 'crew-change',
-    label: 'Personalwechsel',
-    description: 'Übergabe zwischen zwei Personalen an einem Bahnhof.',
-    appliesTo: ['personnel', 'personnel-service'],
-    relevantFor: ['personnel', 'personnel-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'remark'],
-    defaultDurationMinutes: 20,
-    attributes: { is_within_service: 'yes', is_crew_change: true, color: '#5e35b1' },
-  },
-  {
-    id: 'service-end',
-    label: 'Dienstende',
-    description: 'Abschlussleistung mit Ziel und Bemerkung.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'point',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 45,
-    attributes: {
-      is_service_end: true,
-      is_within_service: 'yes',
-      to_hidden: true,
-      to_location_mode: 'previous',
-      color: '#c62828',
-    },
-  },
-  {
-    id: 'break',
-    label: 'Pause',
-    description: 'Reguläre Pause innerhalb eines Dienstes.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 30,
-    attributes: {
-      is_break: true,
-      is_within_service: 'yes',
-      to_hidden: true,
-      to_location_mode: 'previous',
-      consider_capacity_conflicts: true,
-      color: '#ffb74d',
-    },
-  },
-  {
-    id: 'short-break',
-    label: 'Kurzpause (Arbeitsunterbrechung)',
-    description: 'Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 15,
-    attributes: {
-      is_break: true,
-      is_short_break: true,
-      is_within_service: 'yes',
-      to_hidden: true,
-      to_location_mode: 'previous',
-      consider_capacity_conflicts: true,
-      color: '#ffe082',
-    },
-  },
-  {
-    id: 'briefing',
-    label: 'Dienstbesprechung',
-    description: 'Briefing oder Debriefing vor bzw. nach dem Dienst.',
-    appliesTo: ['personnel', 'personnel-service'],
-    relevantFor: ['personnel', 'personnel-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'remark'],
-    defaultDurationMinutes: 20,
-    attributes: { is_within_service: 'yes', is_briefing: true, color: '#3949ab' },
-  },
-  {
-    id: 'standby',
-    label: 'Bereitschaft',
-    description: 'Bereitschaftszeit mit möglichen Ortsangaben.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'remark'],
-    defaultDurationMinutes: 60,
-    attributes: { is_within_service: 'yes', is_standby: true, color: '#6a1b9a' },
-  },
-  {
-    id: 'commute',
-    label: 'Wegezeit',
-    description: 'An- oder Abreise zwischen Standorten.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 45,
-    attributes: {
-      is_within_service: 'yes',
-      is_travel: true,
-      is_commute: true,
-      consider_location_conflicts: true,
-      color: '#0288d1',
-    },
-  },
-  {
-    id: 'vehicle-on',
-    label: 'Einschalten',
-    description: 'Fahrzeug einschalten bzw. bereitstellen.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'remark'],
-    defaultDurationMinutes: 15,
-    attributes: { is_within_service: 'yes', requires_vehicle: true, is_vehicle_on: true, color: '#2e7d32' },
-  },
-  {
-    id: 'vehicle-off',
-    label: 'Ausschalten',
-    description: 'Fahrzeug ausschalten bzw. außer Betrieb nehmen.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'remark'],
-    defaultDurationMinutes: 10,
-    attributes: { is_within_service: 'yes', requires_vehicle: true, is_vehicle_off: true, color: '#c62828' },
-  },
-  {
-    id: 'shunting',
-    label: 'Rangieren',
-    description: 'Rangierbewegungen inkl. Quelle und Ziel.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 60,
-    attributes: {
-      is_within_service: 'yes',
-      is_shunting: true,
-      requires_vehicle: true,
-      consider_location_conflicts: true,
-      color: '#00838f',
-    },
-  },
-  {
-    id: 'park',
-    label: 'Parken',
-    description: 'Fahrzeug abstellen bzw. parken.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'remark'],
-    defaultDurationMinutes: 15,
-    attributes: {
-      is_within_service: 'yes',
-      requires_vehicle: true,
-      is_parking: true,
-      consider_location_conflicts: true,
-      color: '#6d4c41',
-    },
-  },
-  {
-    id: 'unpark',
-    label: 'Entparken',
-    description: 'Fahrzeug aus dem Abstellbereich holen bzw. entparken.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 15,
-    attributes: {
-      is_within_service: 'yes',
-      requires_vehicle: true,
-      is_unparking: true,
-      consider_location_conflicts: true,
-      color: '#5d4037',
-    },
-  },
-  {
-    id: 'fuelling',
-    label: 'Betankung',
-    description: 'Betankung oder Stromaufnahme eines Fahrzeugs.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'remark'],
-    defaultDurationMinutes: 30,
-    attributes: { is_within_service: 'yes', is_fuelling: true, requires_vehicle: true, color: '#e64a19' },
-  },
-  {
-    id: 'cleaning',
-    label: 'Innenreinigung',
-    description: 'Reinigungsarbeiten am Fahrzeug.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'service',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'remark'],
-    defaultDurationMinutes: 45,
-    attributes: { is_within_service: 'yes', is_cleaning: true, requires_vehicle: true, color: '#00897b' },
-  },
-  {
-    id: 'transfer',
-    label: 'Transfer',
-    description: 'Überführung von Ressourcen zu einem anderen Ort.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 90,
-    attributes: {
-      is_within_service: 'yes',
-      is_transfer: true,
-      is_travel: true,
-      consider_location_conflicts: true,
-      color: '#0097a7',
-    },
-  },
-  {
-    id: 'travel',
-    label: 'Fahrt',
-    description: 'Geplante Fahrtleistung zwischen zwei Orten.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'movement',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 60,
-    attributes: {
-      is_within_service: 'yes',
-      is_travel: true,
-      requires_vehicle: true,
-      consider_location_conflicts: true,
-      color: '#00796b',
-    },
-  },
-  {
-    id: 'other',
-    label: 'Sonstige',
-    description: 'Freie Aktivität mit allen Angaben.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'other',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'from', 'to', 'remark'],
-    defaultDurationMinutes: 60,
-    attributes: { is_within_service: 'yes', color: '#4a148c' },
-  },
-  {
-    id: 'training',
-    label: 'Schulung',
-    description: 'Schulung oder Fortbildung während des Dienstplans.',
-    appliesTo: ['personnel', 'personnel-service'],
-    relevantFor: ['personnel', 'personnel-service'],
-    category: 'other',
-    timeMode: 'range',
-    fields: ['start', 'end', 'remark'],
-    defaultDurationMinutes: 4 * 60,
-    attributes: { is_within_service: 'yes', is_training: true, color: '#7b1fa2' },
-  },
-  {
-    id: 'reserve-buffer',
-    label: 'Reserven / Puffer',
-    description: 'Geplanter Puffer zur Abfederung von Störungen.',
-    appliesTo: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    relevantFor: ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'],
-    category: 'other',
-    timeMode: 'duration',
-    fields: ['start', 'end', 'remark'],
-    defaultDurationMinutes: 30,
-    attributes: { is_within_service: 'yes', is_reserve: true, color: '#546e7a' },
-  },
-];
-
 @Injectable({ providedIn: 'root' })
 export class ActivityTypeService {
-  private readonly api = new ActivityCatalogApiService();
-  private readonly definitionsSignal = signal<ActivityTypeDefinition[]>(DEFAULT_TYPES);
+  private readonly api = inject(PlanningCatalogApiService);
+  private readonly definitionsSignal = signal<ActivityTypeDefinition[]>([]);
   private loadingPromise: Promise<void> | null = null;
 
   readonly definitions: Signal<ActivityTypeDefinition[]> = computed(
@@ -447,12 +71,18 @@ export class ActivityTypeService {
   }
 
   reset(): void {
-    this.definitionsSignal.set(DEFAULT_TYPES);
-    void this.persist();
+    void this.resetToDefaults();
   }
 
-  resetToDefaults(): void {
-    this.reset();
+  async resetToDefaults(): Promise<void> {
+    try {
+      const snapshot = await this.api.getCatalogDefaults();
+      const list = snapshot.types ?? [];
+      this.definitionsSignal.set(list.map((entry) => this.normalizeDefinition(entry)));
+      await this.api.replaceTypes(list);
+    } catch {
+      // Reset-Fehler wird ignoriert, aktueller State bleibt bestehen.
+    }
   }
 
   private normalizeDefinition(input: ActivityTypeInput): ActivityTypeDefinition {
@@ -508,21 +138,30 @@ export class ActivityTypeService {
     await this.loadFromApi();
   }
 
-  private async loadFromApi(): Promise<void> {
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
     if (this.loadingPromise) {
-      return this.loadingPromise;
+      const pending = this.loadingPromise;
+      await pending;
+      if (!force) {
+        return;
+      }
     }
     this.loadingPromise = (async () => {
       try {
-        const list = await this.api.list();
-        if (Array.isArray(list) && list.length) {
+        const list = await this.api.listTypes();
+        if (Array.isArray(list)) {
           this.definitionsSignal.set(list.map((entry) => this.normalizeDefinition(entry)));
           return;
         }
-        this.definitionsSignal.set(DEFAULT_TYPES);
-        await this.persist();
+        this.definitionsSignal.set([]);
       } catch {
-        this.definitionsSignal.set(DEFAULT_TYPES);
+        if (!this.definitionsSignal().length) {
+          this.definitionsSignal.set([]);
+        }
       } finally {
         this.loadingPromise = null;
       }
@@ -532,7 +171,7 @@ export class ActivityTypeService {
 
   private async persist(): Promise<void> {
     try {
-      await this.api.replaceAll(this.definitionsSignal());
+      await this.api.replaceTypes(this.definitionsSignal());
     } catch {
       // API-Fehler werden ignoriert, in-memory State bleibt bestehen.
     }

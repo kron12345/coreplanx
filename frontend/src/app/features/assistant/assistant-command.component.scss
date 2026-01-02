@@ -187,6 +187,18 @@
   font-size: 0.72rem;
 }
 
+.assistant-action-preview__clarification-input {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.assistant-action-preview__clarification-field {
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+
 .assistant-action-preview__changes {
   margin: 0;
   padding-left: 16px;

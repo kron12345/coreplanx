@@ -9,6 +9,7 @@ import type {
   ActivityMutationResponse,
   ActivityTemplate,
   ActivityTypeDefinition,
+  CustomAttributeState,
   ActivityValidationRequest,
   ActivityValidationResponse,
   LayerGroup,
@@ -319,8 +320,22 @@ export class PlanningService {
     return this.catalogService.replaceActivityCatalog(snapshot);
   }
 
+  getActivityCatalogDefaults(): ActivityCatalogSnapshot {
+    return this.catalogService.getActivityCatalogDefaults();
+  }
+
+  resetActivityCatalogToDefaults(): Promise<ActivityCatalogSnapshot> {
+    return this.catalogService.resetActivityCatalogToDefaults();
+  }
+
   listActivityTypes(): ActivityTypeDefinition[] {
     return this.catalogService.listActivityTypes();
+  }
+
+  replaceActivityTypes(
+    payload: ActivityTypeDefinition[],
+  ): Promise<ActivityTypeDefinition[]> {
+    return this.catalogService.replaceActivityTypes(payload);
   }
 
   getActivityType(typeId: string): ActivityTypeDefinition {
@@ -346,6 +361,10 @@ export class PlanningService {
     return this.catalogService.listActivityTemplates();
   }
 
+  replaceActivityTemplates(payload: ActivityTemplate[]): Promise<ActivityTemplate[]> {
+    return this.catalogService.replaceActivityTemplates(payload);
+  }
+
   getActivityTemplate(templateId: string): ActivityTemplate {
     return this.catalogService.getActivityTemplate(templateId);
   }
@@ -367,6 +386,12 @@ export class PlanningService {
 
   listActivityDefinitions(): ActivityDefinition[] {
     return this.catalogService.listActivityDefinitions();
+  }
+
+  replaceActivityDefinitions(
+    payload: ActivityDefinition[],
+  ): Promise<ActivityDefinition[]> {
+    return this.catalogService.replaceActivityDefinitions(payload);
   }
 
   getActivityDefinition(definitionId: string): ActivityDefinition {
@@ -392,6 +417,10 @@ export class PlanningService {
     return this.catalogService.listLayerGroups();
   }
 
+  replaceLayerGroups(payload: LayerGroup[]): Promise<LayerGroup[]> {
+    return this.catalogService.replaceLayerGroups(payload);
+  }
+
   getLayerGroup(layerId: string): LayerGroup {
     return this.catalogService.getLayerGroup(layerId);
   }
@@ -414,6 +443,16 @@ export class PlanningService {
 
   replaceTranslations(payload: TranslationState): Promise<TranslationState> {
     return this.catalogService.replaceTranslations(payload);
+  }
+
+  getCustomAttributes(): CustomAttributeState {
+    return this.catalogService.getCustomAttributes();
+  }
+
+  replaceCustomAttributes(
+    payload: CustomAttributeState,
+  ): Promise<CustomAttributeState> {
+    return this.catalogService.replaceCustomAttributes(payload);
   }
 
   getTranslationsForLocale(

@@ -5,6 +5,7 @@ import { Resource } from '../../models/resource';
 export interface ActivityBatchMutationRequest {
   upserts?: Activity[];
   deleteIds?: string[];
+  skipAutopilot?: boolean;
   clientRequestId?: string;
 }
 

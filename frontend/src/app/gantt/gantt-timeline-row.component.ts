@@ -25,6 +25,7 @@ export interface GanttBar {
   participantCategory?: ActivityParticipantCategory | null;
   isOwner?: boolean;
   isMirror?: boolean;
+  isPreview?: boolean;
   roleIcon?: string | null;
   roleLabel?: string | null;
   color?: string | null;

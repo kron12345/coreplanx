@@ -17,8 +17,8 @@ import { Observable } from 'rxjs';
 
 interface TranslationRow {
   key: string;
-  label?: string;
-  abbreviation?: string;
+  label?: string | null;
+  abbreviation?: string | null;
   hint?: string;
 }
 
