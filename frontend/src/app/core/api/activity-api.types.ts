@@ -50,6 +50,18 @@ export interface ActivityValidationResponse {
   issues: ActivityValidationIssue[];
 }
 
+export interface PlanningStageViewportSubscriptionRequest {
+  from: string;
+  to: string;
+  resourceIds?: string[];
+  userId: string;
+  connectionId: string;
+}
+
+export interface PlanningStageViewportSubscriptionResponse {
+  ok: true;
+}
+
 export interface OperationsSnapshotRequest {
   templateId: string;
   replaceExisting?: boolean;

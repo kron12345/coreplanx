@@ -234,7 +234,13 @@ export function mergeActivityList(existing: Activity[], upserts: Activity[], del
     }
   });
 
-  const clonedUpserts = cloneActivities(upserts);
+  const clonedUpserts = cloneActivities(upserts).map((activity) => {
+    const before = map.get(activity.id);
+    if (before?.rowVersion && (activity.rowVersion === null || activity.rowVersion === undefined)) {
+      return { ...activity, rowVersion: before.rowVersion };
+    }
+    return activity;
+  });
   clonedUpserts.forEach((activity) => {
     const before = map.get(activity.id);
     if (!before || !activitiesEqual(before, activity)) {
@@ -306,4 +312,3 @@ function normalizeActivityForComparison(activity: Activity): Record<string, unkn
     meta: sortObject(activity.meta ?? null),
   };
 }
-

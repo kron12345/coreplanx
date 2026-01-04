@@ -939,3 +939,15 @@ export interface ActivityFilters {
   to?: string;
   resourceIds?: string[];
 }
+
+export interface PlanningStageViewportSubscriptionRequest {
+  from: string;
+  to: string;
+  resourceIds?: string[];
+  userId: string;
+  connectionId: string;
+}
+
+export interface PlanningStageViewportSubscriptionResponse {
+  ok: true;
+}

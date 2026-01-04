@@ -12,6 +12,8 @@ import type {
   CustomAttributeState,
   ActivityValidationRequest,
   ActivityValidationResponse,
+  PlanningStageViewportSubscriptionRequest,
+  PlanningStageViewportSubscriptionResponse,
   LayerGroup,
   OperationalPointListRequest,
   OperationalPointListResponse,
@@ -100,8 +102,9 @@ export class PlanningService {
     variantId: string,
     request?: ActivityMutationRequest,
     timetableYearLabel?: string | null,
+    requestId?: string,
   ): Promise<ActivityMutationResponse> {
-    return this.stageService.mutateActivities(stageId, variantId, request, timetableYearLabel);
+    return this.stageService.mutateActivities(stageId, variantId, request, timetableYearLabel, requestId);
   }
 
   validateActivities(
@@ -111,6 +114,15 @@ export class PlanningService {
     timetableYearLabel?: string | null,
   ): Promise<ActivityValidationResponse> {
     return this.stageService.validateActivities(stageId, variantId, request, timetableYearLabel);
+  }
+
+  updateViewportSubscription(
+    stageId: string,
+    variantId: string,
+    request?: PlanningStageViewportSubscriptionRequest,
+    timetableYearLabel?: string | null,
+  ): Promise<PlanningStageViewportSubscriptionResponse> {
+    return this.stageService.updateViewportSubscription(stageId, variantId, request, timetableYearLabel);
   }
 
   streamStageEvents(

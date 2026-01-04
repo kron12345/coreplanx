@@ -991,6 +991,36 @@ schemas:
       clientRequestId:
         type: string
     additionalProperties: false
+  PlanningStageViewportSubscriptionRequest:
+    type: object
+    properties:
+      from:
+        type: string
+        format: date-time
+      to:
+        type: string
+        format: date-time
+      resourceIds:
+        type: array
+        items:
+          type: string
+      userId:
+        type: string
+      connectionId:
+        type: string
+    required:
+    - from
+    - to
+    - userId
+    - connectionId
+    additionalProperties: false
+  PlanningStageViewportSubscriptionResponse:
+    type: object
+    properties:
+      ok:
+        type: boolean
+    required:
+    - ok
   ActivityParticipant:
     type: object
     description: "Teilnehmende Ressource einer Aktivit\xE4t."

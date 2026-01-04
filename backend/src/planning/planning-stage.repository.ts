@@ -643,20 +643,26 @@ export class PlanningStageRepository {
     activity: Activity,
   ): Promise<Activity> {
     const role = this.resolveServiceRole(activity);
-    const ownerId = this.resolveServiceOwner(activity);
-    if (!ownerId) {
-      return activity;
-    }
     const withinPref = this.resolveWithinPreference(activity);
     if (!role) {
-      await this.enforceWithinPreference(
+      if (this.isManagedServiceActivityId(activity.id ?? '')) {
+        return activity;
+      }
+      const owners = this.resolveServiceOwners(activity);
+      if (!owners.length) {
+        return activity;
+      }
+      return this.assignServiceForOwners(
         client,
         stageId,
         variantId,
-        ownerId,
         activity,
+        owners,
         withinPref,
       );
+    }
+    const ownerId = this.resolveServiceOwner(activity);
+    if (!ownerId) {
       return activity;
     }
     let managedServiceId = this.parseServiceIdFromManagedId(activity.id);
@@ -717,6 +723,173 @@ export class PlanningStageRepository {
       serviceId,
       serviceRole: 'start',
     };
+  }
+
+  private resolveServiceOwners(activity: Activity): string[] {
+    const participants = activity.participants ?? [];
+    const owners = participants
+      .filter((p) => (p as any)?.resourceId && (p as any)?.kind)
+      .filter((p) => (p as any).kind === 'personnel-service' || (p as any).kind === 'vehicle-service')
+      .map((p) => (p as any).resourceId as string);
+    return Array.from(new Set(owners));
+  }
+
+  private resolveServiceIdForOwner(activity: Activity, ownerId: string): string | null {
+    const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (explicit.startsWith('svc:')) {
+      return explicit;
+    }
+    const attrs = (activity.attributes ?? {}) as Record<string, any>;
+    const map = attrs['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      const entry = (map as Record<string, any>)[ownerId];
+      const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      return candidate.startsWith('svc:') ? candidate : null;
+    }
+    return null;
+  }
+
+  private async assignServiceForOwners(
+    client: PoolClient,
+    stageId: StageId,
+    variantId: string,
+    activity: Activity,
+    owners: string[],
+    withinPref: 'within' | 'outside' | 'both',
+  ): Promise<Activity> {
+    const isSingleOwner = owners.length === 1;
+    const existingAttrs = (activity.attributes ?? {}) as Record<string, unknown>;
+    const existingMap = existingAttrs['service_by_owner'];
+    const existingGlobalCodes = Array.isArray(existingAttrs['service_conflict_codes'])
+      ? existingAttrs['service_conflict_codes']
+          .map((entry) => String(entry).trim())
+          .filter((entry) => entry.length > 0)
+      : [];
+    let nextAttrs: Record<string, unknown> | null = null;
+    let nextMap: Record<string, any> | null = null;
+    let nextServiceId: string | null = isSingleOwner ? (activity.serviceId ?? null) : null;
+    let nextGlobalCodes: string[] | null = null;
+    let changed = false;
+
+    const ensureAttrs = () => {
+      if (!nextAttrs) {
+        nextAttrs = { ...existingAttrs };
+      }
+      return nextAttrs;
+    };
+    const ensureMap = () => {
+      if (!nextMap) {
+        const attrs = ensureAttrs();
+        const current =
+          existingMap && typeof existingMap === 'object' && !Array.isArray(existingMap)
+            ? { ...(existingMap as Record<string, any>) }
+            : {};
+        nextMap = current;
+        attrs['service_by_owner'] = nextMap;
+      }
+      return nextMap;
+    };
+
+    for (const ownerId of owners) {
+      const existingEntry =
+        existingMap && typeof existingMap === 'object' && !Array.isArray(existingMap)
+          ? (existingMap as Record<string, any>)[ownerId]
+          : null;
+      const existingCodes = Array.isArray(existingEntry?.conflictCodes)
+        ? existingEntry.conflictCodes.map((entry: unknown) => String(entry).trim()).filter(Boolean)
+        : [];
+      const currentServiceId = this.resolveServiceIdForOwner(activity, ownerId);
+      const window = await this.findServiceWindow(
+        client,
+        stageId,
+        variantId,
+        ownerId,
+        currentServiceId ?? undefined,
+        activity.start,
+      );
+      const isWithin = window ? this.isWithinWindow(activity.start, window) : false;
+      const targetServiceId = isWithin ? window?.serviceId ?? currentServiceId : null;
+
+      const nextCodes = this.mergeWithinServiceConflictCodes(existingCodes, withinPref, isWithin);
+      const conflictLevel =
+        typeof existingEntry?.conflictLevel === 'number'
+          ? existingEntry.conflictLevel
+          : typeof existingEntry?.conflictLevel === 'string'
+            ? Number.parseInt(existingEntry.conflictLevel, 10)
+            : 0;
+
+      const serviceChanged = (existingEntry?.serviceId ?? null) !== (targetServiceId ?? null);
+      const codesChanged = this.codesChanged(existingCodes, nextCodes);
+      if (serviceChanged || codesChanged) {
+        const map = ensureMap();
+        map[ownerId] = {
+          ...(existingEntry && typeof existingEntry === 'object' ? existingEntry : {}),
+          serviceId: targetServiceId ?? null,
+          conflictCodes: nextCodes,
+          conflictLevel,
+        };
+        changed = true;
+      }
+
+      if (isSingleOwner && targetServiceId !== nextServiceId) {
+        nextServiceId = targetServiceId;
+        changed = true;
+      }
+
+      if (isSingleOwner) {
+        const mergedGlobalCodes = this.mergeWithinServiceConflictCodes(
+          existingGlobalCodes,
+          withinPref,
+          isWithin,
+        );
+        if (this.codesChanged(existingGlobalCodes, mergedGlobalCodes)) {
+          nextGlobalCodes = mergedGlobalCodes;
+          changed = true;
+        }
+      }
+    }
+
+    if (nextGlobalCodes) {
+      const attrs = ensureAttrs();
+      attrs['service_conflict_codes'] = nextGlobalCodes;
+    }
+
+    if (!changed) {
+      return activity;
+    }
+    const updated: Activity = {
+      ...activity,
+      serviceId: isSingleOwner ? nextServiceId : activity.serviceId ?? null,
+      attributes: nextAttrs ?? existingAttrs,
+    };
+    return updated;
+  }
+
+  private mergeWithinServiceConflictCodes(
+    existing: string[],
+    pref: 'within' | 'outside' | 'both',
+    isWithin: boolean,
+  ): string[] {
+    const WITHIN_REQUIRED = 'WITHIN_SERVICE_REQUIRED';
+    const OUTSIDE_REQUIRED = 'OUTSIDE_SERVICE_REQUIRED';
+    const trimmed = existing.map((code) => code.trim()).filter((code) => code.length > 0);
+    const base = trimmed.filter((code) => code !== WITHIN_REQUIRED && code !== OUTSIDE_REQUIRED);
+    if (pref === 'within' && !isWithin) {
+      base.push(WITHIN_REQUIRED);
+    }
+    if (pref === 'outside' && isWithin) {
+      base.push(OUTSIDE_REQUIRED);
+    }
+    return Array.from(new Set(base));
+  }
+
+  private codesChanged(before: string[], after: string[]): boolean {
+    if (before.length !== after.length) {
+      return true;
+    }
+    const beforeSorted = [...before].sort();
+    const afterSorted = [...after].sort();
+    return beforeSorted.some((code, index) => code !== afterSorted[index]);
   }
 
   private resolveServiceOwner(activity: Activity): string | null {
@@ -784,6 +957,17 @@ export class PlanningStageRepository {
     const m = `${date.getUTCMonth() + 1}`.padStart(2, '0');
     const d = `${date.getUTCDate()}`.padStart(2, '0');
     return `svc:${stageId}:${ownerId}:${y}-${m}-${d}`;
+  }
+
+  private utcDayKey(iso: string): string | null {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    const y = date.getUTCFullYear();
+    const m = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getUTCDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   private async findLatestServiceStart(
@@ -912,23 +1096,37 @@ export class PlanningStageRepository {
     stageId: StageId,
     variantId: string,
     ownerId: string,
-    serviceId: string,
+    serviceId: string | undefined,
     referenceIso: string,
-  ): Promise<{ startMs: number; endMs: number } | null> {
-    const startRow =
-      (await this.findLatestServiceStart(
+  ): Promise<{ serviceId: string; startMs: number; endMs: number } | null> {
+    const referenceDayKey = this.utcDayKey(referenceIso);
+    let startRow: { id: string; start: string; serviceId: string | null } | null = null;
+    if (serviceId) {
+      startRow = await this.findLatestServiceStart(
         client,
         stageId,
         variantId,
         ownerId,
         referenceIso,
         serviceId,
-      )) ??
-      (await this.findLatestServiceStart(client, stageId, variantId, ownerId, referenceIso));
-    if (!startRow) {
-      return null;
+      );
+      if (!startRow) {
+        return null;
+      }
+    } else {
+      startRow = await this.findLatestServiceStart(client, stageId, variantId, ownerId, referenceIso);
+      if (!startRow) {
+        return null;
+      }
+      const startDayKey = this.utcDayKey(startRow.start);
+      if (referenceDayKey && startDayKey && referenceDayKey !== startDayKey) {
+        return null;
+      }
     }
-    const effectiveServiceId = startRow.serviceId ?? serviceId;
+    const effectiveServiceId =
+      startRow.serviceId ??
+      serviceId ??
+      this.computeServiceId(stageId, ownerId, startRow.start);
     const endRow = await this.findFirstServiceEnd(
       client,
       stageId,
@@ -939,7 +1137,7 @@ export class PlanningStageRepository {
     );
     const startMs = Date.parse(startRow.start);
     const endMs = endRow ? Date.parse(endRow.start) : startMs + 36 * 3600 * 1000;
-    return { startMs, endMs };
+    return { serviceId: effectiveServiceId, startMs, endMs };
   }
 
   private async findFirstServiceEnd(

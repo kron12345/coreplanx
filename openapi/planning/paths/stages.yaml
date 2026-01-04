@@ -138,3 +138,22 @@ planning_stages_stageId_events:
           text/event-stream:
             schema:
               type: string
+planning_stages_stageId_subscriptions:
+  post:
+    summary: "Aktualisiert die Viewport-Subscription f\xFCr eine Planungstage."
+    operationId: updatePlanningStageViewportSubscription
+    parameters:
+    - $ref: '#/components/parameters/StageId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanningStageViewportSubscriptionRequest'
+    responses:
+      '200':
+        description: "Subscription wurde gespeichert."
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningStageViewportSubscriptionResponse'

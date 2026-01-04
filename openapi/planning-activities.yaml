@@ -47,6 +47,8 @@ paths:
     $ref: './planning/paths/stages.yaml#/planning_stages_stageId_activities_validate'
   /planning/stages/{stageId}/events:
     $ref: './planning/paths/stages.yaml#/planning_stages_stageId_events'
+  /planning/stages/{stageId}/subscriptions:
+    $ref: './planning/paths/stages.yaml#/planning_stages_stageId_subscriptions'
   /planning/stages/{stageId}/autopilot/preview:
     $ref: './planning/paths/optimizer.yaml#/planning_stages_stageId_autopilot_preview'
   /planning/stages/{stageId}/optimizer/candidates:

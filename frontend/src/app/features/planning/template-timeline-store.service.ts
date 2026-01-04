@@ -4,6 +4,7 @@ import { TimelineApiService } from '../../core/api/timeline-api.service';
 import { TemplateSetDto } from '../../core/api/timeline-api.types';
 import { PlanningApiContext } from '../../core/api/planning-api-context';
 import { PlanningDataService } from './planning-data.service';
+import { TimetableYearService } from '../../core/services/timetable-year.service';
 
 interface TemplateStoreState {
   templates: TemplateSetDto[];
@@ -25,6 +26,7 @@ const INITIAL_STATE: TemplateStoreState = {
 export class TemplateTimelineStoreService {
   private readonly api = inject(TimelineApiService);
   private readonly planningData = inject(PlanningDataService);
+  private readonly timetableYear = inject(TimetableYearService);
   private readonly planningVariant = this.planningData.planningVariant();
   private readonly state = signal<TemplateStoreState>({ ...INITIAL_STATE });
   private templatesLoaded = false;
@@ -77,6 +79,11 @@ export class TemplateTimelineStoreService {
         take(1),
         tap((templates) => {
           this.templatesLoaded = true;
+          if (templates.length === 0) {
+            this.setState({ templates: [], selectedTemplateId: null, loading: false, error: null });
+            this.ensureDefaultTemplateForVariant();
+            return;
+          }
           const nextSelected =
             this.state().selectedTemplateId && templates.some((t) => t.id === this.state().selectedTemplateId)
               ? this.state().selectedTemplateId
@@ -223,6 +230,56 @@ export class TemplateTimelineStoreService {
         }),
       )
       .subscribe();
+  }
+
+  private ensureDefaultTemplateForVariant(): void {
+    const variant = this.planningVariant();
+    const variantId = variant?.id?.trim() || 'default';
+    const safeVariant = variantId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const templateId = `default-${safeVariant}`;
+    if (this.state().templates.some((entry) => entry.id === templateId)) {
+      this.setState({ selectedTemplateId: templateId });
+      return;
+    }
+    if (this.syntheticTemplate?.id === templateId) {
+      const current = this.state();
+      const templates = current.templates.some((entry) => entry.id === templateId)
+        ? current.templates
+        : [this.syntheticTemplate, ...current.templates];
+      this.setState({ templates, selectedTemplateId: templateId });
+      return;
+    }
+    const timetableYearLabel = variant?.timetableYearLabel?.trim() || null;
+    const yearBounds = this.resolveDefaultYearBounds(timetableYearLabel);
+    this.setSyntheticTemplate({
+      id: templateId,
+      name: 'Default',
+      description: 'Standard-Fahrplanjahr',
+      tableName: `template_${templateId}`,
+      variantId,
+      timetableYearLabel,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      periods: [
+        {
+          id: `default-${yearBounds.label}`,
+          validFrom: yearBounds.startIso,
+          validTo: yearBounds.endIso,
+        },
+      ],
+      specialDays: [],
+    });
+  }
+
+  private resolveDefaultYearBounds(label: string | null) {
+    if (label) {
+      try {
+        return this.timetableYear.getYearByLabel(label);
+      } catch {
+        // fall back to default bounds
+      }
+    }
+    return this.timetableYear.defaultYearBounds();
   }
 
   private currentApiContext(): PlanningApiContext {

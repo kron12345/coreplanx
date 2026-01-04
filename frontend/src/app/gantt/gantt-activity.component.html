@@ -111,6 +111,12 @@
               <span class="gantt-activity-popover__value">{{ durationLabel }}</span>
             </div>
           }
+          @if (showServiceWorktime) {
+            <div class="gantt-activity-popover__row">
+              <span class="gantt-activity-popover__label">Arbeitszeit</span>
+              <span class="gantt-activity-popover__value">{{ serviceWorktimeLabel }}</span>
+            </div>
+          }
         </div>
         @if (hasLocation) {
           <div class="gantt-activity-popover__section">

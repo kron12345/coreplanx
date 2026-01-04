@@ -8,6 +8,10 @@ import { GanttComponent } from '../../gantt/gantt.component';
 import { GanttWindowLauncherComponent } from './components/gantt-window-launcher.component';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { PlanningDataService } from './planning-data.service';
+import { PlanningDebugService, type PlanningDebugLogScope, type PlanningDebugLogSource } from './planning-debug.service';
+import { PlanningDebugStreamService } from './planning-debug-stream.service';
+import { API_CONFIG } from '../../core/config/api-config';
+import { ClientIdentityService } from '../../core/services/client-identity.service';
 import type { PlanningTimelineRange } from './planning-data.types';
 import { Resource } from '../../models/resource';
 import { Activity, ActivityGroupRole, ServiceRole } from '../../models/activity';
@@ -44,7 +48,6 @@ import { ActivityApiService } from '../../core/api/activity-api.service';
 import { PlanningOptimizerApiService } from '../../core/api/planning-optimizer-api.service';
 import type { PlanningApiContext } from '../../core/api/planning-api-context';
 import type {
-  AutopilotPreviewResponseDto,
   PlanningCandidateBuildResponseDto,
   RulesetSelectionRequestDto,
   PlanningSolverResponseDto,
@@ -106,8 +109,8 @@ import { PlanningDashboardOperationsHandlers } from './planning-dashboard-operat
 import { PlanningDashboardFormFacade } from './planning-dashboard-form.facade';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { PlanningStoreService } from '../../shared/planning-store.service';
-import { EMPTY, Subject } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, finalize, map, startWith, switchMap, take, tap } from 'rxjs/operators';
+import { EMPTY } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, map, startWith, take, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PlanningDashboardAssignmentFacade } from './planning-dashboard-assignment.facade';
 import { PlanningDashboardActivityOpsFacade } from './planning-dashboard-activity-ops.facade';
@@ -139,7 +142,7 @@ type LocationAutocompleteOption = {
   search: string;
 };
 
-type SolverPreviewSource = 'auto' | 'manual';
+type SolverPreviewSource = 'manual';
 
 type SolverPreviewState = {
   source: SolverPreviewSource;
@@ -149,23 +152,16 @@ type SolverPreviewState = {
   window?: { start: Date; end: Date } | null;
 };
 
-type AutoSolverStatusState = 'idle' | 'running' | 'ready' | 'error';
-
-type AutoSolverStatus = {
-  state: AutoSolverStatusState;
-  message?: string | null;
-  updatedAt?: Date | null;
+type SelectionDetailRow = {
+  id: string;
+  resource: string;
+  service: string;
+  type: string;
+  start: string;
+  end: string;
+  from: string;
+  to: string;
 };
-
-type AutoSolverRequest = {
-  stage: PlanningStageId;
-  activityIds: string[];
-  windowStart: Date;
-  windowEnd: Date;
-};
-
-const AUTO_SOLVER_WINDOW_MS = 14 * 60 * 60 * 1000;
-const AUTO_SOLVER_STORAGE_KEY = 'coreplanx:planning:auto-solver:v1';
 
 @Component({
     selector: 'app-planning-dashboard',
@@ -183,6 +179,10 @@ const AUTO_SOLVER_STORAGE_KEY = 'coreplanx:planning:auto-solver:v1';
 })
 export class PlanningDashboardComponent {
   private readonly data = inject(PlanningDataService);
+  private readonly debug = inject(PlanningDebugService);
+  private readonly debugStream = inject(PlanningDebugStreamService);
+  private readonly apiConfig = inject(API_CONFIG);
+  private readonly identity = inject(ClientIdentityService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -197,24 +197,41 @@ export class PlanningDashboardComponent {
   private readonly simulationService = inject(SimulationService);
   private readonly publishInProgress = signal(false);
   private readonly snapshotInProgress = signal(false);
-  private readonly optimizerLoadingSignal = signal({ preview: false, candidates: false, solve: false });
+  private readonly optimizerLoadingSignal = signal({ candidates: false, solve: false });
   private readonly planningStore = inject(PlanningStoreService);
-  private readonly autoSolverEnabledSignal = signal(this.readAutoSolverEnabled());
-  private readonly autoSolverStatusSignal = signal<Record<PlanningStageId, AutoSolverStatus>>({
-    base: { state: 'idle', message: null, updatedAt: null },
-    operations: { state: 'idle', message: null, updatedAt: null },
-  });
   private readonly solverPreviewSignal = signal<Record<PlanningStageId, SolverPreviewState | null>>({
     base: null,
     operations: null,
   });
-  private readonly autoSolverRequest$ = new Subject<AutoSolverRequest>();
   private readonly solverTimestampFormatter = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
+  private readonly selectionTimeFormatter = new Intl.DateTimeFormat('de-DE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  private readonly solverDrawerOpenSignal = signal(false);
+  private readonly debugDrawerOpenSignal = signal(false);
+  private readonly debugShowAllSignal = signal(false);
+  private readonly debugExportOpenSignal = signal(false);
+  private readonly debugBackendStreamEnabledSignal = signal(false);
+  private readonly debugFilterQuerySignal = signal('');
+  private readonly debugScopeFilterSignal = signal<string[]>([]);
+  private readonly debugSourceFilterSignal = signal<string[]>([]);
+  private readonly debugTopicFilterSignal = signal<string[]>([]);
+  private readonly debugStreamTokenStorageKey = 'coreplanx-debug-stream-token';
+  private readonly debugStreamTokenSignal = signal(this.loadDebugStreamToken());
+  private readonly debugTimestampFormatter = new Intl.DateTimeFormat('de-DE', {
+    dateStyle: 'short',
+    timeStyle: 'medium',
+  });
+  private readonly selectionDetailsOpenSignal = signal(false);
+  private readonly solverResourceSelectionSignal = signal<Set<string>>(new Set());
+  private lastSolverResourceOptions = new Set<string>();
+  private lastTemplateError: string | null = null;
 
   private readonly fromLocationQuerySignal = signal('');
   private readonly toLocationQuerySignal = signal('');
@@ -234,6 +251,11 @@ export class PlanningDashboardComponent {
   private readonly stageActivitySignals: Record<PlanningStageId, Signal<Activity[]>> = {
     base: this.data.stageActivities('base'),
     operations: this.data.stageActivities('operations'),
+  };
+
+  private readonly stageLoadingSignals: Record<PlanningStageId, Signal<boolean>> = {
+    base: this.data.stageLoading('base'),
+    operations: this.data.stageLoading('operations'),
   };
 
   private readonly stageSyncingActivityIdsSignals: Record<PlanningStageId, Signal<ReadonlySet<string>>> = {
@@ -365,48 +387,107 @@ export class PlanningDashboardComponent {
   private readonly selectedSimulationSignal = signal<SimulationRecord | null>(null);
   protected readonly planningVariant = this.data.planningVariant();
   protected readonly optimizerLoading = computed(() => this.optimizerLoadingSignal());
-  protected readonly autoSolverEnabled = computed(() => this.autoSolverEnabledSignal());
-  protected readonly autoSolverStatus = computed(
-    () => this.autoSolverStatusSignal()[this.activeStageSignal()],
-  );
   protected readonly solverPreviewState = computed(
     () => this.solverPreviewSignal()[this.activeStageSignal()],
   );
   protected readonly solverPreviewActivities = computed(() =>
     this.buildPreviewActivities(this.solverPreviewState()?.payload ?? null),
   );
-  protected readonly autoSolverStatusLabel = computed(() => {
-    if (!this.autoSolverEnabledSignal()) {
-      return 'Deaktiviert';
-    }
-    const status = this.autoSolverStatus();
-    if (status.state === 'running') {
-      return 'Auto-Solver laeuft...';
-    }
-    if (status.state === 'ready') {
-      return 'Preview bereit';
-    }
-    if (status.state === 'error') {
-      return status.message?.trim().length ? status.message : 'Solver fehlgeschlagen';
-    }
-    return 'Bereit';
+  protected readonly solverDrawerOpen = computed(() => this.solverDrawerOpenSignal());
+  protected readonly debugDrawerOpen = computed(() => this.debugDrawerOpenSignal());
+  protected readonly debugShowAll = computed(() => this.debugShowAllSignal());
+  protected readonly debugExportOpen = computed(() => this.debugExportOpenSignal());
+  protected readonly debugBackendStreamEnabled = computed(() => this.debugBackendStreamEnabledSignal());
+  protected readonly debugPaused = this.debug.paused;
+  protected readonly debugPendingCount = this.debug.pendingCount;
+  protected readonly debugFilterQuery = computed(() => this.debugFilterQuerySignal());
+  protected readonly debugScopeFilters = computed(() => this.debugScopeFilterSignal());
+  protected readonly debugSourceFilters = computed(() => this.debugSourceFilterSignal());
+  protected readonly debugTopicFilters = computed(() => this.debugTopicFilterSignal());
+  protected readonly debugStreamToken = computed(() => this.debugStreamTokenSignal());
+  protected readonly debugApiStatus = this.debug.apiStatus;
+  protected readonly debugSseStatus = this.debug.sseStatus;
+  protected readonly debugViewportStatus = this.debug.viewportStatus;
+  protected readonly debugBackendStreamStatus = this.debug.backendStreamStatus;
+  protected readonly debugScopeOptions = ['api', 'sse', 'viewport', 'system', 'mutation', 'backend'] as const;
+  protected readonly debugSourceOptions = ['frontend', 'backend'] as const;
+  protected readonly debugTopicOptions = ['planning', 'solver', 'assistant', 'db', 'rules', 'system'] as const;
+  protected readonly debugAlertCount = computed(() => {
+    const entries = this.debug.entries();
+    return entries.filter((entry) => entry.level === 'warn' || entry.level === 'error').length;
   });
-  protected readonly autoSolverStatusIcon = computed(() => {
-    if (!this.autoSolverEnabledSignal()) {
-      return 'toggle_off';
+  protected readonly debugConnectionState = computed(() => {
+    const api = this.debug.apiStatus();
+    const sseMap = this.debug.sseStatus();
+    const stageId = this.activeStageSignal();
+    const sse = sseMap[stageId];
+    if (api.state === 'error' || sse?.state === 'error') {
+      return 'error';
     }
-    const status = this.autoSolverStatus();
-    switch (status.state) {
-      case 'running':
-        return 'hourglass_top';
-      case 'ready':
-        return 'check_circle';
-      case 'error':
-        return 'error';
-      default:
-        return 'radio_button_unchecked';
+    if (api.state === 'ok' && sse?.state === 'connected') {
+      return 'ok';
     }
+    if (api.state === 'ok' || sse?.state === 'connected') {
+      return 'warn';
+    }
+    return 'idle';
   });
+  protected readonly debugConnectionLabel = computed(() => {
+    const state = this.debugConnectionState();
+    if (state === 'ok') {
+      return 'Verbunden';
+    }
+    if (state === 'warn') {
+      return 'Teilweise';
+    }
+    if (state === 'error') {
+      return 'Fehler';
+    }
+    return 'Verbinde...';
+  });
+  protected readonly debugLogEntries = computed(() => {
+    const entries = this.debug.entries();
+    const filtered = this.debugShowAllSignal()
+      ? entries
+      : entries.filter((entry) => entry.level === 'warn' || entry.level === 'error');
+    const query = this.debugFilterQuerySignal().trim().toLowerCase();
+    const scopeFilters = this.debugScopeFilterSignal();
+    const sourceFilters = this.debugSourceFilterSignal();
+    const topicFilters = this.debugTopicFilterSignal();
+    const narrowed = filtered.filter((entry) => {
+      if (scopeFilters.length && !scopeFilters.includes(entry.scope)) {
+        return false;
+      }
+      const source = entry.source ?? 'frontend';
+      if (sourceFilters.length && !sourceFilters.includes(source)) {
+        return false;
+      }
+      if (topicFilters.length && (!entry.topic || !topicFilters.includes(entry.topic))) {
+        return false;
+      }
+      if (query) {
+        const message = entry.message.toLowerCase();
+        if (message.includes(query)) {
+          return true;
+        }
+        if (entry.context) {
+          try {
+            const contextText = JSON.stringify(entry.context).toLowerCase();
+            if (contextText.includes(query)) {
+              return true;
+            }
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      }
+      return true;
+    });
+    return [...narrowed].reverse();
+  });
+  protected readonly debugExportJson = computed(() => JSON.stringify(this.buildDebugExportPayload(), null, 2));
+  protected readonly selectionDetailsOpen = computed(() => this.selectionDetailsOpenSignal());
   protected readonly currentPeriods = computed(() => {
     const tpl = this.templateStore.selectedTemplateWithFallback();
     if (!tpl?.periods?.length) {
@@ -538,7 +619,6 @@ export class PlanningDashboardComponent {
     activityOwnerId: (activity) => this.activityOwnerId(activity),
     ensureRequiredParticipants: (stage, anchorResource, activity) =>
       this.activityHandlers.ensureRequiredParticipantsForActivity(stage, anchorResource, activity),
-    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
   private readonly assignmentFacade = new PlanningDashboardAssignmentFacade({
     activeStage: () => this.activeStageSignal(),
@@ -557,7 +637,6 @@ export class PlanningDashboardComponent {
     applyBaseCopyWithRoles: (source, sourceResource, targetResource, roles) =>
       this.baseHandlers.applyCopyWithRoles(source, sourceResource, targetResource, roles),
     updateStageActivities: (stage, updater) => this.activityOpsFacade.updateStageActivities(stage, updater),
-    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
   private readonly selectionState = new PlanningDashboardSelectionState({
     activitySelection: this.activitySelection,
@@ -576,6 +655,7 @@ export class PlanningDashboardComponent {
     string,
     { resourceIdsRef: string[]; stageActivitiesRef: Activity[]; result: Activity[] }
   >();
+  private readonly lastViewportByBoard = new Map<string, PlanningTimelineRange>();
 
   @ViewChild('typeSearchInput') private readonly typeSearchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('typeMenuTrigger') private readonly typeMenuTrigger?: MatMenuTrigger;
@@ -678,64 +758,71 @@ export class PlanningDashboardComponent {
       activityMoveTargetSignal: this.activityMoveTargetSignal,
     });
 
-    this.data.setAutopilotSuppressed(this.autoSolverEnabledSignal());
+    effect(() => {
+      this.syncSolverResourceSelection(this.solverResourceOptions());
+    });
 
-    this.autoSolverRequest$
-      .pipe(
-        debounceTime(240),
-        tap((request) => {
-          this.clearSolverPreview(request.stage, 'auto');
-          this.setAutoSolverStatus(request.stage, {
-            state: 'running',
-            message: 'Solver wird ausgefuehrt...',
-            updatedAt: new Date(),
-          });
-        }),
-        switchMap((request) => {
-          if (!this.autoSolverEnabledSignal()) {
-            return EMPTY;
-          }
-          const payload = this.buildOptimizerPayload(request.stage, {
-            activityIds: request.activityIds,
-            timelineRange: { start: request.windowStart, end: request.windowEnd },
-          });
-          if (!payload) {
-            this.setAutoSolverStatus(request.stage, {
-              state: 'error',
-              message: 'Keine Leistungen im Zeitfenster gefunden.',
-              updatedAt: new Date(),
-            });
-            return EMPTY;
-          }
-          return this.optimizerApi.solve(request.stage, payload, this.buildOptimizerContext()).pipe(
-            take(1),
-            tap((response) => {
-              this.setSolverPreview(request.stage, response, 'auto', request.activityIds, {
-                start: request.windowStart,
-                end: request.windowEnd,
-              });
-              this.setAutoSolverStatus(request.stage, { state: 'ready', message: null, updatedAt: new Date() });
-            }),
-            catchError((error) => {
-              this.handleOptimizerError('Auto-Solver', error);
-              this.setAutoSolverStatus(request.stage, {
-                state: 'error',
-                message: 'Solver fehlgeschlagen.',
-                updatedAt: new Date(),
-              });
-              return EMPTY;
-            }),
-          );
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe();
+    effect(() => {
+      const error = this.templateStore.error();
+      if (!error) {
+        this.lastTemplateError = null;
+        return;
+      }
+      if (error === this.lastTemplateError) {
+        return;
+      }
+      this.lastTemplateError = error;
+      this.debug.log('error', 'api', 'Template konnte nicht geladen werden', {
+        context: { message: error },
+      });
+    });
+
+    effect(() => {
+      const enabled = this.debugBackendStreamEnabledSignal();
+      const token = this.debugStreamTokenSignal();
+      if (enabled) {
+        this.debugStream.connect({ token: token.trim().length > 0 ? token : undefined });
+      } else {
+        this.debugStream.disconnect();
+      }
+    });
+
+    this.destroyRef.onDestroy(() => {
+      this.debugStream.disconnect();
+    });
+
+    effect(() => {
+      const stage = this.activeStageSignal();
+      const state = this.stageStore.stageState(stage)();
+      const activeBoardId = state.activeBoardId;
+      if (!activeBoardId) {
+        return;
+      }
+      const board = state.boards.find((entry) => entry.id === activeBoardId);
+      if (!board) {
+        return;
+      }
+      if (board.resourceIds.length === 0) {
+        return;
+      }
+      const viewport = this.lastViewportByBoard.get(activeBoardId);
+      if (!viewport) {
+        return;
+      }
+      this.data.setStageViewport(stage, viewport, board.resourceIds);
+    });
+
+    this.data.setAutopilotSuppressed(true);
   }
 
   protected readonly activeStageId = computed(() => this.activeStageSignal());
 
   protected readonly activeSyncingActivityIds = computed(
     () => this.stageSyncingActivityIdsSignals[this.activeStageSignal()](),
+  );
+
+  protected readonly activeStageLoading = computed(
+    () => this.stageLoadingSignals[this.activeStageSignal()](),
   );
 
   protected readonly activeStageMeta = computed(
@@ -858,7 +945,6 @@ export class PlanningDashboardComponent {
     templateId: () => this.templateStore.selectedTemplate()?.id ?? null,
     ensureRequiredParticipants: (stage, anchorResource, activity) =>
       this.activityHandlers.ensureRequiredParticipantsForActivity(stage, anchorResource, activity),
-    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
   private readonly activityHandlers = new PlanningDashboardActivityHandlersFacade({
     activeStage: () => this.activeStageSignal(),
@@ -895,7 +981,6 @@ export class PlanningDashboardComponent {
     replaceActivity: (activity) => this.activityOpsFacade.replaceActivity(activity),
     clearEditingPreview: () => this.pendingFacade.clearEditingPreview(),
     deleteTemplateActivity: (templateId, baseId) => this.data.deleteTemplateActivity(templateId, baseId),
-    onActivityMutated: (activity, stage) => this.handleSolverActivityMutation(activity, stage),
   });
 
   protected readonly activityTypeDefinitions = this.activityTypeService.definitions;
@@ -963,6 +1048,59 @@ export class PlanningDashboardComponent {
   protected readonly selectedActivitySlot = this.selectionState.selectedActivitySlot;
   protected readonly moveTargetOptions = () => this.selectionState.moveTargetOptions();
   protected readonly activityMoveTarget = this.selectionState.activityMoveTarget;
+  protected readonly solverResourceOptions = computed(() => {
+    const unique = new Map<string, Resource>();
+    this.selectedActivities().forEach(({ resource }) => {
+      unique.set(resource.id, resource);
+    });
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+  });
+  protected readonly solverResourceSelection = computed(() => Array.from(this.solverResourceSelectionSignal()));
+  protected readonly solverResourceSelectionLabel = computed(() => {
+    const total = this.solverResourceOptions().length;
+    const selected = this.solverResourceSelectionSignal().size;
+    if (total === 0) {
+      return 'Keine Ressourcen in der Auswahl';
+    }
+    if (selected === 0) {
+      return 'Keine Ressourcen gewaehlt';
+    }
+    if (selected === total) {
+      return 'Alle Ressourcen aktiv';
+    }
+    return `${selected} von ${total} Ressourcen`;
+  });
+  protected readonly solverActivityIds = computed(() => {
+    const allowed = this.solverResourceSelectionSignal();
+    const items = this.selectedActivities();
+    const ids = new Set<string>();
+    items.forEach((item) => {
+      if (allowed.size === 0 || allowed.has(item.resource.id)) {
+        ids.add(item.activity.id);
+      }
+    });
+    return Array.from(ids);
+  });
+  protected readonly selectedActivityDetails = computed<SelectionDetailRow[]>(() => {
+    const items = [...this.selectedActivities()];
+    items.sort((a, b) => {
+      const nameCompare = a.resource.name.localeCompare(b.resource.name);
+      if (nameCompare !== 0) {
+        return nameCompare;
+      }
+      return a.activity.start.localeCompare(b.activity.start);
+    });
+    return items.map((item) => ({
+      id: item.activity.id,
+      resource: item.resource.name,
+      service: this.activityServiceLabel(item.activity),
+      type: this.activityTypeLabel(item.activity.type),
+      start: this.formatSelectionTimestamp(item.activity.start),
+      end: this.formatSelectionTimestamp(item.activity.end),
+      from: this.formatOptionalValue(item.activity.from),
+      to: this.formatOptionalValue(item.activity.to),
+    }));
+  });
 
   protected readonly selectedActivityDefinition = computed<ActivityTypeDefinition | null>(() => {
     const selection = this.activitySelection.selectedActivityState();
@@ -1814,6 +1952,14 @@ export class PlanningDashboardComponent {
 
   protected shiftSelectionBy(deltaMinutes: number): void { this.selectionHandlers.shiftSelectionBy(deltaMinutes); }
 
+  protected setSolverResourceSelection(resourceIds: string[]): void {
+    this.solverResourceSelectionSignal.set(new Set(resourceIds ?? []));
+  }
+
+  protected setSelectionDetailsOpen(open: boolean): void {
+    this.selectionDetailsOpenSignal.set(open);
+  }
+
   protected deleteActivitySelection(): void {
     const count = this.selectedActivities().length;
     if (count === 0) {
@@ -2038,10 +2184,7 @@ export class PlanningDashboardComponent {
     };
   }
 
-  private setOptimizerLoading(
-    key: 'preview' | 'candidates' | 'solve',
-    value: boolean,
-  ): void {
+  private setOptimizerLoading(key: 'candidates' | 'solve', value: boolean): void {
     this.optimizerLoadingSignal.update((state) => ({ ...state, [key]: value }));
   }
 
@@ -2049,11 +2192,6 @@ export class PlanningDashboardComponent {
     console.warn(`[PlanningDashboard] ${label} fehlgeschlagen`, error);
   }
 
-  private openOptimizerDialog(
-    mode: 'autopilot',
-    payload: AutopilotPreviewResponseDto,
-    title: string,
-  ): void;
   private openOptimizerDialog(
     mode: 'candidates',
     payload: PlanningCandidateBuildResponseDto,
@@ -2065,8 +2203,8 @@ export class PlanningDashboardComponent {
     title: string,
   ): void;
   private openOptimizerDialog(
-    mode: 'autopilot' | 'candidates' | 'solver',
-    payload: AutopilotPreviewResponseDto | PlanningCandidateBuildResponseDto | PlanningSolverResponseDto,
+    mode: 'candidates' | 'solver',
+    payload: PlanningCandidateBuildResponseDto | PlanningSolverResponseDto,
     title: string,
   ): void {
     this.dialog.open(PlanningOptimizerDialogComponent, {
@@ -2115,33 +2253,12 @@ export class PlanningDashboardComponent {
     this.boardActionsFacade.createBoardFromSelection();
   }
 
-  protected openAutopilotPreview(): void {
-    if (this.optimizerLoadingSignal().preview) {
-      return;
-    }
-    const stage = this.activeStageSignal();
-    this.setOptimizerLoading('preview', true);
-    this.optimizerApi
-      .previewAutopilot(stage, this.buildOptimizerContext())
-      .pipe(
-        take(1),
-        finalize(() => this.setOptimizerLoading('preview', false)),
-        catchError((error) => {
-          this.handleOptimizerError('Autopilot-Preview', error);
-          return EMPTY;
-        }),
-      )
-      .subscribe((payload) => {
-        this.openOptimizerDialog('autopilot', payload, 'Autopilot-Preview');
-      });
-  }
-
   protected openOptimizerCandidates(): void {
     if (this.optimizerLoadingSignal().candidates) {
       return;
     }
     const stage = this.activeStageSignal();
-    const activityIds = this.selectedActivityIdsArray();
+    const activityIds = this.solverActivityIds();
     if (!activityIds.length) {
       return;
     }
@@ -2170,7 +2287,7 @@ export class PlanningDashboardComponent {
       return;
     }
     const stage = this.activeStageSignal();
-    const activityIds = this.selectedActivityIdsArray();
+    const activityIds = this.solverActivityIds();
     if (!activityIds.length) {
       return;
     }
@@ -2193,6 +2310,201 @@ export class PlanningDashboardComponent {
       .subscribe((payload) => {
         this.setSolverPreview(stage, payload, 'manual', activityIds, null);
       });
+  }
+
+  protected openSolverDrawer(): void {
+    this.debugDrawerOpenSignal.set(false);
+    this.solverDrawerOpenSignal.set(true);
+  }
+
+  protected closeSolverDrawer(): void {
+    this.solverDrawerOpenSignal.set(false);
+  }
+
+  protected toggleDebugDrawer(): void {
+    const next = !this.debugDrawerOpenSignal();
+    this.debugDrawerOpenSignal.set(next);
+    if (next) {
+      this.solverDrawerOpenSignal.set(false);
+    }
+  }
+
+  protected closeDebugDrawer(): void {
+    this.debugDrawerOpenSignal.set(false);
+  }
+
+  protected setDebugShowAll(value: boolean): void {
+    this.debugShowAllSignal.set(value);
+  }
+
+  protected setDebugBackendStreamEnabled(value: boolean): void {
+    this.debugBackendStreamEnabledSignal.set(value);
+  }
+
+  protected setDebugPaused(value: boolean): void {
+    if (value) {
+      this.debug.pause();
+    } else {
+      this.debug.resume();
+    }
+  }
+
+  protected setDebugFilterQuery(value: string): void {
+    this.debugFilterQuerySignal.set(value);
+  }
+
+  protected toggleDebugScopeFilter(scope: PlanningDebugLogScope): void {
+    this.debugScopeFilterSignal.update((current) => this.toggleFilterValue(current, scope));
+  }
+
+  protected toggleDebugSourceFilter(source: PlanningDebugLogSource): void {
+    this.debugSourceFilterSignal.update((current) => this.toggleFilterValue(current, source));
+  }
+
+  protected toggleDebugTopicFilter(topic: string): void {
+    this.debugTopicFilterSignal.update((current) => this.toggleFilterValue(current, topic));
+  }
+
+  protected clearDebugFilters(): void {
+    this.debugFilterQuerySignal.set('');
+    this.debugScopeFilterSignal.set([]);
+    this.debugSourceFilterSignal.set([]);
+    this.debugTopicFilterSignal.set([]);
+  }
+
+  protected setDebugStreamToken(value: string): void {
+    this.debugStreamTokenSignal.set(value);
+    this.persistDebugStreamToken(value);
+  }
+
+  protected clearDebugLogs(): void {
+    this.debug.clear();
+  }
+
+  protected toggleDebugExport(): void {
+    this.debugExportOpenSignal.update((current) => !current);
+  }
+
+  protected copyDebugExport(): void {
+    const payload = this.debugExportJson();
+    if (!payload) {
+      return;
+    }
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      return;
+    }
+    navigator.clipboard.writeText(payload).catch(() => undefined);
+  }
+
+  protected formatDebugTimestamp(value?: string | null): string {
+    if (!value) {
+      return '-';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return this.debugTimestampFormatter.format(parsed);
+  }
+
+  protected formatApiStatusLabel(status: { state: 'idle' | 'ok' | 'error'; message?: string }): string {
+    if (status.state === 'ok') {
+      return 'Verbunden';
+    }
+    if (status.state === 'error') {
+      return 'Fehler';
+    }
+    return 'Warte';
+  }
+
+  protected formatSseStatusLabel(status: { state: 'idle' | 'connected' | 'error'; message?: string }): string {
+    if (status.state === 'connected') {
+      return 'Verbunden';
+    }
+    if (status.state === 'error') {
+      return 'Fehler';
+    }
+    return 'Warte';
+  }
+
+  protected formatDebugContext(context?: Record<string, unknown>): string | null {
+    if (!context || Object.keys(context).length === 0) {
+      return null;
+    }
+    try {
+      const serialized = JSON.stringify(context, null, 2);
+      const limit = 4000;
+      if (serialized.length <= limit) {
+        return serialized;
+      }
+      return `${serialized.slice(0, limit)}\n... (truncated)`;
+    } catch {
+      return null;
+    }
+  }
+
+  private toggleFilterValue(values: string[], value: string): string[] {
+    if (values.includes(value)) {
+      return values.filter((entry) => entry !== value);
+    }
+    return [...values, value];
+  }
+
+  private buildDebugExportPayload(): Record<string, unknown> {
+    return {
+      exportedAt: new Date().toISOString(),
+      stageId: this.activeStageSignal(),
+      apiBaseUrl: this.apiConfig.baseUrl,
+      userId: this.identity.userId(),
+      connectionId: this.identity.connectionId(),
+      filters: {
+        showAll: this.debugShowAllSignal(),
+        query: this.debugFilterQuerySignal(),
+        scopes: this.debugScopeFilterSignal(),
+        sources: this.debugSourceFilterSignal(),
+        topics: this.debugTopicFilterSignal(),
+        paused: this.debug.paused(),
+        pendingCount: this.debug.pendingCount(),
+      },
+      stream: {
+        enabled: this.debugBackendStreamEnabledSignal(),
+        tokenProvided: this.debugStreamTokenSignal().trim().length > 0,
+      },
+      status: {
+        api: this.debug.apiStatus(),
+        sse: this.debug.sseStatus(),
+        backendStream: this.debug.backendStreamStatus(),
+        viewport: this.debug.viewportStatus(),
+      },
+      entries: this.debug.exportEntries({ includePending: true }),
+    };
+  }
+
+  private loadDebugStreamToken(): string {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    try {
+      return window.localStorage.getItem(this.debugStreamTokenStorageKey) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private persistDebugStreamToken(value: string): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const storage = window.localStorage;
+      if (!value.trim()) {
+        storage.removeItem(this.debugStreamTokenStorageKey);
+        return;
+      }
+      storage.setItem(this.debugStreamTokenStorageKey, value);
+    } catch {
+      // ignore storage errors
+    }
   }
 
   private buildOptimizerPayload(
@@ -2230,30 +2542,17 @@ export class PlanningDashboardComponent {
     const payload = preview.payload;
     if (payload.upserts.length === 0 && payload.deletedIds.length === 0) {
       this.clearSolverPreview(stage);
+      this.solverDrawerOpenSignal.set(false);
       return;
     }
     this.data.applyActivityMutation(stage, payload.upserts ?? [], payload.deletedIds ?? []);
     this.clearSolverPreview(stage);
+    this.solverDrawerOpenSignal.set(false);
   }
 
   protected discardSolverPreview(): void {
     this.clearSolverPreview(this.activeStageSignal());
-  }
-
-  protected setAutoSolverEnabled(enabled: boolean): void {
-    this.autoSolverEnabledSignal.set(enabled);
-    this.persistAutoSolverEnabled(enabled);
-    this.data.setAutopilotSuppressed(enabled);
-    if (!enabled) {
-      this.clearSolverPreview('base', 'auto');
-      this.clearSolverPreview('operations', 'auto');
-      this.setAutoSolverStatus('base', { state: 'idle', message: null, updatedAt: new Date() });
-      this.setAutoSolverStatus('operations', { state: 'idle', message: null, updatedAt: new Date() });
-    }
-  }
-
-  private setAutoSolverStatus(stage: PlanningStageId, status: AutoSolverStatus): void {
-    this.autoSolverStatusSignal.update((current) => ({ ...current, [stage]: status }));
+    this.solverDrawerOpenSignal.set(false);
   }
 
   private setSolverPreview(
@@ -2273,6 +2572,9 @@ export class PlanningDashboardComponent {
         window: window ?? null,
       },
     }));
+    if (source === 'manual') {
+      this.solverDrawerOpenSignal.set(true);
+    }
   }
 
   private clearSolverPreview(stage: PlanningStageId, source?: SolverPreviewSource): void {
@@ -2284,83 +2586,6 @@ export class PlanningDashboardComponent {
       return;
     }
     this.solverPreviewSignal.update((state) => ({ ...state, [stage]: null }));
-    if (current.source === 'auto') {
-      this.setAutoSolverStatus(stage, { state: 'idle', message: null, updatedAt: new Date() });
-    }
-  }
-
-  private handleSolverActivityMutation(activity: Activity, stage: PlanningStageId): void {
-    if (!this.autoSolverEnabledSignal()) {
-      return;
-    }
-    const request = this.buildAutoSolverRequest(activity, stage);
-    if (!request) {
-      this.setAutoSolverStatus(stage, {
-        state: 'error',
-        message: 'Kein passendes Zeitfenster gefunden.',
-        updatedAt: new Date(),
-      });
-      return;
-    }
-    this.autoSolverRequest$.next(request);
-  }
-
-  private buildAutoSolverRequest(activity: Activity, stage: PlanningStageId): AutoSolverRequest | null {
-    const window = this.buildAutoSolverWindow(activity);
-    if (!window) {
-      return null;
-    }
-    const resourceIds = new Set(getActivityParticipantIds(activity));
-    if (!resourceIds.size) {
-      return null;
-    }
-    const startMs = window.start.getTime();
-    const endMs = window.end.getTime();
-    const activityIds = Array.from(
-      new Set(
-        this.normalizedStageActivitySignals[stage]()
-          .filter((entry) => this.activityOverlapsWindow(entry, startMs, endMs))
-          .filter((entry) => this.activityTouchesResources(entry, resourceIds))
-          .map((entry) => entry.id),
-      ),
-    );
-    if (!activityIds.length) {
-      return null;
-    }
-    return {
-      stage,
-      activityIds,
-      windowStart: window.start,
-      windowEnd: window.end,
-    };
-  }
-
-  private buildAutoSolverWindow(activity: Activity): { start: Date; end: Date } | null {
-    const startMs = new Date(activity.start).getTime();
-    const endMs = activity.end ? new Date(activity.end).getTime() : startMs;
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-      return null;
-    }
-    const baseStart = Math.min(startMs, endMs);
-    const baseEnd = Math.max(startMs, endMs);
-    return {
-      start: new Date(baseStart - AUTO_SOLVER_WINDOW_MS),
-      end: new Date(baseEnd + AUTO_SOLVER_WINDOW_MS),
-    };
-  }
-
-  private activityOverlapsWindow(activity: Activity, windowStartMs: number, windowEndMs: number): boolean {
-    const startMs = new Date(activity.start).getTime();
-    const endMs = activity.end ? new Date(activity.end).getTime() : startMs;
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-      return false;
-    }
-    return endMs >= windowStartMs && startMs <= windowEndMs;
-  }
-
-  private activityTouchesResources(activity: Activity, resourceIds: ReadonlySet<string>): boolean {
-    const ids = getActivityParticipantIds(activity);
-    return ids.some((id) => resourceIds.has(id));
   }
 
   private buildPreviewActivities(payload: PlanningSolverResponseDto | null): Activity[] {
@@ -2373,6 +2598,27 @@ export class PlanningDashboardComponent {
     }));
   }
 
+  private formatSelectionTimestamp(value?: string | null): string {
+    if (!value) {
+      return '–';
+    }
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) {
+      return value;
+    }
+    return this.selectionTimeFormatter.format(date);
+  }
+
+  private formatOptionalValue(value?: string | null): string {
+    const trimmed = (value ?? '').toString().trim();
+    return trimmed.length ? trimmed : '–';
+  }
+
+  private activityServiceLabel(activity: Activity): string {
+    const serviceId = (activity.serviceId ?? '').toString().trim();
+    return serviceId.length ? serviceId : '–';
+  }
+
   protected formatSolverTimestamp(value?: Date | null): string {
     if (!value) {
       return '';
@@ -2380,24 +2626,42 @@ export class PlanningDashboardComponent {
     return this.solverTimestampFormatter.format(value);
   }
 
-  private readAutoSolverEnabled(): boolean {
-    try {
-      const value = localStorage.getItem(AUTO_SOLVER_STORAGE_KEY);
-      if (value === null) {
-        return false;
-      }
-      return value === 'true';
-    } catch {
-      return false;
+  private syncSolverResourceSelection(options: Resource[]): void {
+    const optionIds = new Set(options.map((resource) => resource.id));
+    const current = this.solverResourceSelectionSignal();
+    let next = new Set<string>();
+    if (optionIds.size === 0) {
+      next = new Set();
+    } else if (current.size === 0) {
+      next = new Set(optionIds);
+    } else {
+      current.forEach((id) => {
+        if (optionIds.has(id)) {
+          next.add(id);
+        }
+      });
+      optionIds.forEach((id) => {
+        if (!this.lastSolverResourceOptions.has(id)) {
+          next.add(id);
+        }
+      });
     }
+    if (!this.setsEqual(current, next)) {
+      this.solverResourceSelectionSignal.set(next);
+    }
+    this.lastSolverResourceOptions = optionIds;
   }
 
-  private persistAutoSolverEnabled(enabled: boolean): void {
-    try {
-      localStorage.setItem(AUTO_SOLVER_STORAGE_KEY, enabled ? 'true' : 'false');
-    } catch {
-      // Ignore storage errors (e.g. privacy mode).
+  private setsEqual<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+    if (a.size !== b.size) {
+      return false;
     }
+    for (const value of a) {
+      if (!b.has(value)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   protected addSelectionToBoard(boardId: string): void {
@@ -2449,6 +2713,17 @@ export class PlanningDashboardComponent {
       result,
     });
     return result;
+  }
+
+  protected handleViewportChange(board: PlanningBoard, range: PlanningTimelineRange): void {
+    if (!this.isActiveBoard(board.id)) {
+      return;
+    }
+    this.lastViewportByBoard.set(board.id, range);
+    if (board.resourceIds.length === 0) {
+      return;
+    }
+    this.data.setStageViewport(this.activeStageSignal(), range, board.resourceIds);
   }
 
   protected boardActivities(board: PlanningBoard): Activity[] {

@@ -6,6 +6,7 @@ import { ActivityCatalogSettingsComponent } from './activity-catalog-settings.co
 import { TranslationSettingsComponent } from './translation-settings.component';
 import { LayerGroupSettingsComponent } from './layer-group-settings.component';
 import { PlanningRuleSettingsComponent } from './planning-rule-settings.component';
+import { PlanningSettingsComponent } from './planning-settings.component';
 import { AssistantUiContextService } from '../../core/services/assistant-ui-context.service';
 
 const SETTINGS_TABS = [
@@ -14,6 +15,7 @@ const SETTINGS_TABS = [
   { label: 'Layer-Gruppen', docKey: 'settings-layer-groups' },
   { label: 'Übersetzungen', docKey: 'settings-translations' },
   { label: 'Regeln', docKey: 'settings-planning-rules' },
+  { label: 'Planung', docKey: 'settings-planning' },
 ];
 
 @Component({
@@ -26,6 +28,7 @@ const SETTINGS_TABS = [
         TranslationSettingsComponent,
         LayerGroupSettingsComponent,
         PlanningRuleSettingsComponent,
+        PlanningSettingsComponent,
     ],
     templateUrl: './custom-attribute-settings.component.html',
     styleUrl: './custom-attribute-settings.component.scss',

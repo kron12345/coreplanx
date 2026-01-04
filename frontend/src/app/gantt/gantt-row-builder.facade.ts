@@ -247,6 +247,7 @@ export class GanttRowBuilderFacade {
           roleIcon: slot.icon,
           roleLabel: slot.iconLabel,
           isPreview,
+          serviceWorktimeMs: this.extractServiceWorktimeMs(activity),
         });
 
         if (isPreview) {
@@ -323,6 +324,21 @@ export class GanttRowBuilderFacade {
       const val = attrs?.[key];
       if (typeof val === 'string' && val.trim().length > 0) {
         return val.trim();
+      }
+    }
+    return null;
+  }
+
+  private extractServiceWorktimeMs(activity: Activity): number | null {
+    const meta = activity.meta as Record<string, unknown> | undefined;
+    const raw = meta?.['service_worktime_ms'];
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const parsed = Number.parseFloat(raw);
+      if (Number.isFinite(parsed)) {
+        return parsed;
       }
     }
     return null;

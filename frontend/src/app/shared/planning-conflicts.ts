@@ -32,6 +32,14 @@ export const CONFLICT_DEFINITIONS: Record<string, { category: ConflictCategory; 
   WALK_TIME_MISSING_END: { category: 'location', label: 'Wegzeit für Dienstende fehlt.' },
   WALK_TIME_MISSING_BREAK: { category: 'location', label: 'Wegzeit zur Pause fehlt.' },
   WALK_TIME_MISSING_SHORT_BREAK: { category: 'location', label: 'Wegzeit zur Kurzpause fehlt.' },
+  WITHIN_SERVICE_REQUIRED: {
+    category: 'unknown',
+    label: 'Leistung muss innerhalb eines Dienstes liegen, liegt aber außerhalb.',
+  },
+  OUTSIDE_SERVICE_REQUIRED: {
+    category: 'unknown',
+    label: 'Leistung soll außerhalb eines Dienstes liegen, liegt aber innerhalb.',
+  },
   MAX_DUTY_SPAN: { category: 'worktime', label: 'Maximale Dienstspanne überschritten.' },
   MAX_WORK: { category: 'worktime', label: 'Maximale Arbeitszeit im Dienst überschritten.' },
   MAX_CONTINUOUS: { category: 'worktime', label: 'Maximale zusammenhängende Arbeitszeit überschritten.' },

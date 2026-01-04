@@ -6,6 +6,7 @@
     [resourceViewModes]="resourceViewModes()"
     [selectedActivityIds]="selectedActivityIds()"
     [activityTypeInfo]="activityTypeInfo()"
+    (viewportChanged)="handleViewportChange($event)"
     (activitySelectionToggle)="noop()"
   ></app-gantt>
 </div>

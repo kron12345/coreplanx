@@ -8,6 +8,7 @@ import { TemplateModule } from './template/template.module';
 import { VariantsModule } from './variants/variants.module';
 import { TimetableModule } from './timetable/timetable.module';
 import { AssistantModule } from './assistant/assistant.module';
+import { DebugModule } from './debug/debug.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AssistantModule } from './assistant/assistant.module';
     VariantsModule,
     TimetableModule,
     AssistantModule,
+    DebugModule,
   ],
   controllers: [AppController],
   providers: [AppService],

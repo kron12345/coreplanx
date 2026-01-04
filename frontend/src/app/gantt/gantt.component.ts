@@ -12,6 +12,7 @@ import {
   ViewChildren,
   QueryList,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -131,6 +132,7 @@ export class GanttComponent implements AfterViewInit {
   private readonly markingModeSignal = signal(false);
   private readonly expandedGroups = signal<Set<string>>(new Set());
   private suppressNextTimelineClick = false;
+  private lastViewportSignature: string | null = null;
   private readonly viewportFacade = new GanttViewportFacade({
     timeScale: this.timeScale,
     host: () => this.hostElement.nativeElement,
@@ -186,6 +188,23 @@ export class GanttComponent implements AfterViewInit {
       this.stopLassoAutoScroll();
       this.pendingTimelineScrollLeft = null;
     });
+
+    effect(() => {
+      if (!this.viewportReady()) {
+        return;
+      }
+      const start = this.viewport.viewStart();
+      const end = this.viewport.viewEnd();
+      const signature = `${start.toISOString()}|${end.toISOString()}`;
+      if (signature === this.lastViewportSignature) {
+        return;
+      }
+      this.lastViewportSignature = signature;
+      this.viewportChanged.emit({
+        start: new Date(start),
+        end: new Date(end),
+      });
+    });
   }
 
   protected get viewport() {
@@ -212,6 +231,7 @@ export class GanttComponent implements AfterViewInit {
   @Output() activityEditRequested = new EventEmitter<{ resource: Resource; activity: Activity }>();
   @Output() activityRepositionRequested = new EventEmitter<ActivityRepositionEventPayload>();
   @Output() activityCopyRequested = new EventEmitter<ActivityRepositionEventPayload>();
+  @Output() viewportChanged = new EventEmitter<{ start: Date; end: Date }>();
 
   @Input()
   set selectedActivityIds(value: string[] | null) {

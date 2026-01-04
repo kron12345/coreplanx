@@ -83,6 +83,7 @@ export class GanttActivityComponent {
   @Input() roleIcon: string | null = null;
   @Input() roleLabel: string | null = null;
   @Input() zIndex: number | null = null;
+  @Input() serviceWorktimeMs: number | null = null;
   @Input({ required: true }) dragData!: GanttActivityDragData;
   @Output() activitySelected = new EventEmitter<Activity>();
   @Output() toggleSelection = new EventEmitter<GanttActivitySelectionEvent>();
@@ -139,6 +140,9 @@ export class GanttActivityComponent {
           lines.push(`  - ${detail}`);
         });
       });
+    }
+    if (this.showServiceWorktime) {
+      lines.push(`Arbeitszeit: ${this.serviceWorktimeLabel}`);
     }
     return lines.join('\n');
   }
@@ -296,6 +300,20 @@ export class GanttActivityComponent {
     return mapConflictCodesForOwner(this.activity?.attributes, ownerId);
   }
 
+  get showServiceWorktime(): boolean {
+    if (!this.activity || !this.isServiceStart) {
+      return false;
+    }
+    return typeof this.serviceWorktimeMs === 'number' && this.serviceWorktimeMs >= 0;
+  }
+
+  get serviceWorktimeLabel(): string {
+    if (!this.showServiceWorktime || this.serviceWorktimeMs === null) {
+      return '—';
+    }
+    return DURATION_PIPE.transform(this.serviceWorktimeMs);
+  }
+
   get ariaLabel(): string {
     if (!this.activity) {
       return '';
@@ -305,6 +323,28 @@ export class GanttActivityComponent {
 
   protected get isSyncing(): boolean {
     return this.classes?.includes('gantt-activity--syncing') ?? false;
+  }
+
+  private get isServiceStart(): boolean {
+    if (!this.activity) {
+      return false;
+    }
+    if (this.activity.serviceRole === 'start' || this.activity.type === 'service-start') {
+      return true;
+    }
+    const attrs = this.activity.attributes as Record<string, unknown> | undefined;
+    return this.parseBoolean(attrs?.['is_service_start']);
+  }
+
+  private parseBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === 'yes' || normalized === '1';
+    }
+    return false;
   }
 
   protected onTriggerMouseEnter(): void {

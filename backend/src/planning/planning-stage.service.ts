@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import type {
@@ -17,6 +19,8 @@ import type {
   ActivityValidationResponse,
   PlanningVariantId,
   PlanningStageRealtimeEvent,
+  PlanningStageViewportSubscriptionRequest,
+  PlanningStageViewportSubscriptionResponse,
   PlanningStageSnapshot,
   Resource,
   ResourceMutationRequest,
@@ -28,8 +32,9 @@ import type {
 } from './planning.types';
 import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
-import { DutyAutopilotService } from './duty-autopilot.service';
+import { DutyAutopilotResult, DutyAutopilotService } from './duty-autopilot.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
+import { DebugStreamService } from '../debug/debug-stream.service';
 
 const DEFAULT_VARIANT_ID: PlanningVariantId = 'default';
 
@@ -45,6 +50,15 @@ interface StageState {
   version: string | null;
 }
 
+interface StageViewportSubscription {
+  userId: string;
+  connectionId: string;
+  from: string;
+  to: string;
+  resourceIds?: string[];
+  updatedAt: string;
+}
+
 interface SourceContext {
   userId?: string;
   connectionId?: string;
@@ -56,6 +70,7 @@ export class PlanningStageService implements OnModuleInit {
   private readonly stages = new Map<string, StageState>();
   private validationIssueCounter = 0;
   private readonly stageEventSubjects = new Map<string, Subject<PlanningStageRealtimeEvent>>();
+  private readonly stageViewportSubscriptions = new Map<string, Map<string, StageViewportSubscription>>();
   private readonly heartbeatIntervalMs = 30000;
   private activityTypeRequirements:
     | Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>
@@ -67,6 +82,9 @@ export class PlanningStageService implements OnModuleInit {
     private readonly repository: PlanningRepository,
     private readonly dutyAutopilot: DutyAutopilotService,
     private readonly activityCatalog: PlanningActivityCatalogService,
+    @Optional()
+    @Inject(DebugStreamService)
+    private readonly debugStream?: DebugStreamService,
   ) {
     this.usingDatabase = this.repository.isEnabled;
     if (!this.usingDatabase) {
@@ -90,12 +108,15 @@ export class PlanningStageService implements OnModuleInit {
     timetableYearLabel?: string | null,
   ): Promise<PlanningStageSnapshot> {
     const stage = await this.getStage(stageId, variantId, timetableYearLabel);
+    const worktimeByService = this.computeServiceWorktimeByService(stage.activities);
     return {
       stageId: stage.stageId,
       variantId: stage.variantId,
       timetableYearLabel: stage.timetableYearLabel ?? undefined,
       resources: stage.resources.map((resource) => this.cloneResource(resource)),
-      activities: stage.activities.map((activity) => this.cloneActivity(activity)),
+      activities: stage.activities.map((activity) =>
+        this.attachServiceWorktime(this.cloneActivity(activity), worktimeByService),
+      ),
       trainRuns: stage.trainRuns.map((run) => this.cloneTrainRun(run)),
       trainSegments: stage.trainSegments.map((segment) =>
         this.cloneTrainSegment(segment),
@@ -112,8 +133,11 @@ export class PlanningStageService implements OnModuleInit {
     timetableYearLabel?: string | null,
   ): Promise<Activity[]> {
     const stage = await this.getStage(stageId, variantId, timetableYearLabel);
+    const worktimeByService = this.computeServiceWorktimeByService(stage.activities);
     const filtered = this.applyActivityFilters(stage.activities, filters);
-    return filtered.map((activity) => this.cloneActivity(activity));
+    return filtered.map((activity) =>
+      this.attachServiceWorktime(this.cloneActivity(activity), worktimeByService),
+    );
   }
 
   async listResources(
@@ -130,6 +154,7 @@ export class PlanningStageService implements OnModuleInit {
     variantId: string,
     request?: ActivityMutationRequest,
     timetableYearLabel?: string | null,
+    requestId?: string,
   ): Promise<ActivityMutationResponse> {
     const stage = await this.getStage(stageId, variantId, timetableYearLabel);
     const previousTimeline = { ...stage.timelineRange };
@@ -143,9 +168,11 @@ export class PlanningStageService implements OnModuleInit {
     const changedUpsertIds = new Set<string>();
     const requestedUpsertIds = new Set<string>(upserts.map((activity) => activity.id));
     const requestedDeleteIds = new Set<string>();
+    const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
+    const sourceContext = this.extractSourceContext(request?.clientRequestId);
+    let autopilotResult: DutyAutopilotResult | null = null;
 
     try {
-      const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
       if (upserts.length) {
         const existingById = new Map(stage.activities.map((activity) => [activity.id, activity]));
         const conflicts: { id: string; expected: string | null; current: string | null }[] = [];
@@ -161,6 +188,24 @@ export class PlanningStageService implements OnModuleInit {
           }
         });
         if (conflicts.length) {
+          this.debugStream?.log(
+            'warn',
+            'planning',
+            'Aktivitaeten-Konflikt beim Speichern',
+            {
+              stageId,
+              variantId,
+              requestId,
+              clientRequestId: request?.clientRequestId ?? null,
+              conflictIds: conflicts.map((entry) => entry.id),
+              conflictCount: conflicts.length,
+            },
+            {
+              userId: sourceContext.userId,
+              connectionId: sourceContext.connectionId,
+              stageId,
+            },
+          );
           throw new ConflictException({
             message: 'Aktivität wurde zwischenzeitlich geändert. Bitte neu laden.',
             conflictIds: conflicts.map((entry) => entry.id),
@@ -172,9 +217,10 @@ export class PlanningStageService implements OnModuleInit {
       }
 
       upserts.forEach((incoming) => {
-        this.upsertActivity(stage, incoming);
-        appliedUpserts.push(incoming.id);
-        changedUpsertIds.add(incoming.id);
+        const sanitized = this.stripComputedActivityMeta(incoming);
+        this.upsertActivity(stage, sanitized);
+        appliedUpserts.push(sanitized.id);
+        changedUpsertIds.add(sanitized.id);
         deleteIds.delete(incoming.id);
       });
 
@@ -190,15 +236,16 @@ export class PlanningStageService implements OnModuleInit {
       }
 
       if (!skipAutopilot) {
-        const autopilot = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
-        if (autopilot.upserts.length) {
-          autopilot.upserts.forEach((activity) => {
-            this.upsertActivity(stage, activity);
-            changedUpsertIds.add(activity.id);
+        autopilotResult = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
+        if (autopilotResult.upserts.length) {
+          autopilotResult.upserts.forEach((activity) => {
+            const sanitized = this.stripComputedActivityMeta(activity);
+            this.upsertActivity(stage, sanitized);
+            changedUpsertIds.add(sanitized.id);
           });
         }
-        if (autopilot.deletedIds.length) {
-          const toDelete = new Set(autopilot.deletedIds);
+        if (autopilotResult.deletedIds.length) {
+          const toDelete = new Set(autopilotResult.deletedIds);
           stage.activities = stage.activities.filter((activity) => {
             if (toDelete.has(activity.id)) {
               deletedIds.push(activity.id);
@@ -256,11 +303,24 @@ export class PlanningStageService implements OnModuleInit {
       previousTimeline.start !== stage.timelineRange.start ||
       previousTimeline.end !== stage.timelineRange.end;
 
-    const activitySnapshots = changedUpsertIds.size
+    const activityById = new Map(stage.activities.map((activity) => [activity.id, activity]));
+    const impactedServiceIds = this.collectImpactedServiceIds(
+      activityById,
+      changedUpsertIds,
+      deletedIds,
+      previousById,
+    );
+    const dbSnapshots = changedUpsertIds.size
       ? this.collectActivitySnapshots(stage, Array.from(changedUpsertIds))
       : [];
+    const responseSnapshots =
+      changedUpsertIds.size || impactedServiceIds.size
+        ? this.collectActivitySnapshots(stage, Array.from(changedUpsertIds), {
+            extraServiceIds: impactedServiceIds,
+            includeWorktime: true,
+          })
+        : [];
 
-    const sourceContext = this.extractSourceContext(request?.clientRequestId);
     if (changedUpsertIds.size || deletedIds.length) {
       this.emitStageEvent(stage, {
         scope: 'activities',
@@ -268,7 +328,7 @@ export class PlanningStageService implements OnModuleInit {
         version: stage.version,
         sourceClientId: sourceContext.userId,
         sourceConnectionId: sourceContext.connectionId,
-        upserts: activitySnapshots.length ? activitySnapshots : undefined,
+        upserts: responseSnapshots.length ? responseSnapshots : undefined,
         deleteIds: deletedIds.length ? [...deletedIds] : undefined,
       });
     }
@@ -280,7 +340,7 @@ export class PlanningStageService implements OnModuleInit {
       await this.repository.applyActivityMutations(
         stage.stageId,
         stage.variantId,
-        activitySnapshots,
+        dbSnapshots,
         deletedIds,
       );
       await this.repository.updateStageMetadata(
@@ -291,10 +351,35 @@ export class PlanningStageService implements OnModuleInit {
       );
     }
 
+    if (changedUpsertIds.size || deletedIds.length) {
+      this.debugStream?.log(
+        'info',
+        'planning',
+        'Aktivitaeten gespeichert',
+        {
+          stageId,
+          variantId,
+          requestId,
+          clientRequestId: request?.clientRequestId ?? null,
+          upsertCount: appliedUpserts.length,
+          deleteCount: deletedIds.length,
+          upsertIds: this.limitIds(appliedUpserts),
+          deleteIds: this.limitIds(deletedIds),
+          autopilotUpserts: autopilotResult?.upserts.length ?? 0,
+          autopilotDeletes: autopilotResult?.deletedIds.length ?? 0,
+        },
+        {
+          userId: sourceContext.userId,
+          connectionId: sourceContext.connectionId,
+          stageId,
+        },
+      );
+    }
+
     return {
       appliedUpserts,
       deletedIds,
-      upserts: activitySnapshots.length ? activitySnapshots : undefined,
+      upserts: responseSnapshots.length ? responseSnapshots : undefined,
       version: stage.version,
       clientRequestId: request?.clientRequestId,
     };
@@ -323,6 +408,245 @@ export class PlanningStageService implements OnModuleInit {
       }
     }
     return null;
+  }
+
+  private computeServiceWorktimeByService(activities: Activity[]): Map<string, number> {
+    const windows = new Map<string, { startMs: number | null; endMs: number | null }>();
+    activities.forEach((activity) => {
+      const serviceIds = this.collectServiceIds(activity);
+      if (!serviceIds.length) {
+        return;
+      }
+      const startMs = this.parseTimestamp(activity.start);
+      if (startMs === null) {
+        return;
+      }
+      if (this.isServiceStartActivity(activity)) {
+        serviceIds.forEach((serviceId) => {
+          const entry = windows.get(serviceId) ?? { startMs: null, endMs: null };
+          entry.startMs = entry.startMs === null ? startMs : Math.min(entry.startMs, startMs);
+          windows.set(serviceId, entry);
+        });
+      }
+      if (this.isServiceEndActivity(activity)) {
+        const endMs = startMs;
+        serviceIds.forEach((serviceId) => {
+          const entry = windows.get(serviceId) ?? { startMs: null, endMs: null };
+          entry.endMs = entry.endMs === null ? endMs : Math.max(entry.endMs, endMs);
+          windows.set(serviceId, entry);
+        });
+      }
+    });
+
+    const breakMsMap = new Map<string, number>();
+    activities.forEach((activity) => {
+      if (!this.isBreakActivity(activity)) {
+        return;
+      }
+      const startMs = this.parseTimestamp(activity.start);
+      const endMs = this.parseTimestamp(activity.end ?? null);
+      if (startMs === null || endMs === null || endMs <= startMs) {
+        return;
+      }
+      const serviceIds = this.collectServiceIds(activity);
+      if (!serviceIds.length) {
+        return;
+      }
+      serviceIds.forEach((serviceId) => {
+        const window = windows.get(serviceId);
+        if (!window || window.startMs === null || window.endMs === null) {
+          return;
+        }
+        const overlapStart = Math.max(startMs, window.startMs);
+        const overlapEnd = Math.min(endMs, window.endMs);
+        if (overlapEnd <= overlapStart) {
+          return;
+        }
+        const current = breakMsMap.get(serviceId) ?? 0;
+        breakMsMap.set(serviceId, current + (overlapEnd - overlapStart));
+      });
+    });
+
+    const worktimeByService = new Map<string, number>();
+    windows.forEach((window, serviceId) => {
+      if (window.startMs === null || window.endMs === null) {
+        return;
+      }
+      if (window.endMs <= window.startMs) {
+        return;
+      }
+      const total = window.endMs - window.startMs;
+      const breakMs = breakMsMap.get(serviceId) ?? 0;
+      worktimeByService.set(serviceId, Math.max(0, total - breakMs));
+    });
+    return worktimeByService;
+  }
+
+  private attachServiceWorktime(activity: Activity, worktimeByService: Map<string, number>): Activity {
+    if (!this.isServiceStartActivity(activity)) {
+      return activity;
+    }
+    const serviceId = this.resolvePrimaryServiceId(activity);
+    if (!serviceId) {
+      return activity;
+    }
+    const worktime = worktimeByService.get(serviceId);
+    if (worktime === undefined) {
+      return activity;
+    }
+    return {
+      ...activity,
+      meta: {
+        ...(activity.meta ?? {}),
+        service_worktime_ms: worktime,
+      },
+    };
+  }
+
+  private stripComputedActivityMeta(activity: Activity): Activity {
+    const meta = activity.meta as Record<string, unknown> | undefined;
+    if (!meta || !Object.prototype.hasOwnProperty.call(meta, 'service_worktime_ms')) {
+      return activity;
+    }
+    const nextMeta = { ...meta };
+    delete nextMeta['service_worktime_ms'];
+    return {
+      ...activity,
+      meta: Object.keys(nextMeta).length ? nextMeta : undefined,
+    };
+  }
+
+  private collectServiceIds(activity: Activity | null | undefined): string[] {
+    if (!activity) {
+      return [];
+    }
+    const ids = new Set<string>();
+    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      ids.add(direct);
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const map = attrs?.['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      Object.values(map as Record<string, any>).forEach((entry) => {
+        const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+        if (candidate) {
+          ids.add(candidate);
+        }
+      });
+    }
+    if (!direct && ids.size === 0) {
+      const parsed = this.parseServiceIdFromManagedActivityId(activity.id);
+      if (parsed) {
+        ids.add(parsed);
+      }
+    }
+    return Array.from(ids);
+  }
+
+  private resolvePrimaryServiceId(activity: Activity | null | undefined): string | null {
+    if (!activity) {
+      return null;
+    }
+    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      return direct;
+    }
+    const parsed = this.parseServiceIdFromManagedActivityId(activity.id);
+    if (parsed) {
+      return parsed;
+    }
+    const ids = this.collectServiceIds(activity);
+    return ids.length ? ids[0] : null;
+  }
+
+  private parseServiceIdFromManagedActivityId(id: string | null | undefined): string | null {
+    const value = (id ?? '').trim();
+    if (!value) {
+      return null;
+    }
+    if (value.startsWith('svcstart:')) {
+      const serviceId = value.slice('svcstart:'.length).trim();
+      return serviceId.length ? serviceId : null;
+    }
+    if (value.startsWith('svcend:')) {
+      const serviceId = value.slice('svcend:'.length).trim();
+      return serviceId.length ? serviceId : null;
+    }
+    if (value.startsWith('svcbreak:')) {
+      const rest = value.slice('svcbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    if (value.startsWith('svcshortbreak:')) {
+      const rest = value.slice('svcshortbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    if (value.startsWith('svccommute:')) {
+      const rest = value.slice('svccommute:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    return null;
+  }
+
+  private isServiceStartActivity(activity: Activity): boolean {
+    if (activity.serviceRole === 'start' || activity.type === 'service-start') {
+      return true;
+    }
+    if ((activity.id ?? '').toString().startsWith('svcstart:')) {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    return this.parseBoolean(attrs?.['is_service_start']);
+  }
+
+  private isServiceEndActivity(activity: Activity): boolean {
+    if (activity.serviceRole === 'end' || activity.type === 'service-end') {
+      return true;
+    }
+    if ((activity.id ?? '').toString().startsWith('svcend:')) {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    return this.parseBoolean(attrs?.['is_service_end']);
+  }
+
+  private isBreakActivity(activity: Activity): boolean {
+    if (!activity.end) {
+      return false;
+    }
+    const type = (activity.type ?? '').toString().trim().toLowerCase();
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const isBreak = this.parseBoolean(attrs?.['is_break']) || type === 'break';
+    const isShort = this.parseBoolean(attrs?.['is_short_break']) || type === 'short-break';
+    return isBreak && !isShort;
+  }
+
+  private parseBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === 'yes' || normalized === '1';
+    }
+    return false;
+  }
+
+  private parseTimestamp(value: string | null | undefined): number | null {
+    if (!value) {
+      return null;
+    }
+    const ms = Date.parse(value);
+    return Number.isFinite(ms) ? ms : null;
   }
 
   private computeVehicleServiceBoundaryGroupKey(activity: Activity, ownerId: string): string {
@@ -695,6 +1019,48 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
+  async updateViewportSubscription(
+    stageId: string,
+    variantId: string,
+    request?: PlanningStageViewportSubscriptionRequest,
+    timetableYearLabel?: string | null,
+  ): Promise<PlanningStageViewportSubscriptionResponse> {
+    const stage = await this.getStage(stageId, variantId, timetableYearLabel);
+    const userId = request?.userId?.trim() ?? '';
+    const connectionId = request?.connectionId?.trim() ?? '';
+    const from = request?.from?.trim() ?? '';
+    const to = request?.to?.trim() ?? '';
+    if (!userId || !connectionId) {
+      throw new BadRequestException('Viewport subscription requires userId and connectionId.');
+    }
+    if (!from || !to) {
+      throw new BadRequestException('Viewport subscription requires from and to timestamps.');
+    }
+    const fromMs = this.parseIso(from);
+    const toMs = this.parseIso(to);
+    if (fromMs === undefined || toMs === undefined || toMs <= fromMs) {
+      throw new BadRequestException('Viewport subscription range is invalid.');
+    }
+    const resourceIds = request?.resourceIds
+      ?.map((entry) => entry.trim())
+      .filter(Boolean);
+    const normalizedResourceIds =
+      resourceIds && resourceIds.length ? Array.from(new Set(resourceIds)) : undefined;
+    const key = this.stageKey(stage.stageId, stage.variantId);
+    const subscriptionKey = this.viewportSubscriptionKey(userId, connectionId);
+    const registry = this.stageViewportSubscriptions.get(key) ?? new Map<string, StageViewportSubscription>();
+    registry.set(subscriptionKey, {
+      userId,
+      connectionId,
+      from,
+      to,
+      resourceIds: normalizedResourceIds,
+      updatedAt: new Date().toISOString(),
+    });
+    this.stageViewportSubscriptions.set(key, registry);
+    return { ok: true };
+  }
+
   streamStageEvents(
     stageId: string,
     variantId: string,
@@ -705,12 +1071,19 @@ export class PlanningStageService implements OnModuleInit {
     return new Observable<PlanningStageRealtimeEvent>((subscriber) => {
       let subscription: { unsubscribe: () => void } | null = null;
       let heartbeat: ReturnType<typeof setInterval> | null = null;
+      const subscriptionKey =
+        userId && connectionId ? this.viewportSubscriptionKey(userId, connectionId) : null;
 
       this.getStage(stageId, variantId, timetableYearLabel)
         .then((stage) => {
           const subject = this.getStageEventSubject(stage.stageId, stage.variantId);
           subscription = subject.subscribe({
-            next: (event) => subscriber.next(event),
+            next: (event) => {
+              const filtered = this.filterRealtimeEvent(stage, event, subscriptionKey);
+              if (filtered) {
+                subscriber.next(filtered);
+              }
+            },
             error: (error) => subscriber.error(error),
             complete: () => subscriber.complete(),
           });
@@ -731,6 +1104,9 @@ export class PlanningStageService implements OnModuleInit {
           clearInterval(heartbeat);
         }
         subscription?.unsubscribe();
+        if (subscriptionKey) {
+          this.removeViewportSubscription(stageId, variantId, subscriptionKey);
+        }
       };
     });
   }
@@ -841,6 +1217,90 @@ export class PlanningStageService implements OnModuleInit {
 
   private stageKey(stageId: StageId, variantId: PlanningVariantId): string {
     return `${stageId}::${variantId}`;
+  }
+
+  private viewportSubscriptionKey(userId: string, connectionId: string): string {
+    return `${userId}::${connectionId}`;
+  }
+
+  private getViewportSubscription(
+    stageId: StageId,
+    variantId: PlanningVariantId,
+    subscriptionKey: string,
+  ): StageViewportSubscription | null {
+    const key = this.stageKey(stageId, variantId);
+    const registry = this.stageViewportSubscriptions.get(key);
+    return registry?.get(subscriptionKey) ?? null;
+  }
+
+  private removeViewportSubscription(
+    stageIdValue: string,
+    variantIdValue: string,
+    subscriptionKey: string,
+  ): void {
+    if (!isStageId(stageIdValue)) {
+      return;
+    }
+    const stageId = stageIdValue as StageId;
+    const variantId = this.normalizeVariantId(variantIdValue);
+    const key = this.stageKey(stageId, variantId);
+    const registry = this.stageViewportSubscriptions.get(key);
+    if (!registry) {
+      return;
+    }
+    registry.delete(subscriptionKey);
+    if (registry.size === 0) {
+      this.stageViewportSubscriptions.delete(key);
+    }
+  }
+
+  private filterRealtimeEvent(
+    stage: StageState,
+    event: PlanningStageRealtimeEvent,
+    subscriptionKey: string | null,
+  ): PlanningStageRealtimeEvent | null {
+    if (event.scope !== 'activities' || !subscriptionKey) {
+      return event;
+    }
+    const subscription = this.getViewportSubscription(stage.stageId, stage.variantId, subscriptionKey);
+    if (!subscription) {
+      return event;
+    }
+    const visibleIds = this.collectVisibleActivityIds(stage, subscription);
+    const incomingUpserts = (event.upserts ?? []) as Activity[];
+    const deleteIds = new Set(event.deleteIds ?? []);
+    const filteredUpserts: Activity[] = [];
+
+    incomingUpserts.forEach((activity) => {
+      if (visibleIds.has(activity.id)) {
+        filteredUpserts.push(activity);
+      } else {
+        deleteIds.add(activity.id);
+      }
+    });
+
+    const filteredDeleteIds = Array.from(deleteIds);
+    if (filteredUpserts.length === 0 && filteredDeleteIds.length === 0) {
+      return null;
+    }
+
+    return {
+      ...event,
+      upserts: filteredUpserts.length ? filteredUpserts : undefined,
+      deleteIds: filteredDeleteIds.length ? filteredDeleteIds : undefined,
+    };
+  }
+
+  private collectVisibleActivityIds(
+    stage: StageState,
+    subscription: StageViewportSubscription,
+  ): Set<string> {
+    const filtered = this.applyActivityFilters(stage.activities, {
+      from: subscription.from,
+      to: subscription.to,
+      resourceIds: subscription.resourceIds,
+    });
+    return new Set(filtered.map((activity) => activity.id));
   }
 
   private normalizeVariantId(value?: string | null): PlanningVariantId {
@@ -1038,11 +1498,61 @@ export class PlanningStageService implements OnModuleInit {
       .map((resource) => this.cloneResource(resource));
   }
 
-  private collectActivitySnapshots(stage: StageState, ids: string[]): Activity[] {
-    return ids
+  private collectActivitySnapshots(
+    stage: StageState,
+    ids: string[],
+    options: { extraServiceIds?: Set<string>; includeWorktime?: boolean } = {},
+  ): Activity[] {
+    const targetIds = new Set(ids);
+    const extraServiceIds = options.extraServiceIds ?? new Set<string>();
+    if (extraServiceIds.size) {
+      stage.activities.forEach((activity) => {
+        if (!this.isServiceStartActivity(activity)) {
+          return;
+        }
+        const serviceId = this.resolvePrimaryServiceId(activity);
+        if (serviceId && extraServiceIds.has(serviceId)) {
+          targetIds.add(activity.id);
+        }
+      });
+    }
+    if (targetIds.size === 0) {
+      return [];
+    }
+    const worktimeByService = options.includeWorktime
+      ? this.computeServiceWorktimeByService(stage.activities)
+      : null;
+    return Array.from(targetIds)
       .map((id) => stage.activities.find((activity) => activity.id === id))
       .filter((activity): activity is Activity => Boolean(activity))
-      .map((activity) => this.cloneActivity(activity));
+      .map((activity) => {
+        const clone = this.cloneActivity(activity);
+        if (!worktimeByService) {
+          return clone;
+        }
+        return this.attachServiceWorktime(clone, worktimeByService);
+      });
+  }
+
+  private collectImpactedServiceIds(
+    activityById: Map<string, Activity>,
+    changedUpsertIds: Set<string>,
+    deletedIds: string[],
+    previousById: Map<string, Activity>,
+  ): Set<string> {
+    const impacted = new Set<string>();
+    const addFromActivity = (activity: Activity | undefined | null) => {
+      if (!activity) {
+        return;
+      }
+      this.collectServiceIds(activity).forEach((serviceId) => impacted.add(serviceId));
+    };
+    changedUpsertIds.forEach((id) => {
+      addFromActivity(activityById.get(id));
+      addFromActivity(previousById.get(id));
+    });
+    deletedIds.forEach((id) => addFromActivity(previousById.get(id)));
+    return impacted;
   }
 
   private extractSourceContext(clientRequestId?: string): SourceContext {
@@ -1055,6 +1565,16 @@ export class PlanningStageService implements OnModuleInit {
       userId: userId || undefined,
       connectionId: connectionId || undefined,
     };
+  }
+
+  private limitIds(ids: string[], limit = 20): string[] | undefined {
+    if (!ids.length) {
+      return undefined;
+    }
+    if (ids.length <= limit) {
+      return ids;
+    }
+    return ids.slice(0, limit);
   }
 
   private async getStage(
@@ -1136,6 +1656,10 @@ export class PlanningStageService implements OnModuleInit {
     };
     filtered.forEach((activity) => {
       addServiceId(activity.serviceId);
+      const managedId = this.parseServiceIdFromManagedActivityId(activity.id);
+      if (managedId) {
+        serviceIds.add(managedId);
+      }
       const attrs = activity.attributes as Record<string, unknown> | undefined;
       const map = attrs?.['service_by_owner'];
       if (map && typeof map === 'object' && !Array.isArray(map)) {

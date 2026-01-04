@@ -33,7 +33,7 @@ export class PlanningCandidateBuilder {
     const travelTemplates = ruleset.templates.filter((entry) => entry.template.type === 'travel');
     const dutyTemplates = ruleset.templates.filter((entry) => entry.template.type === 'duty');
     const dutySplitTemplates = ruleset.templates.filter((entry) => entry.template.type === 'duty_split');
-    const gaps = this.collectServiceGaps(snapshot.activities);
+    const gaps = this.collectServiceGaps(snapshot.stageId, snapshot.activities);
     const dutyGroups = this.collectDutyGroups(snapshot);
 
     const candidates: PlanningCandidate[] = [
@@ -67,6 +67,9 @@ export class PlanningCandidateBuilder {
       const maxCandidates = this.pickNumber(params, 'maxCandidates', Number.POSITIVE_INFINITY);
       let counter = 0;
       for (const gap of gaps) {
+        if (!this.supportsPersonnelBreaks(gap.participantKeys)) {
+          continue;
+        }
         if (gap.gapMinutes < minGapMinutes || gap.gapMinutes > maxGapMinutes) {
           continue;
         }
@@ -94,6 +97,16 @@ export class PlanningCandidateBuilder {
       }
     }
     return candidates;
+  }
+
+  private supportsPersonnelBreaks(participantKeys: string[]): boolean {
+    if (!participantKeys.length) {
+      return false;
+    }
+    return participantKeys.some((entry) => {
+      const kind = entry.split('|')[0];
+      return kind === 'personnel' || kind === 'personnel-service';
+    });
   }
 
   private buildTravelCandidates(templates: RulesetTemplate[], gaps: ServiceGap[]): PlanningCandidate[] {
@@ -219,18 +232,24 @@ export class PlanningCandidateBuilder {
     return candidates;
   }
 
-  private collectServiceGaps(activities: Activity[]): ServiceGap[] {
-    const byService = new Map<string, Activity[]>();
+  private collectServiceGaps(stageId: string, activities: Activity[]): ServiceGap[] {
+    const byService = new Map<string, ServiceActivity[]>();
     for (const activity of activities) {
-      const serviceId = (activity.serviceId ?? '').toString().trim();
-      if (!serviceId) {
+      if (this.isBreakActivity(activity)) {
         continue;
       }
-      const list = byService.get(serviceId);
-      if (list) {
-        list.push(activity);
-      } else {
-        byService.set(serviceId, [activity]);
+      const assignments = this.collectServiceAssignments(activity, stageId);
+      if (!assignments.length) {
+        continue;
+      }
+      for (const assignment of assignments) {
+        const list = byService.get(assignment.serviceId);
+        const entry = { activity, participantKeys: assignment.participantKeys };
+        if (list) {
+          list.push(entry);
+        } else {
+          byService.set(assignment.serviceId, [entry]);
+        }
       }
     }
 
@@ -238,12 +257,20 @@ export class PlanningCandidateBuilder {
     for (const [serviceId, items] of byService.entries()) {
       const sorted = items
         .map((activity) => ({
-          activity,
-          startMs: this.toMs(activity.start),
-          endMs: this.toMs(activity.end ?? null),
+          activity: activity.activity,
+          participantKeys: activity.participantKeys,
+          startMs: this.toMs(activity.activity.start),
+          endMs: this.toMs(activity.activity.end ?? null),
         }))
         .filter(
-          (entry): entry is { activity: Activity; startMs: number; endMs: number | null } =>
+          (
+            entry,
+          ): entry is {
+            activity: Activity;
+            participantKeys: string[];
+            startMs: number;
+            endMs: number | null;
+          } =>
             entry.startMs !== null,
         )
         .sort((a, b) => {
@@ -274,20 +301,96 @@ export class PlanningCandidateBuilder {
           gapMinutes,
           fromLocation: this.pickLocation(before, 'to'),
           toLocation: this.pickLocation(after, 'from'),
-          participantKeys: this.normalizeParticipants(before.participants ?? after.participants ?? []),
+          participantKeys: this.mergeParticipantKeys(current.participantKeys, next.participantKeys),
         });
       }
     }
     return gaps;
   }
 
+  private collectServiceAssignments(
+    activity: Activity,
+    stageId: string,
+  ): Array<{ serviceId: string; participantKeys: string[] }> {
+    const participants = activity.participants ?? [];
+    const assignments = new Map<string, Set<string>>();
+    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      this.addParticipantKeys(assignments, direct, participants);
+    }
+
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const map = attrs?.['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      Object.entries(map as Record<string, { serviceId?: string | null } | null>).forEach(
+        ([ownerId, entry]) => {
+          const serviceId = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+          if (!serviceId) {
+            return;
+          }
+          const ownerParticipants = participants.filter((participant) => participant.resourceId === ownerId);
+          this.addParticipantKeys(assignments, serviceId, ownerParticipants);
+        },
+      );
+    }
+
+    if (assignments.size === 0) {
+      const owners = this.resolveDutyOwners(activity);
+      const startMs = this.toMs(activity.start);
+      if (owners.length && startMs !== null) {
+        const dayKey = this.utcDayKeyFromMs(startMs);
+        owners.forEach((owner) => {
+          const serviceId = this.computeServiceId(stageId, owner.resourceId, dayKey);
+          this.addParticipantKeys(assignments, serviceId, [owner]);
+        });
+      }
+    }
+
+    return Array.from(assignments.entries()).map(([serviceId, keys]) => ({
+      serviceId,
+      participantKeys: Array.from(keys),
+    }));
+  }
+
+  private addParticipantKeys(
+    assignments: Map<string, Set<string>>,
+    serviceId: string,
+    participants: ActivityParticipant[],
+  ): void {
+    if (!serviceId) {
+      return;
+    }
+    const trimmed = serviceId.trim();
+    if (!trimmed) {
+      return;
+    }
+    let target = assignments.get(trimmed);
+    if (!target) {
+      target = new Set();
+      assignments.set(trimmed, target);
+    }
+    this.normalizeParticipants(participants).forEach((key) => {
+      target?.add(key);
+    });
+  }
+
+  private mergeParticipantKeys(...entries: string[][]): string[] {
+    const merged = new Set<string>();
+    entries.forEach((list) => {
+      list.forEach((entry) => {
+        const trimmed = entry.trim();
+        if (trimmed) {
+          merged.add(trimmed);
+        }
+      });
+    });
+    return Array.from(merged.values()).sort((a, b) => a.localeCompare(b));
+  }
+
   private collectDutyGroups(snapshot: PlanningStageSnapshot): DutyGroup[] {
     const groups = new Map<string, DutyGroupDraft>();
     for (const activity of snapshot.activities) {
       if (this.isServiceBoundary(activity)) {
-        continue;
-      }
-      if (this.hasServiceAssignment(activity)) {
         continue;
       }
       const startMs = this.toMs(activity.start);
@@ -302,8 +405,8 @@ export class PlanningCandidateBuilder {
       const dayKey = this.utcDayKeyFromMs(startMs);
       for (const owner of owners) {
         const ownerGroup = this.resolveOwnerGroup(owner.kind);
-        const serviceId = this.computeServiceId(snapshot.stageId, owner.resourceId, dayKey);
-        const key = `${owner.resourceId}|${owner.kind}|${dayKey}`;
+        const serviceId = this.resolveServiceIdForOwner(activity, snapshot.stageId, owner, dayKey);
+        const key = serviceId || `${owner.resourceId}|${owner.kind}|${dayKey}`;
         const existing = groups.get(key);
         if (!existing) {
           groups.set(key, {
@@ -419,17 +522,26 @@ export class PlanningCandidateBuilder {
     return 'personnel';
   }
 
-  private hasServiceAssignment(activity: Activity): boolean {
-    const serviceId = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
-    if (serviceId.startsWith('svc:')) {
-      return true;
-    }
+  private resolveServiceIdForOwner(
+    activity: Activity,
+    stageId: string,
+    owner: ActivityParticipant,
+    dayKey: string,
+  ): string {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const map = attrs?.['service_by_owner'];
     if (map && typeof map === 'object' && !Array.isArray(map)) {
-      return Object.keys(map as Record<string, unknown>).length > 0;
+      const entry = (map as Record<string, { serviceId?: string | null } | null>)[owner.resourceId];
+      const mapped = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      if (mapped) {
+        return mapped;
+      }
     }
-    return false;
+    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      return direct;
+    }
+    return this.computeServiceId(stageId, owner.resourceId, dayKey);
   }
 
   private isServiceBoundary(activity: Activity): boolean {
@@ -446,6 +558,22 @@ export class PlanningCandidateBuilder {
       return false;
     }
     return this.toBool(attrs['is_service_start']) || this.toBool(attrs['is_service_end']);
+  }
+
+  private isBreakActivity(activity: Activity): boolean {
+    const type = (activity.type ?? '').toString().trim();
+    if (type === 'break' || type === 'short-break') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    if (!attrs) {
+      return false;
+    }
+    if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
+      return true;
+    }
+    const id = activity.id ?? '';
+    return id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:');
   }
 
   private toBool(value: unknown): boolean {
@@ -468,6 +596,11 @@ type ServiceGap = {
   gapMinutes: number;
   fromLocation: string | null;
   toLocation: string | null;
+  participantKeys: string[];
+};
+
+type ServiceActivity = {
+  activity: Activity;
   participantKeys: string[];
 };
 

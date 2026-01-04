@@ -17,6 +17,15 @@
   min-height: 0;
 }
 
+.planning-tab-loader {
+  height: 3px;
+  margin: 0 16px 8px;
+}
+
+.planning-tab-loader .mat-mdc-progress-bar {
+  height: 3px;
+}
+
 .planning-side-panels {
   position: fixed;
   top: 120px;
@@ -344,10 +353,10 @@
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.9);
-  padding: 10px 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .planning-solver-section__header {
@@ -374,66 +383,18 @@
   flex-wrap: wrap;
 }
 
-.planning-panel--solver {
-  width: clamp(320px, 22vw, 420px);
+.planning-solver-section__field {
+  width: 100%;
 }
 
-.planning-solver__section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.planning-solver-section__meta {
+  font-size: 0.78rem;
+  color: rgba(15, 23, 42, 0.7);
 }
 
-.planning-solver__status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8rem;
+.planning-solver-section__preview-hint {
+  font-size: 0.78rem;
   color: rgba(15, 23, 42, 0.75);
-}
-
-.planning-solver__status mat-icon {
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
-}
-
-.planning-solver__status-title {
-  font-weight: 600;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.planning-solver__status-time {
-  font-size: 0.75rem;
-  color: rgba(15, 23, 42, 0.6);
-}
-
-.planning-solver__preview {
-  border-radius: 12px;
-  border: 1px dashed rgba(15, 23, 42, 0.2);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: rgba(248, 250, 252, 0.8);
-}
-
-.planning-solver__preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.planning-solver__preview-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.planning-solver__preview-subtitle {
-  font-size: 0.75rem;
-  color: rgba(15, 23, 42, 0.6);
 }
 
 .planning-solver__preview-meta {
@@ -447,6 +408,105 @@
 .planning-solver__preview-window {
   font-size: 0.75rem;
   color: rgba(15, 23, 42, 0.6);
+}
+
+.planning-selection-details {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.planning-selection-details .mat-expansion-panel-header {
+  padding: 8px 14px;
+}
+
+.planning-selection-table {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  overflow: auto;
+  max-height: 260px;
+}
+
+.planning-selection-table__header,
+.planning-selection-table__row {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 1.2fr)
+    minmax(120px, 1fr)
+    minmax(110px, 1fr)
+    minmax(120px, 1fr)
+    minmax(120px, 1fr)
+    minmax(90px, 0.8fr)
+    minmax(90px, 0.8fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.planning-selection-table__header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.planning-selection-table__row {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.85);
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(15, 23, 42, 0.1);
+}
+
+.planning-selection-table__row span,
+.planning-selection-table__header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planning-solver-drawer {
+  width: clamp(320px, 28vw, 460px);
+  padding: 0;
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.planning-solver-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.planning-solver-drawer__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.planning-solver-drawer__subtitle {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.planning-solver-drawer__body {
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.planning-solver-drawer__summary {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.planning-solver-drawer__empty {
+  font-size: 0.8rem;
+  color: rgba(15, 23, 42, 0.65);
 }
 
 .planning-time-tools {
@@ -514,10 +574,6 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-}
-
-.planning-selection-chips {
-  margin-bottom: 12px;
 }
 
 .planning-side-panels__shift {

@@ -4,19 +4,18 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import type { Activity } from '../../models/activity';
 import type {
-  AutopilotPreviewResponseDto,
   PlanningCandidateBuildResponseDto,
   PlanningCandidateDto,
   PlanningCandidateBuildStatsDto,
   PlanningSolverResponseDto,
 } from '../../core/api/planning-optimizer-api.types';
 
-export type PlanningOptimizerDialogMode = 'autopilot' | 'candidates' | 'solver';
+export type PlanningOptimizerDialogMode = 'candidates' | 'solver';
 
 export interface PlanningOptimizerDialogData {
   title: string;
   mode: PlanningOptimizerDialogMode;
-  payload: AutopilotPreviewResponseDto | PlanningCandidateBuildResponseDto | PlanningSolverResponseDto;
+  payload: PlanningCandidateBuildResponseDto | PlanningSolverResponseDto;
   allowApply?: boolean;
 }
 
@@ -61,9 +60,6 @@ export class PlanningOptimizerDialogComponent {
   }
 
   protected get upserts(): Activity[] {
-    if (this.data.mode === 'autopilot') {
-      return (this.data.payload as AutopilotPreviewResponseDto).upserts ?? [];
-    }
     if (this.data.mode === 'solver') {
       return (this.data.payload as PlanningSolverResponseDto).upserts ?? [];
     }
@@ -71,9 +67,6 @@ export class PlanningOptimizerDialogComponent {
   }
 
   protected get deletedIds(): string[] {
-    if (this.data.mode === 'autopilot') {
-      return (this.data.payload as AutopilotPreviewResponseDto).deletedIds ?? [];
-    }
     if (this.data.mode === 'solver') {
       return (this.data.payload as PlanningSolverResponseDto).deletedIds ?? [];
     }

@@ -101,6 +101,7 @@ export class PlanningMasterDataService implements OnModuleInit {
 
   private readonly usingDatabase: boolean;
   private defaultsLoaded = false;
+  private loadedFromDatabase = false;
   private defaultResources: ResourceSnapshot | null = null;
   private defaultTopology: NonNullable<MasterDataDefaultsFile['topology']> | null = null;
 
@@ -110,11 +111,17 @@ export class PlanningMasterDataService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     if (!this.usingDatabase) {
+      this.logger.warn(
+        'Database is disabled; master data will be stored in memory only and reset on restart.',
+      );
       return;
     }
-    await this.initializeMasterDataFromDatabase();
+    this.loadedFromDatabase = await this.initializeMasterDataFromDatabase();
+    if (!this.loadedFromDatabase) {
+      this.logger.warn('Skipping default seeding because master data could not be loaded.');
+      return;
+    }
     await this.seedDefaultsIfEmpty();
-    this.normalizeState();
   }
 
   listPersonnelServicePools(): PersonnelServicePoolListResponse {
@@ -863,42 +870,90 @@ export class PlanningMasterDataService implements OnModuleInit {
       snapshot.vehicleServicePools.map((pool) => pool.id),
     );
     const vehiclePoolIds = new Set(snapshot.vehiclePools.map((pool) => pool.id));
+    const personnelServicePoolByService = new Map<string, string>();
+    snapshot.personnelServicePools.forEach((pool) => {
+      (pool.serviceIds ?? []).forEach((serviceId) => {
+        if (!personnelServicePoolByService.has(serviceId)) {
+          personnelServicePoolByService.set(serviceId, pool.id);
+        }
+      });
+    });
+    const vehicleServicePoolByService = new Map<string, string>();
+    snapshot.vehicleServicePools.forEach((pool) => {
+      (pool.serviceIds ?? []).forEach((serviceId) => {
+        if (!vehicleServicePoolByService.has(serviceId)) {
+          vehicleServicePoolByService.set(serviceId, pool.id);
+        }
+      });
+    });
+    const personnelPoolByPerson = new Map<string, string>();
+    snapshot.personnelPools.forEach((pool) => {
+      (pool.personnelIds ?? []).forEach((personId) => {
+        if (!personnelPoolByPerson.has(personId)) {
+          personnelPoolByPerson.set(personId, pool.id);
+        }
+      });
+    });
+    const vehiclePoolByVehicle = new Map<string, string>();
+    snapshot.vehiclePools.forEach((pool) => {
+      (pool.vehicleIds ?? []).forEach((vehicleId) => {
+        if (!vehiclePoolByVehicle.has(vehicleId)) {
+          vehiclePoolByVehicle.set(vehicleId, pool.id);
+        }
+      });
+    });
 
     const personnelServices = snapshot.personnelServices.map((service) => {
       const poolId = this.normalizePoolId(service.poolId);
+      const mapped = personnelServicePoolByService.get(service.id);
       const resolved =
         poolId && servicePoolIds.has(poolId)
           ? poolId
+          : mapped && servicePoolIds.has(mapped)
+            ? mapped
           : SYSTEM_POOL_IDS.personnelServicePool;
       return { ...service, poolId: resolved };
     });
 
     const personnel = snapshot.personnel.map((person) => {
       const poolId = this.normalizePoolId(person.poolId);
+      const mapped = personnelPoolByPerson.get(person.id);
       const resolved = poolId
         ? personnelPoolIds.has(poolId)
           ? poolId
-          : SYSTEM_POOL_IDS.personnelPool
-        : undefined;
+          : mapped && personnelPoolIds.has(mapped)
+            ? mapped
+            : SYSTEM_POOL_IDS.personnelPool
+        : mapped && personnelPoolIds.has(mapped)
+          ? mapped
+          : undefined;
       return { ...person, poolId: resolved };
     });
 
     const vehicleServices = snapshot.vehicleServices.map((service) => {
       const poolId = this.normalizePoolId(service.poolId);
+      const mapped = vehicleServicePoolByService.get(service.id);
       const resolved =
         poolId && vehicleServicePoolIds.has(poolId)
           ? poolId
+          : mapped && vehicleServicePoolIds.has(mapped)
+            ? mapped
           : SYSTEM_POOL_IDS.vehicleServicePool;
       return { ...service, poolId: resolved };
     });
 
     const vehicles = snapshot.vehicles.map((vehicle) => {
       const poolId = this.normalizePoolId(vehicle.poolId);
+      const mapped = vehiclePoolByVehicle.get(vehicle.id);
       const resolved = poolId
         ? vehiclePoolIds.has(poolId)
           ? poolId
-          : SYSTEM_POOL_IDS.vehiclePool
-        : undefined;
+          : mapped && vehiclePoolIds.has(mapped)
+            ? mapped
+            : SYSTEM_POOL_IDS.vehiclePool
+        : mapped && vehiclePoolIds.has(mapped)
+          ? mapped
+          : undefined;
       return { ...vehicle, poolId: resolved };
     });
 
@@ -1143,7 +1198,7 @@ export class PlanningMasterDataService implements OnModuleInit {
     return '';
   }
 
-  private async initializeMasterDataFromDatabase(): Promise<void> {
+  private async initializeMasterDataFromDatabase(): Promise<boolean> {
     try {
       const masterData = await this.repository.loadMasterData();
       this.personnelServicePools = masterData.personnelServicePools.map((pool) =>
@@ -1197,6 +1252,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.vehicleServices = masterData.vehicleServices.map((item) =>
         this.cloneVehicleService(item),
       );
+      return true;
     } catch (error) {
       this.logger.error(
         'Stammdaten konnten nicht aus der Datenbank geladen werden – verwende leere Sammlungen.',
@@ -1221,8 +1277,10 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.personnelServices = [];
       this.vehicles = [];
       this.vehicleServices = [];
+      return false;
+    } finally {
+      this.normalizeState();
     }
-    this.normalizeState();
   }
 
   private clonePersonnelServicePool(pool: PersonnelServicePool): PersonnelServicePool {

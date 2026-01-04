@@ -11,6 +11,8 @@ import {
   ActivityValidationResponse,
   OperationsSnapshotRequest,
   OperationsSnapshotResponse,
+  PlanningStageViewportSubscriptionRequest,
+  PlanningStageViewportSubscriptionResponse,
   ResourceBatchMutationRequest,
   ResourceBatchMutationResponse,
 } from './activity-api.types';
@@ -67,6 +69,18 @@ export class ActivityApiService {
       params = params.set('resourceIds', filters.resourceIds.join(','));
     }
     return this.http.get<Activity[]>(`${this.stageUrl(stageId)}/activities`, { params });
+  }
+
+  updateViewportSubscription(
+    stageId: PlanningStageId,
+    payload: PlanningStageViewportSubscriptionRequest,
+    context?: PlanningApiContext,
+  ): Observable<PlanningStageViewportSubscriptionResponse> {
+    return this.http.post<PlanningStageViewportSubscriptionResponse>(
+      `${this.stageUrl(stageId)}/subscriptions`,
+      payload,
+      { params: this.buildContextParams(context) },
+    );
   }
 
   snapshotOperationsFromBase(

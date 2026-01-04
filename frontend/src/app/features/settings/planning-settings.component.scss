@@ -1,0 +1,54 @@
+.planning-settings {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.planning-settings__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.planning-settings__title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.planning-settings__title p {
+  margin: 6px 0 0;
+  opacity: 0.75;
+}
+
+.planning-settings__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.planning-settings__card {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+
+.planning-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.planning-settings__field {
+  width: 100%;
+}
+
+.planning-settings__hint {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}

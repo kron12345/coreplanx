@@ -151,8 +151,8 @@
 }
 
 .gantt-activity--outside-service {
-  background: linear-gradient(135deg, #78909c, #546e7a);
-  color: #fff;
+  outline: 2px dashed rgba(255, 255, 255, 0.45);
+  outline-offset: -2px;
 }
 
 .gantt-activity--outside-service .gantt-activity__route {

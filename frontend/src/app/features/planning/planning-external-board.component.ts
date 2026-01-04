@@ -1,4 +1,4 @@
-import { Component, Signal, computed, inject, signal } from '@angular/core';
+import { Component, Signal, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { GanttComponent } from '../../gantt/gantt.component';
@@ -7,6 +7,7 @@ import { PlanningStageId } from './planning-stage.model';
 import { Resource } from '../../models/resource';
 import { Activity, ServiceRole } from '../../models/activity';
 import { getActivityOwnerId } from '../../models/activity-ownership';
+import type { PlanningTimelineRange } from './planning-data.types';
 import { ActivityTypeDefinition, ActivityTypeService } from '../../core/services/activity-type.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -46,6 +47,7 @@ export class PlanningExternalBoardComponent {
 
   private readonly stageId = signal<PlanningStageId>('base');
   private readonly resourceFilter = signal<Set<string> | null>(null);
+  private readonly lastViewportRange = signal<PlanningTimelineRange | null>(null);
 
   private readonly stageResourceSignals: Record<PlanningStageId, Signal<Resource[]>> = {
     base: this.data.stageResources('base'),
@@ -120,9 +122,27 @@ export class PlanningExternalBoardComponent {
       this.stageId.set(stage);
       this.resourceFilter.set(resourceIds.length > 0 ? new Set(resourceIds) : null);
     });
+
+    effect(() => {
+      const range = this.lastViewportRange();
+      if (!range) {
+        return;
+      }
+      const stage = this.stageId();
+      const filter = this.resourceFilter();
+      const resourceIds = filter ? Array.from(filter.values()) : [];
+      this.data.setStageViewport(stage, range, resourceIds);
+    });
   }
 
   noop(): void {}
+
+  handleViewportChange(range: PlanningTimelineRange): void {
+    this.lastViewportRange.set(range);
+    const filter = this.resourceFilter();
+    const resourceIds = filter ? Array.from(filter.values()) : [];
+    this.data.setStageViewport(this.stageId(), range, resourceIds);
+  }
 
   private buildActivityTypeInfo(): Record<string, { label: string; showRoute: boolean; serviceRole: ServiceRole | null }> {
     const record: Record<string, { label: string; showRoute: boolean; serviceRole: ServiceRole | null }> = {};

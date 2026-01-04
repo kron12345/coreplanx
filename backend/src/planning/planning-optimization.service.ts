@@ -10,6 +10,7 @@ import { PlanningSolverService, PlanningSolverResult } from './planning-solver.s
 import { TemplateService } from '../template/template.service';
 import type { ActivityDto } from '../timeline/timeline.types';
 import type { TemplatePeriod } from '../template/template.types';
+import { DebugStreamService } from '../debug/debug-stream.service';
 
 export interface RulesetSelectionInput {
   rulesetId?: string;
@@ -42,17 +43,34 @@ export class PlanningOptimizationService {
     private readonly solver: PlanningSolverService,
     private readonly autopilot: DutyAutopilotService,
     private readonly templates: TemplateService,
+    private readonly debugStream: DebugStreamService,
   ) {}
 
   async previewAutopilot(
     stageId: StageId,
     variantId: string,
     timetableYearLabel?: string | null,
+    requestId?: string,
   ): Promise<AutopilotPreviewResult> {
+    this.debugStream.log('info', 'solver', 'Autopilot-Preview gestartet', {
+      stageId,
+      variantId,
+      requestId,
+      timetableYearLabel: timetableYearLabel ?? null,
+    });
     const snapshot = await this.stageService.getStageSnapshot(stageId, variantId, timetableYearLabel);
     const activities = this.cloneActivities(snapshot.activities);
     const result = await this.autopilot.apply(stageId, variantId, activities);
     const selection = await this.resolveRulesetSelection(stageId, variantId, undefined, false);
+    this.debugStream.log('info', 'solver', 'Autopilot-Preview abgeschlossen', {
+      stageId,
+      variantId,
+      requestId,
+      upsertCount: result.upserts.length,
+      deleteCount: result.deletedIds.length,
+      rulesetId: selection.rulesetId ?? null,
+      rulesetVersion: selection.rulesetVersion ?? null,
+    });
     return {
       ...result,
       rulesetId: selection.rulesetId,
@@ -65,7 +83,14 @@ export class PlanningOptimizationService {
     variantId: string,
     timetableYearLabel?: string | null,
     selection?: RulesetSelectionInput,
+    requestId?: string,
   ): Promise<PlanningCandidateBuildResult> {
+    this.debugStream.log('info', 'solver', 'Kandidatenaufbau gestartet', {
+      stageId,
+      variantId,
+      requestId,
+      ...this.describeSelection(selection),
+    });
     const snapshot = await this.buildSnapshotForOptimization(
       stageId,
       variantId,
@@ -76,7 +101,16 @@ export class PlanningOptimizationService {
     if (!resolved.ruleset) {
       throw new BadRequestException('Ruleset konnte nicht aufgeloest werden.');
     }
-    return this.candidates.buildCandidates(snapshot, resolved.ruleset);
+    const result = this.candidates.buildCandidates(snapshot, resolved.ruleset);
+    this.debugStream.log('info', 'solver', 'Kandidatenaufbau abgeschlossen', {
+      stageId,
+      variantId,
+      requestId,
+      rulesetId: result.rulesetId,
+      rulesetVersion: result.rulesetVersion,
+      stats: result.stats,
+    });
+    return result;
   }
 
   async solve(
@@ -84,7 +118,14 @@ export class PlanningOptimizationService {
     variantId: string,
     timetableYearLabel?: string | null,
     selection?: RulesetSelectionInput,
+    requestId?: string,
   ): Promise<PlanningSolveResult> {
+    this.debugStream.log('info', 'solver', 'Solver gestartet', {
+      stageId,
+      variantId,
+      requestId,
+      ...this.describeSelection(selection),
+    });
     const snapshot = await this.buildSnapshotForOptimization(
       stageId,
       variantId,
@@ -97,11 +138,37 @@ export class PlanningOptimizationService {
     }
     const candidateResult = this.candidates.buildCandidates(snapshot, resolved.ruleset);
     const solverResult = await this.solver.solve(snapshot, resolved.ruleset, candidateResult);
+    this.debugStream.log('info', 'solver', 'Solver abgeschlossen', {
+      stageId,
+      variantId,
+      requestId,
+      rulesetId: candidateResult.rulesetId,
+      rulesetVersion: candidateResult.rulesetVersion,
+      stats: candidateResult.stats,
+      upsertCount: solverResult.upserts.length,
+      deleteCount: solverResult.deletedIds.length,
+      selectedCandidates: solverResult.candidatesUsed.length,
+    });
     return {
       ...solverResult,
       rulesetId: candidateResult.rulesetId,
       rulesetVersion: candidateResult.rulesetVersion,
       stats: candidateResult.stats,
+    };
+  }
+
+  private describeSelection(selection?: RulesetSelectionInput): Record<string, unknown> {
+    if (!selection) {
+      return {};
+    }
+    const activityIds = selection.activityIds?.filter((id) => id.trim().length > 0) ?? [];
+    return {
+      rulesetId: selection.rulesetId ?? null,
+      rulesetVersion: selection.rulesetVersion ?? null,
+      templateId: selection.templateId ?? null,
+      activityCount: activityIds.length,
+      activityIds: activityIds.length <= 20 ? activityIds : undefined,
+      timelineRange: selection.timelineRange ?? null,
     };
   }
 
@@ -287,7 +354,95 @@ export class PlanningOptimizationService {
       return snapshot;
     }
     const filtered = snapshot.activities.filter((activity) => ids.has(activity.id));
-    return { ...snapshot, activities: filtered };
+    const expanded = this.extendSelectionWithServiceBreaks(snapshot.activities, filtered);
+    return { ...snapshot, activities: expanded };
+  }
+
+  private extendSelectionWithServiceBreaks(
+    allActivities: Activity[],
+    selected: Activity[],
+  ): Activity[] {
+    if (!selected.length) {
+      return selected;
+    }
+    const serviceIds = this.collectServiceIds(selected);
+    if (serviceIds.size === 0) {
+      return selected;
+    }
+    const expanded = new Map<string, Activity>();
+    selected.forEach((activity) => expanded.set(activity.id, activity));
+    allActivities.forEach((activity) => {
+      if (!this.isBreakActivity(activity)) {
+        return;
+      }
+      const serviceId = this.resolveServiceId(activity);
+      if (!serviceId || !serviceIds.has(serviceId)) {
+        return;
+      }
+      expanded.set(activity.id, activity);
+    });
+    return Array.from(expanded.values());
+  }
+
+  private collectServiceIds(activities: Activity[]): Set<string> {
+    const serviceIds = new Set<string>();
+    const addServiceId = (value: unknown) => {
+      const id = typeof value === 'string' ? value.trim() : '';
+      if (id) {
+        serviceIds.add(id);
+      }
+    };
+    activities.forEach((activity) => {
+      addServiceId(activity.serviceId);
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const map = attrs?.['service_by_owner'];
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        Object.values(map as Record<string, any>).forEach((entry) => {
+          addServiceId((entry as any)?.serviceId);
+        });
+      }
+    });
+    return serviceIds;
+  }
+
+  private resolveServiceId(activity: Activity): string | null {
+    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      return direct;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const map = attrs?.['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      const entry = Object.values(map as Record<string, any>)[0];
+      const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      return candidate || null;
+    }
+    return null;
+  }
+
+  private isBreakActivity(activity: Activity): boolean {
+    const type = (activity.type ?? '').toString().trim();
+    if (type === 'break' || type === 'short-break') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    if (attrs && typeof attrs === 'object') {
+      if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
+        return true;
+      }
+    }
+    const id = activity.id ?? '';
+    return id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:');
+  }
+
+  private toBool(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      return value.trim().toLowerCase() === 'true';
+    }
+    return false;
   }
 
   private mapTimelineActivities(entries: ActivityDto[]): Activity[] {

@@ -87,6 +87,61 @@ export function reflectBaseActivities(options: {
   return reflected;
 }
 
+export function reflectManagedServiceBoundaries(options: {
+  activities: Activity[];
+  periods: TemplatePeriod[];
+  specialDays: ReadonlySet<string>;
+  viewStart: Date | null;
+  viewEnd: Date | null;
+  defaultPeriodEnd: Date | null;
+}): { reflected: Activity[]; sourceIds: string[] } {
+  const { activities, periods, specialDays, viewStart, viewEnd, defaultPeriodEnd } = options;
+  if (!periods.length || !defaultPeriodEnd) {
+    return { reflected: [], sourceIds: [] };
+  }
+
+  const boundaryEntries = activities
+    .filter((activity) => isServiceBoundary(activity))
+    .map((activity) => buildBoundaryTemplate(activity))
+    .filter((entry): entry is BoundaryTemplate => !!entry);
+
+  if (!boundaryEntries.length) {
+    return { reflected: [], sourceIds: [] };
+  }
+
+  const templateActivities = boundaryEntries.map((entry) => entry.activity);
+  const reflected = reflectBaseActivities({
+    activities: templateActivities,
+    periods,
+    specialDays,
+    viewStart,
+    viewEnd,
+    defaultPeriodEnd,
+  });
+
+  const metaByBaseId = new Map(
+    boundaryEntries.map((entry) => [entry.activity.id, entry.meta] as const),
+  );
+  const resolved = reflected.map((activity) => {
+    const baseId = activity.id.split('@')[0] ?? activity.id;
+    const meta = metaByBaseId.get(baseId);
+    if (!meta) {
+      return activity;
+    }
+    const iso = activity.start.slice(0, 10);
+    const serviceId = iso
+      ? `svc:${meta.stageId}:${meta.ownerId}:${iso}`
+      : null;
+    return {
+      ...activity,
+      serviceId: serviceId ?? activity.serviceId,
+      serviceRole: activity.serviceRole ?? meta.role,
+    };
+  });
+
+  return { reflected: resolved, sourceIds: boundaryEntries.map((entry) => entry.sourceId) };
+}
+
 function alignToWeekday(date: Date, weekday: number): Date | null {
   if (!Number.isFinite(date.getTime())) {
     return null;
@@ -95,4 +150,101 @@ function alignToWeekday(date: Date, weekday: number): Date | null {
   const diff = (weekday - result.getUTCDay() + 7) % 7;
   result.setUTCDate(result.getUTCDate() + diff);
   return result;
+}
+
+type BoundaryTemplateMeta = { stageId: string; ownerId: string; role: 'start' | 'end' };
+type BoundaryTemplate = { sourceId: string; activity: Activity; meta: BoundaryTemplateMeta };
+
+function isServiceBoundary(activity: Activity): boolean {
+  const role = activity.serviceRole ?? null;
+  const type = (activity.type ?? '').toString().trim();
+  const id = (activity.id ?? '').toString();
+  if (role === 'start' || role === 'end') {
+    return true;
+  }
+  if (type === 'service-start' || type === 'service-end') {
+    return true;
+  }
+  return id.startsWith('svcstart:') || id.startsWith('svcend:');
+}
+
+function buildBoundaryTemplate(activity: Activity): BoundaryTemplate | null {
+  const serviceId = extractServiceId(activity);
+  const parts = serviceId ? parseServiceId(serviceId) : null;
+  const ownerId = parts?.ownerId ?? resolveServiceOwner(activity);
+  if (!ownerId) {
+    return null;
+  }
+  const stageId = parts?.stageId ?? 'base';
+  const role = normalizeServiceRole(activity);
+  if (!role) {
+    return null;
+  }
+  const baseId = `${role === 'start' ? 'svcstart' : 'svcend'}:svc:${stageId}:${ownerId}`;
+  const template: Activity = {
+    ...activity,
+    id: baseId,
+    serviceId: null,
+    serviceRole: role,
+  };
+  return { sourceId: activity.id, activity: template, meta: { stageId, ownerId, role } };
+}
+
+function extractServiceId(activity: Activity): string | null {
+  const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+  if (direct.startsWith('svc:')) {
+    return direct;
+  }
+  const id = (activity.id ?? '').toString();
+  if (id.startsWith('svcstart:')) {
+    return id.slice('svcstart:'.length).trim() || null;
+  }
+  if (id.startsWith('svcend:')) {
+    return id.slice('svcend:'.length).trim() || null;
+  }
+  return null;
+}
+
+function parseServiceId(serviceId: string): { stageId: string; ownerId: string; dayKey: string } | null {
+  const trimmed = serviceId.trim();
+  if (!trimmed.startsWith('svc:')) {
+    return null;
+  }
+  const parts = trimmed.split(':');
+  if (parts.length < 4) {
+    return null;
+  }
+  const stageId = parts[1] ?? '';
+  const ownerId = parts[2] ?? '';
+  const dayKey = parts[parts.length - 1] ?? '';
+  if (!stageId || !ownerId || !dayKey) {
+    return null;
+  }
+  return { stageId, ownerId, dayKey };
+}
+
+function resolveServiceOwner(activity: Activity): string | null {
+  const participants = activity.participants ?? [];
+  const owner =
+    participants.find(
+      (participant) =>
+        participant.resourceId &&
+        (participant.kind === 'personnel-service' || participant.kind === 'vehicle-service'),
+    ) ?? null;
+  return owner?.resourceId ?? null;
+}
+
+function normalizeServiceRole(activity: Activity): 'start' | 'end' | null {
+  const role = activity.serviceRole ?? null;
+  if (role === 'start' || role === 'end') {
+    return role;
+  }
+  const type = (activity.type ?? '').toString().trim();
+  if (type === 'service-start') {
+    return 'start';
+  }
+  if (type === 'service-end') {
+    return 'end';
+  }
+  return null;
 }

@@ -1,33 +1,366 @@
-<section class="planning-dashboard">
-  <header class="planning-toolbar">
-    <div class="planning-toolbar__bar">
-        <div class="planning-toolbar__summary-block">
-          <div class="planning-toolbar__alerts">
-            @if (resourceError(); as error) {
-              <div class="alert">
-                <mat-icon fontIcon="error"></mat-icon>
-                {{ error }}
+<mat-drawer-container class="planning-drawer" [hasBackdrop]="false">
+  <mat-drawer
+    class="planning-solver-drawer"
+    position="end"
+    mode="over"
+    [opened]="solverDrawerOpen()"
+    (closedStart)="closeSolverDrawer()"
+  >
+    <div class="planning-solver-drawer__header">
+      <div>
+        <div class="planning-solver-drawer__title">Solver-Preview</div>
+        <div class="planning-solver-drawer__subtitle">
+          @if (solverPreviewState(); as preview) {
+            Auswahl-Solver
+          } @else {
+            Keine Preview
+          }
+        </div>
+      </div>
+      <button mat-icon-button type="button" (click)="closeSolverDrawer()" aria-label="Preview schließen">
+        <mat-icon fontIcon="close"></mat-icon>
+      </button>
+    </div>
+    <div class="planning-solver-drawer__body">
+      @if (solverPreviewState(); as preview) {
+        <div class="planning-solver-drawer__summary">
+          {{ preview.payload.summary || 'Preview bereit.' }}
+        </div>
+        <div class="planning-solver__preview-meta">
+          <span>{{ preview.payload.upserts.length }} Einfügungen</span>
+          <span>{{ preview.payload.deletedIds.length }} Löschungen</span>
+          <span>{{ preview.payload.candidatesUsed.length }} Kandidaten</span>
+        </div>
+        @if (preview.window) {
+          <div class="planning-solver__preview-window">
+            Zeitfenster:
+            {{ formatSolverTimestamp(preview.window.start) }} –
+            {{ formatSolverTimestamp(preview.window.end) }}
+          </div>
+        }
+        @if (preview.payload.upserts.length === 0 && preview.payload.deletedIds.length === 0) {
+          <div class="planning-solver__preview-window">Keine Änderungen gefunden.</div>
+        }
+        <div class="planning-panel__actions">
+          <button mat-stroked-button type="button" (click)="discardSolverPreview()">Verwerfen</button>
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="applySolverPreview()"
+            [disabled]="preview.payload.upserts.length === 0 && preview.payload.deletedIds.length === 0"
+          >
+            Übernehmen
+          </button>
+        </div>
+      } @else {
+        <div class="planning-solver-drawer__empty">Keine Preview aktiv.</div>
+      }
+    </div>
+  </mat-drawer>
+  <mat-drawer
+    class="planning-debug-drawer"
+    position="start"
+    mode="over"
+    [opened]="debugDrawerOpen()"
+    (closedStart)="closeDebugDrawer()"
+  >
+    <div class="planning-debug-drawer__header">
+      <div>
+        <div class="planning-debug-drawer__title">Status & Logs</div>
+        <div class="planning-debug-drawer__subtitle">
+          UI <-> Backend · {{ activeStageMeta().shortLabel }}
+        </div>
+      </div>
+      <button mat-icon-button type="button" (click)="closeDebugDrawer()" aria-label="Status schließen">
+        <mat-icon fontIcon="close"></mat-icon>
+      </button>
+    </div>
+    <div class="planning-debug-drawer__body">
+      <div class="planning-debug__status-grid">
+        @if (debugApiStatus(); as apiStatus) {
+          <div class="planning-debug__status-card">
+            <div class="planning-debug__status-label">API</div>
+            <div
+              class="planning-debug__status-value"
+              [class.is-ok]="apiStatus.state === 'ok'"
+              [class.is-error]="apiStatus.state === 'error'"
+              [class.is-warn]="apiStatus.state === 'idle'"
+            >
+              {{ formatApiStatusLabel(apiStatus) }}
+            </div>
+            <div class="planning-debug__status-meta">
+              Letzter Erfolg: {{ formatDebugTimestamp(apiStatus.lastSuccessAt) }}
+            </div>
+            @if (apiStatus.lastErrorAt) {
+              <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                Letzter Fehler: {{ formatDebugTimestamp(apiStatus.lastErrorAt) }}
               </div>
             }
-            @if (timelineError(activeStageId()); as error) {
-              <div class="alert">
-                <mat-icon fontIcon="error_outline"></mat-icon>
-                {{ error }}
-              </div>
-            }
-            @if (activityError(activeStageId()); as error) {
-              <div class="alert">
-                <mat-icon fontIcon="error_outline"></mat-icon>
-                {{ error }}
-              </div>
-            }
-            @if (templateError(); as error) {
-              <div class="alert">
-                <mat-icon fontIcon="warning"></mat-icon>
-                {{ error }}
+            @if (apiStatus.state === 'error' && apiStatus.message) {
+              <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                {{ apiStatus.message }}
               </div>
             }
           </div>
+        }
+        @if (debugSseStatus(); as sseStatus) {
+          <div class="planning-debug__status-card">
+            <div class="planning-debug__status-label">SSE Basis</div>
+            <div
+              class="planning-debug__status-value"
+              [class.is-ok]="sseStatus.base.state === 'connected'"
+              [class.is-error]="sseStatus.base.state === 'error'"
+              [class.is-warn]="sseStatus.base.state === 'idle'"
+            >
+              {{ formatSseStatusLabel(sseStatus.base) }}
+            </div>
+            <div class="planning-debug__status-meta">
+              Letztes Event: {{ formatDebugTimestamp(sseStatus.base.lastEventAt) }}
+            </div>
+            @if (sseStatus.base.lastErrorAt) {
+              <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                Letzter Fehler: {{ formatDebugTimestamp(sseStatus.base.lastErrorAt) }}
+              </div>
+            }
+          </div>
+          <div class="planning-debug__status-card">
+            <div class="planning-debug__status-label">SSE Betrieb</div>
+            <div
+              class="planning-debug__status-value"
+              [class.is-ok]="sseStatus.operations.state === 'connected'"
+              [class.is-error]="sseStatus.operations.state === 'error'"
+              [class.is-warn]="sseStatus.operations.state === 'idle'"
+            >
+              {{ formatSseStatusLabel(sseStatus.operations) }}
+            </div>
+            <div class="planning-debug__status-meta">
+              Letztes Event: {{ formatDebugTimestamp(sseStatus.operations.lastEventAt) }}
+            </div>
+            @if (sseStatus.operations.lastErrorAt) {
+              <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                Letzter Fehler: {{ formatDebugTimestamp(sseStatus.operations.lastErrorAt) }}
+              </div>
+            }
+          </div>
+        }
+        @if (debugBackendStreamStatus(); as backendStatus) {
+          <div class="planning-debug__status-card">
+            <div class="planning-debug__status-label">Backend-Stream</div>
+            <div
+              class="planning-debug__status-value"
+              [class.is-ok]="backendStatus.state === 'connected'"
+              [class.is-error]="backendStatus.state === 'error'"
+              [class.is-warn]="backendStatus.state === 'idle'"
+            >
+              {{ formatSseStatusLabel(backendStatus) }}
+            </div>
+            <div class="planning-debug__status-meta">
+              Letztes Event: {{ formatDebugTimestamp(backendStatus.lastEventAt) }}
+            </div>
+            @if (backendStatus.lastErrorAt) {
+              <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                Letzter Fehler: {{ formatDebugTimestamp(backendStatus.lastErrorAt) }}
+              </div>
+            }
+            @if (backendStatus.state === 'error' && backendStatus.message) {
+              <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                {{ backendStatus.message }}
+              </div>
+            }
+          </div>
+        }
+        @if (debugViewportStatus(); as viewportMap) {
+          @if (viewportMap[activeStageId()]; as viewport) {
+            <div class="planning-debug__status-card">
+              <div class="planning-debug__status-label">Viewport {{ activeStageMeta().shortLabel }}</div>
+              <div class="planning-debug__status-value">
+                {{ viewport.resourceCount }} Ressourcen
+              </div>
+              <div class="planning-debug__status-meta">
+                Zeitraum:
+                {{ formatDebugTimestamp(viewport.windowStart) }} –
+                {{ formatDebugTimestamp(viewport.windowEnd) }}
+              </div>
+              <div class="planning-debug__status-meta">
+                Letzter Load: {{ formatDebugTimestamp(viewport.lastLoadAt) }}
+              </div>
+              @if (viewport.lastActivityCount !== undefined) {
+                <div class="planning-debug__status-meta">
+                  Aktivitaeten: {{ viewport.lastActivityCount }}
+                </div>
+              }
+              @if (viewport.lastErrorAt) {
+                <div class="planning-debug__status-meta planning-debug__status-meta--error">
+                  Letzter Fehler: {{ formatDebugTimestamp(viewport.lastErrorAt) }}
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <div class="planning-debug__controls">
+        <mat-slide-toggle
+          [checked]="debugBackendStreamEnabled()"
+          (change)="setDebugBackendStreamEnabled($event.checked)"
+        >
+          Backend-Stream
+        </mat-slide-toggle>
+        <mat-slide-toggle
+          [checked]="debugPaused()"
+          (change)="setDebugPaused($event.checked)"
+        >
+          Logs pausieren
+        </mat-slide-toggle>
+        <mat-slide-toggle
+          [checked]="debugShowAll()"
+          (change)="setDebugShowAll($event.checked)"
+        >
+          Alle Logs
+        </mat-slide-toggle>
+        <button mat-button type="button" (click)="clearDebugLogs()">Leeren</button>
+        <button mat-stroked-button type="button" (click)="toggleDebugExport()">JSON Export</button>
+      </div>
+
+      <div class="planning-debug__token-row">
+        <mat-form-field appearance="outline" class="planning-debug__token-field">
+          <mat-label>Stream-Token (optional)</mat-label>
+          <input
+            matInput
+            type="password"
+            autocomplete="off"
+            [value]="debugStreamToken()"
+            (input)="setDebugStreamToken($any($event.target).value)"
+          />
+        </mat-form-field>
+        @if (debugPaused()) {
+          <div class="planning-debug__paused-meta">
+            Pausiert: {{ debugPendingCount() }} neue Eintraege
+          </div>
+        }
+      </div>
+
+      <div class="planning-debug__filters">
+        <div class="planning-debug__filter-row">
+          <mat-form-field appearance="outline" class="planning-debug__filter-field">
+            <mat-label>Suche</mat-label>
+            <input
+              matInput
+              autocomplete="off"
+              [value]="debugFilterQuery()"
+              (input)="setDebugFilterQuery($any($event.target).value)"
+            />
+          </mat-form-field>
+          <button mat-stroked-button type="button" (click)="clearDebugFilters()">Filter leeren</button>
+        </div>
+        <div class="planning-debug__filter-row">
+          <span class="planning-debug__filter-label">Scope</span>
+          @for (scope of debugScopeOptions; track scope) {
+            <button
+              type="button"
+              class="planning-debug__filter-chip"
+              [class.is-active]="debugScopeFilters().includes(scope)"
+              (click)="toggleDebugScopeFilter(scope)"
+            >
+              {{ scope }}
+            </button>
+          }
+        </div>
+        <div class="planning-debug__filter-row">
+          <span class="planning-debug__filter-label">Quelle</span>
+          @for (source of debugSourceOptions; track source) {
+            <button
+              type="button"
+              class="planning-debug__filter-chip"
+              [class.is-active]="debugSourceFilters().includes(source)"
+              (click)="toggleDebugSourceFilter(source)"
+            >
+              {{ source }}
+            </button>
+          }
+        </div>
+        <div class="planning-debug__filter-row">
+          <span class="planning-debug__filter-label">Topic</span>
+          @for (topic of debugTopicOptions; track topic) {
+            <button
+              type="button"
+              class="planning-debug__filter-chip"
+              [class.is-active]="debugTopicFilters().includes(topic)"
+              (click)="toggleDebugTopicFilter(topic)"
+            >
+              {{ topic }}
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (debugExportOpen()) {
+        <div class="planning-debug__export">
+          <div class="planning-debug__export-actions">
+            <button mat-stroked-button type="button" (click)="copyDebugExport()">Kopieren</button>
+          </div>
+          <textarea class="planning-debug__export-text" rows="12" readonly>{{ debugExportJson() }}</textarea>
+        </div>
+      } @else {
+        <div class="planning-debug__logs">
+          @if (debugLogEntries().length === 0) {
+            <div class="planning-debug__empty">Keine Logeintraege.</div>
+          } @else {
+            @for (entry of debugLogEntries(); track entry.id) {
+              <div
+                class="planning-debug__log-entry"
+                [class.is-warn]="entry.level === 'warn'"
+                [class.is-error]="entry.level === 'error'"
+              >
+                <div class="planning-debug__log-meta">
+                  <span>{{ formatDebugTimestamp(entry.timestamp) }}</span>
+                  <span class="planning-debug__log-tag">{{ entry.level }}</span>
+                  @if (entry.source) {
+                    <span class="planning-debug__log-tag">{{ entry.source }}</span>
+                  }
+                  <span class="planning-debug__log-tag">{{ entry.scope }}</span>
+                  @if (entry.topic) {
+                    <span class="planning-debug__log-tag">{{ entry.topic }}</span>
+                  }
+                  @if (entry.stageId) {
+                    <span class="planning-debug__log-tag">{{ entry.stageId }}</span>
+                  }
+                </div>
+                <div class="planning-debug__log-message">{{ entry.message }}</div>
+                @if (formatDebugContext(entry.context); as contextText) {
+                  <pre class="planning-debug__log-context">{{ contextText }}</pre>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+    </div>
+  </mat-drawer>
+  <mat-drawer-content>
+    <section class="planning-dashboard">
+  <header class="planning-toolbar">
+    <div class="planning-toolbar__bar">
+        <div class="planning-toolbar__summary-block">
+          <button
+            type="button"
+            class="planning-toolbar__status"
+            (click)="toggleDebugDrawer()"
+            [class.is-open]="debugDrawerOpen()"
+            [class.is-ok]="debugConnectionState() === 'ok'"
+            [class.is-warn]="debugConnectionState() === 'warn'"
+            [class.is-error]="debugConnectionState() === 'error'"
+            matTooltip="Status & Logs"
+            aria-label="Statuspanel öffnen"
+          >
+            <mat-icon fontIcon="sensors"></mat-icon>
+            <span>Backend</span>
+            <span class="planning-toolbar__status-label">{{ debugConnectionLabel() }}</span>
+            @if (debugAlertCount() > 0) {
+              <span class="planning-toolbar__status-count">{{ debugAlertCount() }}</span>
+            }
+          </button>
         <span class="planning-toolbar__summary">
           {{ boards().length }} Plantafel(n) · {{ resources().length }} Ressourcen ·
           {{ selectionSize() }} ausgewählt · {{ selectedSimulationLabel() }}
@@ -304,6 +637,9 @@
               </ng-template>
 
               <ng-template matTabContent>
+                @if (activeStageLoading()) {
+                  <mat-progress-bar class="planning-tab-loader" mode="indeterminate"></mat-progress-bar>
+                }
                 <div class="planning-board">
                   @if (board.resourceIds.length > 0) {
                     <div class="planning-board__gantt">
@@ -320,6 +656,7 @@
                         [resourceViewModes]="resourceViewModes()"
                         [selectedActivityIds]="selectedActivityIdsArray()"
                         [activityTypeInfo]="activityTypeInfoMap()"
+                        (viewportChanged)="handleViewportChange(board, $event)"
                         (resourceViewModeChange)="handleResourceViewModeChange($event)"
                         (serviceAssignmentRequested)="handleServiceAssignRequest($event)"
                         (activityCreateRequested)="handleActivityCreate($event)"
@@ -407,27 +744,77 @@
           </button>
         </div>
         <div class="planning-panel__body">
-          <mat-chip-set class="planning-selection-chips">
-            @for (item of selectedActivities(); track item.activity.id) {
-              <mat-chip>
-                {{ activityTypeLabel(item.activity.type) }}
-              </mat-chip>
-            }
-          </mat-chip-set>
+          <mat-expansion-panel
+            class="planning-selection-details"
+            [expanded]="selectionDetailsOpen()"
+            (opened)="setSelectionDetailsOpen(true)"
+            (closed)="setSelectionDetailsOpen(false)"
+          >
+            <mat-expansion-panel-header>
+              <mat-panel-title>Leistungsdetails</mat-panel-title>
+              <mat-panel-description>
+                {{ selectedActivities().length }} Eintraege
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+            <div class="planning-selection-table">
+              <div class="planning-selection-table__header">
+                <span>Ressource</span>
+                <span>Dienst</span>
+                <span>Typ</span>
+                <span>Start</span>
+                <span>Ende</span>
+                <span>Von</span>
+                <span>Nach</span>
+              </div>
+              @for (row of selectedActivityDetails(); track row.id) {
+                <div class="planning-selection-table__row">
+                  <span>{{ row.resource }}</span>
+                  <span>{{ row.service }}</span>
+                  <span>{{ row.type }}</span>
+                  <span>{{ row.start }}</span>
+                  <span>{{ row.end }}</span>
+                  <span>{{ row.from }}</span>
+                  <span>{{ row.to }}</span>
+                </div>
+              }
+            </div>
+          </mat-expansion-panel>
 
           <div class="planning-solver-section">
             <div class="planning-solver-section__header">
               <div>
                 <div class="planning-solver-section__title">Solver (Auswahl)</div>
-                <div class="planning-solver-section__subtitle">Nutzt nur die markierten Leistungen.</div>
+                <div class="planning-solver-section__subtitle">
+                  Nutzt markierte Leistungen und ausgewaehlte Ressourcen.
+                </div>
               </div>
+            </div>
+            @if (solverResourceOptions().length > 0) {
+              <mat-form-field appearance="outline" class="planning-solver-section__field">
+                <mat-label>Ressourcen</mat-label>
+                <mat-select
+                  multiple
+                  [value]="solverResourceSelection()"
+                  (selectionChange)="setSolverResourceSelection($event.value)"
+                >
+                  @for (resource of solverResourceOptions(); track resource.id) {
+                    <mat-option [value]="resource.id">
+                      {{ resource.name }}
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-hint>{{ solverResourceSelectionLabel() }}</mat-hint>
+              </mat-form-field>
+            }
+            <div class="planning-solver-section__meta">
+              <span>{{ solverActivityIds().length }} Aktivitaet(en) im Solver</span>
             </div>
             <div class="planning-solver-section__actions">
               <button
                 mat-stroked-button
                 type="button"
                 (click)="openOptimizerCandidates()"
-                [disabled]="optimizerLoading().candidates"
+                [disabled]="optimizerLoading().candidates || solverActivityIds().length === 0"
               >
                 Kandidaten
               </button>
@@ -436,19 +823,25 @@
                 color="primary"
                 type="button"
                 (click)="openOptimizerSolve()"
-                [disabled]="optimizerLoading().solve"
+                [disabled]="optimizerLoading().solve || solverActivityIds().length === 0"
               >
                 Preview
               </button>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="openSolverDrawer()"
+                [disabled]="!solverPreviewState()"
+              >
+                Preview oeffnen
+              </button>
             </div>
-          </div>
-
-          <div class="planning-side-panels__shift">
-            <span>Zeit</span>
-            <button mat-stroked-button type="button" (click)="shiftSelectionBy(-30)">-30</button>
-            <button mat-stroked-button type="button" (click)="shiftSelectionBy(-5)">-5</button>
-            <button mat-stroked-button type="button" (click)="shiftSelectionBy(5)">+5</button>
-            <button mat-stroked-button type="button" (click)="shiftSelectionBy(30)">+30</button>
+            @if (solverPreviewState(); as preview) {
+              <div class="planning-solver-section__preview-hint">
+                Preview bereit: {{ preview.payload.upserts.length }} Einfuegungen ·
+                {{ preview.payload.deletedIds.length }} Loeschungen
+              </div>
+            }
           </div>
 
           <div class="planning-side-panels__shift">
@@ -483,33 +876,9 @@
             </button>
           </div>
 
-          <mat-form-field appearance="outline" class="planning-side-panels__field">
-            <mat-label>Zielressource</mat-label>
-            <mat-select
-              [value]="activityMoveTarget()"
-              (selectionChange)="setMoveSelectionTarget($event.value)"
-              [disabled]="moveTargetOptions().length === 0"
-            >
-              @for (resource of moveTargetOptions(); track resource.id) {
-                <mat-option [value]="resource.id">
-                  {{ resource.name }}
-                </mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
           <div class="planning-side-panels__buttons">
             <button mat-stroked-button type="button" (click)="clearActivitySelection()">
               Auswahl leeren
-            </button>
-            <button
-              mat-flat-button
-              color="primary"
-              type="button"
-              (click)="moveSelectionToTarget()"
-              [disabled]="!activityMoveTarget()"
-            >
-              Auf Ressource verschieben
             </button>
             <button
               mat-stroked-button
@@ -524,73 +893,6 @@
         </div>
       </div>
     }
-    <div class="planning-panel planning-panel--solver" cdkDrag>
-      <div class="planning-panel__header" cdkDragHandle>
-        <div>
-          <div class="planning-panel__title">Solver</div>
-          <div class="planning-panel__subtitle">Auswahl und Auto-Solver</div>
-        </div>
-      </div>
-      <div class="planning-panel__body">
-        <div class="planning-solver__section">
-          <mat-slide-toggle
-            [checked]="autoSolverEnabled()"
-            (change)="setAutoSolverEnabled($event.checked)"
-          >
-            Auto-Solver (±14h)
-          </mat-slide-toggle>
-          <div class="planning-solver__status">
-            <mat-icon [fontIcon]="autoSolverStatusIcon()"></mat-icon>
-            <div>
-              <div class="planning-solver__status-title">{{ autoSolverStatusLabel() }}</div>
-              @if (autoSolverStatus().updatedAt) {
-                <div class="planning-solver__status-time">
-                  {{ formatSolverTimestamp(autoSolverStatus().updatedAt) }}
-                </div>
-              }
-            </div>
-          </div>
-        </div>
-
-        @if (solverPreviewState(); as preview) {
-          <div class="planning-solver__preview">
-            <div class="planning-solver__preview-header">
-              <div class="planning-solver__preview-title">Preview aktiv</div>
-              <div class="planning-solver__preview-subtitle">
-                {{ preview.source === 'auto' ? 'Auto-Solver' : 'Auswahl-Solver' }}
-              </div>
-            </div>
-            <div class="planning-solver__preview-meta">
-              <span>{{ preview.payload.upserts.length }} Einfügungen</span>
-              <span>{{ preview.payload.deletedIds.length }} Löschungen</span>
-              <span>{{ preview.payload.candidatesUsed.length }} Kandidaten</span>
-            </div>
-            @if (preview.window) {
-              <div class="planning-solver__preview-window">
-                Zeitfenster:
-                {{ formatSolverTimestamp(preview.window.start) }} –
-                {{ formatSolverTimestamp(preview.window.end) }}
-              </div>
-            }
-            @if (preview.payload.upserts.length === 0 && preview.payload.deletedIds.length === 0) {
-              <div class="planning-solver__preview-window">Keine Änderungen gefunden.</div>
-            }
-            <div class="planning-panel__actions">
-              <button mat-stroked-button type="button" (click)="discardSolverPreview()">Verwerfen</button>
-              <button
-                mat-flat-button
-                color="primary"
-                type="button"
-                (click)="applySolverPreview()"
-                [disabled]="preview.payload.upserts.length === 0 && preview.payload.deletedIds.length === 0"
-              >
-                Übernehmen
-              </button>
-            </div>
-          </div>
-        }
-      </div>
-    </div>
     @if (selectedActivity(); as selected) {
       <div class="planning-panel planning-panel--form" cdkDrag>
       <div class="planning-panel__header" cdkDragHandle>
@@ -1088,4 +1390,6 @@
 	    }
 	  </section>
 
-</section>
+    </section>
+  </mat-drawer-content>
+</mat-drawer-container>

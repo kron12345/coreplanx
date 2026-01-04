@@ -22,7 +22,8 @@ type SettingsDocKey =
   | 'settings-activity-catalog'
   | 'settings-layer-groups'
   | 'settings-translations'
-  | 'settings-planning-rules';
+  | 'settings-planning-rules'
+  | 'settings-planning';
 
 type AssistantDocKey = MasterDataDocKey | SettingsDocKey;
 
@@ -78,6 +79,10 @@ const SETTINGS_DOCS: Record<SettingsDocKey, AssistantDocDescriptor> = {
     title: 'Einstellungen · Regeln',
     relativePath: 'docs/assistant/einstellungen-regeln.md',
   },
+  'settings-planning': {
+    title: 'Einstellungen · Planung',
+    relativePath: 'docs/assistant/einstellungen-planung.md',
+  },
 };
 
 const SETTINGS_TITLE_TO_DOC_KEY: Record<string, SettingsDocKey> = {
@@ -86,6 +91,7 @@ const SETTINGS_TITLE_TO_DOC_KEY: Record<string, SettingsDocKey> = {
   'Layer-Gruppen': 'settings-layer-groups',
   Übersetzungen: 'settings-translations',
   Regeln: 'settings-planning-rules',
+  Planung: 'settings-planning',
 };
 
 const ASSISTANT_DOCS: Record<AssistantDocKey, AssistantDocDescriptor> = {

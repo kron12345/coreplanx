@@ -6,11 +6,13 @@ export interface ApiConfig {
    * through a custom provider (e.g. in main.ts or tests).
    */
   baseUrl: string;
+  debugStreamToken?: string;
 }
 
 export const API_CONFIG = new InjectionToken<ApiConfig>('API_CONFIG', {
   providedIn: 'root',
   factory: () => ({
     baseUrl: '/api/v1',
+    debugStreamToken: undefined,
   }),
 });

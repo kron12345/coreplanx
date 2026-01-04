@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Sse,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
@@ -16,6 +17,7 @@ import type {
   ActivityFilters,
   ActivityMutationRequest,
   ActivityValidationRequest,
+  PlanningStageViewportSubscriptionRequest,
   ResourceMutationRequest,
 } from './planning.types';
 import { PlanningService } from './planning.service';
@@ -146,6 +148,7 @@ export class PlanningController {
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
     @Body() request?: ActivityMutationRequest,
+    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
     const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
@@ -154,11 +157,15 @@ export class PlanningController {
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
     }
+    const requestId =
+      req?.requestId ??
+      (typeof req?.headers?.['x-request-id'] === 'string' ? req?.headers?.['x-request-id'] : undefined);
     return this.planningService.mutateActivities(
       stageId,
       normalizedVariantId,
       request,
       derivedYear ?? timetableYearLabel ?? null,
+      requestId,
     );
   }
 
@@ -180,6 +187,35 @@ export class PlanningController {
       stageId,
       normalizedVariantId,
       request,
+      derivedYear ?? timetableYearLabel ?? null,
+    );
+  }
+
+  @Post(':stageId/subscriptions')
+  updateViewportSubscription(
+    @Param('stageId') stageId: string,
+    @Query('variantId') variantId?: string,
+    @Query('timetableYearLabel') timetableYearLabel?: string,
+    @Body() request?: PlanningStageViewportSubscriptionRequest,
+  ) {
+    const normalizedVariantId = normalizeVariantId(variantId);
+    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+      throw new BadRequestException(
+        `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
+      );
+    }
+    const normalizedResourceIds = this.normalizeResourceIds(request?.resourceIds);
+    const payload = request
+      ? {
+          ...request,
+          resourceIds: normalizedResourceIds,
+        }
+      : undefined;
+    return this.planningService.updateViewportSubscription(
+      stageId,
+      normalizedVariantId,
+      payload,
       derivedYear ?? timetableYearLabel ?? null,
     );
   }

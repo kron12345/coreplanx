@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { readFileSync } from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
@@ -16,7 +17,7 @@ async function bootstrap() {
   });
   await fastifyAdapter.register(fastifySse);
   const app = await NestFactory.create(AppModule, fastifyAdapter);
-  fastifyAdapter.getInstance().addHook('onRequest', (request, _reply, done) => {
+  fastifyAdapter.getInstance().addHook('onRequest', (request, reply, done) => {
     const originalUrl = request.raw.url ?? '/';
     const collapsed = originalUrl.replace(/^\/{2,}/, '/');
     // Allow proxies that strip the /api prefix and clean up double slashes.
@@ -25,6 +26,10 @@ async function bootstrap() {
     } else {
       request.raw.url = collapsed;
     }
+    const headerValue = request.headers['x-request-id'];
+    const requestId = typeof headerValue === 'string' && headerValue.trim().length > 0 ? headerValue : randomUUID();
+    (request as { requestId?: string }).requestId = requestId;
+    reply.header('x-request-id', requestId);
     done();
   });
   app.setGlobalPrefix(apiPrefix);
@@ -56,8 +61,9 @@ async function bootstrap() {
       'If-None-Match',
       'X-Requested-With',
       'X-Client-Request-Id',
+      'X-Request-Id',
     ],
-    exposedHeaders: ['ETag', 'Location'],
+    exposedHeaders: ['ETag', 'Location', 'X-Request-Id'],
     maxAge: 3600,
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

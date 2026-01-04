@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Param, Post, Query, Req } from '@nestjs/common';
 import { PlanningOptimizationService } from './planning-optimization.service';
 import type { RulesetSelectionInput } from './planning-optimization.service';
 import { deriveTimetableYearLabelFromVariantId, normalizeVariantId } from '../shared/variant-scope';
@@ -13,6 +13,7 @@ export class PlanningOptimizationController {
     @Param('stageId') stageId: string,
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
+    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
   ) {
     if (!isStageId(stageId)) {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
@@ -28,6 +29,7 @@ export class PlanningOptimizationController {
       stageId,
       normalizedVariantId,
       derivedYear ?? timetableYearLabel ?? null,
+      this.readRequestId(req),
     );
   }
 
@@ -37,6 +39,7 @@ export class PlanningOptimizationController {
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
     @Body() payload?: RulesetSelectionInput,
+    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
   ) {
     if (!isStageId(stageId)) {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
@@ -53,6 +56,7 @@ export class PlanningOptimizationController {
       normalizedVariantId,
       derivedYear ?? timetableYearLabel ?? null,
       payload,
+      this.readRequestId(req),
     );
   }
 
@@ -62,6 +66,7 @@ export class PlanningOptimizationController {
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
     @Body() payload?: RulesetSelectionInput,
+    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
   ) {
     if (!isStageId(stageId)) {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
@@ -78,6 +83,24 @@ export class PlanningOptimizationController {
       normalizedVariantId,
       derivedYear ?? timetableYearLabel ?? null,
       payload,
+      this.readRequestId(req),
     );
+  }
+
+  private readRequestId(req?: {
+    requestId?: string;
+    headers?: Record<string, string | string[] | undefined>;
+  }): string | undefined {
+    if (!req) {
+      return undefined;
+    }
+    if (req.requestId) {
+      return req.requestId;
+    }
+    const header = req.headers?.['x-request-id'];
+    if (typeof header === 'string') {
+      return header;
+    }
+    return undefined;
   }
 }

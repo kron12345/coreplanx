@@ -68,18 +68,18 @@ export class PlanningSolverService {
         response,
         candidateResult,
       );
-      const upserts = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+      const result = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
 
       const summary =
         response.summary ??
-        (upserts.length
-          ? `${upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
+        (result.upserts.length
+          ? `${result.upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
           : 'Keine geeigneten Kandidaten gefunden.');
 
       return {
         summary,
-        upserts,
-        deletedIds: [],
+        upserts: result.upserts,
+        deletedIds: result.deletedIds,
         candidatesUsed: selectedCandidates,
       };
     } catch (error) {
@@ -181,17 +181,17 @@ export class PlanningSolverService {
       ...this.selectBestByService(candidateResult.candidates.filter((c) => c.type === 'travel')),
     ];
 
-    const upserts = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+    const result = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
 
     const summary =
-      upserts.length > 0
-        ? `${upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
+      result.upserts.length > 0
+        ? `${result.upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
         : 'Keine geeigneten Kandidaten gefunden.';
 
     return {
       summary,
-      upserts,
-      deletedIds: [],
+      upserts: result.upserts,
+      deletedIds: result.deletedIds,
       candidatesUsed: selectedCandidates,
     };
   }
@@ -219,11 +219,12 @@ export class PlanningSolverService {
     candidates: PlanningCandidate[],
     ruleset: RulesetIR,
     snapshot: PlanningStageSnapshot,
-  ): Activity[] {
+  ): { upserts: Activity[]; deletedIds: string[] } {
     const activityById = new Map(snapshot.activities.map((activity) => [activity.id, activity]));
     const activityUpdates = new Map<string, Activity>();
     const boundaryUpserts: Activity[] = [];
     const dutyCandidates = candidates.filter((candidate) => candidate.type === 'duty');
+    const deletedIds = new Set<string>();
 
     if (dutyCandidates.length) {
       const boundaryTypeIndex = this.resolveBoundaryTypeIndex();
@@ -240,15 +241,32 @@ export class PlanningSolverService {
       }
     }
 
-    const generated = candidates
-      .map((candidate) => this.buildActivityFromCandidate(candidate, ruleset, snapshot))
-      .filter((entry): entry is Activity => !!entry);
+    const generated: Activity[] = [];
+    candidates.forEach((candidate) => {
+      if (candidate.type === 'break') {
+        const result = this.buildBreakMutation(candidate, ruleset, snapshot);
+        if (result.upsert) {
+          generated.push(result.upsert);
+        }
+        result.deleteIds.forEach((id) => deletedIds.add(id));
+        return;
+      }
+      if (candidate.type === 'travel') {
+        const activity = this.buildActivityFromCandidate(candidate, ruleset, snapshot);
+        if (activity) {
+          generated.push(activity);
+        }
+      }
+    });
 
-    return [
-      ...generated,
-      ...boundaryUpserts,
-      ...Array.from(activityUpdates.values()),
-    ];
+    return {
+      upserts: [
+        ...generated,
+        ...boundaryUpserts,
+        ...Array.from(activityUpdates.values()),
+      ],
+      deletedIds: Array.from(deletedIds),
+    };
   }
 
   private buildActivityFromCandidate(
@@ -301,6 +319,121 @@ export class PlanningSolverService {
         snapshotStage: snapshot.stageId,
       },
     };
+  }
+
+  private buildBreakMutation(
+    candidate: PlanningCandidate,
+    ruleset: RulesetIR,
+    snapshot: PlanningStageSnapshot,
+  ): { upsert: Activity | null; deleteIds: string[] } {
+    const startIso = this.readString(candidate.params, 'windowStart');
+    const endIso = this.readString(candidate.params, 'windowEnd');
+    if (!startIso || !endIso) {
+      return { upsert: null, deleteIds: [] };
+    }
+    const startMs = this.toMs(startIso);
+    const endMs = this.toMs(endIso);
+    if (startMs === null || endMs === null || endMs <= startMs) {
+      return { upsert: null, deleteIds: [] };
+    }
+
+    const durationMinutes = this.readNumber(candidate.params, 'durationMinutes', 30);
+    const maxEnd = Math.min(endMs, startMs + durationMinutes * 60_000);
+    const resolvedEndMs = Math.max(startMs, maxEnd);
+    const activityType = this.resolveActivityType(candidate);
+    const title = 'Pause (Optimierung)';
+    const serviceId = this.readString(candidate.params, 'serviceId');
+    const participants = this.resolveParticipants(candidate.params, snapshot.activities, serviceId);
+
+    const existing = serviceId
+      ? this.collectExistingBreaks(snapshot.activities, serviceId, startMs, endMs)
+      : [];
+    if (existing.length) {
+      const primary = existing[0];
+      const deleteIds = existing.slice(1).map((entry) => entry.id);
+      const updated: Activity = {
+        ...primary,
+        title: primary.title?.trim().length ? primary.title : title,
+        start: new Date(startMs).toISOString(),
+        end: new Date(resolvedEndMs).toISOString(),
+        type: activityType,
+        serviceId: serviceId || primary.serviceId || null,
+        participants: participants.length ? participants : primary.participants,
+        meta: {
+          ...(primary.meta ?? {}),
+          optimizer: true,
+          candidateId: candidate.id,
+          templateId: candidate.templateId,
+          rulesetId: ruleset.id,
+          rulesetVersion: ruleset.version,
+          snapshotStage: snapshot.stageId,
+        },
+      };
+      return { upsert: updated, deleteIds };
+    }
+
+    const created: Activity = {
+      id: this.buildActivityId(candidate),
+      title,
+      start: new Date(startMs).toISOString(),
+      end: new Date(resolvedEndMs).toISOString(),
+      type: activityType,
+      serviceId: serviceId || null,
+      participants: participants.length ? participants : undefined,
+      meta: {
+        optimizer: true,
+        candidateId: candidate.id,
+        templateId: candidate.templateId,
+        rulesetId: ruleset.id,
+        rulesetVersion: ruleset.version,
+        snapshotStage: snapshot.stageId,
+      },
+    };
+    return { upsert: created, deleteIds: [] };
+  }
+
+  private collectExistingBreaks(
+    activities: Activity[],
+    serviceId: string,
+    windowStartMs: number,
+    windowEndMs: number,
+  ): Activity[] {
+    return activities
+      .filter((activity) => this.activityMatchesService(activity, serviceId))
+      .filter((activity) => this.isBreakActivity(activity))
+      .filter((activity) => this.activityOverlapsWindow(activity, windowStartMs, windowEndMs))
+      .sort((a, b) => {
+        const aMs = this.toMs(a.start) ?? 0;
+        const bMs = this.toMs(b.start) ?? 0;
+        if (aMs === bMs) {
+          return a.id.localeCompare(b.id);
+        }
+        return aMs - bMs;
+      });
+  }
+
+  private activityOverlapsWindow(activity: Activity, windowStartMs: number, windowEndMs: number): boolean {
+    const startMs = this.toMs(activity.start);
+    if (startMs === null) {
+      return false;
+    }
+    const endMs = this.toMs(activity.end ?? activity.start) ?? startMs;
+    return endMs >= windowStartMs && startMs <= windowEndMs;
+  }
+
+  private isBreakActivity(activity: Activity): boolean {
+    const type = (activity.type ?? '').toString().trim();
+    if (type === 'break' || type === 'short-break') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    if (attrs && typeof attrs === 'object') {
+      if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
+        return true;
+      }
+    }
+    const id = activity.id ?? '';
+    return id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:');
   }
 
   private resolveActivityType(candidate: PlanningCandidate): string {
@@ -427,6 +560,16 @@ export class PlanningSolverService {
       }
     }
     return fallback;
+  }
+
+  private toBool(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      return value.trim().toLowerCase() === 'true';
+    }
+    return false;
   }
 
   private toMs(value: string): number | null {

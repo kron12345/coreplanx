@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TemplateModule } from '../template/template.module';
+import { DebugModule } from '../debug/debug.module';
 import { PlanningController } from './planning.controller';
 import { PlanningCatalogController } from './planning-catalog.controller';
 import { PlanningService } from './planning.service';
@@ -33,7 +34,7 @@ import { PlanningOptimizationService } from './planning-optimization.service';
 import { PlanningSolverService } from './planning-solver.service';
 
 @Module({
-  imports: [TemplateModule],
+  imports: [TemplateModule, DebugModule],
   controllers: [
     PlanningController,
     PlanningCatalogController,

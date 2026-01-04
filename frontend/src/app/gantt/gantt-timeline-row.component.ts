@@ -29,6 +29,7 @@ export interface GanttBar {
   roleIcon?: string | null;
   roleLabel?: string | null;
   color?: string | null;
+  serviceWorktimeMs?: number | null;
 }
 
 export interface GanttBackgroundSegment {
