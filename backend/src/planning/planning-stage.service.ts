@@ -32,7 +32,7 @@ import type {
 } from './planning.types';
 import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
-import { DutyAutopilotResult, DutyAutopilotService } from './duty-autopilot.service';
+import { DutyAutopilotService } from './duty-autopilot.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { DebugStreamService } from '../debug/debug-stream.service';
 
@@ -162,7 +162,6 @@ export class PlanningStageService implements OnModuleInit {
     const previousVersion = stage.version;
     const upserts = request?.upserts ?? [];
     const deleteIds = new Set(request?.deleteIds ?? []);
-    const skipAutopilot = request?.skipAutopilot === true;
     const appliedUpserts: string[] = [];
     const deletedIds: string[] = [];
     const changedUpsertIds = new Set<string>();
@@ -170,7 +169,6 @@ export class PlanningStageService implements OnModuleInit {
     const requestedDeleteIds = new Set<string>();
     const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
     const sourceContext = this.extractSourceContext(request?.clientRequestId);
-    let autopilotResult: DutyAutopilotResult | null = null;
 
     try {
       if (upserts.length) {
@@ -235,26 +233,7 @@ export class PlanningStageService implements OnModuleInit {
         });
       }
 
-      if (!skipAutopilot) {
-        autopilotResult = await this.dutyAutopilot.apply(stage.stageId, stage.variantId, stage.activities);
-        if (autopilotResult.upserts.length) {
-          autopilotResult.upserts.forEach((activity) => {
-            const sanitized = this.stripComputedActivityMeta(activity);
-            this.upsertActivity(stage, sanitized);
-            changedUpsertIds.add(sanitized.id);
-          });
-        }
-        if (autopilotResult.deletedIds.length) {
-          const toDelete = new Set(autopilotResult.deletedIds);
-          stage.activities = stage.activities.filter((activity) => {
-            if (toDelete.has(activity.id)) {
-              deletedIds.push(activity.id);
-              return false;
-            }
-            return true;
-          });
-        }
-      }
+      // Autopilot ist deaktiviert.
 
       const changedActivities = requestedUpsertIds.size
         ? stage.activities.filter((activity) => requestedUpsertIds.has(activity.id))
@@ -365,8 +344,8 @@ export class PlanningStageService implements OnModuleInit {
           deleteCount: deletedIds.length,
           upsertIds: this.limitIds(appliedUpserts),
           deleteIds: this.limitIds(deletedIds),
-          autopilotUpserts: autopilotResult?.upserts.length ?? 0,
-          autopilotDeletes: autopilotResult?.deletedIds.length ?? 0,
+          autopilotUpserts: 0,
+          autopilotDeletes: 0,
         },
         {
           userId: sourceContext.userId,

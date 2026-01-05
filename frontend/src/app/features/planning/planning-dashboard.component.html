@@ -105,16 +105,16 @@
           </div>
         }
         @if (debugSseStatus(); as sseStatus) {
-          <div class="planning-debug__status-card">
-            <div class="planning-debug__status-label">SSE Basis</div>
-            <div
-              class="planning-debug__status-value"
-              [class.is-ok]="sseStatus.base.state === 'connected'"
-              [class.is-error]="sseStatus.base.state === 'error'"
-              [class.is-warn]="sseStatus.base.state === 'idle'"
-            >
-              {{ formatSseStatusLabel(sseStatus.base) }}
-            </div>
+	          <div class="planning-debug__status-card">
+	            <div class="planning-debug__status-label">SSE Basis (nicht genutzt)</div>
+	            <div
+	              class="planning-debug__status-value"
+	              [class.is-ok]="sseStatus.base.state === 'connected' || sseStatus.base.state === 'disabled'"
+	              [class.is-error]="sseStatus.base.state === 'error'"
+	              [class.is-warn]="sseStatus.base.state === 'idle'"
+	            >
+	              {{ formatSseStatusLabel(sseStatus.base) }}
+	            </div>
             <div class="planning-debug__status-meta">
               Letztes Event: {{ formatDebugTimestamp(sseStatus.base.lastEventAt) }}
             </div>

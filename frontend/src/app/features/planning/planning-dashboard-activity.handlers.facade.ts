@@ -170,7 +170,7 @@ export class PlanningDashboardActivityHandlersFacade {
       const shiftDeltaMs =
         Number.isFinite(previousStartMs) && Number.isFinite(nextStartMs) ? nextStartMs - previousStartMs : 0;
       const nextMainId = Number.isFinite(nextStartMs)
-        ? this.rewriteDayScopedId(previousActivityId, new Date(nextStartMs))
+        ? this.shiftDayScopedId(previousActivityId, shiftDeltaMs)
         : previousActivityId;
 
       const normalizedMain = this.deps.applyActivityTypeConstraints({
@@ -192,14 +192,12 @@ export class PlanningDashboardActivityHandlersFacade {
       });
 
       if (this.shouldPersistToTemplate(previousActivityId)) {
-        const baseId = previousActivityId.split('@')[0] ?? previousActivityId;
-        this.deps.saveTemplateActivity({ ...normalizedMain, id: baseId });
+        this.deps.saveTemplateActivity(normalizedMain);
         shiftedAttachments.forEach(({ activity }) => {
           if (!this.shouldPersistToTemplate(activity.id)) {
             return;
           }
-          const id = activity.id.split('@')[0] ?? activity.id;
-          this.deps.saveTemplateActivity({ ...activity, id });
+          this.deps.saveTemplateActivity(activity);
         });
       }
 
@@ -226,15 +224,27 @@ export class PlanningDashboardActivityHandlersFacade {
     return true;
   }
 
-  private rewriteDayScopedId(activityId: string, start: Date): string {
+  private shiftDayScopedId(activityId: string, shiftDeltaMs: number): string {
     const match = activityId.match(/^(.+)@(\d{4}-\d{2}-\d{2})$/);
     if (!match) {
       return activityId;
     }
     const baseId = match[1];
     const currentDay = match[2];
-    const nextDay = start.toISOString().slice(0, 10);
-    if (!nextDay || nextDay === currentDay) {
+    if (!Number.isFinite(shiftDeltaMs) || shiftDeltaMs === 0) {
+      return activityId;
+    }
+    const deltaDays = Math.round(shiftDeltaMs / (24 * 3600_000));
+    if (!deltaDays) {
+      return activityId;
+    }
+    const currentDate = new Date(`${currentDay}T00:00:00.000Z`);
+    if (!Number.isFinite(currentDate.getTime())) {
+      return activityId;
+    }
+    currentDate.setUTCDate(currentDate.getUTCDate() + deltaDays);
+    const nextDay = currentDate.toISOString().slice(0, 10);
+    if (!nextDay) {
       return activityId;
     }
     return `${baseId}@${nextDay}`;
@@ -319,7 +329,7 @@ export class PlanningDashboardActivityHandlersFacade {
       const nextAttributes = writeActivityGroupMetaToAttributes(activity.attributes ?? undefined, updatedMeta);
       const updated: Activity = this.deps.applyActivityTypeConstraints({
         ...activity,
-        id: this.rewriteDayScopedId(activity.id, new Date(nextStartMs)),
+        id: this.shiftDayScopedId(activity.id, shiftDeltaMs),
         start: new Date(nextStartMs).toISOString(),
         end: nextEndMs !== null ? new Date(nextEndMs).toISOString() : null,
         attributes: nextAttributes,

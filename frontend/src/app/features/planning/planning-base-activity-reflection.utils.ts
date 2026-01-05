@@ -2,6 +2,101 @@ import type { Activity } from '../../models/activity';
 import type { TemplatePeriod } from '../../core/api/timeline-api.types';
 import { readActivityGroupMetaFromAttributes, stripDayScope, writeActivityGroupMetaToAttributes } from './planning-activity-group.utils';
 
+const DAY_MS = 24 * 3600_000;
+const TEMPLATE_PATTERN_KEY = 'template_pattern';
+
+type TemplatePattern = {
+  sliceId?: string | null;
+  weekday?: number | null;
+  startOffsetDays?: number | null;
+  startTimeMs?: number | null;
+  endOffsetDays?: number | null;
+  endTimeMs?: number | null;
+};
+
+function rewriteServiceIdForIso(serviceId: string | null | undefined, iso: string): string | null {
+  const trimmed = typeof serviceId === 'string' ? serviceId.trim() : '';
+  if (!trimmed) {
+    return null;
+  }
+  if (!trimmed.startsWith('svc:')) {
+    return trimmed;
+  }
+  const parts = trimmed.split(':');
+  if (parts.length < 4) {
+    return trimmed;
+  }
+  const stageId = parts[1] ?? '';
+  const ownerId = parts[2] ?? '';
+  if (!stageId || !ownerId) {
+    return trimmed;
+  }
+  return `svc:${stageId}:${ownerId}:${iso}`;
+}
+
+function readTemplatePattern(activity: Activity): {
+  sliceId: string | null;
+  weekday: number;
+  startOffsetDays: number;
+  startTimeMs: number;
+  endOffsetDays: number | null;
+  endTimeMs: number | null;
+} {
+  const startTime = new Date(activity.start);
+  const fallbackWeekday = startTime.getUTCDay();
+  const fallbackStartTimeMs =
+    startTime.getUTCHours() * 3600_000 +
+    startTime.getUTCMinutes() * 60_000 +
+    startTime.getUTCSeconds() * 1000 +
+    startTime.getUTCMilliseconds();
+
+  const endTime = activity.end ? new Date(activity.end) : null;
+  const serviceMidnightMs = Date.UTC(startTime.getUTCFullYear(), startTime.getUTCMonth(), startTime.getUTCDate());
+  const fallbackEnd = endTime && Number.isFinite(endTime.getTime()) ? endTime.getTime() - serviceMidnightMs : null;
+  let fallbackEndOffsetDays: number | null = null;
+  let fallbackEndTimeMs: number | null = null;
+  if (fallbackEnd !== null) {
+    fallbackEndOffsetDays = Math.floor(fallbackEnd / DAY_MS);
+    fallbackEndTimeMs = fallbackEnd - fallbackEndOffsetDays * DAY_MS;
+  }
+
+  const rawAttrs = activity.attributes as Record<string, unknown> | undefined;
+  const raw = rawAttrs?.[TEMPLATE_PATTERN_KEY];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {
+      sliceId: null,
+      weekday: fallbackWeekday,
+      startOffsetDays: 0,
+      startTimeMs: fallbackStartTimeMs,
+      endOffsetDays: fallbackEndOffsetDays,
+      endTimeMs: fallbackEndTimeMs,
+    };
+  }
+  const pattern = raw as TemplatePattern;
+  const sliceId = typeof pattern.sliceId === 'string' && pattern.sliceId.trim().length ? pattern.sliceId.trim() : null;
+  const weekday =
+    typeof pattern.weekday === 'number' && Number.isInteger(pattern.weekday) && pattern.weekday >= 0 && pattern.weekday <= 6
+      ? pattern.weekday
+      : fallbackWeekday;
+  const startOffsetDays =
+    typeof pattern.startOffsetDays === 'number' && Number.isInteger(pattern.startOffsetDays) ? pattern.startOffsetDays : 0;
+  const startTimeMs =
+    typeof pattern.startTimeMs === 'number' && Number.isFinite(pattern.startTimeMs) ? pattern.startTimeMs : fallbackStartTimeMs;
+  const endOffsetDays =
+    typeof pattern.endOffsetDays === 'number' && Number.isInteger(pattern.endOffsetDays) ? pattern.endOffsetDays : fallbackEndOffsetDays;
+  const endTimeMs =
+    typeof pattern.endTimeMs === 'number' && Number.isFinite(pattern.endTimeMs) ? pattern.endTimeMs : fallbackEndTimeMs;
+
+  return {
+    sliceId,
+    weekday,
+    startOffsetDays,
+    startTimeMs,
+    endOffsetDays,
+    endTimeMs,
+  };
+}
+
 export function reflectBaseActivities(options: {
   activities: Activity[];
   periods: TemplatePeriod[];
@@ -30,20 +125,11 @@ export function reflectBaseActivities(options: {
     }
 
     activities.forEach((activity) => {
-      const startTime = new Date(activity.start);
-      const endTime = activity.end ? new Date(activity.end) : null;
-      const weekday = startTime.getUTCDay();
-      const timeMs =
-        startTime.getUTCHours() * 3600_000 +
-        startTime.getUTCMinutes() * 60_000 +
-        startTime.getUTCSeconds() * 1000 +
-        startTime.getUTCMilliseconds();
-      const endMs = endTime
-        ? endTime.getUTCHours() * 3600_000 +
-          endTime.getUTCMinutes() * 60_000 +
-          endTime.getUTCSeconds() * 1000 +
-          endTime.getUTCMilliseconds()
-        : null;
+      const pattern = readTemplatePattern(activity);
+      if (pattern.sliceId && pattern.sliceId !== period.id) {
+        return;
+      }
+      const weekday = pattern.weekday;
 
       const first = alignToWeekday(windowStart, weekday);
       if (!first || first > windowEnd) {
@@ -55,14 +141,12 @@ export function reflectBaseActivities(options: {
           if (specialDays.has(iso)) {
             continue;
           }
-        const baseDay = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()));
-        const newStart = new Date(baseDay);
-        newStart.setUTCMilliseconds(newStart.getUTCMilliseconds() + timeMs);
-        let newEnd: Date | null = null;
-        if (endMs !== null) {
-          newEnd = new Date(baseDay);
-          newEnd.setUTCMilliseconds(newEnd.getUTCMilliseconds() + endMs);
-        }
+        const baseDayMs = Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate());
+        const newStart = new Date(baseDayMs + pattern.startOffsetDays * DAY_MS + pattern.startTimeMs);
+        const newEnd =
+          pattern.endOffsetDays !== null && pattern.endTimeMs !== null
+            ? new Date(baseDayMs + pattern.endOffsetDays * DAY_MS + pattern.endTimeMs)
+            : null;
         const groupMeta = readActivityGroupMetaFromAttributes(activity.attributes ?? undefined);
         const attachedTo = stripDayScope(groupMeta?.attachedToActivityId ?? null);
         const updatedAttributes =
@@ -78,6 +162,7 @@ export function reflectBaseActivities(options: {
           id: `${activity.id}@${iso}`,
           start: newStart.toISOString(),
           end: newEnd ? newEnd.toISOString() : null,
+          serviceId: rewriteServiceIdForIso(activity.serviceId ?? null, iso) ?? activity.serviceId ?? null,
           attributes: updatedAttributes,
         });
       }
@@ -128,7 +213,7 @@ export function reflectManagedServiceBoundaries(options: {
     if (!meta) {
       return activity;
     }
-    const iso = activity.start.slice(0, 10);
+    const iso = (activity.id.split('@')[1] ?? '').trim() || activity.start.slice(0, 10);
     const serviceId = iso
       ? `svc:${meta.stageId}:${meta.ownerId}:${iso}`
       : null;

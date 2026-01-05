@@ -25,7 +25,7 @@ export interface PlanningApiStatus {
 }
 
 export interface PlanningSseStatus {
-  state: 'idle' | 'connected' | 'error';
+  state: 'idle' | 'connected' | 'error' | 'disabled';
   message?: string;
   lastConnectedAt?: string;
   lastEventAt?: string;
@@ -56,7 +56,8 @@ export class PlanningDebugService {
   private readonly entriesSignal = signal<PlanningDebugLogEntry[]>([]);
   private readonly apiStatusSignal = signal<PlanningApiStatus>({ state: 'idle' });
   private readonly sseStatusSignal = signal<Record<PlanningStageId, PlanningSseStatus>>({
-    base: { state: 'idle' },
+    // Base stage does not rely on planning-stage SSE anymore (template timeline is the source of truth).
+    base: { state: 'disabled', message: 'Nicht genutzt' },
     operations: { state: 'idle' },
   });
   private readonly backendStreamStatusSignal = signal<PlanningBackendStreamStatus>({ state: 'idle' });
@@ -183,6 +184,9 @@ export class PlanningDebugService {
   }
 
   reportSseConnected(stageId: PlanningStageId, context?: Record<string, unknown>): void {
+    if (this.sseStatusSignal()[stageId]?.state === 'disabled') {
+      return;
+    }
     this.sseStatusSignal.update((current) => ({
       ...current,
       [stageId]: {
@@ -196,6 +200,9 @@ export class PlanningDebugService {
   }
 
   reportSseEvent(stageId: PlanningStageId): void {
+    if (this.sseStatusSignal()[stageId]?.state === 'disabled') {
+      return;
+    }
     this.sseStatusSignal.update((current) => ({
       ...current,
       [stageId]: {
@@ -210,6 +217,9 @@ export class PlanningDebugService {
   }
 
   reportSseError(stageId: PlanningStageId, message: string, error?: unknown): void {
+    if (this.sseStatusSignal()[stageId]?.state === 'disabled') {
+      return;
+    }
     this.sseStatusSignal.update((current) => ({
       ...current,
       [stageId]: {

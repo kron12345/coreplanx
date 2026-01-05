@@ -197,6 +197,7 @@ export class PlanningDashboardOperationsHandlers {
           ...activity,
           start: new Date(nextStartMs).toISOString(),
           end: nextEndMs !== null ? new Date(nextEndMs).toISOString() : null,
+          rowVersion: activity.rowVersion ?? null,
         }),
       );
     }

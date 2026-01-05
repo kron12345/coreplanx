@@ -424,6 +424,9 @@ export class PlanningDashboardComponent {
     if (api.state === 'error' || sse?.state === 'error') {
       return 'error';
     }
+    if (sse?.state === 'disabled') {
+      return api.state === 'ok' ? 'ok' : 'idle';
+    }
     if (api.state === 'ok' && sse?.state === 'connected') {
       return 'ok';
     }
@@ -2417,9 +2420,15 @@ export class PlanningDashboardComponent {
     return 'Warte';
   }
 
-  protected formatSseStatusLabel(status: { state: 'idle' | 'connected' | 'error'; message?: string }): string {
+  protected formatSseStatusLabel(status: {
+    state: 'idle' | 'connected' | 'error' | 'disabled';
+    message?: string;
+  }): string {
+    if (status.state === 'disabled') {
+      return status.message?.trim().length ? status.message.trim() : 'Nicht genutzt';
+    }
     if (status.state === 'connected') {
-      return 'Verbunden';
+      return status.message?.trim().length ? status.message.trim() : 'Verbunden';
     }
     if (status.state === 'error') {
       return 'Fehler';

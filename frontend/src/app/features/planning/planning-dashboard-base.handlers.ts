@@ -62,7 +62,7 @@ export class PlanningDashboardBaseHandlers {
     const shiftDeltaMs = Number.isFinite(previousStartMs) ? nextStartMs - previousStartMs : 0;
     const base: Activity = {
       ...event.activity,
-      id: this.rewriteDayScopedId(event.activity.id, event.start),
+      id: this.shiftDayScopedId(event.activity.id, shiftDeltaMs),
       start: event.start.toISOString(),
       end: event.end ? event.end.toISOString() : null,
     };
@@ -87,7 +87,6 @@ export class PlanningDashboardBaseHandlers {
       return;
     }
     let ensuredWithDefaults = ensured;
-    const baseId = previousActivityId.split('@')[0] ?? previousActivityId;
     const nextMainId = ensured.id;
     let shiftedAttachments: Array<{ originalId: string; activity: Activity }> = [];
     this.deps.updateStageActivities('base', (activities) => {
@@ -106,13 +105,12 @@ export class PlanningDashboardBaseHandlers {
       return result.activities;
     });
     if (this.shouldPersistToTemplate(event.activity)) {
-      this.deps.saveTemplateActivity({ ...ensuredWithDefaults, id: baseId });
+      this.deps.saveTemplateActivity(ensuredWithDefaults);
       shiftedAttachments.forEach(({ activity }) => {
         if (!this.shouldPersistToTemplate(activity)) {
           return;
         }
-        const id = activity.id.split('@')[0] ?? activity.id;
-        this.deps.saveTemplateActivity({ ...activity, id });
+        this.deps.saveTemplateActivity(activity);
       });
     }
     const resource = targetResource ?? this.deps.activitySelection.selectedActivityState()?.resource ?? null;
@@ -181,15 +179,27 @@ export class PlanningDashboardBaseHandlers {
     return { ...activity, attributes: attrs };
   }
 
-  private rewriteDayScopedId(activityId: string, start: Date): string {
+  private shiftDayScopedId(activityId: string, shiftDeltaMs: number): string {
     const match = activityId.match(/^(.+)@(\d{4}-\d{2}-\d{2})$/);
     if (!match) {
       return activityId;
     }
     const baseId = match[1];
     const currentDay = match[2];
-    const nextDay = start.toISOString().slice(0, 10);
-    if (!nextDay || nextDay === currentDay) {
+    if (!Number.isFinite(shiftDeltaMs) || shiftDeltaMs === 0) {
+      return activityId;
+    }
+    const deltaDays = Math.round(shiftDeltaMs / (24 * 3600_000));
+    if (!deltaDays) {
+      return activityId;
+    }
+    const currentDate = new Date(`${currentDay}T00:00:00.000Z`);
+    if (!Number.isFinite(currentDate.getTime())) {
+      return activityId;
+    }
+    currentDate.setUTCDate(currentDate.getUTCDate() + deltaDays);
+    const nextDay = currentDate.toISOString().slice(0, 10);
+    if (!nextDay) {
       return activityId;
     }
     return `${baseId}@${nextDay}`;
@@ -224,19 +234,12 @@ export class PlanningDashboardBaseHandlers {
 
     const nextActivities = filtered.map((activity) => {
       if (activity.id === previousActivityId) {
-        return {
-          ...activity,
-          id: normalizedMain.id,
-          start: normalizedMain.start,
-          end: normalizedMain.end,
-          participants: normalizedMain.participants,
-          attributes: normalizedMain.attributes,
-          type: normalizedMain.type,
-          title: normalizedMain.title,
-          from: normalizedMain.from,
-          to: normalizedMain.to,
-          remark: normalizedMain.remark,
-        };
+        const merged = { ...activity, ...normalizedMain, id: normalizedMain.id };
+        // Preserve rowVersion so the backend update does not trigger optimistic-lock conflicts.
+        if (!merged.rowVersion && activity.rowVersion) {
+          merged.rowVersion = activity.rowVersion;
+        }
+        return merged;
       }
       const shifted = attachmentMap.get(activity.id);
       return shifted ?? activity;
@@ -275,10 +278,11 @@ export class PlanningDashboardBaseHandlers {
       const nextAttributes = writeActivityGroupMetaToAttributes(activity.attributes ?? undefined, updatedMeta);
       const updated: Activity = this.deps.applyActivityTypeConstraints({
         ...activity,
-        id: this.rewriteDayScopedId(activity.id, new Date(nextStartMs)),
+        id: this.shiftDayScopedId(activity.id, shiftDeltaMs),
         start: new Date(nextStartMs).toISOString(),
         end: nextEndMs !== null ? new Date(nextEndMs).toISOString() : null,
         attributes: nextAttributes,
+        rowVersion: activity.rowVersion ?? null,
       });
       shifted.push({ originalId: activity.id, activity: updated });
     }

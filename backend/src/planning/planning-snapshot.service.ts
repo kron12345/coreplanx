@@ -31,6 +31,18 @@ interface ReflectedActivity {
   activity: Activity;
 }
 
+const DAY_MS = 24 * 3600_000;
+const TEMPLATE_PATTERN_KEY = 'template_pattern';
+
+type TemplatePattern = {
+  sliceId?: string | null;
+  weekday?: number | null;
+  startOffsetDays?: number | null;
+  startTimeMs?: number | null;
+  endOffsetDays?: number | null;
+  endTimeMs?: number | null;
+};
+
 @Injectable()
 export class PlanningSnapshotService {
   private readonly logger = new Logger(PlanningSnapshotService.name);
@@ -130,9 +142,16 @@ export class PlanningSnapshotService {
         ...(entry.activity.meta && typeof entry.activity.meta === 'object'
           ? entry.activity.meta
           : {}),
+        templatePattern: (entry.activity.attributes as Record<string, unknown> | undefined)?.[
+          TEMPLATE_PATTERN_KEY
+        ] ?? null,
         snapshot: {
           templateId,
           baseActivityId: entry.baseActivityId,
+          sliceId:
+            ((entry.activity.attributes as Record<string, any> | undefined)?.[
+              TEMPLATE_PATTERN_KEY
+            ] as any)?.sliceId ?? null,
           date: entry.dateIso,
           createdAt: timestamp,
         },
@@ -230,28 +249,12 @@ export class PlanningSnapshotService {
       }
 
       activities.forEach((activity) => {
-        const startTime = new Date(activity.start);
-        const endTime = activity.end ? new Date(activity.end) : null;
-        if (!Number.isFinite(startTime.getTime())) {
+        const pattern = this.readTemplatePattern(activity);
+        if (pattern.sliceId && pattern.sliceId !== period.id) {
           return;
         }
-        const weekday = startTime.getUTCDay();
-        const timeMs =
-          startTime.getUTCHours() * 3600_000 +
-          startTime.getUTCMinutes() * 60_000 +
-          startTime.getUTCSeconds() * 1000 +
-          startTime.getUTCMilliseconds();
 
-        let durationMs: number | null = null;
-        if (endTime && Number.isFinite(endTime.getTime())) {
-          durationMs = endTime.getTime() - startTime.getTime();
-          if (durationMs <= 0) {
-            // Fallback: treat as crossing midnight when only time-of-day differs.
-            durationMs += 24 * 3600_000;
-          }
-        }
-
-        const first = this.alignToWeekday(periodStart, weekday);
+        const first = this.alignToWeekday(periodStart, pattern.weekday);
         if (!first || first > periodEnd) {
           return;
         }
@@ -265,16 +268,24 @@ export class PlanningSnapshotService {
           if (specialDays.has(iso)) {
             continue;
           }
-          const baseDay = new Date(
-            Date.UTC(
-              cursor.getUTCFullYear(),
-              cursor.getUTCMonth(),
-              cursor.getUTCDate(),
-            ),
+          const baseDayMs = Date.UTC(
+            cursor.getUTCFullYear(),
+            cursor.getUTCMonth(),
+            cursor.getUTCDate(),
           );
-          const newStart = new Date(baseDay.getTime() + timeMs);
+          const newStart = new Date(
+            baseDayMs +
+              pattern.startOffsetDays * DAY_MS +
+              pattern.startTimeMs,
+          );
           const newEnd =
-            durationMs !== null ? new Date(newStart.getTime() + durationMs) : null;
+            pattern.endOffsetDays !== null && pattern.endTimeMs !== null
+              ? new Date(
+                  baseDayMs +
+                    pattern.endOffsetDays * DAY_MS +
+                    pattern.endTimeMs,
+                )
+              : null;
 
           const id = `${activity.id}@${iso}`;
           if (uniqueIds.has(id)) {
@@ -291,6 +302,10 @@ export class PlanningSnapshotService {
               id,
               start: newStart.toISOString(),
               end: newEnd ? newEnd.toISOString() : null,
+              serviceId:
+                this.rewriteServiceIdForIso(activity.serviceId ?? null, iso) ??
+                activity.serviceId ??
+                null,
             },
           });
         }
@@ -298,6 +313,111 @@ export class PlanningSnapshotService {
     });
 
     return reflected;
+  }
+
+  private rewriteServiceIdForIso(serviceId: string | null, iso: string): string | null {
+    const trimmed = (serviceId ?? '').toString().trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (!trimmed.startsWith('svc:')) {
+      return trimmed;
+    }
+    const parts = trimmed.split(':');
+    if (parts.length < 4) {
+      return trimmed;
+    }
+    const stageId = parts[1] ?? '';
+    const ownerId = parts[2] ?? '';
+    if (!stageId || !ownerId) {
+      return trimmed;
+    }
+    return `svc:${stageId}:${ownerId}:${iso}`;
+  }
+
+  private readTemplatePattern(activity: Activity): {
+    sliceId: string | null;
+    weekday: number;
+    startOffsetDays: number;
+    startTimeMs: number;
+    endOffsetDays: number | null;
+    endTimeMs: number | null;
+  } {
+    const parsedStartMs = Date.parse(activity.start);
+    const startDate = Number.isFinite(parsedStartMs) ? new Date(parsedStartMs) : null;
+    const fallbackWeekday = startDate ? startDate.getUTCDay() : 0;
+    const fallbackStartTimeMs = startDate
+      ? startDate.getUTCHours() * 3600_000 +
+        startDate.getUTCMinutes() * 60_000 +
+        startDate.getUTCSeconds() * 1000 +
+        startDate.getUTCMilliseconds()
+      : 0;
+
+    const serviceMidnightMs = startDate
+      ? Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
+      : NaN;
+    const parsedEndMs = activity.end ? Date.parse(activity.end) : NaN;
+    const fallbackEndDiff =
+      activity.end && Number.isFinite(parsedEndMs) && Number.isFinite(serviceMidnightMs)
+        ? parsedEndMs - serviceMidnightMs
+        : null;
+    let fallbackEndOffsetDays: number | null = null;
+    let fallbackEndTimeMs: number | null = null;
+    if (fallbackEndDiff !== null) {
+      fallbackEndOffsetDays = Math.floor(fallbackEndDiff / DAY_MS);
+      fallbackEndTimeMs = fallbackEndDiff - fallbackEndOffsetDays * DAY_MS;
+    }
+
+    const attrs = (activity.attributes ?? {}) as Record<string, unknown>;
+    const raw = attrs[TEMPLATE_PATTERN_KEY];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return {
+        sliceId: null,
+        weekday: fallbackWeekday,
+        startOffsetDays: 0,
+        startTimeMs: fallbackStartTimeMs,
+        endOffsetDays: fallbackEndOffsetDays,
+        endTimeMs: fallbackEndTimeMs,
+      };
+    }
+
+    const pattern = raw as TemplatePattern;
+    const sliceId =
+      typeof pattern.sliceId === 'string' && pattern.sliceId.trim().length
+        ? pattern.sliceId.trim()
+        : null;
+    const weekday =
+      typeof pattern.weekday === 'number' &&
+      Number.isInteger(pattern.weekday) &&
+      pattern.weekday >= 0 &&
+      pattern.weekday <= 6
+        ? pattern.weekday
+        : fallbackWeekday;
+    const startOffsetDays =
+      typeof pattern.startOffsetDays === 'number' && Number.isInteger(pattern.startOffsetDays)
+        ? pattern.startOffsetDays
+        : 0;
+    const startTimeMs =
+      typeof pattern.startTimeMs === 'number' && Number.isFinite(pattern.startTimeMs)
+        ? pattern.startTimeMs
+        : fallbackStartTimeMs;
+    const endOffsetDays =
+      typeof pattern.endOffsetDays === 'number' && Number.isInteger(pattern.endOffsetDays)
+        ? pattern.endOffsetDays
+        : fallbackEndOffsetDays;
+    const endTimeMs =
+      typeof pattern.endTimeMs === 'number' && Number.isFinite(pattern.endTimeMs)
+        ? pattern.endTimeMs
+        : fallbackEndTimeMs;
+
+    return {
+      sliceId,
+      weekday,
+      startOffsetDays,
+      startTimeMs,
+      endOffsetDays,
+      endTimeMs,
+    };
   }
 
   private alignToWeekday(date: Date, weekday: number): Date | null {
@@ -379,4 +499,3 @@ export class PlanningSnapshotService {
     return batches;
   }
 }
-

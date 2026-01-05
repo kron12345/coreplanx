@@ -1,24 +1,21 @@
-import { DestroyRef, Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
 import { EMPTY, Observable } from 'rxjs';
-import { catchError, finalize, switchMap, take, tap } from 'rxjs/operators';
-import { Activity, ServiceRole, type ActivityParticipant } from '../../models/activity';
+import { catchError, take, tap } from 'rxjs/operators';
+import { Activity } from '../../models/activity';
 import { Resource } from '../../models/resource';
 import { ActivityApiService } from '../../core/api/activity-api.service';
-import { PlanningApiContext } from '../../core/api/planning-api-context';
-import { MS_IN_HOUR } from '../../core/utils/time-math';
-import {
-  ActivityBatchMutationResponse,
+import type { PlanningApiContext } from '../../core/api/planning-api-context';
+import type {
   ActivityValidationRequest,
   ActivityValidationResponse,
 } from '../../core/api/activity-api.types';
 import { PlanningStageId } from './planning-stage.model';
-import { PlanningRealtimeEvent, PlanningRealtimeService } from './planning-realtime.service';
+import { PlanningRealtimeService } from './planning-realtime.service';
 import { PlanningDebugService } from './planning-debug.service';
 import { ClientIdentityService } from '../../core/services/client-identity.service';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimelineApiService } from '../../core/api/timeline-api.service';
-import { TemplatePeriod, TimelineActivityDto } from '../../core/api/timeline-api.types';
+import type { TemplatePeriod } from '../../core/api/timeline-api.types';
 import {
   PlanningResourceApiService,
   ResourceSnapshotDto,
@@ -30,7 +27,6 @@ import {
   cloneResourceSnapshot,
   cloneStageData,
   cloneTimelineRange,
-  convertIncomingTimelineRange,
   createEmptyStageData,
   diffActivities,
   diffResources,
@@ -43,25 +39,15 @@ import {
   type ActivityDiff,
   type ResourceDiff,
 } from './planning-data.utils';
-import { reflectBaseActivities, reflectManagedServiceBoundaries } from './planning-base-activity-reflection.utils';
 import { flattenResourceSnapshot } from './planning-resource-snapshot.utils';
-import {
-  readActivityGroupMeta,
-  readActivityGroupMetaFromAttributes,
-  stripDayScope,
-  writeActivityGroupMetaToAttributes,
-} from './planning-activity-group.utils';
+import type { StageViewportMap } from './planning-viewport.types';
+import { PlanningBaseDataController } from './planning-data.base';
+import { PlanningOperationsDataController } from './planning-data.operations';
+import { MS_IN_HOUR } from '../../core/utils/time-math';
 
 const STAGE_IDS: PlanningStageId[] = ['base', 'operations'];
 const VIEWPORT_PADDING_HOURS = 24;
 const VIEWPORT_SYNC_DELAY_MS = 250;
-
-type StageViewportState = {
-  range: PlanningTimelineRange;
-  window: PlanningTimelineRange;
-  resourceIds: string[];
-  signature: string;
-};
 
 @Injectable({ providedIn: 'root' })
 export class PlanningDataService {
@@ -72,10 +58,8 @@ export class PlanningDataService {
   private readonly debug = inject(PlanningDebugService);
   private readonly identity = inject(ClientIdentityService);
   private readonly timetableYear = inject(TimetableYearService);
-  private readonly destroyRef = inject(DestroyRef);
-  private baseTemplateId: string | null = null;
-  private baseTimelineRange: PlanningTimelineRange | null = null;
-  private readonly stageViewportSignal = signal<Record<PlanningStageId, StageViewportState | null>>({
+
+  private readonly stageViewportSignal = signal<StageViewportMap>({
     base: null,
     operations: null,
   });
@@ -93,11 +77,6 @@ export class PlanningDataService {
     base: null,
     operations: null,
   });
-  private baseTemplatePeriods: TemplatePeriod[] | null = null;
-  private baseTemplateSpecialDays: Set<string> = new Set();
-  private baseTimelineLoading = false;
-  private lastBaseTimelineSignature: string | null = null;
-  private skipAutopilot = true;
   private readonly lastViewportSignature: Record<PlanningStageId, string | null> = {
     base: null,
     operations: null,
@@ -111,37 +90,6 @@ export class PlanningDataService {
   private readonly clonedResourceItemCache = new WeakMap<Resource, Resource>();
   private readonly clonedActivityCache = new WeakMap<Activity[], Activity[]>();
   private readonly clonedActivityItemCache = new WeakMap<Activity, Activity>();
-  private readonly rowVersionCache = new Map<string, string>();
-
-  private readonly pendingActivityMutations: Record<
-    PlanningStageId,
-    { upserts: Map<string, Activity>; deleteIds: Set<string> }
-  > = {
-    base: { upserts: new Map<string, Activity>(), deleteIds: new Set<string>() },
-    operations: { upserts: new Map<string, Activity>(), deleteIds: new Set<string>() },
-  };
-
-  private readonly inFlightActivityMutations = new Set<PlanningStageId>();
-  private readonly inFlightActivityMutationIds: Record<
-    PlanningStageId,
-    { upsertIds: Set<string>; deleteIds: Set<string>; clientRequestId: string | null }
-  > = {
-    base: { upsertIds: new Set<string>(), deleteIds: new Set<string>(), clientRequestId: null },
-    operations: { upsertIds: new Set<string>(), deleteIds: new Set<string>(), clientRequestId: null },
-  };
-  private readonly conflictRetryClientIds: Record<PlanningStageId, string | null> = {
-    base: null,
-    operations: null,
-  };
-
-  private readonly deferredRemoteActivityMutations: Record<
-    PlanningStageId,
-    Map<string, { kind: 'upsert' | 'delete'; activity?: Activity; version?: string | null }>
-  > = {
-    base: new Map(),
-    operations: new Map(),
-  };
-
   private readonly syncingActivityIdsSignal = signal<Record<PlanningStageId, ReadonlySet<string>>>({
     base: new Set<string>(),
     operations: new Set<string>(),
@@ -154,40 +102,44 @@ export class PlanningDataService {
     }, {} as Record<PlanningStageId, PlanningStageData>),
   );
 
+  private readonly base = new PlanningBaseDataController({
+    stageDataSignal: this.stageDataSignal,
+    stageViewportSignal: this.stageViewportSignal,
+    timelineErrorSignal: this.timelineErrorSignal,
+    setStageLoading: (stage, value) => this.setStageLoading(stage, value),
+    invalidateViewportSignature: (stage) => this.invalidateViewportSignature(stage),
+    scheduleViewportSync: (stage) => this.scheduleViewportSync(stage),
+    timelineApi: this.timelineApi,
+    debug: this.debug,
+    timetableYear: this.timetableYear,
+    currentApiContext: () => this.currentApiContext(),
+  });
+
+  private readonly operations = new PlanningOperationsDataController({
+    api: this.api,
+    debug: this.debug,
+    identity: this.identity,
+    stageDataSignal: this.stageDataSignal,
+    stageViewportSignal: this.stageViewportSignal,
+    syncingActivityIdsSignal: this.syncingActivityIdsSignal,
+    timelineErrorSignal: this.timelineErrorSignal,
+    activityErrorSignal: this.activityErrorSignal,
+    setStageLoading: (stage, value) => this.setStageLoading(stage, value),
+    currentApiContext: () => this.currentApiContext(),
+    decorateClientRequestId: (value) => this.decorateClientRequestId(value),
+  });
+
   constructor() {
     this.loadResourceSnapshot();
 
     effect((onCleanup) => {
       const context = this.currentApiContext();
-      const subs = STAGE_IDS.map((stage) =>
-        this.realtime
-          .events(stage, context)
-          .subscribe((event) => this.handleRealtimeEvent(event)),
+      // Base stage data comes from the template timeline; only operations uses realtime stage events.
+      const subs = STAGE_IDS.filter((stage) => stage !== 'base').map((stage) =>
+        this.realtime.events(stage, context).subscribe((event) => this.operations.handleRealtimeEvent(event)),
       );
       onCleanup(() => subs.forEach((sub) => sub.unsubscribe()));
     });
-  }
-
-  private loadResourceSnapshot(): void {
-    this.resourceApi
-      .fetchSnapshot()
-      .pipe(
-        take(1),
-        tap((snapshot) => {
-          const clone = cloneResourceSnapshot(snapshot);
-          this.resourceSnapshotSignal.set(cloneResourceSnapshot(clone));
-          this.applyResourceSnapshot(clone);
-          this.resourceErrorSignal.set(null);
-          this.debug.reportApiSuccess('Ressourcen geladen');
-        }),
-        catchError((error) => {
-          console.warn('[PlanningDataService] Failed to load resource snapshot', error);
-          this.resourceErrorSignal.set('Ressourcen konnten nicht geladen werden.');
-          this.debug.reportApiError('Ressourcen konnten nicht geladen werden', error);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
   }
 
   resetResourceSnapshotToDefaults(scope?: ResourceSnapshotResetScope): void {
@@ -247,21 +199,16 @@ export class PlanningDataService {
     if (!upserts.length && !deleteIds.length) {
       return;
     }
-    this.enqueueActivityMutations(stage, upserts, deleteIds);
-  }
-
-  private applyResourceSnapshot(snapshot: ResourceSnapshotDto): void {
-    const resources = flattenResourceSnapshot(snapshot);
-    this.stageDataSignal.update((record) => {
-      const next = { ...record };
-      STAGE_IDS.forEach((stage) => {
-        next[stage] = {
-          ...next[stage],
-          resources: cloneResources(resources),
-        };
-      });
-      return next;
-    });
+    if (stage === 'base') {
+      const templateId = this.base.templateId();
+      if (!templateId) {
+        return;
+      }
+      upserts.forEach((activity) => this.base.upsertTemplateActivity(templateId, activity));
+      deleteIds.forEach((id) => this.base.deleteTemplateActivity(templateId, (id.split('@')[0] ?? id).toString()));
+      return;
+    }
+    this.operations.applyActivityMutation(stage, upserts, deleteIds);
   }
 
   stageResources(stage: PlanningStageId): Signal<Resource[]> {
@@ -318,7 +265,10 @@ export class PlanningDataService {
       return;
     }
     this.planningVariantContext.set(context);
-    this.rowVersionCache.clear();
+
+    this.base.resetForVariantChange();
+    this.operations.resetForVariantChange();
+
     if (context?.timetableYearLabel) {
       try {
         const bounds = this.timetableYear.getYearByLabel(context.timetableYearLabel);
@@ -331,7 +281,6 @@ export class PlanningDataService {
     }
     this.lastViewportSignature.base = null;
     this.lastViewportSignature.operations = null;
-    this.lastBaseTimelineSignature = null;
     const viewports = this.stageViewportSignal();
     STAGE_IDS.forEach((stage) => {
       if (viewports[stage]) {
@@ -340,142 +289,19 @@ export class PlanningDataService {
     });
   }
 
-  private areVariantContextsEqual(a: PlanningVariantContext | null, b: PlanningVariantContext | null): boolean {
-    if (a === b) {
-      return true;
-    }
-    if (!a || !b) {
-      return !a && !b;
-    }
-    return (
-      a.id === b.id &&
-      a.type === b.type &&
-      (a.timetableYearLabel ?? null) === (b.timetableYearLabel ?? null) &&
-      (a.label ?? '') === (b.label ?? '')
-    );
-  }
-
-  private cloneResourcesCached(resources: Resource[]): Resource[] {
-    const cached = this.clonedResourceCache.get(resources);
-    if (cached) {
-      return cached;
-    }
-    const cloned = resources.map((resource) => this.cloneResourceItem(resource));
-    this.clonedResourceCache.set(resources, cloned);
-    return cloned;
-  }
-
-  private cloneActivitiesCached(activities: Activity[]): Activity[] {
-    const cached = this.clonedActivityCache.get(activities);
-    if (cached) {
-      return cached;
-    }
-    const cloned = activities.map((activity) => this.cloneActivityItem(activity));
-    this.clonedActivityCache.set(activities, cloned);
-    return cloned;
-  }
-
-  private rowVersionKey(stage: PlanningStageId, id: string): string {
-    return `${stage}:${id}`;
-  }
-
-  private storeRowVersions(stage: PlanningStageId, activities: Activity[]): void {
-    activities.forEach((activity) => {
-      if (!activity.rowVersion) {
-        return;
-      }
-      this.rowVersionCache.set(this.rowVersionKey(stage, activity.id), activity.rowVersion);
-    });
-  }
-
-  private cloneResourceItem(resource: Resource): Resource {
-    const cached = this.clonedResourceItemCache.get(resource);
-    if (cached) {
-      return cached;
-    }
-    const cloned: Resource = {
-      ...resource,
-      attributes: resource.attributes ? { ...resource.attributes } : undefined,
-    };
-    this.clonedResourceItemCache.set(resource, cloned);
-    return cloned;
-  }
-
-  private cloneActivityItem(activity: Activity): Activity {
-    const cached = this.clonedActivityItemCache.get(activity);
-    if (cached) {
-      return cached;
-    }
-    const cloned: Activity = {
-      ...activity,
-      participants: activity.participants ? activity.participants.map((participant) => ({ ...participant })) : undefined,
-      requiredQualifications: activity.requiredQualifications ? [...activity.requiredQualifications] : undefined,
-      assignedQualifications: activity.assignedQualifications ? [...activity.assignedQualifications] : undefined,
-      workRuleTags: activity.workRuleTags ? [...activity.workRuleTags] : undefined,
-      attributes: activity.attributes ? { ...activity.attributes } : undefined,
-      meta: activity.meta ? { ...activity.meta } : undefined,
-    };
-    this.clonedActivityItemCache.set(activity, cloned);
-    return cloned;
-  }
-
   setBaseTemplateContext(
     templateId: string | null,
     context?: { periods?: TemplatePeriod[] | null; specialDays?: string[] | null },
   ): void {
-    if (this.baseTemplateId === templateId) {
-      if (context) {
-        this.baseTemplatePeriods = context.periods ?? null;
-        this.baseTemplateSpecialDays = new Set(context.specialDays ?? []);
-      }
-      return;
-    }
-    this.baseTemplateId = templateId;
-    this.baseTemplatePeriods = context?.periods ?? null;
-    this.baseTemplateSpecialDays = new Set(context?.specialDays ?? []);
-    this.lastBaseTimelineSignature = null;
-    this.baseTimelineLoading = false;
-    if (!templateId) {
-      this.stageDataSignal.update((record) => ({
-        ...record,
-        base: {
-          ...record.base,
-          activities: [],
-        },
-      }));
-      this.setStageLoading('base', false);
-      return;
-    }
-    const viewport = this.stageViewportSignal().base;
-    if (viewport) {
-      this.lastViewportSignature.base = null;
-      this.scheduleViewportSync('base');
-    }
+    this.base.setBaseTemplateContext(templateId, context);
   }
 
   setBaseTimelineRange(range: PlanningTimelineRange | null): void {
-    if (!range) {
-      this.baseTimelineRange = null;
-      return;
-    }
-    const current = this.stageDataSignal().base.timelineRange;
-    const next = cloneTimelineRange(range);
-    if (rangesEqual(current, next)) {
-      this.baseTimelineRange = next;
-      return;
-    }
-    this.baseTimelineRange = next;
-    this.stageDataSignal.update((record) => ({
-      ...record,
-      base: {
-        ...record.base,
-        timelineRange: next,
-      },
-    }));
+    this.base.setBaseTimelineRange(range);
   }
 
   setAutopilotSuppressed(value: boolean): void {
-    this.skipAutopilot = value;
+    this.operations.setAutopilotSuppressed(value);
   }
 
   setStageTimelineRange(stage: PlanningStageId, range: PlanningTimelineRange): void {
@@ -485,7 +311,7 @@ export class PlanningDataService {
       [stage]: { ...record[stage], timelineRange: normalized },
     }));
     if (stage === 'base') {
-      this.baseTimelineRange = normalized;
+      this.base.setBaseTimelineRange(normalized);
     }
   }
 
@@ -510,204 +336,16 @@ export class PlanningDataService {
     this.scheduleViewportSync(stage);
   }
 
-  private scheduleViewportSync(stage: PlanningStageId): void {
-    const handle = this.viewportSyncHandles[stage];
-    if (handle !== null) {
-      clearTimeout(handle);
-    }
-    this.viewportSyncHandles[stage] = setTimeout(() => {
-      this.viewportSyncHandles[stage] = null;
-      this.syncStageViewport(stage);
-    }, VIEWPORT_SYNC_DELAY_MS);
-  }
-
-  private syncStageViewport(stage: PlanningStageId): void {
-    const viewport = this.stageViewportSignal()[stage];
-    if (!viewport) {
-      return;
-    }
-    if (viewport.signature === this.lastViewportSignature[stage]) {
-      return;
-    }
-    if (stage === 'base' && this.baseTimelineLoading) {
-      this.scheduleViewportSync(stage);
-      return;
-    }
-    this.lastViewportSignature[stage] = viewport.signature;
-    this.subscribeStageViewport(stage, viewport);
-    this.loadStageActivitiesForViewport(stage, viewport);
-  }
-
   reloadBaseTimeline(rangeOverride?: PlanningTimelineRange | null, resourceIds: string[] = []): void {
-    const viewport = this.stageViewportSignal().base;
-    const baseRange = rangeOverride ?? viewport?.window ?? this.baseTimelineRange;
-    if (!baseRange || !this.baseTemplateId) {
-      // Ohne Template kein Ladevorgang auslösen; Bereinigung passiert in setBaseTemplateContext.
-      return;
-    }
-    if (!rangeOverride && !viewport) {
-      return;
-    }
-    if (this.baseTimelineLoading) {
-      return;
-    }
-    const context = this.currentApiContext();
-    const effectiveResourceIds = resourceIds.length ? resourceIds : viewport?.resourceIds ?? [];
-    const range = {
-      from: baseRange.start.toISOString(),
-      to: baseRange.end.toISOString(),
-      lod: 'activity' as const,
-      stage: 'base' as const,
-      variantId: context.variantId ?? undefined,
-      timetableYearLabel: context.timetableYearLabel ?? undefined,
-    };
-    const signature = [
-      this.baseTemplateId,
-      range.from,
-      range.to,
-      range.variantId ?? '',
-      effectiveResourceIds.join(','),
-    ].join('|');
-    if (signature === this.lastBaseTimelineSignature) {
-      return;
-    }
-    this.lastBaseTimelineSignature = signature;
-    this.baseTimelineLoading = true;
-    this.setStageLoading('base', true);
-    this.timelineApi
-      .loadTemplateTimeline(this.baseTemplateId, range)
-      .pipe(
-        take(1),
-        tap((response) => this.applyTimelineActivities('base', response.activities ?? [])),
-        switchMap(() =>
-          this.api
-            .listActivities(
-              'base',
-              {
-                from: range.from,
-                to: range.to,
-                resourceIds: effectiveResourceIds.length ? effectiveResourceIds : undefined,
-              },
-              this.currentApiContext(),
-            )
-            .pipe(
-              take(1),
-              tap((planningActivities) => {
-                this.storeRowVersions('base', planningActivities);
-                this.mergeBasePlanningActivities(planningActivities);
-                this.debug.reportViewportLoad('base', baseRange, planningActivities.length);
-              }),
-              catchError((error) => {
-                console.warn('[PlanningDataService] Failed to merge base activities from planning stage', error);
-                this.debug.reportViewportError('base', 'Basis-Aktivitaeten konnten nicht geladen werden', error);
-                return EMPTY;
-              }),
-            ),
-        ),
-        finalize(() => {
-          this.baseTimelineLoading = false;
-          this.setStageLoading('base', false);
-        }),
-        catchError((error) => {
-          console.warn('[PlanningDataService] Failed to load base timeline', error);
-          this.timelineErrorSignal.update((state) => ({ ...state, base: 'Basis-Timeline konnte nicht geladen werden.' }));
-          this.debug.reportViewportError('base', 'Basis-Timeline konnte nicht geladen werden', error);
-          this.baseTimelineLoading = false;
-          this.setStageLoading('base', false);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
+    this.base.reloadBaseTimeline(rangeOverride, resourceIds);
   }
 
   upsertTemplateActivity(templateId: string, activity: Activity): void {
-    const baseId = activity.id.split('@')[0] ?? activity.id;
-    const startDate = new Date(activity.start);
-    const isoDay = Number.isFinite(startDate.getTime()) ? startDate.toISOString().slice(0, 10) : null;
-    const stageActivityId = isoDay ? `${baseId}@${isoDay}` : null;
-    const currentStageActivity = stageActivityId
-      ? this.stageDataSignal().base.activities.find((entry) => entry.id === stageActivityId) ?? null
-      : null;
-    const baseResources = this.stageDataSignal().base.resources;
-    const normalizedActivity = normalizeActivityParticipants([activity], baseResources)[0] ?? activity;
-    const cachedRowVersion = stageActivityId
-      ? this.rowVersionCache.get(this.rowVersionKey('base', stageActivityId)) ?? null
-      : null;
-    const stageUpsert = stageActivityId
-      ? {
-          ...normalizedActivity,
-          id: stageActivityId,
-          rowVersion:
-            currentStageActivity?.rowVersion ??
-            cachedRowVersion ??
-            normalizedActivity.rowVersion ??
-            activity.rowVersion,
-        }
-      : undefined;
-    const dto = this.activityToTimelineDto('base', { ...normalizedActivity, id: baseId });
-    const context = this.currentApiContext();
-
-    this.timelineApi
-      .upsertTemplateActivity(templateId, dto, context)
-      .pipe(
-        take(1),
-        tap((saved) => this.applyTemplateActivity(saved)),
-        tap(() => {
-          if (!stageUpsert || !stageActivityId) {
-            return;
-          }
-          this.enqueueActivityMutations('base', [stageUpsert], []);
-        }),
-        catchError((error) => {
-          console.warn('[PlanningDataService] Failed to upsert template activity', error);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
+    this.base.upsertTemplateActivity(templateId, activity);
   }
 
   deleteTemplateActivity(templateId: string, activityId: string): void {
-    const baseId = activityId.split('@')[0] ?? activityId;
-    const planningDeleteIds = Array.from(
-      new Set(
-        this.stageDataSignal()
-          .base.activities.filter((activity) => (activity.id.split('@')[0] ?? activity.id) === baseId)
-          .map((activity) => activity.id),
-      ),
-    );
-    this.timelineApi
-      .deleteTemplateActivity(templateId, activityId, this.currentApiContext())
-      .pipe(
-        take(1),
-        tap(() => {
-          this.removeTemplateActivity(activityId);
-          // Auch reflektierte Instanzen (id@datum) entfernen.
-          this.stageDataSignal.update((record) => {
-            const baseStage = record.base;
-            const baseId = activityId.split('@')[0] ?? activityId;
-            const filtered = baseStage.activities.filter((activity) => {
-              const candidateBase = activity.id.split('@')[0] ?? activity.id;
-              return activity.id !== activityId && candidateBase !== baseId;
-            });
-            return {
-              ...record,
-              base: {
-                ...baseStage,
-                activities: filtered,
-              },
-            };
-          });
-
-          if (planningDeleteIds.length) {
-            this.enqueueActivityMutations('base', [], planningDeleteIds);
-          }
-        }),
-        catchError((error) => {
-          console.warn('[PlanningDataService] Failed to delete template activity', error);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
+    this.base.deleteTemplateActivity(templateId, activityId);
   }
 
   requestActivityValidation(
@@ -725,358 +363,13 @@ export class PlanningDataService {
     const viewport = this.stageViewportSignal()[stage];
     if (stage === 'base') {
       if (viewport) {
-        this.reloadBaseTimeline(viewport.window, viewport.resourceIds);
+        this.base.reloadBaseTimeline(viewport.window, viewport.resourceIds);
       } else {
-        this.reloadBaseTimeline();
+        this.base.reloadBaseTimeline();
       }
       return;
     }
-    if (!viewport) {
-      return;
-    }
-    this.loadStageActivitiesForViewport(stage, viewport);
-  }
-
-  private loadStageActivitiesForViewport(stage: PlanningStageId, viewport: StageViewportState): void {
-    if (stage === 'base') {
-      this.reloadBaseTimeline(viewport.window, viewport.resourceIds);
-      return;
-    }
-    const context = this.currentApiContext();
-    this.setStageLoading(stage, true);
-    this.api
-      .listActivities(
-        stage,
-        {
-          from: viewport.window.start.toISOString(),
-          to: viewport.window.end.toISOString(),
-          resourceIds: viewport.resourceIds.length ? viewport.resourceIds : undefined,
-        },
-        context,
-      )
-      .pipe(
-        take(1),
-        tap((activities) => {
-          const normalized = normalizeActivityParticipants(activities, this.stageDataSignal()[stage].resources);
-          this.storeRowVersions(stage, normalized);
-          this.stageDataSignal.update((record) => ({
-            ...record,
-            [stage]: {
-              ...record[stage],
-              activities: normalized,
-            },
-          }));
-          this.timelineErrorSignal.update((state) => ({ ...state, [stage]: null }));
-          this.debug.reportViewportLoad(stage, viewport.window, normalized.length);
-        }),
-        catchError((error) => {
-          console.warn(`[PlanningDataService] Failed to load activities for stage ${stage}`, error);
-          this.timelineErrorSignal.update((state) => ({
-            ...state,
-            [stage]: 'Timeline konnte nicht geladen werden.',
-          }));
-          this.debug.reportViewportError(stage, 'Timeline konnte nicht geladen werden', error);
-          return EMPTY;
-        }),
-        finalize(() => this.setStageLoading(stage, false)),
-      )
-      .subscribe();
-  }
-
-  private subscribeStageViewport(stage: PlanningStageId, viewport: StageViewportState): void {
-    const userId = this.identity.userId();
-    const connectionId = this.identity.connectionId();
-    if (!userId || !connectionId) {
-      this.debug.log('warn', 'viewport', 'Viewport-Subscription abgebrochen (Identitaet fehlt).', {
-        stageId: stage,
-      });
-      return;
-    }
-    this.api
-      .updateViewportSubscription(
-        stage,
-        {
-          from: viewport.window.start.toISOString(),
-          to: viewport.window.end.toISOString(),
-          resourceIds: viewport.resourceIds.length ? viewport.resourceIds : undefined,
-          userId,
-          connectionId,
-        },
-        this.currentApiContext(),
-      )
-      .pipe(
-        take(1),
-        tap(() =>
-          this.debug.reportViewportSubscription(stage, viewport.window, viewport.resourceIds.length),
-        ),
-        catchError((error) => {
-          console.warn(`[PlanningDataService] Failed to update viewport subscription for ${stage}`, error);
-          this.debug.reportViewportError(stage, 'Viewport konnte nicht abonniert werden', error);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
-  }
-
-  private applyTimelineActivities(stage: PlanningStageId, entries: TimelineActivityDto[]): void {
-    const baseActivities = this.mapTimelineActivities(entries, stage);
-    const normalized = normalizeActivityParticipants(baseActivities, this.stageDataSignal()[stage].resources);
-    const merged = this.mergeRowVersions(stage, normalized);
-    this.stageDataSignal.update((record) => ({
-      ...record,
-      [stage]: {
-        ...record[stage],
-        activities: merged,
-      },
-    }));
-  }
-
-  private mergeBasePlanningActivities(activities: Activity[]): void {
-    if (!activities.length) {
-      return;
-    }
-    this.stageDataSignal.update((record) => {
-      const baseStage = record.base;
-      const normalizedUpserts = normalizeActivityParticipants(activities, baseStage.resources);
-      const periods =
-        this.baseTemplatePeriods && this.baseTemplatePeriods.length > 0
-          ? this.baseTemplatePeriods
-          : this.defaultPeriods();
-      const viewport = this.stageViewportSignal().base?.range ?? null;
-      const viewStart = viewport?.start ?? this.baseTimelineRange?.start ?? null;
-      const viewEnd = viewport?.end ?? this.baseTimelineRange?.end ?? null;
-      const defaultYearEnd = this.timetableYear.defaultYearBounds()?.end ?? null;
-      const reflectedBoundaries = reflectManagedServiceBoundaries({
-        activities: normalizedUpserts,
-        periods,
-        specialDays: this.baseTemplateSpecialDays,
-        viewStart,
-        viewEnd,
-        defaultPeriodEnd: defaultYearEnd,
-      });
-      const boundaryIds = new Set(reflectedBoundaries.sourceIds);
-      const upserts = [
-        ...normalizedUpserts.filter((activity) => !boundaryIds.has(activity.id)),
-        ...reflectedBoundaries.reflected,
-      ];
-      const merged = mergeActivityList(baseStage.activities, upserts, reflectedBoundaries.sourceIds);
-      if (merged === baseStage.activities) {
-        return record;
-      }
-      return {
-        ...record,
-        base: {
-          ...baseStage,
-          activities: merged,
-        },
-      };
-    });
-  }
-
-  private applyTemplateActivity(entry: TimelineActivityDto): void {
-    if (!this.baseTemplateId) {
-      return;
-    }
-    const activities = this.mapTimelineActivities([entry], 'base');
-    const baseId = entry.id;
-    const prefix = `${baseId}@`;
-    const nextIds = new Set(activities.map((activity) => activity.id));
-    this.stageDataSignal.update((record) => {
-      const baseStage = record.base;
-      const persistedIds = new Set(
-        baseStage.activities.filter((activity) => !!activity.rowVersion).map((activity) => activity.id),
-      );
-      const safeUpserts = activities.filter((activity) => !persistedIds.has(activity.id));
-      const deleteIds = baseStage.activities
-        .filter((activity) => {
-          if (!activity.id.startsWith(prefix)) {
-            return false;
-          }
-          if (nextIds.has(activity.id)) {
-            return false;
-          }
-          return !activity.rowVersion;
-        })
-        .map((activity) => activity.id);
-      const next = mergeActivityList(baseStage.activities, safeUpserts, deleteIds);
-      return {
-        ...record,
-        base: {
-          ...baseStage,
-          activities: next,
-        },
-      };
-    });
-  }
-
-  private mergeRowVersions(stage: PlanningStageId, activities: Activity[]): Activity[] {
-    if (!activities.length) {
-      return activities;
-    }
-    const currentById = new Map(
-      (this.stageDataSignal()[stage]?.activities ?? []).map((activity) => [activity.id, activity.rowVersion ?? null]),
-    );
-    let mutated = false;
-    const merged = activities.map((activity) => {
-      const current = currentById.get(activity.id) ?? null;
-      const cached = this.rowVersionCache.get(this.rowVersionKey(stage, activity.id)) ?? null;
-      const mergedVersion = this.maxVersion(this.maxVersion(activity.rowVersion ?? null, current), cached);
-      if (mergedVersion && mergedVersion !== (activity.rowVersion ?? null)) {
-        mutated = true;
-        return { ...activity, rowVersion: mergedVersion };
-      }
-      return activity;
-    });
-    return mutated ? merged : activities;
-  }
-
-  private mergeComputedActivityFields(local: Activity, incoming: Activity): Activity {
-    let next = local;
-    const incomingMeta = incoming.meta ?? null;
-    if (incomingMeta && Object.keys(incomingMeta).length > 0) {
-      const mergedMeta = { ...(local.meta ?? {}), ...incomingMeta };
-      next = { ...next, meta: mergedMeta };
-    }
-
-    const incomingAttrs = incoming.attributes as Record<string, unknown> | undefined;
-    if (incomingAttrs) {
-      const computedKeys = [
-        'service_by_owner',
-        'service_conflict_level',
-        'service_conflict_codes',
-        'service_conflict_details',
-      ];
-      const mergedAttrs: Record<string, unknown> = { ...(local.attributes ?? {}) };
-      let changed = false;
-      computedKeys.forEach((key) => {
-        if (!Object.prototype.hasOwnProperty.call(incomingAttrs, key)) {
-          return;
-        }
-        const value = incomingAttrs[key];
-        if (mergedAttrs[key] !== value) {
-          mergedAttrs[key] = value;
-          changed = true;
-        }
-      });
-      if (changed) {
-        next = { ...next, attributes: mergedAttrs };
-      }
-    }
-
-    return next;
-  }
-
-  private removeTemplateActivity(activityId: string): void {
-    this.stageDataSignal.update((record) => {
-      const baseStage = record.base;
-      const filtered = baseStage.activities.filter((activity) => activity.id !== activityId);
-      if (filtered === baseStage.activities) {
-        return record;
-      }
-      return {
-        ...record,
-        base: {
-          ...baseStage,
-          activities: filtered,
-        },
-      };
-    });
-  }
-
-  private mapTimelineActivities(entries: TimelineActivityDto[], stage: PlanningStageId): Activity[] {
-    const activities = entries.map((entry) => {
-      const groupMeta = readActivityGroupMetaFromAttributes(entry.attributes ?? undefined);
-      return {
-      id: entry.id,
-      title: entry.label?.trim().length ? entry.label : entry.type ?? entry.id,
-      start: entry.start,
-      end: entry.end ?? null,
-      type: entry.type,
-      from: entry.from ?? undefined,
-      to: entry.to ?? undefined,
-      remark: entry.remark ?? undefined,
-      serviceId: entry.serviceId ?? undefined,
-      serviceRole: (entry.serviceRole ?? undefined) as ServiceRole | undefined,
-      groupId: groupMeta?.id ?? undefined,
-      groupOrder: groupMeta?.order ?? undefined,
-      attributes: entry.attributes ?? undefined,
-      participants: entry.resourceAssignments.map((assignment) => ({
-        resourceId: assignment.resourceId,
-        kind: assignment.resourceType,
-        role: (assignment.role ?? undefined) as ActivityParticipant['role'],
-      })),
-    } satisfies Activity;
-    });
-    if (stage !== 'base') {
-      return activities;
-    }
-    return this.reflectBaseActivities(activities);
-  }
-
-  private activityToTimelineDto(stage: PlanningStageId, activity: Activity): TimelineActivityDto {
-    const participants = activity.participants ?? [];
-    const resourceAssignments = participants.map((participant) => ({
-      resourceId: participant.resourceId,
-      resourceType: participant.kind,
-      role: participant.role ?? null,
-      lineIndex: null,
-    }));
-    const groupMeta = readActivityGroupMeta(activity);
-    const attributes = writeActivityGroupMetaToAttributes(activity.attributes ?? undefined, groupMeta
-      ? { ...groupMeta, attachedToActivityId: stripDayScope(groupMeta.attachedToActivityId ?? null) }
-      : null) ?? null;
-    const isOpenEnded = !activity.end;
-    return {
-      id: activity.id,
-      stage,
-      type: activity.type ?? '',
-      start: activity.start,
-      end: activity.end ?? null,
-      isOpenEnded,
-      status: (activity as any).status ?? null,
-      serviceRole: activity.serviceRole ?? null,
-      from: activity.from ?? null,
-      to: activity.to ?? null,
-      remark: activity.remark ?? null,
-      label: activity.title ?? null,
-      serviceId: activity.serviceId ?? null,
-      resourceAssignments,
-      attributes,
-      version: (activity as any).version ?? null,
-    };
-  }
-
-  private reflectBaseActivities(activities: Activity[]): Activity[] {
-    const periods =
-      this.baseTemplatePeriods && this.baseTemplatePeriods.length > 0
-        ? this.baseTemplatePeriods
-        : this.defaultPeriods();
-    const viewport = this.stageViewportSignal().base?.range ?? null;
-    const viewStart = viewport?.start ?? this.baseTimelineRange?.start ?? null;
-    const viewEnd = viewport?.end ?? this.baseTimelineRange?.end ?? null;
-    const defaultYearEnd = this.timetableYear.defaultYearBounds()?.end ?? null;
-    return reflectBaseActivities({
-      activities,
-      periods,
-      specialDays: this.baseTemplateSpecialDays,
-      viewStart,
-      viewEnd,
-      defaultPeriodEnd: defaultYearEnd,
-    });
-  }
-
-  private defaultPeriods(): TemplatePeriod[] {
-    const year = this.timetableYear.defaultYearBounds();
-    if (!year) {
-      return [];
-    }
-    return [
-      {
-        id: 'default-year',
-        validFrom: year.startIso,
-        validTo: year.endIso,
-      },
-    ];
+    this.operations.refreshStage(stage);
   }
 
   updateStageData(stage: PlanningStageId, updater: (data: PlanningStageData) => PlanningStageData) {
@@ -1126,258 +419,127 @@ export class PlanningDataService {
       };
     });
 
-    this.syncResources(stage, resourceDiff);
-    this.syncActivities(stage, activityDiff);
-  }
-
-  private handleRealtimeEvent(event: PlanningRealtimeEvent): void {
-    if (!event) {
-      return;
-    }
-    const connectionId = this.identity.connectionId();
-    const userId = this.identity.userId();
-    if (event.sourceConnectionId && event.sourceConnectionId === connectionId) {
-      return;
-    }
-    if (!event.sourceConnectionId && event.sourceClientId === userId) {
-      return;
-    }
-    const { stageId } = event;
-    if (!STAGE_IDS.includes(stageId)) {
-      return;
-    }
-    if (event.scope === 'resources') {
-      this.applyIncomingResources(stageId, (event.upserts as Resource[]) ?? [], event.deleteIds ?? [], event.version);
-      return;
-    }
-    if (event.scope === 'activities') {
-      this.applyIncomingActivities(stageId, (event.upserts as Activity[]) ?? [], event.deleteIds ?? [], event.version);
-      return;
-    }
-    if (event.scope === 'timeline' && event.timelineRange) {
-      this.applyIncomingTimeline(stageId, event.timelineRange, event.version);
-    }
-  }
-
-  private applyIncomingResources(
-    stageId: PlanningStageId,
-    upserts: Resource[],
-    deleteIds: string[],
-    version?: string | null,
-  ): void {
-    if (upserts.length === 0 && deleteIds.length === 0) {
-      return;
-    }
-    this.stageDataSignal.update((record) => {
-      const stage = record[stageId];
-      if (!stage) {
-        return record;
-      }
-      if (version && stage.version && version < stage.version) {
-        return record;
-      }
-      const merged = mergeResourceList(stage.resources, upserts, deleteIds);
-      const nextVersion = this.maxVersion(stage.version ?? null, version ?? null);
-      if (merged === stage.resources && nextVersion === (stage.version ?? null)) {
-        return record;
-      }
-      return {
-        ...record,
-        [stageId]: {
-          ...stage,
-          resources: merged,
-          version: nextVersion ?? stage.version,
-        },
-      };
-    });
-  }
-
-  private applyIncomingActivities(
-    stageId: PlanningStageId,
-    upserts: Activity[],
-    deleteIds: string[],
-    version?: string | null,
-  ): void {
-    if (upserts.length === 0 && deleteIds.length === 0) {
-      return;
-    }
-    const currentStage = this.stageDataSignal()[stageId];
-    const currentVersion = currentStage?.version ?? null;
-    if (version && currentVersion && version < currentVersion) {
-      return;
-    }
-
-    const blocked = this.blockedActivityIds(stageId);
-    const applyUpserts: Activity[] = [];
-    const applyDeletes: string[] = [];
-    const deferred = this.deferredRemoteActivityMutations[stageId];
-
-    upserts.forEach((activity) => {
-      if (activity.rowVersion) {
-        this.rowVersionCache.set(this.rowVersionKey(stageId, activity.id), activity.rowVersion);
-      }
-      if (blocked.has(activity.id)) {
-        this.deferRemoteActivityMutation(deferred, activity.id, { kind: 'upsert', activity, version });
-        return;
-      }
-      applyUpserts.push(activity);
-    });
-    deleteIds.forEach((id) => {
-      if (blocked.has(id)) {
-        this.deferRemoteActivityMutation(deferred, id, { kind: 'delete', version });
-        return;
-      }
-      applyDeletes.push(id);
-    });
-
-    const filtered = this.filterViewportMutations(stageId, applyUpserts, applyDeletes);
-    if (!filtered.upserts.length && !filtered.deleteIds.length) {
-      // Don't bump stage.version while a local mutation is pending; we'll apply the deferred data once the activity is idle again.
-      return;
-    }
-    this.stageDataSignal.update((record) => {
-      const stage = record[stageId];
-      if (!stage) {
-        return record;
-      }
-      if (version && stage.version && version < stage.version) {
-        return record;
-      }
-      const normalizedUpserts = normalizeActivityParticipants(filtered.upserts, stage.resources);
-      const currentById = new Map(stage.activities.map((activity) => [activity.id, activity.rowVersion ?? null]));
-      const filteredUpserts = normalizedUpserts.filter((activity) => {
-        const currentVersion = currentById.get(activity.id);
-        const incomingVersion = activity.rowVersion ?? null;
-        if (!currentVersion || !incomingVersion) {
-          return true;
+    if (stage === 'base') {
+      this.stageDataSignal.update((record) => {
+        const baseStage = record.base;
+        const derived = this.base.attachServiceWorktime(baseStage.activities);
+        if (derived === baseStage.activities) {
+          return record;
         }
-        return incomingVersion >= currentVersion;
+        return {
+          ...record,
+          base: {
+            ...baseStage,
+            activities: derived,
+          },
+        };
       });
-      const merged = mergeActivityList(stage.activities, filteredUpserts, filtered.deleteIds);
-      const nextVersion = this.maxVersion(stage.version ?? null, version ?? null);
-      if (merged === stage.activities && nextVersion === (stage.version ?? null)) {
-        return record;
-      }
-      return {
-        ...record,
-        [stageId]: {
-          ...stage,
-          activities: merged,
-          version: nextVersion ?? stage.version,
-        },
-      };
-    });
+    }
+
+    this.operations.syncResources(stage, resourceDiff);
+    this.operations.syncActivities(stage, activityDiff);
   }
 
-  private applyIncomingTimeline(
-    stageId: PlanningStageId,
-    range: PlanningTimelineRange | { start: string | Date; end: string | Date },
-    version?: string | null,
-  ): void {
-    const normalizedRange = convertIncomingTimelineRange(range);
+  private loadResourceSnapshot(): void {
+    this.resourceApi
+      .fetchSnapshot()
+      .pipe(
+        take(1),
+        tap((snapshot) => {
+          const clone = cloneResourceSnapshot(snapshot);
+          this.resourceSnapshotSignal.set(cloneResourceSnapshot(clone));
+          this.applyResourceSnapshot(clone);
+          this.resourceErrorSignal.set(null);
+          this.debug.reportApiSuccess('Ressourcen geladen');
+        }),
+        catchError((error) => {
+          console.warn('[PlanningDataService] Failed to load resource snapshot', error);
+          this.resourceErrorSignal.set('Ressourcen konnten nicht geladen werden.');
+          this.debug.reportApiError('Ressourcen konnten nicht geladen werden', error);
+          return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
+
+  private applyResourceSnapshot(snapshot: ResourceSnapshotDto): void {
+    const resources = flattenResourceSnapshot(snapshot);
     this.stageDataSignal.update((record) => {
-      const stage = record[stageId];
-      if (!stage) {
-        return record;
-      }
-      if (version && stage.version && version < stage.version) {
-        return record;
-      }
-      return {
-        ...record,
-        [stageId]: {
-          ...stage,
-          timelineRange: normalizeTimelineRange(normalizedRange),
-          version: version ?? stage.version,
-        },
-      };
+      const next = { ...record };
+      STAGE_IDS.forEach((stage) => {
+        next[stage] = {
+          ...next[stage],
+          resources: cloneResources(resources),
+        };
+      });
+      return next;
     });
   }
 
-  private filterViewportMutations(
-    stageId: PlanningStageId,
-    upserts: Activity[],
-    deleteIds: string[],
-  ): { upserts: Activity[]; deleteIds: string[] } {
-    const viewport = this.stageViewportSignal()[stageId];
-    if (!viewport) {
-      return { upserts: [], deleteIds: [] };
-    }
-    if (!upserts.length && !deleteIds.length) {
-      return { upserts, deleteIds };
-    }
-    const stage = this.stageDataSignal()[stageId];
-    const loadedIds = new Set((stage?.activities ?? []).map((activity) => activity.id));
-    const deleteSet = new Set(deleteIds);
-    const resourceSet = viewport.resourceIds.length ? new Set(viewport.resourceIds) : null;
-    const filteredUpserts = upserts.filter((activity) => {
-      if (loadedIds.has(activity.id)) {
-        return true;
-      }
-      const matches = this.activityMatchesViewport(activity, viewport.window, resourceSet);
-      if (!matches) {
-        deleteSet.add(activity.id);
-      }
-      return matches;
-    });
-    return {
-      upserts: filteredUpserts,
-      deleteIds: Array.from(deleteSet),
-    };
-  }
-
-  private activityMatchesViewport(
-    activity: Activity,
-    window: PlanningTimelineRange,
-    resourceSet: Set<string> | null,
-  ): boolean {
-    if (!this.activityOverlapsWindow(activity, window)) {
-      return false;
-    }
-    if (!resourceSet || resourceSet.size === 0) {
+  private areVariantContextsEqual(a: PlanningVariantContext | null, b: PlanningVariantContext | null): boolean {
+    if (a === b) {
       return true;
     }
-    const participants = activity.participants ?? [];
-    if (participants.some((participant) => resourceSet.has(participant.resourceId))) {
-      return true;
+    if (!a || !b) {
+      return !a && !b;
     }
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const map = attrs?.['service_by_owner'];
-    if (map && typeof map === 'object' && !Array.isArray(map)) {
-      return Object.keys(map as Record<string, unknown>).some((key) => resourceSet.has(key));
-    }
-    return false;
+    return (
+      a.id === b.id &&
+      a.type === b.type &&
+      (a.timetableYearLabel ?? null) === (b.timetableYearLabel ?? null) &&
+      (a.label ?? '') === (b.label ?? '')
+    );
   }
 
-  private activityOverlapsWindow(activity: Activity, window: PlanningTimelineRange): boolean {
-    const startMs = Date.parse(activity.start);
-    const endMs = Date.parse(activity.end ?? activity.start ?? '');
-    if (!Number.isFinite(startMs)) {
-      return false;
+  private cloneResourcesCached(resources: Resource[]): Resource[] {
+    const cached = this.clonedResourceCache.get(resources);
+    if (cached) {
+      return cached;
     }
-    const resolvedEnd = Number.isFinite(endMs) ? endMs : startMs;
-    const windowStart = window.start.getTime();
-    const windowEnd = window.end.getTime();
-    if (resolvedEnd <= windowStart) {
-      return false;
-    }
-    if (startMs >= windowEnd) {
-      return false;
-    }
-    return true;
+    const cloned = resources.map((resource) => this.cloneResourceItem(resource));
+    this.clonedResourceCache.set(resources, cloned);
+    return cloned;
   }
 
-  private decorateClientRequestId(value?: string): string {
-    const base = value && value.length > 0 ? value : `client-sync-${Date.now().toString(36)}`;
-    return `${this.identity.userId()}|${this.identity.connectionId()}|${base}`;
+  private cloneActivitiesCached(activities: Activity[]): Activity[] {
+    const cached = this.clonedActivityCache.get(activities);
+    if (cached) {
+      return cached;
+    }
+    const cloned = activities.map((activity) => this.cloneActivityItem(activity));
+    this.clonedActivityCache.set(activities, cloned);
+    return cloned;
   }
 
-  private currentApiContext(): PlanningApiContext {
-    const variant = this.planningVariantContext();
-    return {
-      variantId: variant?.id ?? 'default',
-      timetableYearLabel: variant?.timetableYearLabel ?? null,
+  private cloneResourceItem(resource: Resource): Resource {
+    const cached = this.clonedResourceItemCache.get(resource);
+    if (cached) {
+      return cached;
+    }
+    const cloned: Resource = {
+      ...resource,
+      attributes: resource.attributes ? { ...resource.attributes } : undefined,
     };
+    this.clonedResourceItemCache.set(resource, cloned);
+    return cloned;
+  }
+
+  private cloneActivityItem(activity: Activity): Activity {
+    const cached = this.clonedActivityItemCache.get(activity);
+    if (cached) {
+      return cached;
+    }
+    const cloned: Activity = {
+      ...activity,
+      participants: activity.participants ? activity.participants.map((participant) => ({ ...participant })) : undefined,
+      requiredQualifications: activity.requiredQualifications ? [...activity.requiredQualifications] : undefined,
+      assignedQualifications: activity.assignedQualifications ? [...activity.assignedQualifications] : undefined,
+      workRuleTags: activity.workRuleTags ? [...activity.workRuleTags] : undefined,
+      attributes: activity.attributes ? { ...activity.attributes } : undefined,
+      meta: activity.meta ? { ...activity.meta } : undefined,
+    };
+    this.clonedActivityItemCache.set(activity, cloned);
+    return cloned;
   }
 
   private buildViewportWindow(range: PlanningTimelineRange): PlanningTimelineRange {
@@ -1405,466 +567,52 @@ export class PlanningDataService {
     }));
   }
 
-  private syncActivities(stage: PlanningStageId, diff: ActivityDiff): void {
-    if (!diff.hasChanges) {
+  private invalidateViewportSignature(stage: PlanningStageId): void {
+    this.lastViewportSignature[stage] = null;
+  }
+
+  private scheduleViewportSync(stage: PlanningStageId): void {
+    const handle = this.viewportSyncHandles[stage];
+    if (handle !== null) {
+      clearTimeout(handle);
+    }
+    this.viewportSyncHandles[stage] = setTimeout(() => {
+      this.viewportSyncHandles[stage] = null;
+      this.syncStageViewport(stage);
+    }, VIEWPORT_SYNC_DELAY_MS);
+  }
+
+  private syncStageViewport(stage: PlanningStageId): void {
+    const viewport = this.stageViewportSignal()[stage];
+    if (!viewport) {
       return;
     }
-    const stageData = this.stageDataSignal()[stage];
-    if (diff.upserts && stageData) {
-      diff.upserts = normalizeActivityParticipants(diff.upserts, stageData.resources);
-    }
-    this.enqueueActivityMutations(stage, diff.upserts ?? [], diff.deleteIds ?? []);
-  }
-
-  private applyMutationResponse(stage: PlanningStageId, response: ActivityBatchMutationResponse): void {
-    const pending = this.pendingActivityMutations[stage];
-    const pendingUpsertIds = pending.upserts;
-    const pendingDeleteIds = pending.deleteIds;
-
-    const rowVersionOnly = new Map<string, string>();
-    const computedUpserts = new Map<string, Activity>();
-
-    const applyUpserts: Activity[] = [];
-    (response.upserts ?? []).forEach((activity) => {
-      if (activity.rowVersion) {
-        this.rowVersionCache.set(this.rowVersionKey(stage, activity.id), activity.rowVersion);
-      }
-      if (pendingDeleteIds.has(activity.id)) {
-        return;
-      }
-      if (pendingUpsertIds.has(activity.id)) {
-        const pendingActivity = pendingUpsertIds.get(activity.id) ?? activity;
-        let mergedPending = this.mergeComputedActivityFields(pendingActivity, activity);
-        if (activity.rowVersion) {
-          rowVersionOnly.set(activity.id, activity.rowVersion);
-          const mergedVersion =
-            this.maxVersion(pendingActivity.rowVersion ?? null, activity.rowVersion) ?? activity.rowVersion;
-          mergedPending =
-            mergedVersion && mergedVersion !== (mergedPending.rowVersion ?? null)
-              ? { ...mergedPending, rowVersion: mergedVersion }
-              : mergedPending;
-        }
-        if (mergedPending !== pendingActivity) {
-          pendingUpsertIds.set(activity.id, mergedPending);
-        }
-        computedUpserts.set(activity.id, mergedPending);
-        return;
-      }
-      applyUpserts.push(activity);
-    });
-
-    const applyDeletes = (response.deletedIds ?? []).filter((id) => !pendingUpsertIds.has(id));
-    const filtered = this.filterViewportMutations(stage, [...computedUpserts.values(), ...applyUpserts], applyDeletes);
-
-    this.stageDataSignal.update((record) => {
-      const stageData = record[stage];
-      const currentVersion = stageData.version ?? null;
-      const nextVersion = this.maxVersion(currentVersion, response.version ?? null) ?? currentVersion;
-
-      let activities = stageData.activities;
-      if (rowVersionOnly.size) {
-        let mutated = false;
-        const next = activities.map((activity) => {
-          const incoming = rowVersionOnly.get(activity.id);
-          if (!incoming) {
-            return activity;
-          }
-          const mergedVersion = this.maxVersion(activity.rowVersion ?? null, incoming) ?? activity.rowVersion ?? incoming;
-          if ((activity.rowVersion ?? null) === mergedVersion) {
-            return activity;
-          }
-          mutated = true;
-          return {
-            ...activity,
-            rowVersion: mergedVersion,
-          };
-        });
-        activities = mutated ? next : activities;
-      }
-
-      const normalizedUpserts = filtered.upserts.length
-        ? normalizeActivityParticipants(filtered.upserts, stageData.resources)
-        : [];
-      const currentById = new Map(activities.map((activity) => [activity.id, activity.rowVersion ?? null]));
-      const filteredUpserts = normalizedUpserts.filter((activity) => {
-        const currentVersion = currentById.get(activity.id);
-        const incomingVersion = activity.rowVersion ?? null;
-        if (!currentVersion || !incomingVersion) {
-          return true;
-        }
-        return incomingVersion >= currentVersion;
-      });
-
-      const merged = mergeActivityList(activities, filteredUpserts, filtered.deleteIds);
-      if (merged === stageData.activities && nextVersion === currentVersion) {
-        return record;
-      }
-      return {
-        ...record,
-        [stage]: {
-          ...stageData,
-          activities: merged,
-          version: nextVersion ?? stageData.version,
-        },
-      };
-    });
-  }
-
-  private enqueueActivityMutations(stage: PlanningStageId, upserts: Activity[], deleteIds: string[]): void {
-    const pending = this.pendingActivityMutations[stage];
-    deleteIds.forEach((id) => {
-      pending.upserts.delete(id);
-      pending.deleteIds.add(id);
-    });
-    upserts.forEach((activity) => {
-      pending.deleteIds.delete(activity.id);
-      pending.upserts.set(activity.id, activity);
-    });
-    this.updateSyncingActivityIds(stage);
-    this.flushActivityMutations(stage);
-  }
-
-  private flushActivityMutations(stage: PlanningStageId): void {
-    if (this.inFlightActivityMutations.has(stage)) {
+    if (viewport.signature === this.lastViewportSignature[stage]) {
       return;
     }
-    const pending = this.pendingActivityMutations[stage];
-    if (!pending.upserts.size && !pending.deleteIds.size) {
+    if (stage === 'base' && this.base.isLoading()) {
+      this.scheduleViewportSync(stage);
       return;
     }
-    const upserts = Array.from(pending.upserts.values());
-    const deleteIds = Array.from(pending.deleteIds.values());
-    pending.upserts.clear();
-    pending.deleteIds.clear();
-
-    const stageData = this.stageDataSignal()[stage];
-    const currentRowVersions = new Map(
-      (stageData?.activities ?? []).map((activity) => [activity.id, activity.rowVersion ?? null]),
-    );
-    const effectiveUpserts = upserts.map((activity) => {
-      const current = currentRowVersions.get(activity.id);
-      const cached = this.rowVersionCache.get(this.rowVersionKey(stage, activity.id)) ?? null;
-      const merged = this.maxVersion(this.maxVersion(activity.rowVersion ?? null, current), cached);
-      if (merged && merged !== (activity.rowVersion ?? null)) {
-        return { ...activity, rowVersion: merged };
-      }
-      return activity;
-    });
-
-    this.inFlightActivityMutations.add(stage);
-    this.activityErrorSignal.update((state) => ({ ...state, [stage]: null }));
-    const inFlight = this.inFlightActivityMutationIds[stage];
-    inFlight.upsertIds = new Set(effectiveUpserts.map((activity) => activity.id));
-    inFlight.deleteIds = new Set(deleteIds);
-    inFlight.clientRequestId = this.decorateClientRequestId(`activity-sync-${Date.now().toString(36)}`);
-    this.updateSyncingActivityIds(stage);
-    this.api
-      .batchMutateActivities(
-        stage,
-        {
-          upserts: effectiveUpserts,
-          deleteIds,
-          skipAutopilot: this.skipAutopilot,
-          clientRequestId: inFlight.clientRequestId,
-        },
-        this.currentApiContext(),
-      )
-      .pipe(
-        take(1),
-        tap(() => {
-          this.activityErrorSignal.update((state) => ({ ...state, [stage]: null }));
-        }),
-        tap((response) => {
-          this.applyMutationResponse(stage, response);
-          this.debug.reportApiSuccess();
-          this.conflictRetryClientIds[stage] = null;
-        }),
-        catchError((error) => {
-          console.error(`[PlanningDataService] Failed to sync activities for ${stage}`, error);
-          if (this.tryScheduleConflictRetry(stage, error, effectiveUpserts, deleteIds, inFlight.clientRequestId)) {
-            return EMPTY;
-          }
-          this.activityErrorSignal.update((state) => ({ ...state, [stage]: this.describeActivitySyncError(error) }));
-          this.debug.reportApiError('Aktivitaeten konnten nicht gespeichert werden', error, { stageId: stage });
-          this.refreshStage(stage);
-          return EMPTY;
-        }),
-        finalize(() => {
-          this.inFlightActivityMutations.delete(stage);
-          const current = this.inFlightActivityMutationIds[stage];
-          current.upsertIds = new Set<string>();
-          current.deleteIds = new Set<string>();
-          current.clientRequestId = null;
-          this.updateSyncingActivityIds(stage);
-          this.drainDeferredRemoteActivityMutations(stage);
-          this.flushActivityMutations(stage);
-        }),
-      )
-      .subscribe();
+    this.lastViewportSignature[stage] = viewport.signature;
+    this.operations.subscribeStageViewport(stage, viewport);
+    if (stage === 'base') {
+      this.base.reloadBaseTimeline(viewport.window, viewport.resourceIds);
+    } else {
+      this.operations.loadStageActivitiesForViewport(stage, viewport);
+    }
   }
 
-  private describeActivitySyncError(error: unknown): string {
-    const fallback = 'Änderungen konnten nicht gespeichert werden.';
-    const anyError = error as any;
-    const payload = anyError?.error;
-    const message =
-      typeof payload?.message === 'string'
-        ? payload.message
-        : Array.isArray(payload?.message)
-          ? payload.message.filter((entry: any) => typeof entry === 'string').join(' · ')
-          : null;
-    const violations = Array.isArray(payload?.violations) ? payload.violations : [];
-    if (violations.length) {
-      const first = violations[0] as Record<string, unknown>;
-      const detail = typeof first['message'] === 'string' ? (first['message'] as string) : null;
-      const ownerId = typeof first['ownerId'] === 'string' ? (first['ownerId'] as string) : null;
-      const activityId = typeof first['activityId'] === 'string' ? (first['activityId'] as string) : null;
-      const context = ownerId ?? activityId ?? null;
-      const suffix = context && detail ? `${context}: ${detail}` : detail;
-      if (message && suffix) {
-        return `${message} (${suffix})`;
-      }
-      return message ?? suffix ?? fallback;
-    }
-    if (message) {
-      return message;
-    }
-    const generic = typeof anyError?.message === 'string' ? anyError.message : null;
-    return generic ?? fallback;
+  private decorateClientRequestId(value?: string): string {
+    const base = value && value.length > 0 ? value : `client-sync-${Date.now().toString(36)}`;
+    return `${this.identity.userId()}|${this.identity.connectionId()}|${base}`;
   }
 
-  private blockedActivityIds(stage: PlanningStageId): Set<string> {
-    const blocked = new Set<string>();
-    const pending = this.pendingActivityMutations[stage];
-    pending.upserts.forEach((_activity, id) => blocked.add(id));
-    pending.deleteIds.forEach((id) => blocked.add(id));
-    const inFlight = this.inFlightActivityMutationIds[stage];
-    inFlight.upsertIds.forEach((id) => blocked.add(id));
-    inFlight.deleteIds.forEach((id) => blocked.add(id));
-    return blocked;
-  }
-
-  private deferRemoteActivityMutation(
-    deferred: Map<string, { kind: 'upsert' | 'delete'; activity?: Activity; version?: string | null }>,
-    id: string,
-    mutation: { kind: 'upsert' | 'delete'; activity?: Activity; version?: string | null },
-  ): void {
-    const existing = deferred.get(id);
-    if (!existing) {
-      deferred.set(id, mutation);
-      return;
-    }
-    const existingVersion = existing.version ?? null;
-    const incomingVersion = mutation.version ?? null;
-    if (existingVersion && incomingVersion && incomingVersion < existingVersion) {
-      return;
-    }
-    deferred.set(id, {
-      ...mutation,
-      version: this.maxVersion(existingVersion, incomingVersion),
-    });
-  }
-
-  private drainDeferredRemoteActivityMutations(stage: PlanningStageId): void {
-    const deferred = this.deferredRemoteActivityMutations[stage];
-    if (!deferred.size) {
-      return;
-    }
-    const blocked = this.blockedActivityIds(stage);
-    const upserts: Activity[] = [];
-    const deleteIds: string[] = [];
-    let version: string | null = null;
-
-    Array.from(deferred.entries()).forEach(([id, mutation]) => {
-      if (blocked.has(id)) {
-        return;
-      }
-      deferred.delete(id);
-      if (mutation.kind === 'delete') {
-        deleteIds.push(id);
-      } else if (mutation.activity) {
-        upserts.push(mutation.activity);
-      }
-      version = this.maxVersion(version, mutation.version ?? null);
-    });
-
-    const filtered = this.filterViewportMutations(stage, upserts, deleteIds);
-    if (!filtered.upserts.length && !filtered.deleteIds.length) {
-      return;
-    }
-
-    this.stageDataSignal.update((record) => {
-      const stageData = record[stage];
-      if (!stageData) {
-        return record;
-      }
-      const normalizedUpserts = filtered.upserts.length
-        ? normalizeActivityParticipants(filtered.upserts, stageData.resources)
-        : [];
-      const currentById = new Map(stageData.activities.map((activity) => [activity.id, activity.rowVersion ?? null]));
-      const filteredUpserts = normalizedUpserts.filter((activity) => {
-        const currentVersion = currentById.get(activity.id);
-        const incomingVersion = activity.rowVersion ?? null;
-        if (!currentVersion || !incomingVersion) {
-          return true;
-        }
-        return incomingVersion >= currentVersion;
-      });
-      const merged = mergeActivityList(stageData.activities, filteredUpserts, filtered.deleteIds);
-      const nextVersion = this.maxVersion(stageData.version ?? null, version);
-      if (merged === stageData.activities && nextVersion === (stageData.version ?? null)) {
-        return record;
-      }
-      return {
-        ...record,
-        [stage]: {
-          ...stageData,
-          activities: merged,
-          version: nextVersion ?? stageData.version,
-        },
-      };
-    });
-  }
-
-  private maxVersion(a: string | null | undefined, b: string | null | undefined): string | null {
-    const left = a ?? null;
-    const right = b ?? null;
-    if (!left) {
-      return right;
-    }
-    if (!right) {
-      return left;
-    }
-    return left >= right ? left : right;
-  }
-
-  private tryScheduleConflictRetry(
-    stage: PlanningStageId,
-    error: unknown,
-    upserts: Activity[],
-    deleteIds: string[],
-    clientRequestId: string | null,
-  ): boolean {
-    const conflicts = this.readConflictEntries(error);
-    if (!conflicts.length) {
-      return false;
-    }
-    const retryable = conflicts.every((entry) => !entry.expected && !!entry.current);
-    if (!retryable) {
-      return false;
-    }
-    if (this.conflictRetryClientIds[stage]) {
-      return false;
-    }
-    this.applyRowVersionHints(stage, conflicts);
-    this.conflictRetryClientIds[stage] = clientRequestId ?? 'retry';
-    this.debug.log('warn', 'api', 'Konflikt erkannt, rowVersion aktualisiert. Retry geplant.', {
-      stageId: stage,
-      context: { conflictCount: conflicts.length },
-    });
-    this.enqueueActivityMutations(stage, upserts, deleteIds);
-    return true;
-  }
-
-  private readConflictEntries(
-    error: unknown,
-  ): Array<{ id: string; expected?: string | null; current?: string | null }> {
-    const anyError = error as { status?: number; error?: unknown };
-    const payload = (anyError?.error ?? {}) as {
-      statusCode?: number;
-      conflictIds?: string[];
-      conflicts?: Array<{ id?: string; expected?: string | null; current?: string | null }>;
+  private currentApiContext(): PlanningApiContext {
+    const variant = this.planningVariantContext();
+    return {
+      variantId: variant?.id ?? 'default',
+      timetableYearLabel: variant?.timetableYearLabel ?? null,
     };
-    const status = typeof anyError?.status === 'number' ? anyError.status : payload.statusCode;
-    if (status !== 409) {
-      return [];
-    }
-    const conflicts = Array.isArray(payload.conflicts) ? payload.conflicts : [];
-    return conflicts
-      .map((entry) => ({
-        id: (entry?.id ?? '').toString(),
-        expected: entry?.expected ?? null,
-        current: entry?.current ?? null,
-      }))
-      .filter((entry) => entry.id.length > 0);
-  }
-
-  private applyRowVersionHints(
-    stage: PlanningStageId,
-    conflicts: Array<{ id: string; expected?: string | null; current?: string | null }>,
-  ): void {
-    const rowVersions = new Map<string, string>();
-    conflicts.forEach((entry) => {
-      if (entry.current) {
-        rowVersions.set(entry.id, entry.current);
-        this.rowVersionCache.set(this.rowVersionKey(stage, entry.id), entry.current);
-      }
-    });
-    if (!rowVersions.size) {
-      return;
-    }
-    this.stageDataSignal.update((record) => {
-      const stageData = record[stage];
-      let mutated = false;
-      const nextActivities = stageData.activities.map((activity) => {
-        const incoming = rowVersions.get(activity.id);
-        if (!incoming) {
-          return activity;
-        }
-        const mergedVersion = this.maxVersion(activity.rowVersion ?? null, incoming) ?? incoming;
-        if ((activity.rowVersion ?? null) === mergedVersion) {
-          return activity;
-        }
-        mutated = true;
-        return { ...activity, rowVersion: mergedVersion };
-      });
-      if (!mutated) {
-        return record;
-      }
-      return {
-        ...record,
-        [stage]: {
-          ...stageData,
-          activities: nextActivities,
-        },
-      };
-    });
-  }
-
-  private updateSyncingActivityIds(stage: PlanningStageId): void {
-    const pending = this.pendingActivityMutations[stage];
-    const inFlight = this.inFlightActivityMutationIds[stage];
-    const ids = new Set<string>();
-    pending.upserts.forEach((_value, id) => ids.add(id));
-    pending.deleteIds.forEach((id) => ids.add(id));
-    inFlight.upsertIds.forEach((id) => ids.add(id));
-    inFlight.deleteIds.forEach((id) => ids.add(id));
-    this.syncingActivityIdsSignal.update((record) => ({
-      ...record,
-      [stage]: ids,
-    }));
-  }
-
-  private syncResources(stage: PlanningStageId, diff: ResourceDiff): void {
-    if (!diff.hasChanges) {
-      return;
-    }
-    this.api
-      .batchMutateResources(stage, {
-        upserts: diff.upserts,
-        deleteIds: diff.deleteIds,
-        clientRequestId: diff.clientRequestId,
-      }, this.currentApiContext())
-      .pipe(
-        take(1),
-        tap(() => this.debug.reportApiSuccess()),
-        catchError((error) => {
-          console.error(`[PlanningDataService] Failed to sync resources for ${stage}`, error);
-          this.debug.reportApiError('Ressourcen konnten nicht gespeichert werden', error, { stageId: stage });
-          this.refreshStage(stage);
-          return EMPTY;
-        }),
-      )
-      .subscribe();
   }
 }
