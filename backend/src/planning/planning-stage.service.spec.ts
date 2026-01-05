@@ -7,6 +7,7 @@ describe('PlanningStageService', () => {
     const repository = { isEnabled: false } as any;
     const dutyAutopilot = {
       apply: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], touchedIds: [] }),
+      applyWorktimeCompliance: jest.fn().mockResolvedValue([]),
     } as any;
     const activityCatalog = {
       listActivityTypes: jest.fn().mockReturnValue([

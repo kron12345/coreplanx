@@ -1,0 +1,6 @@
+id: azg.break_midpoint
+kind: constraint
+executor: azg/break-midpoint
+enabled: true
+params:
+  toleranceMinutes: 60 # (AZG Art. 7 Abs. 1)

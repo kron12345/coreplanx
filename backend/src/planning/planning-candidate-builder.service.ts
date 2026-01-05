@@ -313,38 +313,25 @@ export class PlanningCandidateBuilder {
     stageId: string,
   ): Array<{ serviceId: string; participantKeys: string[] }> {
     const participants = activity.participants ?? [];
+    const owners = this.resolveDutyOwners(activity);
+    if (!owners.length) {
+      return [];
+    }
+    const startMs = this.toMs(activity.start);
+    if (startMs === null) {
+      return [];
+    }
+    const dayKey = this.utcDayKeyFromMs(startMs);
     const assignments = new Map<string, Set<string>>();
-    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
-    if (direct) {
-      this.addParticipantKeys(assignments, direct, participants);
-    }
-
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const map = attrs?.['service_by_owner'];
-    if (map && typeof map === 'object' && !Array.isArray(map)) {
-      Object.entries(map as Record<string, { serviceId?: string | null } | null>).forEach(
-        ([ownerId, entry]) => {
-          const serviceId = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
-          if (!serviceId) {
-            return;
-          }
-          const ownerParticipants = participants.filter((participant) => participant.resourceId === ownerId);
-          this.addParticipantKeys(assignments, serviceId, ownerParticipants);
-        },
-      );
-    }
-
-    if (assignments.size === 0) {
-      const owners = this.resolveDutyOwners(activity);
-      const startMs = this.toMs(activity.start);
-      if (owners.length && startMs !== null) {
-        const dayKey = this.utcDayKeyFromMs(startMs);
-        owners.forEach((owner) => {
-          const serviceId = this.computeServiceId(stageId, owner.resourceId, dayKey);
-          this.addParticipantKeys(assignments, serviceId, [owner]);
-        });
+    owners.forEach((owner) => {
+      const serviceId = this.resolveServiceIdForOwner(activity, stageId, owner, dayKey);
+      if (!serviceId) {
+        return;
       }
-    }
+      const ownerParticipants = participants.filter((participant) => participant.resourceId === owner.resourceId);
+      const usedParticipants = ownerParticipants.length ? ownerParticipants : [owner];
+      this.addParticipantKeys(assignments, serviceId, usedParticipants);
+    });
 
     return Array.from(assignments.entries()).map(([serviceId, keys]) => ({
       serviceId,
@@ -406,7 +393,7 @@ export class PlanningCandidateBuilder {
       for (const owner of owners) {
         const ownerGroup = this.resolveOwnerGroup(owner.kind);
         const serviceId = this.resolveServiceIdForOwner(activity, snapshot.stageId, owner, dayKey);
-        const key = serviceId || `${owner.resourceId}|${owner.kind}|${dayKey}`;
+        const key = serviceId ? `${owner.resourceId}|${owner.kind}|${serviceId}` : `${owner.resourceId}|${owner.kind}|${dayKey}`;
         const existing = groups.get(key);
         if (!existing) {
           groups.set(key, {
@@ -538,10 +525,14 @@ export class PlanningCandidateBuilder {
       }
     }
     const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
-    if (direct) {
+    if (direct && this.serviceIdMatchesOwner(direct, stageId, owner.resourceId)) {
       return direct;
     }
     return this.computeServiceId(stageId, owner.resourceId, dayKey);
+  }
+
+  private serviceIdMatchesOwner(serviceId: string, stageId: string, ownerId: string): boolean {
+    return serviceId.startsWith(`svc:${stageId}:${ownerId}:`);
   }
 
   private isServiceBoundary(activity: Activity): boolean {

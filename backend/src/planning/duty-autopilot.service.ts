@@ -56,6 +56,8 @@ type AzgDutySnapshot = {
   dutySpanMinutes: number;
   workMinutes: number;
   breakIntervals: Array<{ startMs: number; endMs: number }>;
+  shortBreakIntervals: Array<{ startMs: number; endMs: number }>;
+  workHalfMs: number | null;
   activityIds: string[];
   hasNightWork: boolean;
 };
@@ -203,6 +205,22 @@ export class DutyAutopilotService {
     }
 
     return { upserts: Array.from(upserts.values()), deletedIds, touchedIds: Array.from(touched) };
+  }
+
+  async applyWorktimeCompliance(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+  ): Promise<Activity[]> {
+    if (!activities.length) {
+      return [];
+    }
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId);
+    if (!config) {
+      return [];
+    }
+    const resolvedConfig = this.resolveAutopilotConfig(config);
+    return this.applyAzgCompliance(stageId, variantId, activities, resolvedConfig);
   }
 
   private resolveAutopilotConfig(config: DutyAutopilotConfig): ResolvedDutyAutopilotConfig {
@@ -1534,8 +1552,10 @@ export class DutyAutopilotService {
       'WALK_TIME_MISSING_BREAK',
       'WALK_TIME_MISSING_SHORT_BREAK',
       'AZG_REST_MIN',
+      'AZG_BREAK_REQUIRED',
       'AZG_BREAK_MAX_COUNT',
       'AZG_BREAK_TOO_SHORT',
+      'AZG_BREAK_STANDARD_MIN',
       'AZG_WORK_EXCEED_BUFFER',
       'AZG_DUTY_SPAN_EXCEED_BUFFER',
       'AZG_NIGHT_STREAK_MAX',
@@ -1548,6 +1568,7 @@ export class DutyAutopilotService {
       'AZG_DUTY_SPAN_AVG_28D',
       'AZG_REST_AVG_28D',
       'AZG_BREAK_FORBIDDEN_NIGHT',
+      'AZG_BREAK_MIDPOINT',
       'AZG_REST_DAYS_YEAR_MIN',
       'AZG_REST_SUNDAYS_YEAR_MIN',
     ]);
@@ -2457,6 +2478,26 @@ export class DutyAutopilotService {
     const isShortBreak = (activity: Activity) => this.isShortBreakActivity(activity, shortBreakTypeId);
     const isRegularBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
     const dayMs = 86_400_000;
+    const intervalMinutes = (interval: { startMs: number; endMs: number }) =>
+      Math.round(Math.max(0, interval.endMs - interval.startMs) / 60_000);
+    const resolveWorkHalfMs = (segments: Array<{ startMs: number; endMs: number }>): number | null => {
+      if (!segments.length) {
+        return null;
+      }
+      const totalMs = segments.reduce((sum, seg) => sum + Math.max(0, seg.endMs - seg.startMs), 0);
+      if (totalMs <= 0) {
+        return null;
+      }
+      let remaining = totalMs / 2;
+      for (const seg of segments) {
+        const segMs = Math.max(0, seg.endMs - seg.startMs);
+        if (remaining <= segMs) {
+          return seg.startMs + remaining;
+        }
+        remaining -= segMs;
+      }
+      return segments[segments.length - 1]?.endMs ?? null;
+    };
 
     const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
     const updated = new Map<string, Activity>();
@@ -2521,11 +2562,31 @@ export class DutyAutopilotService {
         .filter((interval): interval is { startMs: number; endMs: number } => interval !== null)
         .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 
+      const shortBreaks = groupActivities
+        .filter((activity) => isShortBreak(activity))
+        .map((activity) => {
+          const start = this.parseMs(activity.start);
+          const end = this.parseMs(activity.end ?? null);
+          if (start === null || end === null) {
+            return null;
+          }
+          const clampedStartMs = Math.max(dutyStartMs, start);
+          const clampedEndMs = Math.min(dutyEndMs, Math.max(start, end));
+          if (clampedEndMs <= clampedStartMs) {
+            return null;
+          }
+          return { startMs: clampedStartMs, endMs: clampedEndMs };
+        })
+        .filter((interval): interval is { startMs: number; endMs: number } => interval !== null)
+        .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+
       const normalizedBreaks = this.mergeIntervals(breaks);
+      const normalizedShortBreaks = this.mergeIntervals(shortBreaks);
       const workSegments = this.subtractIntervals({ startMs: dutyStartMs, endMs: dutyEndMs }, normalizedBreaks);
       const workMinutes = Math.round(
         workSegments.reduce((sum, seg) => sum + Math.max(0, seg.endMs - seg.startMs), 0) / 60_000,
       );
+      const workHalfMs = resolveWorkHalfMs(workSegments);
 
       dutySnapshots.push({
         serviceId,
@@ -2538,6 +2599,8 @@ export class DutyAutopilotService {
         dutySpanMinutes: Math.round((dutyEndMs - dutyStartMs) / 60_000),
         workMinutes,
         breakIntervals: normalizedBreaks,
+        shortBreakIntervals: normalizedShortBreaks,
+        workHalfMs,
         activityIds: groupActivities.map((activity) => activity.id),
         hasNightWork: this.intervalsOverlapDailyWindow(workSegments, 0, 4),
       });
@@ -2569,13 +2632,99 @@ export class DutyAutopilotService {
     const addDutyCode = (duty: AzgDutySnapshot, code: string) => addCode(duty.serviceId, code);
 
     const breakMinMinutes = Math.max(0, config.minBreakMinutes);
+    const standardBreakMinMinutes = config.azg.breakStandard.enabled
+      ? Math.max(breakMinMinutes, Math.max(0, config.azg.breakStandard.minMinutes))
+      : breakMinMinutes;
+    const interruptionMinMinutes = config.azg.breakInterruption.enabled
+      ? Math.max(
+          Math.max(0, config.minShortBreakMinutes),
+          Math.max(0, config.azg.breakInterruption.minMinutes),
+        )
+      : Math.max(0, config.minShortBreakMinutes);
+    const interruptionMaxDutyMinutes = Math.max(0, config.azg.breakInterruption.maxDutyMinutes);
+    const interruptionMaxWorkMinutes = Math.max(0, config.azg.breakInterruption.maxWorkMinutes);
+    const midpointToleranceMinutes = Math.max(0, config.azg.breakMidpoint.toleranceMinutes);
+    const maxWorkMinutes = Math.max(0, config.maxWorkMinutes);
+    const maxDutySpanMinutes = Math.max(0, config.maxDutySpanMinutes);
+    const maxContinuousMinutes = Math.max(0, config.maxContinuousWorkMinutes);
 
     for (const duty of dutySnapshots) {
+      const hasRegularBreak = duty.breakIntervals.length > 0;
+      const validRegularBreaks = duty.breakIntervals.filter(
+        (brk) => intervalMinutes(brk) >= breakMinMinutes,
+      );
+      const validStandardBreaks = duty.breakIntervals.filter(
+        (brk) => intervalMinutes(brk) >= standardBreakMinMinutes,
+      );
+      const interruptionAllowed =
+        config.azg.breakInterruption.enabled &&
+        interruptionMaxDutyMinutes > 0 &&
+        duty.dutySpanMinutes <= interruptionMaxDutyMinutes &&
+        (interruptionMaxWorkMinutes <= 0 || duty.workMinutes <= interruptionMaxWorkMinutes);
+      const standardBreakRequired =
+        config.azg.breakStandard.enabled &&
+        (interruptionMaxWorkMinutes <= 0 || duty.workMinutes > interruptionMaxWorkMinutes);
+      const validInterruptionBreaks = interruptionAllowed
+        ? duty.shortBreakIntervals.filter((brk) => intervalMinutes(brk) >= interruptionMinMinutes)
+        : [];
+      const breakRequired = maxContinuousMinutes > 0 && duty.workMinutes > maxContinuousMinutes;
+
+      if (maxDutySpanMinutes > 0 && duty.dutySpanMinutes > maxDutySpanMinutes) {
+        addDutyCode(duty, 'MAX_DUTY_SPAN');
+      }
+      if (maxWorkMinutes > 0 && duty.workMinutes > maxWorkMinutes) {
+        addDutyCode(duty, 'MAX_WORK');
+      }
+      if (maxContinuousMinutes > 0) {
+        const maxContinuousObservedMs = this.computeMaxContinuousMs(
+          duty.startMs,
+          duty.endMs,
+          validRegularBreaks,
+        );
+        const maxContinuousObservedMinutes = Math.round(maxContinuousObservedMs / 60_000);
+        if (maxContinuousObservedMinutes > maxContinuousMinutes) {
+          addDutyCode(duty, 'MAX_CONTINUOUS');
+        }
+        if (!validRegularBreaks.length && duty.workMinutes > maxContinuousMinutes) {
+          addDutyCode(duty, 'NO_BREAK_WINDOW');
+        }
+      }
       if (config.azg.breakMaxCount.enabled && duty.breakIntervals.length > config.azg.breakMaxCount.maxCount) {
         addDutyCode(duty, 'AZG_BREAK_MAX_COUNT');
       }
-      if (duty.breakIntervals.some((brk) => (brk.endMs - brk.startMs) / 60_000 < breakMinMinutes)) {
+      if (duty.breakIntervals.some((brk) => intervalMinutes(brk) < breakMinMinutes)) {
         addDutyCode(duty, 'AZG_BREAK_TOO_SHORT');
+      }
+      if (breakRequired) {
+        if (!hasRegularBreak && !interruptionAllowed) {
+          addDutyCode(duty, 'AZG_BREAK_REQUIRED');
+        } else if (!hasRegularBreak && interruptionAllowed && validInterruptionBreaks.length === 0) {
+          addDutyCode(duty, 'AZG_BREAK_REQUIRED');
+        } else if (standardBreakRequired && hasRegularBreak && validStandardBreaks.length === 0) {
+          addDutyCode(duty, 'AZG_BREAK_STANDARD_MIN');
+        }
+        if (config.azg.breakMidpoint.enabled && duty.workHalfMs !== null) {
+          const isLongDuty =
+            interruptionMaxDutyMinutes > 0 && duty.dutySpanMinutes > interruptionMaxDutyMinutes;
+          if (isLongDuty) {
+            let midpointBreaks: Array<{ startMs: number; endMs: number }> = [];
+            if (hasRegularBreak) {
+              midpointBreaks = validRegularBreaks;
+            } else if (validInterruptionBreaks.length) {
+              midpointBreaks = validInterruptionBreaks;
+            }
+            if (midpointBreaks.length) {
+              const windowStart = duty.workHalfMs - midpointToleranceMinutes * 60_000;
+              const windowEnd = duty.workHalfMs + midpointToleranceMinutes * 60_000;
+              const hitsMidpoint = midpointBreaks.some(
+                (brk) => brk.endMs > windowStart && brk.startMs < windowEnd,
+              );
+              if (!hitsMidpoint) {
+                addDutyCode(duty, 'AZG_BREAK_MIDPOINT');
+              }
+            }
+          }
+        }
       }
       if (
         config.azg.breakForbiddenNight.enabled &&
@@ -2824,16 +2973,20 @@ export class DutyAutopilotService {
       }
     }
 
+    const baseWorktimeCodes = new Set(['MAX_DUTY_SPAN', 'MAX_WORK', 'MAX_CONTINUOUS', 'NO_BREAK_WINDOW']);
+
     for (const group of groups) {
       const ownerId = group.owner.resourceId;
       const serviceId = group.serviceId;
-      const desiredAzgCodes = this.normalizeConflictCodes(Array.from(serviceCodes.get(serviceId) ?? []));
+      const desiredWorktimeCodes = this.normalizeConflictCodes(Array.from(serviceCodes.get(serviceId) ?? []));
 
       for (const groupActivity of group.activities) {
         const current = byId.get(groupActivity.id) ?? groupActivity;
         const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
-        const filtered = baseCodes.filter((code) => !code.startsWith('AZG_'));
-        const merged = this.normalizeConflictCodes([...filtered, ...desiredAzgCodes]);
+        const filtered = baseCodes.filter(
+          (code) => !code.startsWith('AZG_') && !baseWorktimeCodes.has(code),
+        );
+        const merged = this.normalizeConflictCodes([...filtered, ...desiredWorktimeCodes]);
         const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
 
         const next =
@@ -2882,7 +3035,7 @@ export class DutyAutopilotService {
 
   private utcDayStartMsFromDayKey(dayKey: string): number | null {
     const trimmed = (dayKey ?? '').trim();
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(trimmed)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       return null;
     }
     const ms = Date.parse(`${trimmed}T00:00:00.000Z`);

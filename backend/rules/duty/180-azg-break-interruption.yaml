@@ -1,0 +1,8 @@
+id: azg.break_interruption
+kind: constraint
+executor: azg/break-interruption
+enabled: true
+params:
+  minMinutes: 20 # (AZG Art. 7 Abs. 4)
+  maxWorkMinutes: 360 # 6h
+  maxDutyMinutes: 540 # 9h

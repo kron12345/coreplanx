@@ -167,6 +167,7 @@ export class PlanningStageService implements OnModuleInit {
     const changedUpsertIds = new Set<string>();
     const requestedUpsertIds = new Set<string>(upserts.map((activity) => activity.id));
     const requestedDeleteIds = new Set<string>();
+    const complianceUpdatedIds = new Set<string>();
     const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
     const sourceContext = this.extractSourceContext(request?.clientRequestId);
 
@@ -233,7 +234,22 @@ export class PlanningStageService implements OnModuleInit {
         });
       }
 
-      // Autopilot ist deaktiviert.
+      const complianceUpserts = await this.dutyAutopilot.applyWorktimeCompliance(
+        stage.stageId,
+        stage.variantId,
+        stage.activities,
+      );
+      if (complianceUpserts.length) {
+        const updatedById = new Map(complianceUpserts.map((activity) => [activity.id, activity]));
+        stage.activities = stage.activities.map((activity) => {
+          const updated = updatedById.get(activity.id);
+          if (!updated) {
+            return activity;
+          }
+          complianceUpdatedIds.add(activity.id);
+          return updated;
+        });
+      }
 
       const changedActivities = requestedUpsertIds.size
         ? stage.activities.filter((activity) => requestedUpsertIds.has(activity.id))
@@ -289,18 +305,20 @@ export class PlanningStageService implements OnModuleInit {
       deletedIds,
       previousById,
     );
-    const dbSnapshots = changedUpsertIds.size
-      ? this.collectActivitySnapshots(stage, Array.from(changedUpsertIds))
+    const storedUpsertIds = new Set<string>([...changedUpsertIds, ...complianceUpdatedIds]);
+    const responseUpsertIds = new Set<string>([...changedUpsertIds, ...complianceUpdatedIds]);
+    const dbSnapshots = storedUpsertIds.size
+      ? this.collectActivitySnapshots(stage, Array.from(storedUpsertIds))
       : [];
     const responseSnapshots =
-      changedUpsertIds.size || impactedServiceIds.size
-        ? this.collectActivitySnapshots(stage, Array.from(changedUpsertIds), {
+      responseUpsertIds.size || impactedServiceIds.size
+        ? this.collectActivitySnapshots(stage, Array.from(responseUpsertIds), {
             extraServiceIds: impactedServiceIds,
             includeWorktime: true,
           })
         : [];
 
-    if (changedUpsertIds.size || deletedIds.length) {
+    if (changedUpsertIds.size || deletedIds.length || complianceUpdatedIds.size) {
       this.emitStageEvent(stage, {
         scope: 'activities',
         clientRequestId: request?.clientRequestId ?? undefined,

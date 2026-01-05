@@ -3,5 +3,4 @@ kind: constraint
 executor: duty/min-short-break-minutes
 enabled: true
 params:
-  minMinutes: 15
-
+  minMinutes: 20

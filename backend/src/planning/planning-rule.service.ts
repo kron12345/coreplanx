@@ -42,6 +42,9 @@ export interface DutyAutopilotConfig {
     restAvg28d: { enabled: boolean; windowDays: number; minAverageMinutes: number };
     breakMaxCount: { enabled: boolean; maxCount: number };
     breakForbiddenNight: { enabled: boolean; startHour: number; endHour: number };
+    breakStandard: { enabled: boolean; minMinutes: number };
+    breakMidpoint: { enabled: boolean; toleranceMinutes: number };
+    breakInterruption: { enabled: boolean; minMinutes: number; maxDutyMinutes: number; maxWorkMinutes: number };
     nightMaxStreak: { enabled: boolean; maxConsecutive: number };
     nightMax28d: { enabled: boolean; windowDays: number; maxCount: number };
     restDaysYear: {
@@ -257,7 +260,7 @@ export class PlanningRuleService {
       maxWorkMinutes: pickNumber('duty.max_work_minutes', 'maxMinutes', 600),
       maxContinuousWorkMinutes: pickNumber('duty.max_continuous_work_minutes', 'maxMinutes', 300),
       minBreakMinutes: pickNumber('duty.min_break_minutes', 'minMinutes', 30),
-      minShortBreakMinutes: pickNumber('duty.min_short_break_minutes', 'minMinutes', 15),
+      minShortBreakMinutes: pickNumber('duty.min_short_break_minutes', 'minMinutes', 20),
       maxDutySpanMinutes: pickNumber('duty.max_duty_span_minutes', 'maxMinutes', 720),
       enforceOneDutyPerDay,
       azg: {
@@ -295,6 +298,20 @@ export class PlanningRuleService {
           enabled: isRuleEnabled('azg.break_forbidden_night'),
           startHour: pickInt('azg.break_forbidden_night', 'startHour', 23),
           endHour: pickInt('azg.break_forbidden_night', 'endHour', 5),
+        },
+        breakStandard: {
+          enabled: isRuleEnabled('azg.break_standard_minutes'),
+          minMinutes: pickInt('azg.break_standard_minutes', 'minMinutes', 60),
+        },
+        breakMidpoint: {
+          enabled: isRuleEnabled('azg.break_midpoint'),
+          toleranceMinutes: pickInt('azg.break_midpoint', 'toleranceMinutes', 60),
+        },
+        breakInterruption: {
+          enabled: isRuleEnabled('azg.break_interruption'),
+          minMinutes: pickInt('azg.break_interruption', 'minMinutes', 20),
+          maxDutyMinutes: pickInt('azg.break_interruption', 'maxDutyMinutes', 540),
+          maxWorkMinutes: pickInt('azg.break_interruption', 'maxWorkMinutes', 360),
         },
         nightMaxStreak: {
           enabled: isRuleEnabled('azg.night_max_streak'),

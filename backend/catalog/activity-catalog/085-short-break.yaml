@@ -22,7 +22,7 @@ types:
       - from
       - to
       - remark
-    defaultDurationMinutes: 15
+    defaultDurationMinutes: 20
     attributes:
       is_break: true
       is_short_break: true

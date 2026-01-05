@@ -44,18 +44,61 @@ function createRulesetStub() {
 }
 
 describe('DutyAutopilotService', () => {
+  const baseAzg = {
+    enabled: false,
+    exceedBufferMinutes: 10,
+    workAvg7d: { enabled: false, windowWorkdays: 7, maxAverageMinutes: 540 },
+    workAvg365d: { enabled: false, windowDays: 365, maxAverageMinutes: 420 },
+    dutySpanAvg28d: { enabled: false, windowDays: 28, maxAverageMinutes: 720 },
+    restMin: { enabled: false, minMinutes: 660 },
+    restAvg28d: { enabled: false, windowDays: 28, minAverageMinutes: 720 },
+    breakMaxCount: { enabled: false, maxCount: 3 },
+    breakForbiddenNight: { enabled: false, startHour: 23, endHour: 5 },
+    breakStandard: { enabled: false, minMinutes: 60 },
+    breakMidpoint: { enabled: false, toleranceMinutes: 60 },
+    breakInterruption: { enabled: false, minMinutes: 20, maxDutyMinutes: 540, maxWorkMinutes: 360 },
+    nightMaxStreak: { enabled: false, maxConsecutive: 7 },
+    nightMax28d: { enabled: false, windowDays: 28, maxCount: 14 },
+    restDaysYear: {
+      enabled: false,
+      minRestDays: 62,
+      minSundayRestDays: 20,
+      additionalSundayLikeHolidays: [],
+    },
+  };
+
   const config: DutyAutopilotConfig = {
     serviceStartTypeId: 'service-start',
     serviceEndTypeId: 'service-end',
     breakTypeIds: ['break'],
+    shortBreakTypeId: 'short-break',
+    commuteTypeId: 'commute',
     conflictAttributeKey: 'service_conflict_level',
     conflictCodesAttributeKey: 'service_conflict_codes',
     maxConflictLevel: 2,
     maxWorkMinutes: 600,
     maxContinuousWorkMinutes: 300,
     minBreakMinutes: 30,
+    minShortBreakMinutes: 20,
     maxDutySpanMinutes: 720,
     enforceOneDutyPerDay: true,
+    azg: baseAzg,
+  };
+
+  const azgConfig: DutyAutopilotConfig = {
+    ...config,
+    azg: {
+      ...baseAzg,
+      enabled: true,
+      breakStandard: { enabled: true, minMinutes: 60 },
+      breakMidpoint: { enabled: true, toleranceMinutes: 60 },
+      breakInterruption: { enabled: true, minMinutes: 20, maxDutyMinutes: 540, maxWorkMinutes: 360 },
+    },
+  };
+
+  const readOwnerCodes = (activity: Activity, ownerId: string): string[] => {
+    const mapping = (activity.attributes as any)?.service_by_owner ?? {};
+    return (mapping[ownerId]?.conflictCodes ?? []) as string[];
   };
 
   it('re-derives serviceId when an activity is moved to another duty row', async () => {
@@ -316,5 +359,153 @@ describe('DutyAutopilotService', () => {
     const updatedStart = second.upserts.find((a) => a.id === startId)!;
     expect(updatedStart.start).toBe('2025-01-06T07:50:00.000Z');
     expect(((updatedStart.attributes as any)?.manual_service_boundary ?? false) as boolean).toBe(true);
+  });
+
+  it('flags missing break or interruption when continuous work exceeds limit', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(azgConfig),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const state: Activity[] = [
+      {
+        id: 'long',
+        title: 'Dienstleistung',
+        start: '2025-01-07T08:00:00.000Z',
+        end: '2025-01-07T16:00:00.000Z',
+        type: 'duty-work',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+    ];
+
+    const result = await service.apply(stageId, variantId, state);
+    const updated = result.upserts.find((a) => a.id === 'long')!;
+    const codes = readOwnerCodes(updated, 'PS-1');
+    expect(codes).toEqual(expect.arrayContaining(['AZG_BREAK_REQUIRED']));
+  });
+
+  it('treats short breaks as interruption below the work-time threshold', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(azgConfig),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const state: Activity[] = [
+      {
+        id: 'duty',
+        title: 'Dienstleistung',
+        start: '2025-01-08T08:00:00.000Z',
+        end: '2025-01-08T13:30:00.000Z',
+        type: 'duty-work',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+      {
+        id: 'short-break',
+        title: 'Kurzpause',
+        start: '2025-01-08T11:00:00.000Z',
+        end: '2025-01-08T11:20:00.000Z',
+        type: 'short-break',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+    ];
+
+    const result = await service.apply(stageId, variantId, state);
+    const updated = result.upserts.find((a) => a.id === 'duty')!;
+    const codes = readOwnerCodes(updated, 'PS-1');
+    expect(codes.includes('AZG_BREAK_REQUIRED')).toBe(false);
+  });
+
+  it('requires a regular break when work exceeds the interruption limit', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(azgConfig),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const state: Activity[] = [
+      {
+        id: 'duty',
+        title: 'Dienstleistung',
+        start: '2025-01-08T08:00:00.000Z',
+        end: '2025-01-08T16:00:00.000Z',
+        type: 'duty-work',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+      {
+        id: 'short-break',
+        title: 'Kurzpause',
+        start: '2025-01-08T11:00:00.000Z',
+        end: '2025-01-08T11:20:00.000Z',
+        type: 'short-break',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+    ];
+
+    const result = await service.apply(stageId, variantId, state);
+    const updated = result.upserts.find((a) => a.id === 'duty')!;
+    const codes = readOwnerCodes(updated, 'PS-1');
+    expect(codes).toEqual(expect.arrayContaining(['AZG_BREAK_REQUIRED']));
+  });
+
+  it('flags standard break length and midpoint placement', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(azgConfig),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const state: Activity[] = [
+      {
+        id: 'duty',
+        title: 'Dienstleistung',
+        start: '2025-01-09T08:00:00.000Z',
+        end: '2025-01-09T18:00:00.000Z',
+        type: 'duty-work',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+      {
+        id: 'break',
+        title: 'Pause',
+        start: '2025-01-09T09:00:00.000Z',
+        end: '2025-01-09T09:30:00.000Z',
+        type: 'break',
+        participants: [{ resourceId: 'PS-1', kind: 'personnel-service' }],
+      },
+    ];
+
+    const result = await service.apply(stageId, variantId, state);
+    const updated = result.upserts.find((a) => a.id === 'duty')!;
+    const codes = readOwnerCodes(updated, 'PS-1');
+    expect(codes).toEqual(expect.arrayContaining(['AZG_BREAK_STANDARD_MIN', 'AZG_BREAK_MIDPOINT']));
   });
 });

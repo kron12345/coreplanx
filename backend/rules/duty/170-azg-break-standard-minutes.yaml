@@ -1,0 +1,6 @@
+id: azg.break_standard_minutes
+kind: constraint
+executor: azg/break-standard-minutes
+enabled: true
+params:
+  minMinutes: 60 # (AZG Art. 7 Abs. 1 / Art. 11 Abs. 1-2)

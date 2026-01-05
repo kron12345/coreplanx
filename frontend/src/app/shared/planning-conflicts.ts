@@ -49,15 +49,56 @@ export const CONFLICT_DEFINITIONS: Record<string, { category: ConflictCategory; 
   AZG_DUTY_SPAN_AVG_28D: { category: 'worktime', label: 'Durchschnittliche Dienstschicht (28 Tage) überschritten.' },
   AZG_REST_MIN: { category: 'worktime', label: 'Mindestruheschicht unterschritten.' },
   AZG_REST_AVG_28D: { category: 'worktime', label: 'Durchschnittliche Ruheschicht (28 Tage) unterschritten.' },
+  AZG_BREAK_REQUIRED: { category: 'worktime', label: 'Pause oder Arbeitsunterbrechung fehlt.' },
   AZG_BREAK_MAX_COUNT: { category: 'worktime', label: 'Zu viele Pausen in einer Dienstschicht.' },
   AZG_BREAK_TOO_SHORT: { category: 'worktime', label: 'Pause ist zu kurz (Mindestdauer).' },
+  AZG_BREAK_STANDARD_MIN: { category: 'worktime', label: 'Standardpause unterschritten.' },
   AZG_BREAK_FORBIDDEN_NIGHT: { category: 'worktime', label: 'Pause zwischen 23–5 Uhr nicht zulässig.' },
+  AZG_BREAK_MIDPOINT: { category: 'worktime', label: 'Pause nicht ungefähr in der Hälfte der Arbeitszeit.' },
   AZG_NIGHT_STREAK_MAX: { category: 'worktime', label: 'Zu viele Nachtdienste hintereinander.' },
   AZG_NIGHT_28D_MAX: { category: 'worktime', label: 'Zu viele Nachtdienste innerhalb von 28 Tagen.' },
   AZG_REST_DAYS_YEAR_MIN: { category: 'worktime', label: 'Zu wenige Ruhetage im Fahrplanjahr.' },
   AZG_REST_SUNDAYS_YEAR_MIN: { category: 'worktime', label: 'Zu wenige Ruhesonntage im Fahrplanjahr.' },
   AZG_WORK_EXCEED_BUFFER: { category: 'worktime', label: 'Höchstarbeitszeit um mehr als 10 Minuten überschritten.' },
   AZG_DUTY_SPAN_EXCEED_BUFFER: { category: 'worktime', label: 'Höchstdienstschicht um mehr als 10 Minuten überschritten.' },
+};
+
+const CONFLICT_RULE_HINTS: Record<string, string[]> = {
+  MAX_DUTY_SPAN: ['Regel: duty.max_duty_span_minutes', 'AZG Art. 6 Abs. 1'],
+  MAX_WORK: ['Regel: duty.max_work_minutes', 'AZG Art. 4 Abs. 3'],
+  MAX_CONTINUOUS: ['Regel: duty.max_continuous_work_minutes', 'AZG Art. 11 Abs. 4'],
+  NO_BREAK_WINDOW: ['Regel: duty.min_break_minutes', 'AZG Art. 7 Abs. 2'],
+  AZG_WORK_AVG_7D: ['Regel: azg.work_avg_7d', 'AZG Art. 4 Abs. 3'],
+  AZG_WORK_AVG_365D: ['Regel: azg.work_avg_365d', 'AZG Art. 4 Abs. 1'],
+  AZG_DUTY_SPAN_AVG_28D: ['Regel: azg.duty_span_avg_28d', 'AZG Art. 6 Abs. 1'],
+  AZG_REST_MIN: ['Regel: azg.rest_min', 'AZG Art. 8 Abs. 1'],
+  AZG_REST_AVG_28D: ['Regel: azg.rest_avg_28d', 'AZG Art. 8 Abs. 1'],
+  AZG_BREAK_REQUIRED: [
+    'Regel: azg.break_standard_minutes',
+    'Regel: azg.break_interruption',
+    'AZG Art. 7 Abs. 1/4',
+  ],
+  AZG_BREAK_MAX_COUNT: ['Regel: azg.break_max_count', 'AZG Art. 7 Abs. 2'],
+  AZG_BREAK_TOO_SHORT: ['Regel: duty.min_break_minutes', 'AZG Art. 7 Abs. 2'],
+  AZG_BREAK_STANDARD_MIN: ['Regel: azg.break_standard_minutes', 'AZG Art. 7 Abs. 1 / Art. 11 Abs. 1-2'],
+  AZG_BREAK_FORBIDDEN_NIGHT: ['Regel: azg.break_forbidden_night', 'AZG Art. 11 Abs. 3'],
+  AZG_BREAK_MIDPOINT: ['Regel: azg.break_midpoint', 'AZG Art. 7 Abs. 1'],
+  AZG_NIGHT_STREAK_MAX: ['Regel: azg.night_max_streak', 'AZG Art. 9 Abs. 3'],
+  AZG_NIGHT_28D_MAX: ['Regel: azg.night_max_28d', 'AZG Art. 9 Abs. 3'],
+  AZG_REST_DAYS_YEAR_MIN: ['Regel: azg.rest_days_year', 'AZG Art. 10 Abs. 1'],
+  AZG_REST_SUNDAYS_YEAR_MIN: ['Regel: azg.rest_days_year', 'AZG Art. 10 Abs. 1'],
+  AZG_WORK_EXCEED_BUFFER: ['Regel: azg.exceed_buffer_minutes', 'AZG Art. 5 Abs. 3 / Art. 6 Abs. 3'],
+  AZG_DUTY_SPAN_EXCEED_BUFFER: ['Regel: azg.exceed_buffer_minutes', 'AZG Art. 5 Abs. 3 / Art. 6 Abs. 3'],
+};
+
+const mergeDetailLines = (details?: string[], hints?: string[]): string[] | undefined => {
+  const combined = [...(details ?? []), ...(hints ?? [])]
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (!combined.length) {
+    return undefined;
+  }
+  return Array.from(new Set(combined));
 };
 
 export function extractConflictCodes(attributes: Record<string, unknown> | null | undefined): string[] {
@@ -174,12 +215,13 @@ export function mapConflictCodes(attributes: Record<string, unknown> | null | un
     const normalized = code.trim();
     const def = CONFLICT_DEFINITIONS[normalized];
     const category = def?.category ?? 'unknown';
+    const mergedDetails = mergeDetailLines(details[normalized], CONFLICT_RULE_HINTS[normalized]);
     return {
       code: normalized,
       category,
       categoryLabel: CONFLICT_CATEGORY_LABELS[category],
       label: def?.label ?? normalized,
-      details: details[normalized],
+      details: mergedDetails,
     } satisfies ConflictEntry;
   });
   return entries.sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.label.localeCompare(b.label));
@@ -198,12 +240,13 @@ export function mapConflictCodesForOwner(
     const normalized = code.trim();
     const def = CONFLICT_DEFINITIONS[normalized];
     const category = def?.category ?? 'unknown';
+    const mergedDetails = mergeDetailLines(details[normalized], CONFLICT_RULE_HINTS[normalized]);
     return {
       code: normalized,
       category,
       categoryLabel: CONFLICT_CATEGORY_LABELS[category],
       label: def?.label ?? normalized,
-      details: details[normalized],
+      details: mergedDetails,
     } satisfies ConflictEntry;
   });
   return entries.sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.label.localeCompare(b.label));

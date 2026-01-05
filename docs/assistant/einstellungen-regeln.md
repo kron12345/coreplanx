@@ -67,7 +67,7 @@ Mindestdauer einer Pause.
 
 Mindestdauer einer Kurzpause.
 
-- Parameter: `minMinutes` (Default 15)
+- Parameter: `minMinutes` (Default 20)
 
 #### duty.max_duty_span_minutes (constraint, duty/max-duty-span-minutes)
 
@@ -122,6 +122,25 @@ Maximale Anzahl Pausen pro Dienst.
 Verbotene Pausenfenster in der Nacht.
 
 - Parameter: `startHour` (23), `endHour` (5)
+
+#### azg.break_standard_minutes (constraint, azg/break-standard-minutes)
+
+Standardpause (Mindestdauer) pro Dienstschicht.
+
+- Parameter: `minMinutes` (60, AZG Art. 7 Abs. 1 / Art. 11 Abs. 1-2)
+
+#### azg.break_midpoint (constraint, azg/break-midpoint)
+
+Pause soll ungefaehr zur Haelfte der Arbeitszeit liegen.
+
+- Parameter: `toleranceMinutes` (60, AZG Art. 7 Abs. 1)
+- Gilt fuer Dienste ueber `azg.break_interruption.maxDutyMinutes` (Default 9h).
+
+#### azg.break_interruption (constraint, azg/break-interruption)
+
+Arbeitsunterbrechung (Kurzpause) statt Pause, wenn Arbeitszeit <= `maxWorkMinutes` und Dienstschicht <= `maxDutyMinutes`.
+
+- Parameter: `minMinutes` (20, AZG Art. 7 Abs. 4), `maxWorkMinutes` (360 = 6h), `maxDutyMinutes` (540 = 9h)
 
 #### azg.night_max_streak (constraint, azg/night-max-streak)
 
@@ -206,7 +225,7 @@ kind: constraint
 executor: duty/min-short-break-minutes
 enabled: false
 params:
-  minMinutes: 15
+  minMinutes: 20
 ```
 
 ## Fehlerbilder & Loesungen
