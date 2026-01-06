@@ -490,8 +490,8 @@ export class TemplateRepository {
       }
     }
     return {
-      ...activity,
-      resourceAssignments: activity.resourceAssignments ?? [],
+      ...normalized,
+      resourceAssignments: normalized.resourceAssignments ?? [],
     };
   }
 

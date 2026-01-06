@@ -4,7 +4,6 @@ import { PlanningStageService } from './planning-stage.service';
 import { PlanningRuleService } from './planning-rule.service';
 import { PlanningRulesetService } from './planning-ruleset.service';
 import { PlanningCandidateBuilder, PlanningCandidateBuildResult } from './planning-candidate-builder.service';
-import { DutyAutopilotService, DutyAutopilotResult } from './duty-autopilot.service';
 import type { RulesetIR } from './planning-ruleset.types';
 import { PlanningSolverService, PlanningSolverResult } from './planning-solver.service';
 import { TemplateService } from '../template/template.service';
@@ -32,11 +31,6 @@ export interface RulesetSelectionInput {
   activityIds?: string[];
 }
 
-export interface AutopilotPreviewResult extends DutyAutopilotResult {
-  rulesetId?: string;
-  rulesetVersion?: string;
-}
-
 export interface PlanningSolveResult extends PlanningSolverResult {
   rulesetId: string;
   rulesetVersion: string;
@@ -53,42 +47,9 @@ export class PlanningOptimizationService {
     private readonly rulesets: PlanningRulesetService,
     private readonly candidates: PlanningCandidateBuilder,
     private readonly solver: PlanningSolverService,
-    private readonly autopilot: DutyAutopilotService,
     private readonly templates: TemplateService,
     private readonly debugStream: DebugStreamService,
   ) {}
-
-  async previewAutopilot(
-    stageId: StageId,
-    variantId: string,
-    timetableYearLabel?: string | null,
-    requestId?: string,
-  ): Promise<AutopilotPreviewResult> {
-    this.debugStream.log('info', 'solver', 'Autopilot-Preview gestartet', {
-      stageId,
-      variantId,
-      requestId,
-      timetableYearLabel: timetableYearLabel ?? null,
-    });
-    const snapshot = await this.stageService.getStageSnapshot(stageId, variantId, timetableYearLabel);
-    const activities = this.cloneActivities(snapshot.activities);
-    const result = await this.autopilot.apply(stageId, variantId, activities);
-    const selection = await this.resolveRulesetSelection(stageId, variantId, undefined, false);
-    this.debugStream.log('info', 'solver', 'Autopilot-Preview abgeschlossen', {
-      stageId,
-      variantId,
-      requestId,
-      upsertCount: result.upserts.length,
-      deleteCount: result.deletedIds.length,
-      rulesetId: selection.rulesetId ?? null,
-      rulesetVersion: selection.rulesetVersion ?? null,
-    });
-    return {
-      ...result,
-      rulesetId: selection.rulesetId,
-      rulesetVersion: selection.rulesetVersion,
-    };
-  }
 
   async buildCandidates(
     stageId: StageId,
@@ -191,7 +152,7 @@ export class PlanningOptimizationService {
     required: boolean,
   ): Promise<{ ruleset?: RulesetIR; rulesetId?: string; rulesetVersion?: string }> {
     const trimmed = (value?: string | null) => (typeof value === 'string' ? value.trim() : '');
-    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId);
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
     const preferredId = trimmed(selection?.rulesetId);
     const preferredVersion = trimmed(selection?.rulesetVersion);
     const configId = trimmed(config?.rulesetId);
@@ -366,29 +327,27 @@ export class PlanningOptimizationService {
       return snapshot;
     }
     const filtered = snapshot.activities.filter((activity) => ids.has(activity.id));
-    const expanded = this.extendSelectionWithServiceBreaks(snapshot.activities, filtered);
+    const expanded = this.extendSelectionWithServiceContext(snapshot.stageId, snapshot.activities, filtered);
     return { ...snapshot, activities: expanded };
   }
 
-  private extendSelectionWithServiceBreaks(
+  private extendSelectionWithServiceContext(
+    stageId: StageId,
     allActivities: Activity[],
     selected: Activity[],
   ): Activity[] {
     if (!selected.length) {
       return selected;
     }
-    const serviceIds = this.collectServiceIds(selected);
+    const serviceIds = this.collectServiceIds(stageId, selected);
     if (serviceIds.size === 0) {
       return selected;
     }
     const expanded = new Map<string, Activity>();
     selected.forEach((activity) => expanded.set(activity.id, activity));
     allActivities.forEach((activity) => {
-      if (!this.isBreakActivity(activity)) {
-        return;
-      }
-      const serviceId = this.resolveServiceId(activity);
-      if (!serviceId || !serviceIds.has(serviceId)) {
+      const ids = this.collectServiceIds(stageId, [activity]);
+      if (ids.size === 0 || !Array.from(ids).some((id) => serviceIds.has(id))) {
         return;
       }
       expanded.set(activity.id, activity);
@@ -396,15 +355,17 @@ export class PlanningOptimizationService {
     return Array.from(expanded.values());
   }
 
-  private collectServiceIds(activities: Activity[]): Set<string> {
+  private collectServiceIds(stageId: StageId, activities: Activity[]): Set<string> {
     const serviceIds = new Set<string>();
-    const addServiceId = (value: unknown) => {
-      const id = typeof value === 'string' ? value.trim() : '';
-      if (id) {
-        serviceIds.add(id);
-      }
-    };
     activities.forEach((activity) => {
+      const local = new Set<string>();
+      const addServiceId = (value: unknown) => {
+        const id = typeof value === 'string' ? value.trim() : '';
+        if (id) {
+          local.add(id);
+        }
+      };
+
       addServiceId(activity.serviceId);
       const attrs = activity.attributes as Record<string, unknown> | undefined;
       const map = attrs?.['service_by_owner'];
@@ -413,23 +374,24 @@ export class PlanningOptimizationService {
           addServiceId((entry as any)?.serviceId);
         });
       }
+
+      if (local.size === 0) {
+        const start = Date.parse(activity.start);
+        if (Number.isFinite(start)) {
+          const dayKey = new Date(start).toISOString().slice(0, 10);
+          (activity.participants ?? []).forEach((participant) => {
+            const ownerId = `${participant?.resourceId ?? ''}`.trim();
+            if (!ownerId) {
+              return;
+            }
+            local.add(`svc:${stageId}:${ownerId}:${dayKey}`);
+          });
+        }
+      }
+
+      local.forEach((id) => serviceIds.add(id));
     });
     return serviceIds;
-  }
-
-  private resolveServiceId(activity: Activity): string | null {
-    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
-    if (direct) {
-      return direct;
-    }
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const map = attrs?.['service_by_owner'];
-    if (map && typeof map === 'object' && !Array.isArray(map)) {
-      const entry = Object.values(map as Record<string, any>)[0];
-      const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
-      return candidate || null;
-    }
-    return null;
   }
 
   private isBreakActivity(activity: Activity): boolean {

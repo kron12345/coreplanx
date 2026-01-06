@@ -185,7 +185,7 @@ export class PlanningBaseDataController {
   }
 
   upsertTemplateActivity(templateId: string, activity: Activity): void {
-    const dayScopedMatch = /^(.+)@(\\d{4}-\\d{2}-\\d{2})$/.exec((activity.id ?? '').toString());
+    const dayScopedMatch = /^(.+)@(\d{4}-\d{2}-\d{2})$/.exec((activity.id ?? '').toString());
     const baseId = dayScopedMatch?.[1] ?? (activity.id.split('@')[0] ?? activity.id);
     const serviceDayIso = dayScopedMatch?.[2] ?? null;
     const baseResources = this.deps.stageDataSignal().base.resources;
@@ -239,7 +239,7 @@ export class PlanningBaseDataController {
             if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
               return false;
             }
-            return serviceDayMs >= startMs && serviceDayMs < endMs;
+            return serviceDayMs >= startMs && serviceDayMs <= endMs;
           }) ?? null
         : null;
 
@@ -284,13 +284,50 @@ export class PlanningBaseDataController {
     });
     const context = this.deps.currentApiContext();
 
+    this.deps.debug.log('info', 'api', 'Basis: Template-Aktivität speichern', {
+      stageId: 'base',
+      context: {
+        templateId,
+        activityId: (activity.id ?? '').toString(),
+        baseId,
+        serviceDayIso: resolvedServiceDayIso,
+        weekday,
+        sliceId: slice?.id ?? null,
+        canonicalStart,
+        canonicalEnd,
+        templatePattern: nextAttributes[TEMPLATE_PATTERN_KEY] as Record<string, unknown>,
+      },
+    });
+
     this.deps.timelineApi
       .upsertTemplateActivity(templateId, dto, context)
       .pipe(
         take(1),
-        tap((saved) => this.applyTemplateActivity(saved)),
+        tap((saved) => {
+          const attrs = (saved.attributes ?? {}) as Record<string, unknown>;
+          this.deps.debug.log('info', 'api', 'Basis: Template-Aktivität gespeichert', {
+            stageId: 'base',
+            context: {
+              templateId,
+              activityId: saved.id,
+              start: saved.start,
+              end: saved.end ?? null,
+              serviceId: saved.serviceId ?? null,
+              serviceRole: saved.serviceRole ?? null,
+              templatePattern: (attrs[TEMPLATE_PATTERN_KEY] ?? null) as Record<string, unknown> | null,
+            },
+          });
+          this.applyTemplateActivity(saved);
+          this.lastBaseTimelineSignature = null;
+          this.reloadBaseTimeline();
+        }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to upsert template activity', error);
+          this.deps.debug.reportApiError('Template-Aktivität konnte nicht gespeichert werden.', error, {
+            stageId: 'base',
+            templateId,
+            activityId: (activity.id ?? '').toString(),
+          });
           return EMPTY;
         }),
       )
@@ -316,10 +353,12 @@ export class PlanningBaseDataController {
               ...record,
               base: {
                 ...baseStage,
-                activities: filtered,
+                activities: this.attachServiceWorktimeToBaseActivities(filtered),
               },
             };
           });
+          this.lastBaseTimelineSignature = null;
+          this.reloadBaseTimeline();
         }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to delete template activity', error);
@@ -394,7 +433,7 @@ export class PlanningBaseDataController {
         ...record,
         base: {
           ...baseStage,
-          activities: filtered,
+          activities: this.attachServiceWorktimeToBaseActivities(filtered),
         },
       };
     });
@@ -438,7 +477,7 @@ export class PlanningBaseDataController {
     const groupMeta = readActivityGroupMeta(activity);
     const attributes =
       writeActivityGroupMetaToAttributes(
-        activity.attributes ?? undefined,
+        this.stripComputedActivityAttributes(activity.attributes ?? undefined),
         groupMeta ? { ...groupMeta, attachedToActivityId: stripDayScope(groupMeta.attachedToActivityId ?? null) } : null,
       ) ?? null;
     const isOpenEnded = !activity.end;
@@ -528,6 +567,17 @@ export class PlanningBaseDataController {
       };
     });
     return mutated ? next : activities;
+  }
+
+  private stripComputedActivityAttributes(
+    attributes: Record<string, unknown> | null | undefined,
+  ): Record<string, unknown> | undefined {
+    const next = { ...(attributes ?? {}) } as Record<string, unknown>;
+    delete next['service_by_owner'];
+    delete next['service_conflict_level'];
+    delete next['service_conflict_codes'];
+    delete next['service_conflict_details'];
+    return Object.keys(next).length ? next : undefined;
   }
 
   private computeServiceWorktimeByService(activities: Activity[]): Map<string, number> {

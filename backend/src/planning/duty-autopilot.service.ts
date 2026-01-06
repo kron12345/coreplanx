@@ -39,7 +39,7 @@ type DutyActivityGroup = {
 type ConflictDetails = Record<string, string[]>;
 
 type ServiceAssignment = {
-  serviceId: string;
+  serviceId: string | null;
   conflictLevel: number;
   conflictCodes: string[];
   conflictDetails?: ConflictDetails;
@@ -215,12 +215,31 @@ export class DutyAutopilotService {
     if (!activities.length) {
       return [];
     }
-    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId);
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
     if (!config) {
       return [];
     }
     const resolvedConfig = this.resolveAutopilotConfig(config);
-    return this.applyAzgCompliance(stageId, variantId, activities, resolvedConfig);
+    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const updated = new Map<string, Activity>();
+
+    const localUpserts = this.applyLocalConflictCompliance(stageId, activities, resolvedConfig);
+    for (const activity of localUpserts) {
+      byId.set(activity.id, activity);
+      updated.set(activity.id, activity);
+    }
+
+    const complianceUpserts = this.applyAzgCompliance(
+      stageId,
+      variantId,
+      Array.from(byId.values()),
+      resolvedConfig,
+    );
+    for (const activity of complianceUpserts) {
+      updated.set(activity.id, activity);
+    }
+
+    return Array.from(updated.values());
   }
 
   private resolveAutopilotConfig(config: DutyAutopilotConfig): ResolvedDutyAutopilotConfig {
@@ -1506,11 +1525,14 @@ export class DutyAutopilotService {
     const intervals = list
       .map((activity) => {
         const startMs = this.parseMs(activity.start);
-        const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
-        const normalizedEnd = Math.max(startMs ?? 0, endMs ?? 0);
-        return { startMs: startMs ?? 0, endMs: normalizedEnd };
+        if (startMs === null) {
+          return null;
+        }
+        const endMs = this.resolveEndMs(activity, startMs);
+        const normalizedEnd = Math.max(startMs, endMs);
+        return { startMs, endMs: normalizedEnd };
       })
-      .filter((interval) => Number.isFinite(interval.startMs) && Number.isFinite(interval.endMs))
+      .filter((interval): interval is { startMs: number; endMs: number } => interval !== null)
       .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 
     const minStartMs = intervals.length ? intervals[0].startMs : 0;
@@ -1518,13 +1540,47 @@ export class DutyAutopilotService {
     return { intervals, minStartMs, maxEndMs };
   }
 
-  private parseMs(iso: string | null | undefined): number | null {
-    const value = iso?.trim();
+  private parseMs(iso: unknown): number | null {
+    if (iso === null || iso === undefined) {
+      return null;
+    }
+    if (iso instanceof Date) {
+      const ms = iso.getTime();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    if (typeof iso === 'string') {
+      const value = iso.trim();
+      if (!value) {
+        return null;
+      }
+      const ms = Date.parse(value);
+      return Number.isFinite(ms) ? ms : null;
+    }
+    const value = `${iso ?? ''}`.trim();
     if (!value) {
       return null;
     }
     const ms = Date.parse(value);
     return Number.isFinite(ms) ? ms : null;
+  }
+
+  private resolveEndMs(activity: Activity, startMs: number): number {
+    const explicit = this.parseMs(activity.end ?? null);
+    if (explicit !== null) {
+      return explicit;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['default_duration'];
+    const minutes =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number.parseFloat(raw)
+          : Number.NaN;
+    if (Number.isFinite(minutes) && minutes > 0) {
+      return startMs + minutes * 60_000;
+    }
+    return startMs;
   }
 
   private conflictLevelForCodes(codes: string[], maxLevel: number): number {
@@ -1581,6 +1637,301 @@ export class DutyAutopilotService {
     return 0;
   }
 
+  private withinServiceConflictCodes(
+    pref: 'within' | 'outside' | 'both',
+    isWithin: boolean,
+  ): string[] {
+    const codes: string[] = [];
+    if (pref === 'within' && !isWithin) {
+      codes.push('WITHIN_SERVICE_REQUIRED');
+    }
+    if (pref === 'outside' && isWithin) {
+      codes.push('OUTSIDE_SERVICE_REQUIRED');
+    }
+    return codes;
+  }
+
+  private buildComplianceGrouping(
+    stageId: StageId,
+    activities: Activity[],
+    config: ResolvedDutyAutopilotConfig,
+  ): {
+    ownerBuckets: Map<string, { owner: ActivityParticipant; activities: Activity[] }>;
+    assignmentByOwnerId: Map<string, Map<string, string | null>>;
+    groups: DutyActivityGroup[];
+  } {
+    const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
+    const startTypeIds = config.resolvedTypeIds.startTypeIds;
+    const endTypeIds = config.resolvedTypeIds.endTypeIds;
+
+    const isBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return (
+        role === 'start' ||
+        role === 'end' ||
+        boundaryTypeIds.has((activity.type ?? '').trim())
+      );
+    };
+    const isStartBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'start' || startTypeIds.has((activity.type ?? '').trim());
+    };
+    const isEndBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
+    };
+
+    const ownerBuckets = new Map<string, { owner: ActivityParticipant; activities: Activity[] }>();
+
+    for (const activity of activities) {
+      const owners = this.resolveDutyOwners(activity);
+      if (!owners.length) {
+        continue;
+      }
+      for (const owner of owners) {
+        const ownerId = owner.resourceId;
+        const bucket = ownerBuckets.get(ownerId);
+        if (bucket) {
+          bucket.activities.push(activity);
+        } else {
+          ownerBuckets.set(ownerId, { owner, activities: [activity] });
+        }
+      }
+    }
+
+    const resolveServiceIdForBoundary = (ownerId: string, activity: Activity): string | null => {
+      const parsed = this.parseServiceIdFromManagedId(activity.id);
+      if (parsed) {
+        const parsedOwner = this.parseOwnerIdFromServiceId(parsed);
+        const parsedStage = this.parseStageIdFromServiceId(parsed);
+        if (parsedOwner && parsedOwner !== ownerId) {
+          return null;
+        }
+        if (parsedStage && parsedStage !== stageId) {
+          return null;
+        }
+        return parsed;
+      }
+      const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+      if (explicit.startsWith('svc:')) {
+        const explicitOwner = this.parseOwnerIdFromServiceId(explicit);
+        const explicitStage = this.parseStageIdFromServiceId(explicit);
+        if (explicitOwner && explicitOwner !== ownerId) {
+          return null;
+        }
+        if (explicitStage && explicitStage !== stageId) {
+          return null;
+        }
+        return explicit;
+      }
+      const dayKey = this.utcDayKey(activity.start);
+      return this.computeServiceId(stageId, ownerId, dayKey);
+    };
+
+    const assignmentByOwnerId = new Map<string, Map<string, string | null>>();
+    const groups = new Map<string, DutyActivityGroup>();
+
+    const fallbackServiceWindowMs = 36 * 3600_000;
+
+    ownerBuckets.forEach(({ owner, activities: ownerActivities }, ownerId) => {
+      const starts = ownerActivities
+        .filter((activity) => isStartBoundary(activity))
+        .map((activity) => {
+          const serviceId = resolveServiceIdForBoundary(ownerId, activity);
+          if (!serviceId) {
+            return null;
+          }
+          const startMs = this.parseMs(activity.start);
+          if (startMs === null) {
+            return null;
+          }
+          return { serviceId, startMs };
+        })
+        .filter((entry): entry is { serviceId: string; startMs: number } => entry !== null)
+        .sort((a, b) => a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId));
+
+      const ends = ownerActivities
+        .filter((activity) => isEndBoundary(activity))
+        .map((activity) => {
+          const serviceId = resolveServiceIdForBoundary(ownerId, activity);
+          if (!serviceId) {
+            return null;
+          }
+          const startMs = this.parseMs(activity.start);
+          if (startMs === null) {
+            return null;
+          }
+          const endMs = Math.max(startMs, this.resolveEndMs(activity, startMs));
+          return { serviceId, startMs, endMs };
+        })
+        .filter((entry): entry is { serviceId: string; startMs: number; endMs: number } => entry !== null);
+
+      const windows = starts
+        .map((start) => {
+          const endMs =
+            ends
+              .filter((candidate) => candidate.serviceId === start.serviceId && candidate.startMs >= start.startMs)
+              .sort((a, b) => a.startMs - b.startMs)[0]?.endMs ?? start.startMs + fallbackServiceWindowMs;
+          return { serviceId: start.serviceId, startMs: start.startMs, endMs };
+        })
+        .sort((a, b) => a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId));
+
+      const findWindowServiceId = (startMs: number): string | null => {
+        for (let i = windows.length - 1; i >= 0; i -= 1) {
+          const window = windows[i];
+          if (startMs >= window.startMs && startMs <= window.endMs) {
+            return window.serviceId;
+          }
+        }
+        return null;
+      };
+
+      const assignments = new Map<string, string | null>();
+      assignmentByOwnerId.set(ownerId, assignments);
+
+      for (const activity of ownerActivities) {
+        let serviceId: string | null = null;
+        if (this.isManagedId(activity.id) || isBoundary(activity)) {
+          serviceId = resolveServiceIdForBoundary(ownerId, activity);
+        } else {
+          const startMs = this.parseMs(activity.start);
+          serviceId = startMs === null ? null : findWindowServiceId(startMs);
+        }
+        assignments.set(activity.id, serviceId);
+        if (!serviceId) {
+          continue;
+        }
+        const dayKey = this.parseDayKeyFromServiceId(serviceId) ?? this.utcDayKey(activity.start);
+        const existing = groups.get(serviceId);
+        if (existing) {
+          existing.activities.push(activity);
+        } else {
+          groups.set(serviceId, {
+            serviceId,
+            owner,
+            dayKey,
+            activities: [activity],
+          });
+        }
+      }
+    });
+
+    return { ownerBuckets, assignmentByOwnerId, groups: Array.from(groups.values()) };
+  }
+
+  private applyLocalConflictCompliance(
+    stageId: StageId,
+    activities: Activity[],
+    config: ResolvedDutyAutopilotConfig,
+  ): Activity[] {
+    if (!activities.length) {
+      return [];
+    }
+
+    const conflictKey = config.conflictAttributeKey;
+    const conflictCodesKey = config.conflictCodesAttributeKey;
+    const breakTypeIds = config.breakTypeIds;
+    const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
+
+    const managedLocalCodes = new Set([
+      'CAPACITY_OVERLAP',
+      'LOCATION_SEQUENCE',
+      'WITHIN_SERVICE_REQUIRED',
+      'OUTSIDE_SERVICE_REQUIRED',
+    ]);
+
+    const isBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return (
+        role === 'start' ||
+        role === 'end' ||
+        boundaryTypeIds.has((activity.type ?? '').trim())
+      );
+    };
+    const isBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds);
+
+    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const updated = new Map<string, Activity>();
+
+    const grouping = this.buildComplianceGrouping(stageId, activities, config);
+    const groups = grouping.groups;
+    for (const group of groups) {
+      const serviceId = group.serviceId;
+      const ownerId = group.owner.resourceId;
+      const payloadActivities = group.activities
+        .filter((activity) => !isBoundary(activity))
+        .filter((activity) => !isBreak(activity))
+        .filter((activity) => !this.isManagedId(activity.id));
+
+      const localConflicts = this.detectLocalConflicts(payloadActivities);
+      const unionCodes = this.normalizeConflictCodes(
+        Array.from(new Set(Array.from(localConflicts.values()).flatMap((set) => Array.from(set)))),
+      );
+
+      for (const groupActivity of group.activities) {
+        const current = byId.get(groupActivity.id) ?? groupActivity;
+        const scopeCodes = this.withinServiceConflictCodes(this.resolveWithinPreference(current), true);
+        const desiredLocalCodes =
+          this.isManagedId(current.id) || isBoundary(current) || isBreak(current)
+            ? unionCodes
+            : this.normalizeConflictCodes(Array.from(localConflicts.get(current.id) ?? []));
+
+        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
+        const preserved = baseCodes.filter((code) => !managedLocalCodes.has(code));
+        const merged = this.normalizeConflictCodes([...preserved, ...desiredLocalCodes, ...scopeCodes]);
+        const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
+
+        const next =
+          this.isManagedId(current.id) || isBoundary(current)
+            ? this.applyDutyMeta(current, serviceId, level, merged, conflictKey, conflictCodesKey)
+            : this.applyDutyAssignment(
+                current,
+                ownerId,
+                { serviceId, conflictLevel: level, conflictCodes: merged },
+                conflictKey,
+                conflictCodesKey,
+              );
+
+        if (next !== current) {
+          byId.set(next.id, next);
+          updated.set(next.id, next);
+        }
+      }
+    }
+
+    grouping.ownerBuckets.forEach(({ activities: ownerActivities }, ownerId) => {
+      const assignments = grouping.assignmentByOwnerId.get(ownerId);
+      for (const entry of ownerActivities) {
+        const assignedServiceId = assignments?.get(entry.id) ?? null;
+        if (assignedServiceId) {
+          continue;
+        }
+        const current = byId.get(entry.id) ?? entry;
+        if (this.isManagedId(current.id) || isBoundary(current)) {
+          continue;
+        }
+        const scopeCodes = this.withinServiceConflictCodes(this.resolveWithinPreference(current), false);
+        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
+        const preserved = baseCodes.filter((code) => !managedLocalCodes.has(code));
+        const merged = this.normalizeConflictCodes([...preserved, ...scopeCodes]);
+        const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
+        const next = this.applyDutyAssignment(
+          current,
+          ownerId,
+          { serviceId: null, conflictLevel: level, conflictCodes: merged },
+          conflictKey,
+          conflictCodesKey,
+        );
+        if (next !== current) {
+          byId.set(next.id, next);
+          updated.set(next.id, next);
+        }
+      }
+    });
+
+    return Array.from(updated.values());
+  }
+
   private detectLocalConflicts(payloadActivities: Activity[]): Map<string, Set<string>> {
     const conflicts = new Map<string, Set<string>>();
     const add = (activityId: string, code: string) => {
@@ -1595,10 +1946,10 @@ export class DutyAutopilotService {
     const normalized = payloadActivities
       .map((activity) => {
         const startMs = this.parseMs(activity.start);
-        const endMs = this.parseMs(activity.end ?? activity.start);
-        if (startMs === null || endMs === null) {
+        if (startMs === null) {
           return null;
         }
+        const endMs = this.resolveEndMs(activity, startMs);
         return {
           id: activity.id,
           startMs,
@@ -2185,7 +2536,7 @@ export class DutyAutopilotService {
       if (startMs === null) {
         continue;
       }
-      const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
+      const endMs = this.resolveEndMs(activity, startMs);
       const normalizedEndMs = Math.max(startMs, endMs);
       if (
         best === null ||
@@ -2212,7 +2563,7 @@ export class DutyAutopilotService {
       if (startMs === null) {
         continue;
       }
-      const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
+      const endMs = this.resolveEndMs(activity, startMs);
       const normalizedEndMs = Math.max(startMs, endMs);
       if (
         best === null ||
@@ -2272,7 +2623,7 @@ export class DutyAutopilotService {
         if (startMs === null) {
           return null;
         }
-        const endMs = this.parseMs(activity.end ?? activity.start) ?? startMs;
+        const endMs = this.resolveEndMs(activity, startMs);
         return { activity, startMs, endMs: Math.max(startMs, endMs) };
       })
       .filter((entry): entry is { activity: Activity; startMs: number; endMs: number } => entry !== null)
@@ -2503,6 +2854,8 @@ export class DutyAutopilotService {
     const updated = new Map<string, Activity>();
 
     const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
+    const startTypeIds = config.resolvedTypeIds.startTypeIds;
+    const endTypeIds = config.resolvedTypeIds.endTypeIds;
     const isBoundary = (activity: Activity) => {
       const role = this.resolveServiceRole(activity);
       return (
@@ -2511,8 +2864,16 @@ export class DutyAutopilotService {
         boundaryTypeIds.has((activity.type ?? '').trim())
       );
     };
+    const isStartBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'start' || startTypeIds.has((activity.type ?? '').trim());
+    };
+    const isEndBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
+    };
 
-    const groups = this.groupActivities(stageId, activities, config).filter((group) =>
+    const groups = this.buildComplianceGrouping(stageId, activities, config).groups.filter((group) =>
       group.owner.kind === 'personnel' || group.owner.kind === 'personnel-service',
     );
     if (!groups.length) {
@@ -2531,14 +2892,24 @@ export class DutyAutopilotService {
       }
 
       const groupActivities = group.activities.map((activity) => byId.get(activity.id) ?? activity);
-      const startBoundary = groupActivities.find((a) => a.id === `svcstart:${serviceId}`) ?? groupActivities.find((a) => this.resolveServiceRole(a) === 'start') ?? null;
-      const endBoundary = groupActivities.find((a) => a.id === `svcend:${serviceId}`) ?? groupActivities.find((a) => this.resolveServiceRole(a) === 'end') ?? null;
+      const startBoundary =
+        groupActivities.find((a) => a.id === `svcstart:${serviceId}`) ??
+        groupActivities.find((a) => isStartBoundary(a)) ??
+        null;
+      const endBoundary =
+        groupActivities.find((a) => a.id === `svcend:${serviceId}`) ??
+        groupActivities.find((a) => isEndBoundary(a)) ??
+        null;
 
       const fallbackIntervals = this.sortedIntervals(
         groupActivities.filter((activity) => !isRegularBreak(activity) && !isBoundary(activity)),
       );
       const dutyStartMs = this.parseMs(startBoundary?.start ?? null) ?? fallbackIntervals.minStartMs;
-      const dutyEndMs = this.parseMs(endBoundary?.start ?? null) ?? fallbackIntervals.maxEndMs;
+      const boundaryEndStartMs = endBoundary ? this.parseMs(endBoundary.start ?? null) : null;
+      const dutyEndMs =
+        boundaryEndStartMs !== null && endBoundary
+          ? Math.max(boundaryEndStartMs, this.resolveEndMs(endBoundary, boundaryEndStartMs))
+          : fallbackIntervals.maxEndMs;
 
       if (!Number.isFinite(dutyStartMs) || !Number.isFinite(dutyEndMs) || dutyEndMs <= dutyStartMs) {
         continue;
@@ -2676,16 +3047,23 @@ export class DutyAutopilotService {
         addDutyCode(duty, 'MAX_WORK');
       }
       if (maxContinuousMinutes > 0) {
+        const validShortBreaksForContinuous = duty.shortBreakIntervals.filter(
+          (brk) => intervalMinutes(brk) >= interruptionMinMinutes,
+        );
+        const continuousInterruptions = this.mergeIntervals([
+          ...validRegularBreaks,
+          ...validShortBreaksForContinuous,
+        ]);
         const maxContinuousObservedMs = this.computeMaxContinuousMs(
           duty.startMs,
           duty.endMs,
-          validRegularBreaks,
+          continuousInterruptions,
         );
         const maxContinuousObservedMinutes = Math.round(maxContinuousObservedMs / 60_000);
         if (maxContinuousObservedMinutes > maxContinuousMinutes) {
           addDutyCode(duty, 'MAX_CONTINUOUS');
         }
-        if (!validRegularBreaks.length && duty.workMinutes > maxContinuousMinutes) {
+        if (!continuousInterruptions.length && duty.workMinutes > maxContinuousMinutes) {
           addDutyCode(duty, 'NO_BREAK_WINDOW');
         }
       }

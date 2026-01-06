@@ -5,7 +5,6 @@ import { API_CONFIG } from '../config/api-config';
 import { PlanningStageId } from '../../features/planning/planning-stage.model';
 import { PlanningApiContext } from './planning-api-context';
 import {
-  AutopilotPreviewResponseDto,
   PlanningCandidateBuildResponseDto,
   PlanningSolverResponseDto,
   RulesetSelectionRequestDto,
@@ -15,15 +14,6 @@ import {
 export class PlanningOptimizerApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(API_CONFIG);
-
-  previewAutopilot(
-    stageId: PlanningStageId,
-    context?: PlanningApiContext,
-  ): Observable<AutopilotPreviewResponseDto> {
-    return this.http.post<AutopilotPreviewResponseDto>(`${this.stageUrl(stageId)}/autopilot/preview`, {}, {
-      params: this.buildContextParams(context),
-    });
-  }
 
   buildCandidates(
     stageId: PlanningStageId,

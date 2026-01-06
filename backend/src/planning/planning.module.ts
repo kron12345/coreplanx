@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TemplateModule } from '../template/template.module';
 import { DebugModule } from '../debug/debug.module';
 import { PlanningController } from './planning.controller';
@@ -34,7 +34,7 @@ import { PlanningOptimizationService } from './planning-optimization.service';
 import { PlanningSolverService } from './planning-solver.service';
 
 @Module({
-  imports: [TemplateModule, DebugModule],
+  imports: [forwardRef(() => TemplateModule), DebugModule],
   controllers: [
     PlanningController,
     PlanningCatalogController,
@@ -70,6 +70,6 @@ import { PlanningSolverService } from './planning-solver.service';
     PlanWeekService,
     PlanWeekRepository,
   ],
-  exports: [PlanningService, PlanWeekService],
+  exports: [PlanningService, PlanWeekService, DutyAutopilotService],
 })
 export class PlanningModule {}

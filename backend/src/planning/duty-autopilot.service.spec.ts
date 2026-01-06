@@ -9,6 +9,12 @@ function applyAutopilot(state: Activity[], result: { upserts: Activity[]; delete
   return Array.from(byId.values());
 }
 
+function applyUpserts(state: Activity[], upserts: Activity[]): Activity[] {
+  const byId = new Map(state.map((activity) => [activity.id, activity]));
+  upserts.forEach((activity) => byId.set(activity.id, activity));
+  return Array.from(byId.values());
+}
+
 function createMasterDataStub() {
   return {
     getResourceSnapshot: () => ({
@@ -507,5 +513,153 @@ describe('DutyAutopilotService', () => {
     const updated = result.upserts.find((a) => a.id === 'duty')!;
     const codes = readOwnerCodes(updated, 'PS-1');
     expect(codes).toEqual(expect.arrayContaining(['AZG_BREAK_STANDARD_MIN', 'AZG_BREAK_MIDPOINT']));
+  });
+
+  it('interrupts max continuous work with short breaks', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(azgConfig),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const baseParticipants = [{ resourceId: 'PS-1', kind: 'personnel-service' as const }];
+    const withinAttrs = { is_within_service: 'yes' };
+
+    let state: Activity[] = [
+      {
+        id: 'start',
+        title: 'Dienstanfang',
+        start: '2025-01-10T08:00:00.000Z',
+        end: '2025-01-10T08:00:00.000Z',
+        type: 'service-start',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 't1',
+        title: 'Fahrt 1',
+        start: '2025-01-10T08:00:00.000Z',
+        end: '2025-01-10T11:00:00.000Z',
+        from: 'A',
+        to: 'B',
+        type: 'travel',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 'sb',
+        title: 'Kurzpause',
+        start: '2025-01-10T11:00:00.000Z',
+        end: '2025-01-10T11:20:00.000Z',
+        type: 'short-break',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 't2',
+        title: 'Fahrt 2',
+        start: '2025-01-10T11:20:00.000Z',
+        end: '2025-01-10T16:00:00.000Z',
+        from: 'B',
+        to: 'C',
+        type: 'travel',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 'end',
+        title: 'Dienstende',
+        start: '2025-01-10T16:00:00.000Z',
+        end: '2025-01-10T16:00:00.000Z',
+        type: 'service-end',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+    ];
+
+    const upserts = await service.applyWorktimeCompliance(stageId, variantId, state);
+    state = applyUpserts(state, upserts);
+
+    const updated = state.find((a) => a.id === 't1')!;
+    const codes = readOwnerCodes(updated, 'PS-1');
+    expect(codes.includes('MAX_CONTINUOUS')).toBe(false);
+    expect(codes.includes('NO_BREAK_WINDOW')).toBe(false);
+  });
+
+  it('assigns activities within the service window defined by boundaries', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const baseParticipants = [{ resourceId: 'PS-1', kind: 'personnel-service' as const }];
+    const withinAttrs = { is_within_service: 'yes' };
+
+    let state: Activity[] = [
+      {
+        id: 'start',
+        title: 'Dienstanfang',
+        start: '2025-01-11T08:00:00.000Z',
+        end: '2025-01-11T08:00:00.000Z',
+        type: 'service-start',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 't1',
+        title: 'Fahrt 1',
+        start: '2025-01-11T08:00:00.000Z',
+        end: '2025-01-11T09:00:00.000Z',
+        from: 'A',
+        to: 'B',
+        type: 'travel',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 't2',
+        title: 'Fahrt 2',
+        start: '2025-01-11T12:10:00.000Z',
+        end: '2025-01-11T12:30:00.000Z',
+        from: 'B',
+        to: 'C',
+        type: 'travel',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 'end',
+        title: 'Dienstende',
+        start: '2025-01-11T12:00:00.000Z',
+        end: '2025-01-11T12:45:00.000Z',
+        type: 'service-end',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+    ];
+
+    const upserts = await service.applyWorktimeCompliance(stageId, variantId, state);
+    state = applyUpserts(state, upserts);
+
+    const expectedServiceId = 'svc:base:PS-1:2025-01-11';
+    const updated = state.find((a) => a.id === 't2')!;
+    const mapping = ((updated.attributes as any)?.service_by_owner ?? {})['PS-1'];
+    expect(mapping?.serviceId ?? null).toBe(expectedServiceId);
+    expect(readOwnerCodes(updated, 'PS-1')).not.toEqual(expect.arrayContaining(['WITHIN_SERVICE_REQUIRED']));
   });
 });

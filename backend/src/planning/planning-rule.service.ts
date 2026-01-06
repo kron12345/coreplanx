@@ -77,15 +77,13 @@ export class PlanningRuleService {
     }
 
     if (!this.repository.isEnabled) {
-      const rules = stageId === 'base' ? this.materializeDefaults(stageId, variantId) : [];
+      const rules = this.materializeDefaults(stageId, variantId);
       this.cache.set(key, rules);
       return rules;
     }
 
     await this.partitions.ensurePlanningPartitions(variantId);
-    if (stageId === 'base') {
-      await this.repository.insertDefaults(stageId, variantId, this.materializeDefaults(stageId, variantId));
-    }
+    await this.repository.insertDefaults(stageId, variantId, this.materializeDefaults(stageId, variantId));
 
     const rules = await this.repository.listRules(stageId, variantId);
     this.cache.set(key, rules);
@@ -129,18 +127,16 @@ export class PlanningRuleService {
 
   async resetRulesToDefaults(stageId: StageId, variantId: string): Promise<PlanningRule[]> {
     if (!this.repository.isEnabled) {
-      const rules = stageId === 'base' ? this.materializeDefaults(stageId, variantId) : [];
+      const rules = this.materializeDefaults(stageId, variantId);
       this.cache.set(`${stageId}:${variantId}`, rules);
       return rules;
     }
     await this.partitions.ensurePlanningPartitions(variantId);
 
     await this.repository.deleteAllRules(stageId, variantId);
-    if (stageId === 'base') {
-      const defaults = this.materializeDefaults(stageId, variantId);
-      if (defaults.length) {
-        await this.repository.upsertRules(stageId, variantId, defaults);
-      }
+    const defaults = this.materializeDefaults(stageId, variantId);
+    if (defaults.length) {
+      await this.repository.upsertRules(stageId, variantId, defaults);
     }
 
     this.cache.delete(`${stageId}:${variantId}`);
@@ -150,10 +146,15 @@ export class PlanningRuleService {
   async getDutyAutopilotConfig(
     stageId: StageId,
     variantId: string,
+    options?: { includeDisabled?: boolean },
   ): Promise<DutyAutopilotConfig | null> {
     const rules = await this.listRules(stageId, variantId);
     const generator = rules.find((rule) => rule.executor === 'duty/autopilot' || rule.id === 'duty.generator');
-    if (!generator?.enabled) {
+    if (!generator) {
+      return null;
+    }
+    const includeDisabled = options?.includeDisabled ?? false;
+    if (!includeDisabled && !generator.enabled) {
       return null;
     }
     if (generator.kind !== 'generator') {

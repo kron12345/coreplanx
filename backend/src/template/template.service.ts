@@ -18,6 +18,8 @@ import {
   TimelineResponse,
   TimelineServiceDto,
 } from '../timeline/timeline.types';
+import type { Activity, ActivityParticipant, StageId } from '../planning/planning.types';
+import { DutyAutopilotService } from '../planning/duty-autopilot.service';
 
 @Injectable()
 export class TemplateService {
@@ -28,6 +30,7 @@ export class TemplateService {
   constructor(
     private readonly repository: TemplateRepository,
     private readonly tableUtil: TemplateTableUtil,
+    private readonly dutyAutopilot: DutyAutopilotService,
   ) {
     this.dbEnabled = this.repository.isEnabled;
     if (!this.dbEnabled) {
@@ -244,7 +247,12 @@ export class TemplateService {
         to,
         stage,
       );
-      return { lod, activities };
+      const enriched = await this.applyTemplateWorktimeCompliance(
+        stage,
+        set.variantId,
+        activities,
+      );
+      return { lod, activities: enriched };
     }
     const services = await this.repository.listAggregatedServices(
       set.tableName,
@@ -253,6 +261,60 @@ export class TemplateService {
       stage,
     );
     return { lod, services };
+  }
+
+  private async applyTemplateWorktimeCompliance(
+    stageId: StageId,
+    variantId: string,
+    activities: ActivityDto[],
+  ): Promise<ActivityDto[]> {
+    if (!activities.length) {
+      return activities;
+    }
+    const mapped = activities.map((activity) => this.mapTimelineActivity(activity));
+    const updates = await this.dutyAutopilot.applyWorktimeCompliance(stageId, variantId, mapped);
+    if (!updates.length) {
+      return activities;
+    }
+    const updatedById = new Map(updates.map((activity) => [activity.id, activity]));
+    return activities.map((dto) => {
+      const updated = updatedById.get(dto.id);
+      if (!updated) {
+        return dto;
+      }
+      const nextServiceId =
+        dto.serviceId && dto.serviceId.trim().length ? dto.serviceId : (updated.serviceId ?? null);
+      return {
+        ...dto,
+        serviceId: nextServiceId,
+        attributes: (updated.attributes ?? null) as ActivityDto['attributes'],
+      };
+    });
+  }
+
+  private mapTimelineActivity(activity: ActivityDto): Activity {
+    const participants: ActivityParticipant[] = (activity.resourceAssignments ?? [])
+      .filter((assignment) => !!assignment?.resourceId)
+      .map((assignment) => ({
+        resourceId: assignment.resourceId,
+        kind: assignment.resourceType,
+        role: assignment.role ?? null,
+      }));
+    return {
+      id: activity.id,
+      title:
+        typeof activity.label === 'string' && activity.label.trim().length ? activity.label : activity.type,
+      start: activity.start,
+      end: activity.end ?? null,
+      type: activity.type,
+      from: activity.from ?? null,
+      to: activity.to ?? null,
+      remark: activity.remark ?? null,
+      serviceId: activity.serviceId ?? null,
+      serviceRole: activity.serviceRole ?? null,
+      participants: participants.length ? participants : undefined,
+      attributes: (activity.attributes ?? undefined) as Activity['attributes'],
+    };
   }
 
   async rolloutTemplate(

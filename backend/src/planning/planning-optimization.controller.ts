@@ -8,31 +8,6 @@ import { isStageId } from './planning.types';
 export class PlanningOptimizationController {
   constructor(private readonly optimizer: PlanningOptimizationService) {}
 
-  @Post(':stageId/autopilot/preview')
-  async previewAutopilot(
-    @Param('stageId') stageId: string,
-    @Query('variantId') variantId?: string,
-    @Query('timetableYearLabel') timetableYearLabel?: string,
-    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
-  ) {
-    if (!isStageId(stageId)) {
-      throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
-    }
-    const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
-      throw new BadRequestException(
-        `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
-      );
-    }
-    return this.optimizer.previewAutopilot(
-      stageId,
-      normalizedVariantId,
-      derivedYear ?? timetableYearLabel ?? null,
-      this.readRequestId(req),
-    );
-  }
-
   @Post(':stageId/optimizer/candidates')
   async buildCandidates(
     @Param('stageId') stageId: string,

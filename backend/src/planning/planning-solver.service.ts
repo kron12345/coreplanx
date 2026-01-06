@@ -43,7 +43,6 @@ interface PlanningSolverRemoteResponse {
 @Injectable()
 export class PlanningSolverService {
   private readonly logger = new Logger(PlanningSolverService.name);
-  private readonly solverMode = normalizeMode(process.env.PLANNING_SOLVER_MODE ?? 'python');
   private readonly solverUrl = normalizeUrl(process.env.PLANNING_SOLVER_URL ?? 'http://localhost:8099');
   private readonly solverTimeoutMs = toNumber(process.env.PLANNING_SOLVER_TIMEOUT_MS, 15_000);
   private readonly solverTimeLimitSeconds = toOptionalNumber(
@@ -58,45 +57,35 @@ export class PlanningSolverService {
     candidateResult: PlanningCandidateBuildResult,
   ): Promise<PlanningSolverResult> {
     if (!this.shouldUseRemote()) {
-      return this.solveLocally(snapshot, ruleset, candidateResult);
+      throw new Error(
+        'Remote Solver ist erforderlich (OR-Tools). Bitte `PLANNING_SOLVER_URL` setzen und `tools/solver_service` starten.',
+      );
     }
 
     const request = this.buildRequest(snapshot, ruleset, candidateResult);
-    try {
-      const response = await this.requestSolver(request);
-      const selectedCandidates = this.resolveSelectedCandidates(
-        response,
-        candidateResult,
-      );
-      const result = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+    const response = await this.requestSolver(request);
+    const selectedCandidates = this.resolveSelectedCandidates(response, candidateResult);
+    const result = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
 
-      const summary =
-        response.summary ??
-        (result.upserts.length
-          ? `${result.upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
-          : 'Keine geeigneten Kandidaten gefunden.');
+    const summary =
+      response.summary ??
+      (result.upserts.length
+        ? `${result.upserts.length} Vorschlaege aus ${selectedCandidates.length} Kandidaten.`
+        : 'Keine geeigneten Kandidaten gefunden.');
 
-      return {
-        summary,
-        upserts: result.upserts,
-        deletedIds: result.deletedIds,
-        candidatesUsed: selectedCandidates,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Solver-Request fehlgeschlagen, fallback auf lokal: ${message}`);
-      return this.solveLocally(snapshot, ruleset, candidateResult);
-    }
+    return {
+      summary,
+      upserts: result.upserts,
+      deletedIds: result.deletedIds,
+      candidatesUsed: selectedCandidates,
+    };
   }
 
   private shouldUseRemote(): boolean {
     if (!this.solverUrl) {
       return false;
     }
-    if (this.solverMode === 'local') {
-      return false;
-    }
-    return this.solverMode === 'python' || this.solverMode === 'auto';
+    return true;
   }
 
   private buildRequest(
@@ -106,7 +95,7 @@ export class PlanningSolverService {
   ): PlanningSolverRequestPayload {
     const options: PlanningSolverRequestOptions = {
       max_per_service_type: 1,
-      weight_key: 'dutySpanMinutes',
+      weight_key: 'gapMinutes',
     };
     if (this.solverTimeLimitSeconds !== null) {
       options.time_limit_seconds = this.solverTimeLimitSeconds;
@@ -881,17 +870,6 @@ type ServiceBoundaryTypeIndex = {
   vehicleStart: string;
   vehicleEnd: string;
 };
-
-function normalizeMode(value: string): 'python' | 'local' | 'auto' {
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'local') {
-    return 'local';
-  }
-  if (normalized === 'auto') {
-    return 'auto';
-  }
-  return 'python';
-}
 
 function normalizeUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');

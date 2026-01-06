@@ -1008,7 +1008,10 @@ export class PlanningStageService implements OnModuleInit {
       selected = selected.filter((activity) => ids.has(activity.id));
     }
 
-    const issues = this.detectOverlapIssues(selected);
+    const issues = [
+      ...this.detectOverlapIssues(selected),
+      ...(await this.detectWorktimeIssues(stage, selected)),
+    ];
 
     return {
       generatedAt: this.nextVersion(),
@@ -1738,8 +1741,8 @@ export class PlanningStageService implements OnModuleInit {
         if (this.activitiesOverlap(previous, current)) {
           this.validationIssueCounter += 1;
           issues.push({
-            id: `working-time-${resourceId}-${this.validationIssueCounter}`,
-            rule: 'working-time',
+            id: `capacity-conflict-${resourceId}-${this.validationIssueCounter}`,
+            rule: 'capacity-conflict',
             severity: 'warning',
             message: `Aktivitäten ${previous.id} und ${current.id} überschneiden sich auf Ressource ${resourceId}.`,
             activityIds: [previous.id, current.id],
@@ -1749,6 +1752,158 @@ export class PlanningStageService implements OnModuleInit {
       }
     });
     return issues;
+  }
+
+  private async detectWorktimeIssues(stage: StageState, selected: Activity[]): Promise<ActivityValidationIssue[]> {
+    if (!selected.length) {
+      return [];
+    }
+
+    const updates = await this.dutyAutopilot.applyWorktimeCompliance(
+      stage.stageId,
+      stage.variantId,
+      stage.activities,
+    );
+    const updatedById = new Map(updates.map((activity) => [activity.id, activity]));
+
+    const relevantServiceIds = new Set<string>();
+    const selectedIdsByService = new Map<string, Set<string>>();
+    selected.forEach((activity) => {
+      const effective = updatedById.get(activity.id) ?? activity;
+      const serviceIds = this.collectServiceIds(effective);
+      serviceIds.forEach((serviceId) => {
+        relevantServiceIds.add(serviceId);
+        const ids = selectedIdsByService.get(serviceId) ?? new Set<string>();
+        ids.add(activity.id);
+        selectedIdsByService.set(serviceId, ids);
+      });
+    });
+    if (!relevantServiceIds.size) {
+      return [];
+    }
+
+    const baseWorktimeCodes = new Set(['MAX_DUTY_SPAN', 'MAX_WORK', 'MAX_CONTINUOUS', 'NO_BREAK_WINDOW']);
+    const isWorktimeCode = (code: string) => code.startsWith('AZG_') || baseWorktimeCodes.has(code);
+
+    const serviceCodes = new Map<string, Set<string>>();
+    const serviceMaxLevel = new Map<string, number>();
+
+    const readLevel = (activity: Activity): number => {
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const raw = attrs?.['service_conflict_level'];
+      if (typeof raw === 'number' && Number.isFinite(raw)) {
+        return raw;
+      }
+      if (typeof raw === 'string') {
+        const parsed = Number.parseInt(raw, 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      return 0;
+    };
+
+    const readCodes = (activity: Activity): string[] => {
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const raw = attrs?.['service_conflict_codes'];
+      if (!Array.isArray(raw)) {
+        return [];
+      }
+      return raw.map((entry) => `${entry ?? ''}`.trim()).filter((entry) => entry.length > 0);
+    };
+
+    const updateServiceLevel = (serviceId: string, level: number) => {
+      const current = serviceMaxLevel.get(serviceId) ?? 0;
+      if (level > current) {
+        serviceMaxLevel.set(serviceId, level);
+      }
+    };
+
+    for (const activity of stage.activities) {
+      const effective = updatedById.get(activity.id) ?? activity;
+      const serviceIds = this.collectServiceIds(effective).filter((serviceId) => relevantServiceIds.has(serviceId));
+      if (!serviceIds.length) {
+        continue;
+      }
+
+      const codes = readCodes(effective).filter(isWorktimeCode);
+      const level = codes.length ? readLevel(effective) : 0;
+
+      for (const serviceId of serviceIds) {
+        if (!codes.length) {
+          continue;
+        }
+        updateServiceLevel(serviceId, level);
+        let set = serviceCodes.get(serviceId);
+        if (!set) {
+          set = new Set<string>();
+          serviceCodes.set(serviceId, set);
+        }
+        codes.forEach((code) => set?.add(code));
+      }
+    }
+
+    if (!serviceCodes.size) {
+      return [];
+    }
+
+    const severityForLevel = (level: number): ActivityValidationIssue['severity'] => {
+      if (level >= 2) {
+        return 'error';
+      }
+      if (level >= 1) {
+        return 'warning';
+      }
+      return 'info';
+    };
+
+    const issues: ActivityValidationIssue[] = [];
+    for (const [serviceId, codesSet] of serviceCodes.entries()) {
+      const activityIds = Array.from(selectedIdsByService.get(serviceId) ?? new Set<string>());
+      if (!activityIds.length) {
+        continue;
+      }
+      const maxLevel = serviceMaxLevel.get(serviceId) ?? 0;
+      const severity = severityForLevel(maxLevel);
+      const sortedCodes = Array.from(codesSet.values()).sort((a, b) => a.localeCompare(b));
+      for (const code of sortedCodes) {
+        issues.push({
+          id: `working-time-${serviceId}-${code}`,
+          rule: 'working-time',
+          severity,
+          message: `${this.describeWorktimeConflictCode(code)} (Dienst ${serviceId}).`,
+          activityIds,
+          meta: { serviceId, code },
+        });
+      }
+    }
+
+    return issues;
+  }
+
+  private describeWorktimeConflictCode(code: string): string {
+    const labels: Record<string, string> = {
+      MAX_DUTY_SPAN: 'Maximale Dienstspanne überschritten.',
+      MAX_WORK: 'Maximale Arbeitszeit im Dienst überschritten.',
+      MAX_CONTINUOUS: 'Maximale zusammenhängende Arbeitszeit überschritten.',
+      NO_BREAK_WINDOW: 'Keine gültige Pause (Mindestdauer) möglich.',
+      AZG_WORK_AVG_7D: 'Durchschnittliche Arbeitszeit (7 Arbeitstage) überschritten.',
+      AZG_WORK_AVG_365D: 'Durchschnittliche Arbeitszeit (Jahr) überschritten.',
+      AZG_DUTY_SPAN_AVG_28D: 'Durchschnittliche Dienstschicht (28 Tage) überschritten.',
+      AZG_REST_MIN: 'Mindestruheschicht unterschritten.',
+      AZG_REST_AVG_28D: 'Durchschnittliche Ruheschicht (28 Tage) unterschritten.',
+      AZG_BREAK_REQUIRED: 'Pause oder Arbeitsunterbrechung fehlt.',
+      AZG_BREAK_MAX_COUNT: 'Zu viele Pausen in einer Dienstschicht.',
+      AZG_BREAK_TOO_SHORT: 'Pause ist zu kurz (Mindestdauer).',
+      AZG_BREAK_STANDARD_MIN: 'Standardpause unterschritten.',
+      AZG_BREAK_FORBIDDEN_NIGHT: 'Pause zwischen 23–5 Uhr nicht zulässig.',
+      AZG_BREAK_MIDPOINT: 'Pause nicht ungefähr in der Hälfte der Arbeitszeit.',
+      AZG_NIGHT_STREAK_MAX: 'Zu viele Nachtdienste hintereinander.',
+      AZG_NIGHT_28D_MAX: 'Zu viele Nachtdienste innerhalb von 28 Tagen.',
+      AZG_REST_DAYS_YEAR_MIN: 'Zu wenige Ruhetage im Fahrplanjahr.',
+      AZG_REST_SUNDAYS_YEAR_MIN: 'Zu wenige Ruhesonntage im Fahrplanjahr.',
+      AZG_WORK_EXCEED_BUFFER: 'Höchstarbeitszeit deutlich überschritten.',
+      AZG_DUTY_SPAN_EXCEED_BUFFER: 'Dienstspanne deutlich überschritten.',
+    };
+    return labels[code] ?? `Arbeitszeitregel verletzt (${code})`;
   }
 
   private activitiesOverlap(a: Activity, b: Activity): boolean {

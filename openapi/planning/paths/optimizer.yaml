@@ -1,16 +1,3 @@
-planning_stages_stageId_autopilot_preview:
-  post:
-    summary: Autopilot-Preview fuer eine Stage
-    parameters:
-      - $ref: '#/components/parameters/StageId'
-    responses:
-      '200':
-        description: Autopilot-Preview Ergebnis
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AutopilotPreviewResponse'
-
 planning_stages_stageId_optimizer_candidates:
   post:
     summary: Kandidaten fuer Solver erzeugen

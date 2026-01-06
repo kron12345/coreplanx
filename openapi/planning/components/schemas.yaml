@@ -2735,31 +2735,6 @@ schemas:
         - start
         - end
     additionalProperties: false
-  AutopilotPreviewResponse:
-    type: object
-    properties:
-      rulesetId:
-        type: string
-        nullable: true
-      rulesetVersion:
-        type: string
-        nullable: true
-      upserts:
-        type: array
-        items:
-          $ref: '#/components/schemas/Activity'
-      deletedIds:
-        type: array
-        items:
-          type: string
-      touchedIds:
-        type: array
-        items:
-          type: string
-    required:
-    - upserts
-    - deletedIds
-    - touchedIds
   PlanningCandidate:
     type: object
     properties:

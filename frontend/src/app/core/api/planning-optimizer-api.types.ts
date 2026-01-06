@@ -8,14 +8,6 @@ export interface RulesetSelectionRequestDto {
   timelineRange?: { start: string; end: string };
 }
 
-export interface AutopilotPreviewResponseDto {
-  rulesetId?: string | null;
-  rulesetVersion?: string | null;
-  upserts: Activity[];
-  deletedIds: string[];
-  touchedIds: string[];
-}
-
 export type PlanningCandidateType = 'break' | 'travel' | 'duty' | 'duty_split';
 
 export interface PlanningCandidateDto {

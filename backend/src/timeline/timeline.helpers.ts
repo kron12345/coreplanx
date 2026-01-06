@@ -11,8 +11,8 @@ export interface TimelineActivityRow {
   id: string;
   type: string;
   stage: 'base' | 'operations';
-  start_time: string;
-  end_time: string | null;
+  start_time: string | Date;
+  end_time: string | Date | null;
   is_open_ended: boolean;
   attributes: {
     versions?: {
@@ -72,6 +72,38 @@ export function mapActivityRow(
     logger?.warn(`Activity ${row.id} without current version – skipping.`);
     return null;
   }
+
+  const normalizeIso = (value: unknown): string | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (value instanceof Date) {
+      const ms = value.getTime();
+      return Number.isFinite(ms) ? value.toISOString() : null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const ms = Date.parse(trimmed);
+      return Number.isFinite(ms) ? new Date(ms).toISOString() : trimmed;
+    }
+    const asString = `${value ?? ''}`.trim();
+    if (!asString) {
+      return null;
+    }
+    const ms = Date.parse(asString);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : asString;
+  };
+
+  const startIso = normalizeIso(row.start_time);
+  if (!startIso) {
+    logger?.warn(`Activity ${row.id} without valid start_time – skipping.`);
+    return null;
+  }
+  const endIso = normalizeIso(row.end_time);
+
   const normalizedAssignments =
     currentVersion.data.resourceAssignments?.map((assignment) => ({
       ...assignment,
@@ -101,9 +133,9 @@ export function mapActivityRow(
     id: row.id,
     stage: row.stage,
     type: row.type,
-    start: row.start_time,
-    end: row.is_open_ended ? null : (row.end_time ?? null),
-    isOpenEnded: row.is_open_ended || !row.end_time,
+    start: startIso,
+    end: row.is_open_ended ? null : (endIso ?? null),
+    isOpenEnded: row.is_open_ended || !endIso,
     status: currentVersion.data.status ?? undefined,
     label: currentVersion.data.label ?? undefined,
     serviceId: serviceId ?? undefined,

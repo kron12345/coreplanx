@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { Activity, ActivityParticipant, PlanningStageSnapshot } from './planning.types';
-import type { RulesetIR, RulesetTemplate, RulesetTemplateType } from './planning-ruleset.types';
+import type {
+  RulesetExpression,
+  RulesetIR,
+  RulesetOperand,
+  RulesetTemplate,
+  RulesetTemplateType,
+} from './planning-ruleset.types';
 
 type PlanningCandidateType = Extract<RulesetTemplateType, 'break' | 'travel' | 'duty' | 'duty_split'>;
 
@@ -35,9 +41,10 @@ export class PlanningCandidateBuilder {
     const dutySplitTemplates = ruleset.templates.filter((entry) => entry.template.type === 'duty_split');
     const gaps = this.collectServiceGaps(snapshot.stageId, snapshot.activities);
     const dutyGroups = this.collectDutyGroups(snapshot);
+    const dutiesByServiceId = new Map(dutyGroups.map((group) => [group.serviceId, group]));
 
     const candidates: PlanningCandidate[] = [
-      ...this.buildBreakCandidates(breakTemplates, gaps),
+      ...this.buildBreakCandidates(breakTemplates, gaps, dutiesByServiceId),
       ...this.buildTravelCandidates(travelTemplates, gaps),
       ...this.buildDutyCandidates(dutyTemplates, dutyGroups),
       ...this.buildDutySplitCandidates(dutySplitTemplates, gaps),
@@ -57,7 +64,11 @@ export class PlanningCandidateBuilder {
     };
   }
 
-  private buildBreakCandidates(templates: RulesetTemplate[], gaps: ServiceGap[]): PlanningCandidate[] {
+  private buildBreakCandidates(
+    templates: RulesetTemplate[],
+    gaps: ServiceGap[],
+    dutiesByServiceId: Map<string, DutyGroup>,
+  ): PlanningCandidate[] {
     const candidates: PlanningCandidate[] = [];
     for (const template of templates) {
       const params = this.asParams(template);
@@ -67,6 +78,10 @@ export class PlanningCandidateBuilder {
       const maxCandidates = this.pickNumber(params, 'maxCandidates', Number.POSITIVE_INFINITY);
       let counter = 0;
       for (const gap of gaps) {
+        const duty = dutiesByServiceId.get(gap.serviceId) ?? null;
+        if (duty && !this.shouldApplyTemplate(template.when, this.buildDutyConditionContext(duty))) {
+          continue;
+        }
         if (!this.supportsPersonnelBreaks(gap.participantKeys)) {
           continue;
         }
@@ -83,6 +98,13 @@ export class PlanningCandidateBuilder {
           windowEnd: gap.windowEnd,
           gapMinutes: gap.gapMinutes,
           participantKeys: gap.participantKeys,
+          ...(duty
+            ? {
+                dutySpanMinutes: duty.dutySpanMinutes,
+                workMinutes: duty.workMinutes,
+                dayKey: duty.dayKey,
+              }
+            : {}),
         };
         candidates.push({
           id: `cand:${template.id}:${gap.serviceId}:${counter}`,
@@ -219,6 +241,7 @@ export class PlanningCandidateBuilder {
           dutyStart: group.dutyStart,
           dutyEnd: group.dutyEnd,
           dutySpanMinutes: group.dutySpanMinutes,
+          workMinutes: group.workMinutes,
           durationMinutes: group.dutySpanMinutes,
         };
         candidates.push({
@@ -235,6 +258,9 @@ export class PlanningCandidateBuilder {
   private collectServiceGaps(stageId: string, activities: Activity[]): ServiceGap[] {
     const byService = new Map<string, ServiceActivity[]>();
     for (const activity of activities) {
+      if (this.isServiceBoundary(activity)) {
+        continue;
+      }
       if (this.isBreakActivity(activity)) {
         continue;
       }
@@ -256,12 +282,18 @@ export class PlanningCandidateBuilder {
     const gaps: ServiceGap[] = [];
     for (const [serviceId, items] of byService.entries()) {
       const sorted = items
-        .map((activity) => ({
-          activity: activity.activity,
-          participantKeys: activity.participantKeys,
-          startMs: this.toMs(activity.activity.start),
-          endMs: this.toMs(activity.activity.end ?? null),
-        }))
+        .map((entry) => {
+          const startMs = this.toMs(entry.activity.start);
+          if (startMs === null) {
+            return null;
+          }
+          return {
+            activity: entry.activity,
+            participantKeys: entry.participantKeys,
+            startMs,
+            endMs: this.resolveEndMs(entry.activity, startMs),
+          };
+        })
         .filter(
           (
             entry,
@@ -269,9 +301,8 @@ export class PlanningCandidateBuilder {
             activity: Activity;
             participantKeys: string[];
             startMs: number;
-            endMs: number | null;
-          } =>
-            entry.startMs !== null,
+            endMs: number;
+          } => entry !== null,
         )
         .sort((a, b) => {
           if (a.startMs === b.startMs) {
@@ -283,9 +314,6 @@ export class PlanningCandidateBuilder {
       for (let index = 0; index < sorted.length - 1; index += 1) {
         const current = sorted[index];
         const next = sorted[index + 1];
-        if (current.endMs === null || next.startMs === null) {
-          continue;
-        }
         const gapMinutes = Math.floor((next.startMs - current.endMs) / 60000);
         if (gapMinutes <= 0) {
           continue;
@@ -384,7 +412,9 @@ export class PlanningCandidateBuilder {
       if (startMs === null) {
         continue;
       }
-      const endMs = this.toMs(activity.end ?? activity.start) ?? startMs;
+      const endMs = this.resolveEndMs(activity, startMs);
+      const durationMinutes = Math.max(0, Math.round((endMs - startMs) / 60000));
+      const countsAsWork = durationMinutes > 0 && !this.isBreakActivity(activity);
       const owners = this.resolveDutyOwners(activity);
       if (!owners.length) {
         continue;
@@ -405,6 +435,7 @@ export class PlanningCandidateBuilder {
             serviceId,
             dutyStartMs: startMs,
             dutyEndMs: endMs,
+            workMinutes: countsAsWork ? durationMinutes : 0,
             activityIds: [activity.id],
           });
           continue;
@@ -413,6 +444,9 @@ export class PlanningCandidateBuilder {
         existing.dutyEndMs = Math.max(existing.dutyEndMs, endMs);
         if (!existing.activityIds.includes(activity.id)) {
           existing.activityIds.push(activity.id);
+          if (countsAsWork) {
+            existing.workMinutes += durationMinutes;
+          }
         }
         if (!existing.ownerRole && owner.role) {
           existing.ownerRole = owner.role;
@@ -426,6 +460,91 @@ export class PlanningCandidateBuilder {
       dutyEnd: new Date(group.dutyEndMs).toISOString(),
       dutySpanMinutes: Math.max(0, Math.round((group.dutyEndMs - group.dutyStartMs) / 60000)),
     }));
+  }
+
+  private buildDutyConditionContext(duty: DutyGroup): Record<string, unknown> {
+    return {
+      'duty.work_minutes': duty.workMinutes,
+      'duty.span_minutes': duty.dutySpanMinutes,
+      'duty.day_key': duty.dayKey,
+      'duty.owner_group': duty.ownerGroup,
+      'duty.owner_id': duty.ownerId,
+    };
+  }
+
+  private shouldApplyTemplate(when: RulesetExpression | undefined, ctx: Record<string, unknown>): boolean {
+    if (!when) {
+      return true;
+    }
+    const evaluated = this.evaluateExpression(when, ctx);
+    return evaluated !== false;
+  }
+
+  private evaluateExpression(expr: RulesetExpression, ctx: Record<string, unknown>): boolean | null {
+    switch (expr.op) {
+      case 'and': {
+        const results = expr.args.map((arg) => this.evaluateExpression(arg, ctx));
+        if (results.some((entry) => entry === false)) {
+          return false;
+        }
+        return results.every((entry) => entry === true) ? true : null;
+      }
+      case 'or': {
+        const results = expr.args.map((arg) => this.evaluateExpression(arg, ctx));
+        if (results.some((entry) => entry === true)) {
+          return true;
+        }
+        return results.every((entry) => entry === false) ? false : null;
+      }
+      case 'not': {
+        const child = this.evaluateExpression(expr.arg, ctx);
+        return child === null ? null : !child;
+      }
+      case 'eq':
+      case 'ne':
+      case 'gt':
+      case 'gte':
+      case 'lt':
+      case 'lte':
+      case 'in': {
+        const left = this.evaluateOperand(expr.left, ctx);
+        const right = this.evaluateOperand(expr.right, ctx);
+        if (left === null || right === null) {
+          return null;
+        }
+        switch (expr.op) {
+          case 'eq':
+            return left === right;
+          case 'ne':
+            return left !== right;
+          case 'gt':
+            return typeof left === 'number' && typeof right === 'number' ? left > right : null;
+          case 'gte':
+            return typeof left === 'number' && typeof right === 'number' ? left >= right : null;
+          case 'lt':
+            return typeof left === 'number' && typeof right === 'number' ? left < right : null;
+          case 'lte':
+            return typeof left === 'number' && typeof right === 'number' ? left <= right : null;
+          case 'in':
+            return Array.isArray(right) ? right.includes(left as any) : null;
+          default:
+            return null;
+        }
+      }
+      default:
+        return null;
+    }
+  }
+
+  private evaluateOperand(operand: RulesetOperand, ctx: Record<string, unknown>): unknown | null {
+    if ('value' in operand) {
+      return operand.value;
+    }
+    if ('var' in operand) {
+      const value = ctx[operand.var];
+      return value === undefined ? null : value;
+    }
+    return null;
   }
 
   private normalizeParticipants(participants: ActivityParticipant[]): string[] {
@@ -454,6 +573,25 @@ export class PlanningCandidateBuilder {
     }
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private resolveEndMs(activity: Activity, startMs: number): number {
+    const explicit = this.toMs(activity.end ?? null);
+    if (explicit !== null) {
+      return explicit;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['default_duration'];
+    const minutes =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number.parseFloat(raw)
+          : Number.NaN;
+    if (Number.isFinite(minutes) && minutes > 0) {
+      return startMs + minutes * 60_000;
+    }
+    return startMs;
   }
 
   private utcDayKeyFromMs(ms: number): string {
@@ -604,6 +742,7 @@ type DutyGroupDraft = {
   serviceId: string;
   dutyStartMs: number;
   dutyEndMs: number;
+  workMinutes: number;
   activityIds: string[];
 };
 
