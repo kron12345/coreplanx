@@ -662,4 +662,72 @@ describe('DutyAutopilotService', () => {
     expect(mapping?.serviceId ?? null).toBe(expectedServiceId);
     expect(readOwnerCodes(updated, 'PS-1')).not.toEqual(expect.arrayContaining(['WITHIN_SERVICE_REQUIRED']));
   });
+
+  it('uses the latest service end when multiple end boundaries exist', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      createMasterDataStub() as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+
+    const baseParticipants = [{ resourceId: 'PS-1', kind: 'personnel-service' as const }];
+    const withinAttrs = { is_within_service: 'yes' };
+
+    let state: Activity[] = [
+      {
+        id: 'start',
+        title: 'Dienstanfang',
+        start: '2025-01-12T08:00:00.000Z',
+        end: '2025-01-12T08:00:00.000Z',
+        type: 'service-start',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 'end-early',
+        title: 'Dienstende (alt)',
+        start: '2025-01-12T12:00:00.000Z',
+        end: '2025-01-12T12:00:00.000Z',
+        type: 'service-end',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 'end-late',
+        title: 'Dienstende',
+        start: '2025-01-12T20:00:00.000Z',
+        end: '2025-01-12T20:00:00.000Z',
+        type: 'service-end',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+      {
+        id: 't1',
+        title: 'Fahrt',
+        start: '2025-01-12T15:00:00.000Z',
+        end: '2025-01-12T16:00:00.000Z',
+        from: 'A',
+        to: 'B',
+        type: 'travel',
+        participants: baseParticipants,
+        attributes: withinAttrs,
+      },
+    ];
+
+    const upserts = await service.applyWorktimeCompliance(stageId, variantId, state);
+    state = applyUpserts(state, upserts);
+
+    const expectedServiceId = 'svc:base:PS-1:2025-01-12';
+    const updated = state.find((a) => a.id === 't1')!;
+    const mapping = ((updated.attributes as any)?.service_by_owner ?? {})['PS-1'];
+    expect(mapping?.serviceId ?? null).toBe(expectedServiceId);
+    expect(readOwnerCodes(updated, 'PS-1')).not.toEqual(expect.arrayContaining(['WITHIN_SERVICE_REQUIRED']));
+  });
 });

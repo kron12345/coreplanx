@@ -735,11 +735,7 @@ export class PlanningSolverService {
     const preferred = participants.filter(
       (p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service',
     );
-    if (preferred.length) {
-      return preferred;
-    }
-    const fallback = participants.filter((p) => p.kind === 'personnel' || p.kind === 'vehicle');
-    return fallback.length ? fallback : [];
+    return preferred;
   }
 
   private resolveOwnerGroup(kind: ActivityParticipant['kind']): 'personnel' | 'vehicle' {

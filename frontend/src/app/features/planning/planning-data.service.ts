@@ -106,6 +106,7 @@ export class PlanningDataService {
     stageDataSignal: this.stageDataSignal,
     stageViewportSignal: this.stageViewportSignal,
     timelineErrorSignal: this.timelineErrorSignal,
+    activityErrorSignal: this.activityErrorSignal,
     setStageLoading: (stage, value) => this.setStageLoading(stage, value),
     invalidateViewportSignature: (stage) => this.invalidateViewportSignature(stage),
     scheduleViewportSync: (stage) => this.scheduleViewportSync(stage),

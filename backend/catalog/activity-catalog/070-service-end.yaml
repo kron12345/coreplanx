@@ -5,13 +5,9 @@ types:
     label: Dienstende
     description: Abschlussleistung mit Ziel und Bemerkung.
     appliesTo:
-      - personnel
-      - vehicle
       - personnel-service
       - vehicle-service
     relevantFor:
-      - personnel
-      - vehicle
       - personnel-service
       - vehicle-service
     category: service

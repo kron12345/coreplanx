@@ -5,13 +5,9 @@ types:
     label: Pause
     description: Reguläre Pause innerhalb eines Dienstes.
     appliesTo:
-      - personnel
-      - vehicle
       - personnel-service
       - vehicle-service
     relevantFor:
-      - personnel
-      - vehicle
       - personnel-service
       - vehicle-service
     category: service

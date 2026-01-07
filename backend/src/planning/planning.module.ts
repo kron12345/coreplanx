@@ -32,11 +32,14 @@ import { DutyAutopilotService } from './duty-autopilot.service';
 import { PlanningCandidateBuilder } from './planning-candidate-builder.service';
 import { PlanningOptimizationService } from './planning-optimization.service';
 import { PlanningSolverService } from './planning-solver.service';
+import { PlanningAdminController } from './planning-admin.controller';
+import { PlanningAdminService } from './planning-admin.service';
 
 @Module({
   imports: [forwardRef(() => TemplateModule), DebugModule],
   controllers: [
     PlanningController,
+    PlanningAdminController,
     PlanningCatalogController,
     PlanningMasterDataController,
     PlanningBaseController,
@@ -69,6 +72,7 @@ import { PlanningSolverService } from './planning-solver.service';
     PlanningCandidateBuilder,
     PlanWeekService,
     PlanWeekRepository,
+    PlanningAdminService,
   ],
   exports: [PlanningService, PlanWeekService, DutyAutopilotService],
 })

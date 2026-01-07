@@ -8,6 +8,8 @@ describe('PlanningStageService', () => {
     const dutyAutopilot = {
       apply: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], touchedIds: [] }),
       applyWorktimeCompliance: jest.fn().mockResolvedValue([]),
+      cleanupServiceBoundaries: jest.fn().mockResolvedValue({ deletedIds: [], entries: [] }),
+      normalizeManagedServiceActivities: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], entries: [] }),
     } as any;
     const activityCatalog = {
       listActivityTypes: jest.fn().mockReturnValue([

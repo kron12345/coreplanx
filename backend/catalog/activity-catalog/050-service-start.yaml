@@ -5,13 +5,9 @@ types:
     label: Dienstanfang
     description: Startleistung mit exaktem Ort und Übergabe.
     appliesTo:
-      - personnel
-      - vehicle
       - personnel-service
       - vehicle-service
     relevantFor:
-      - personnel
-      - vehicle
       - personnel-service
       - vehicle-service
     category: service

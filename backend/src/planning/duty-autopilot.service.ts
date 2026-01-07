@@ -62,6 +62,23 @@ type AzgDutySnapshot = {
   hasNightWork: boolean;
 };
 
+type BoundaryCleanupEntry = {
+  ownerId: string;
+  dayKey: string;
+  keptStartId: string | null;
+  keptEndId: string | null;
+  deletedStartIds: string[];
+  deletedEndIds: string[];
+};
+
+type ManagedActivityNormalizationEntry = {
+  kind: 'boundary' | 'break';
+  ownerId: string;
+  serviceId: string;
+  fromId: string;
+  toId: string;
+};
+
 type TransferNodeKey = `OP:${string}` | `PERSONNEL_SITE:${string}` | `REPLACEMENT_STOP:${string}`;
 
 type MasterDataContext = {
@@ -240,6 +257,341 @@ export class DutyAutopilotService {
     }
 
     return Array.from(updated.values());
+  }
+
+  async cleanupServiceBoundaries(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+  ): Promise<{ deletedIds: string[]; entries: BoundaryCleanupEntry[] }> {
+    if (!activities.length) {
+      return { deletedIds: [], entries: [] };
+    }
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
+    if (!config || !config.enforceOneDutyPerDay) {
+      return { deletedIds: [], entries: [] };
+    }
+    const resolvedConfig = this.resolveAutopilotConfig(config);
+    const startTypeIds = resolvedConfig.resolvedTypeIds.startTypeIds;
+    const endTypeIds = resolvedConfig.resolvedTypeIds.endTypeIds;
+    const isStartBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'start' || startTypeIds.has((activity.type ?? '').trim());
+    };
+    const isEndBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
+    };
+    const manualBoundaryKey = this.manualBoundaryKey();
+
+    type BoundaryCandidate = {
+      id: string;
+      startMs: number;
+      endMs: number;
+      manual: boolean;
+    };
+
+    const perOwnerDay = new Map<
+      string,
+      Map<string, { starts: BoundaryCandidate[]; ends: BoundaryCandidate[] }>
+    >();
+
+    activities.forEach((activity) => {
+      if (!isStartBoundary(activity) && !isEndBoundary(activity)) {
+        return;
+      }
+      const startMs = this.parseMs(activity.start);
+      if (startMs === null) {
+        return;
+      }
+      const endMs = Math.max(startMs, this.resolveEndMs(activity, startMs));
+      const dayKey =
+        this.parseDayKeyFromServiceId(this.parseServiceIdFromManagedId(activity.id) ?? activity.serviceId ?? '') ??
+        this.utcDayKey(activity.start);
+      const owners = this.resolveDutyOwners(activity);
+      if (!owners.length) {
+        return;
+      }
+      const candidate: BoundaryCandidate = {
+        id: activity.id,
+        startMs,
+        endMs,
+        manual: this.isManualBoundary(activity, manualBoundaryKey),
+      };
+      owners.forEach((owner) => {
+        const ownerMap = perOwnerDay.get(owner.resourceId) ?? new Map();
+        const entry = ownerMap.get(dayKey) ?? { starts: [], ends: [] };
+        if (isStartBoundary(activity)) {
+          entry.starts.push(candidate);
+        }
+        if (isEndBoundary(activity)) {
+          entry.ends.push(candidate);
+        }
+        ownerMap.set(dayKey, entry);
+        perOwnerDay.set(owner.resourceId, ownerMap);
+      });
+    });
+
+    const deletedIds = new Set<string>();
+    const entries: BoundaryCleanupEntry[] = [];
+
+    const pickStart = (candidates: BoundaryCandidate[]): BoundaryCandidate | null => {
+      if (!candidates.length) {
+        return null;
+      }
+      return candidates.reduce((best, current) => {
+        if (!best) {
+          return current;
+        }
+        if (current.startMs < best.startMs) {
+          return current;
+        }
+        if (current.startMs > best.startMs) {
+          return best;
+        }
+        if (current.manual && !best.manual) {
+          return current;
+        }
+        if (!current.manual && best.manual) {
+          return best;
+        }
+        return current.id.localeCompare(best.id) < 0 ? current : best;
+      }, candidates[0]);
+    };
+
+    const pickEnd = (candidates: BoundaryCandidate[]): BoundaryCandidate | null => {
+      if (!candidates.length) {
+        return null;
+      }
+      return candidates.reduce((best, current) => {
+        if (!best) {
+          return current;
+        }
+        if (current.endMs > best.endMs) {
+          return current;
+        }
+        if (current.endMs < best.endMs) {
+          return best;
+        }
+        if (current.manual && !best.manual) {
+          return current;
+        }
+        if (!current.manual && best.manual) {
+          return best;
+        }
+        return current.id.localeCompare(best.id) < 0 ? current : best;
+      }, candidates[0]);
+    };
+
+    perOwnerDay.forEach((days, ownerId) => {
+      days.forEach((entry, dayKey) => {
+        const keptStart = pickStart(entry.starts);
+        const keptEnd = pickEnd(entry.ends);
+        const deletedStartIds = entry.starts
+          .filter((candidate) => candidate.id !== keptStart?.id)
+          .map((candidate) => candidate.id);
+        const deletedEndIds = entry.ends
+          .filter((candidate) => candidate.id !== keptEnd?.id)
+          .map((candidate) => candidate.id);
+        const hasDeletions = deletedStartIds.length > 0 || deletedEndIds.length > 0;
+        if (!hasDeletions) {
+          return;
+        }
+        deletedStartIds.forEach((id) => deletedIds.add(id));
+        deletedEndIds.forEach((id) => deletedIds.add(id));
+        entries.push({
+          ownerId,
+          dayKey,
+          keptStartId: keptStart?.id ?? null,
+          keptEndId: keptEnd?.id ?? null,
+          deletedStartIds,
+          deletedEndIds,
+        });
+      });
+    });
+
+    return { deletedIds: Array.from(deletedIds.values()), entries };
+  }
+
+  async normalizeManagedServiceActivities(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+  ): Promise<{ upserts: Activity[]; deletedIds: string[]; entries: ManagedActivityNormalizationEntry[] }> {
+    if (!activities.length) {
+      return { upserts: [], deletedIds: [], entries: [] };
+    }
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
+    if (!config) {
+      return { upserts: [], deletedIds: [], entries: [] };
+    }
+
+    const resolved = this.resolveAutopilotConfig(config);
+    const startTypeIds = resolved.resolvedTypeIds.startTypeIds;
+    const endTypeIds = resolved.resolvedTypeIds.endTypeIds;
+    const breakTypeIds = resolved.breakTypeIds;
+    const shortBreakTypeId = resolved.shortBreakTypeId || 'short-break';
+
+    const isBoundary = (activity: Activity): boolean => {
+      const role = this.resolveServiceRole(activity);
+      const type = (activity.type ?? '').trim();
+      return role === 'start' || role === 'end' || startTypeIds.has(type) || endTypeIds.has(type);
+    };
+    const resolveBoundaryRole = (activity: Activity): 'start' | 'end' | null => {
+      const role = this.resolveServiceRole(activity);
+      if (role === 'start' || role === 'end') {
+        return role;
+      }
+      const type = (activity.type ?? '').trim();
+      if (startTypeIds.has(type)) {
+        return 'start';
+      }
+      if (endTypeIds.has(type)) {
+        return 'end';
+      }
+      return null;
+    };
+    const isShortBreak = (activity: Activity) => this.isShortBreakActivity(activity, shortBreakTypeId);
+    const isBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds);
+
+    const usedIds = new Set<string>(activities.map((activity) => activity.id));
+    const upserts = new Map<string, Activity>();
+    const deletedIds = new Set<string>();
+    const entries: ManagedActivityNormalizationEntry[] = [];
+
+    const sanitizeSuffix = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const claimId = (baseId: string): string => {
+      let candidate = baseId;
+      let counter = 1;
+      while (usedIds.has(candidate)) {
+        candidate = `${baseId}-${counter}`;
+        counter += 1;
+      }
+      usedIds.add(candidate);
+      return candidate;
+    };
+
+    const resolveServiceId = (activity: Activity, ownerId: string): string => {
+      const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+      const managed = this.parseServiceIdFromManagedId(activity.id) ?? '';
+      const candidate = explicit || managed;
+      let dayKey = this.utcDayKey(activity.start);
+      if (candidate) {
+        const candidateOwner = this.parseOwnerIdFromServiceId(candidate);
+        const candidateStage = this.parseStageIdFromServiceId(candidate);
+        if (candidateOwner === ownerId && (!candidateStage || candidateStage === stageId)) {
+          const candidateDay = this.parseDayKeyFromServiceId(candidate);
+          if (candidateDay) {
+            dayKey = candidateDay;
+          }
+        }
+      }
+      return this.computeServiceId(stageId, ownerId, dayKey);
+    };
+
+    const ensureOwnerParticipant = (activity: Activity, owner: ActivityParticipant): ActivityParticipant[] => {
+      const participants = activity.participants ?? [];
+      const hasOwner = participants.some(
+        (participant) => participant.resourceId === owner.resourceId && participant.kind === owner.kind,
+      );
+      if (hasOwner) {
+        return participants;
+      }
+      return [this.buildOwnerParticipant(owner), ...participants];
+    };
+
+    for (const activity of activities) {
+      if (!isBoundary(activity) && !isBreak(activity) && !isShortBreak(activity)) {
+        continue;
+      }
+
+      const owners = this.resolveDutyOwners(activity);
+      if (owners.length !== 1) {
+        continue;
+      }
+      const owner = owners[0];
+      const serviceId = resolveServiceId(activity, owner.resourceId);
+
+      if (isBoundary(activity)) {
+        const role = resolveBoundaryRole(activity);
+        if (!role) {
+          continue;
+        }
+        const targetId = role === 'start' ? `svcstart:${serviceId}` : `svcend:${serviceId}`;
+        if (targetId !== activity.id && usedIds.has(targetId)) {
+          deletedIds.add(activity.id);
+          continue;
+        }
+        usedIds.add(targetId);
+        const participants = ensureOwnerParticipant(activity, owner);
+        const next: Activity = {
+          ...activity,
+          id: targetId,
+          serviceId,
+          serviceRole: role,
+          participants,
+        };
+        const changed =
+          targetId !== activity.id ||
+          (activity.serviceId ?? null) !== serviceId ||
+          activity.serviceRole !== role ||
+          participants !== activity.participants;
+        if (changed) {
+          upserts.set(next.id, next);
+        }
+        if (targetId !== activity.id) {
+          deletedIds.add(activity.id);
+          entries.push({
+            kind: 'boundary',
+            ownerId: owner.resourceId,
+            serviceId,
+            fromId: activity.id,
+            toId: targetId,
+          });
+        }
+        continue;
+      }
+
+      const kind = isShortBreak(activity) ? 'short-break' : 'break';
+      const prefix = kind === 'short-break' ? 'svcshortbreak' : 'svcbreak';
+      let targetId: string | null = null;
+      if (
+        this.isManagedId(activity.id) &&
+        this.belongsToService(activity.id, serviceId) &&
+        activity.id.startsWith(`${prefix}:`)
+      ) {
+        targetId = activity.id;
+        usedIds.add(targetId);
+      }
+      if (!targetId) {
+        const suffix = sanitizeSuffix(activity.id);
+        targetId = claimId(`${prefix}:${serviceId}:${suffix || 'auto'}`);
+      }
+      const participants = ensureOwnerParticipant(activity, owner);
+      const next: Activity = {
+        ...activity,
+        id: targetId,
+        serviceId,
+        participants,
+      };
+      const changed =
+        targetId !== activity.id || (activity.serviceId ?? null) !== serviceId || participants !== activity.participants;
+      if (changed) {
+        upserts.set(next.id, next);
+      }
+      if (targetId !== activity.id) {
+        deletedIds.add(activity.id);
+        entries.push({
+          kind: 'break',
+          ownerId: owner.resourceId,
+          serviceId,
+          fromId: activity.id,
+          toId: targetId,
+        });
+      }
+    }
+
+    return { upserts: Array.from(upserts.values()), deletedIds: Array.from(deletedIds.values()), entries };
   }
 
   private resolveAutopilotConfig(config: DutyAutopilotConfig): ResolvedDutyAutopilotConfig {
@@ -1766,15 +2118,40 @@ export class DutyAutopilotService {
         })
         .filter((entry): entry is { serviceId: string; startMs: number; endMs: number } => entry !== null);
 
-      const windows = starts
-        .map((start) => {
+      let windows: Array<{ serviceId: string; startMs: number; endMs: number }> = [];
+      if (config.enforceOneDutyPerDay) {
+        const startsByService = new Map<string, number>();
+        starts.forEach((entry) => {
+          const existing = startsByService.get(entry.serviceId);
+          if (existing === undefined || entry.startMs < existing) {
+            startsByService.set(entry.serviceId, entry.startMs);
+          }
+        });
+        const endsByService = new Map<string, number>();
+        ends.forEach((entry) => {
+          const existing = endsByService.get(entry.serviceId);
+          if (existing === undefined || entry.endMs > existing) {
+            endsByService.set(entry.serviceId, entry.endMs);
+          }
+        });
+        windows = Array.from(startsByService.entries()).map(([serviceId, startMs]) => {
+          const endCandidate = endsByService.get(serviceId);
+          const endMs =
+            endCandidate !== undefined && endCandidate >= startMs
+              ? endCandidate
+              : startMs + fallbackServiceWindowMs;
+          return { serviceId, startMs, endMs };
+        });
+      } else {
+        windows = starts.map((start) => {
           const endMs =
             ends
               .filter((candidate) => candidate.serviceId === start.serviceId && candidate.startMs >= start.startMs)
               .sort((a, b) => a.startMs - b.startMs)[0]?.endMs ?? start.startMs + fallbackServiceWindowMs;
           return { serviceId: start.serviceId, startMs: start.startMs, endMs };
-        })
-        .sort((a, b) => a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId));
+        });
+      }
+      windows.sort((a, b) => a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId));
 
       const findWindowServiceId = (startMs: number): string | null => {
         for (let i = windows.length - 1; i >= 0; i -= 1) {
@@ -2072,24 +2449,13 @@ export class DutyAutopilotService {
 
   private resolveDutyOwner(activity: Activity): ActivityParticipant | null {
     const participants = activity.participants ?? [];
-    const owner =
-      participants.find((p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service') ??
-      participants.find((p) => p.kind === 'personnel' || p.kind === 'vehicle') ??
-      null;
-    return owner ?? null;
+    return participants.find((p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service') ?? null;
   }
 
   private resolveDutyOwners(activity: Activity): ActivityParticipant[] {
     const participants = activity.participants ?? [];
     const preferred = participants.filter((p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service');
-    if (preferred.length) {
-      return preferred;
-    }
-    const fallback = participants.filter((p) => p.kind === 'personnel' || p.kind === 'vehicle');
-    if (fallback.length) {
-      return fallback;
-    }
-    return [];
+    return preferred;
   }
 
   private resolveServiceRole(activity: Activity): 'start' | 'end' | 'segment' | null {
@@ -2140,6 +2506,10 @@ export class DutyAutopilotService {
   }
 
   private isBreakActivity(activity: Activity, breakTypeIds: string[]): boolean {
+    const id = (activity.id ?? '').toString();
+    if (id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:')) {
+      return true;
+    }
     const type = (activity.type ?? '').trim();
     if (type && breakTypeIds.some((id) => id === type)) {
       return true;
@@ -2742,6 +3112,10 @@ export class DutyAutopilotService {
   }
 
   private isShortBreakActivity(activity: Activity, shortBreakTypeId: string): boolean {
+    const id = (activity.id ?? '').toString();
+    if (id.startsWith('svcshortbreak:')) {
+      return true;
+    }
     const type = `${activity.type ?? ''}`.trim();
     if (type && type === shortBreakTypeId) {
       return true;

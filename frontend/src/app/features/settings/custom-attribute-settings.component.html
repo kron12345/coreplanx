@@ -17,4 +17,9 @@
   <mat-tab label="Planung">
     <app-planning-settings></app-planning-settings>
   </mat-tab>
+  @if (showAdminTab) {
+    <mat-tab label="Admin">
+      <app-planning-admin-settings></app-planning-admin-settings>
+    </mat-tab>
+  }
 </mat-tab-group>

@@ -223,6 +223,15 @@ export class PlanningStageService implements OnModuleInit {
         deleteIds.delete(incoming.id);
       });
 
+      this.assertManagedActivityDeletes(
+        stage.stageId,
+        stage.variantId,
+        Array.from(deleteIds.values()),
+        sourceContext,
+        requestId,
+        request?.clientRequestId ?? null,
+      );
+
       if (deleteIds.size > 0) {
         stage.activities = stage.activities.filter((activity) => {
           if (deleteIds.has(activity.id)) {
@@ -232,6 +241,80 @@ export class PlanningStageService implements OnModuleInit {
           }
           return true;
         });
+      }
+
+      const boundaryCleanup = await this.dutyAutopilot.cleanupServiceBoundaries(
+        stage.stageId,
+        stage.variantId,
+        stage.activities,
+      );
+      if (boundaryCleanup.deletedIds.length) {
+        const deleteSet = new Set(boundaryCleanup.deletedIds);
+        stage.activities = stage.activities.filter((activity) => !deleteSet.has(activity.id));
+        const uniqueDeletes = boundaryCleanup.deletedIds.filter((id) => !deletedIds.includes(id));
+        uniqueDeletes.forEach((id) => {
+          deletedIds.push(id);
+          requestedDeleteIds.add(id);
+        });
+        this.debugStream?.log(
+          'info',
+          'planning',
+          'Dienstgrenzen bereinigt',
+          {
+            stageId,
+            variantId,
+            requestId,
+            clientRequestId: request?.clientRequestId ?? null,
+            deletedCount: boundaryCleanup.deletedIds.length,
+            deletedIds: this.limitIds(boundaryCleanup.deletedIds),
+            entries: boundaryCleanup.entries.slice(0, 10),
+          },
+          {
+            userId: sourceContext.userId,
+            connectionId: sourceContext.connectionId,
+            stageId,
+          },
+        );
+      }
+
+      const managedNormalization = await this.dutyAutopilot.normalizeManagedServiceActivities(
+        stage.stageId,
+        stage.variantId,
+        stage.activities,
+      );
+      if (managedNormalization.deletedIds.length) {
+        const deleteSet = new Set(managedNormalization.deletedIds);
+        stage.activities = stage.activities.filter((activity) => !deleteSet.has(activity.id));
+        const uniqueDeletes = managedNormalization.deletedIds.filter((id) => !deletedIds.includes(id));
+        uniqueDeletes.forEach((id) => {
+          deletedIds.push(id);
+          requestedDeleteIds.add(id);
+        });
+      }
+      if (managedNormalization.upserts.length) {
+        managedNormalization.upserts.forEach((activity) => {
+          this.upsertActivity(stage, activity);
+          changedUpsertIds.add(activity.id);
+        });
+        this.debugStream?.log(
+          'info',
+          'planning',
+          'Dienstgrenzen/Pausen normalisiert',
+          {
+            stageId,
+            variantId,
+            requestId,
+            clientRequestId: request?.clientRequestId ?? null,
+            upsertCount: managedNormalization.upserts.length,
+            deleteCount: managedNormalization.deletedIds.length,
+            entries: managedNormalization.entries.slice(0, 10),
+          },
+          {
+            userId: sourceContext.userId,
+            connectionId: sourceContext.connectionId,
+            stageId,
+          },
+        );
       }
 
       const complianceUpserts = await this.dutyAutopilot.applyWorktimeCompliance(
@@ -254,6 +337,15 @@ export class PlanningStageService implements OnModuleInit {
       const changedActivities = requestedUpsertIds.size
         ? stage.activities.filter((activity) => requestedUpsertIds.has(activity.id))
         : [];
+      this.assertServiceActivityOwners(
+        stage.stageId,
+        stage.variantId,
+        changedActivities,
+        stage.resources,
+        sourceContext,
+        requestId,
+        request?.clientRequestId ?? null,
+      );
       await this.assertParticipantRequirements(
         stage.stageId,
         stage.variantId,
@@ -627,6 +719,26 @@ export class PlanningStageService implements OnModuleInit {
     return isBreak && !isShort;
   }
 
+  private isShortBreakActivity(activity: Activity): boolean {
+    if (!activity.end) {
+      return false;
+    }
+    const type = (activity.type ?? '').toString().trim().toLowerCase();
+    if (type === 'short-break') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const raw = attrs?.['is_short_break'];
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const normalized = raw.trim().toLowerCase();
+      return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+    }
+    return false;
+  }
+
   private parseBoolean(value: unknown): boolean {
     if (typeof value === 'boolean') {
       return value;
@@ -636,6 +748,157 @@ export class PlanningStageService implements OnModuleInit {
       return normalized === 'true' || normalized === 'yes' || normalized === '1';
     }
     return false;
+  }
+
+  private assertManagedActivityDeletes(
+    stageId: StageId,
+    variantId: string,
+    deleteIds: string[],
+    sourceContext: SourceContext,
+    requestId?: string,
+    clientRequestId?: string | null,
+  ): void {
+    if (!deleteIds.length) {
+      return;
+    }
+    const managedDeletes = deleteIds.filter((id) => this.isManagedServiceActivityId(id));
+    if (!managedDeletes.length) {
+      return;
+    }
+    const violations = managedDeletes.map((id) => ({
+      activityId: id,
+      code: 'MANAGED_DELETE_FORBIDDEN',
+      message: 'Systemvorgaben dürfen nicht gelöscht werden.',
+    }));
+    this.debugStream?.log(
+      'warn',
+      'planning',
+      'Systemvorgaben dürfen nicht gelöscht werden',
+      {
+        stageId,
+        variantId,
+        requestId,
+        clientRequestId: clientRequestId ?? null,
+        deleteIds: this.limitIds(managedDeletes),
+      },
+      {
+        userId: sourceContext.userId,
+        connectionId: sourceContext.connectionId,
+        stageId,
+      },
+    );
+    throw new BadRequestException({
+      message: 'Systemvorgaben können nicht gelöscht werden.',
+      stageId,
+      variantId,
+      violations,
+      error: 'ValidationError',
+      statusCode: 400,
+    });
+  }
+
+  private assertServiceActivityOwners(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+    resources?: Resource[],
+    sourceContext?: SourceContext,
+    requestId?: string,
+    clientRequestId?: string | null,
+  ): void {
+    if (stageId === 'base') {
+      return;
+    }
+    if (!activities.length) {
+      return;
+    }
+    type ActivityParticipantEntry = NonNullable<Activity['participants']>[number];
+    const resourceKindMap = resources ? new Map(resources.map((resource) => [resource.id, resource.kind])) : undefined;
+    const resolveKind = (participant: ActivityParticipantEntry | undefined | null): string | null => {
+      if (!participant) {
+        return null;
+      }
+      if (participant.kind) {
+        return participant.kind;
+      }
+      if (!participant.resourceId) {
+        return null;
+      }
+      return resourceKindMap?.get(participant.resourceId) ?? null;
+    };
+
+    const violations: Array<{
+      activityId: string;
+      type: string | null;
+      code: 'MISSING_SERVICE_OWNER' | 'MULTIPLE_SERVICE_OWNERS';
+      message: string;
+    }> = [];
+
+    for (const activity of activities) {
+      const id = (activity.id ?? '').toString();
+      if (!id) {
+        continue;
+      }
+      const isBoundary = this.isServiceStartActivity(activity) || this.isServiceEndActivity(activity);
+      const isPause = this.isBreakActivity(activity) || this.isShortBreakActivity(activity);
+      if (!isBoundary && !isPause) {
+        continue;
+      }
+      const typeId = (activity.type ?? '').toString().trim() || null;
+      const participants = activity.participants ?? [];
+      const owners = participants.filter((participant) => {
+        const kind = resolveKind(participant);
+        return kind === 'personnel-service' || kind === 'vehicle-service';
+      });
+      if (owners.length === 0) {
+        violations.push({
+          activityId: id,
+          type: typeId,
+          code: 'MISSING_SERVICE_OWNER',
+          message: 'Dienstgrenzen und Pausen benötigen einen Personaldienst oder Fahrzeugdienst.',
+        });
+        continue;
+      }
+      if (owners.length > 1) {
+        violations.push({
+          activityId: id,
+          type: typeId,
+          code: 'MULTIPLE_SERVICE_OWNERS',
+          message: 'Dienstgrenzen und Pausen dürfen nur einem Dienst zugeordnet sein.',
+        });
+      }
+    }
+
+    if (!violations.length) {
+      return;
+    }
+
+    this.debugStream?.log(
+      'warn',
+      'planning',
+      'Dienstgrenzen/Pausen ungültig',
+      {
+        stageId,
+        variantId,
+        requestId,
+        clientRequestId: clientRequestId ?? null,
+        violations: violations.slice(0, 10),
+      },
+      {
+        userId: sourceContext?.userId,
+        connectionId: sourceContext?.connectionId,
+        stageId,
+      },
+    );
+
+    throw new BadRequestException({
+      message: 'Dienstgrenzen/Pausen benötigen genau einen Dienst.',
+      stageId,
+      variantId,
+      violations,
+      error: 'ValidationError',
+      statusCode: 400,
+    });
   }
 
   private parseTimestamp(value: string | null | undefined): number | null {
@@ -1213,6 +1476,69 @@ export class PlanningStageService implements OnModuleInit {
       version: stage.version,
       clientRequestId: request?.clientRequestId,
     };
+  }
+
+  applyAdminClear(options: {
+    clearResources?: boolean;
+    clearActivities?: boolean;
+    clearTrainRuns?: boolean;
+    clearTrainSegments?: boolean;
+    resetTimeline?: boolean;
+  }): void {
+    const clearResources = Boolean(options.clearResources);
+    const clearActivities = Boolean(options.clearActivities);
+    const clearTrainRuns = Boolean(options.clearTrainRuns);
+    const clearTrainSegments = Boolean(options.clearTrainSegments);
+    const resetTimeline = Boolean(options.resetTimeline);
+
+    if (!clearResources && !clearActivities && !clearTrainRuns && !clearTrainSegments && !resetTimeline) {
+      return;
+    }
+
+    for (const stage of this.stages.values()) {
+      const deletedResourceIds = clearResources ? stage.resources.map((resource) => resource.id) : [];
+      const deletedActivityIds = clearActivities ? stage.activities.map((activity) => activity.id) : [];
+
+      if (clearResources) {
+        stage.resources = [];
+      }
+      if (clearActivities) {
+        stage.activities = [];
+      }
+      if (clearTrainRuns) {
+        stage.trainRuns = [];
+      }
+      if (clearTrainSegments) {
+        stage.trainSegments = [];
+      }
+      if (resetTimeline) {
+        stage.timelineRange = this.defaultTimelineRange();
+      }
+
+      stage.version = this.nextVersion();
+
+      if (deletedResourceIds.length) {
+        this.emitStageEvent(stage, {
+          scope: 'resources',
+          version: stage.version,
+          deleteIds: deletedResourceIds,
+        });
+      }
+      if (deletedActivityIds.length) {
+        this.emitStageEvent(stage, {
+          scope: 'activities',
+          version: stage.version,
+          deleteIds: deletedActivityIds,
+        });
+      }
+      if (resetTimeline) {
+        this.emitStageEvent(stage, {
+          scope: 'timeline',
+          version: stage.version,
+          timelineRange: { ...stage.timelineRange },
+        });
+      }
+    }
   }
 
   private stageKey(stageId: StageId, variantId: PlanningVariantId): string {

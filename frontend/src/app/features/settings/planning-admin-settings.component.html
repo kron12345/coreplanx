@@ -1,0 +1,372 @@
+<section class="admin-settings">
+  <header class="admin-settings__header">
+    <div class="admin-settings__title">
+      <h2>Admin (Dev)</h2>
+      <p>Einblick in Planungsdaten (Basis &amp; Betriebsplanung) und Reset f&uuml;r Tests.</p>
+    </div>
+    <div class="admin-settings__actions">
+      <mat-form-field appearance="outline" class="admin-settings__field">
+        <mat-label>Sample-Limit</mat-label>
+        <input matInput type="number" min="1" max="40" step="1" [(ngModel)]="sampleLimit" />
+        <mat-hint>1&ndash;40</mat-hint>
+      </mat-form-field>
+      <button mat-stroked-button type="button" (click)="reload()" [disabled]="loading()">
+        <mat-icon fontIcon="refresh"></mat-icon>
+        Neu laden
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+
+  @if (error()) {
+    <mat-card class="admin-settings__error">
+      <mat-icon fontIcon="error_outline"></mat-icon>
+      <span>{{ error() }}</span>
+    </mat-card>
+  }
+
+  <div class="admin-settings__grid">
+    <mat-card class="admin-settings__card">
+      <div class="admin-settings__card-header">
+        <h3>&Uuml;bersicht</h3>
+        @if (summary(); as summary) {
+          <span class="admin-settings__meta">Stand {{ summary.generatedAt }}</span>
+        }
+      </div>
+      @if (summary(); as summary) {
+        <div class="admin-settings__summary">
+          <div class="admin-settings__summary-row">
+            <span>Stages</span>
+            <strong>{{ summary.totals.stages }}</strong>
+          </div>
+          <div class="admin-settings__summary-row">
+            <span>Ressourcen</span>
+            <strong>{{ summary.totals.resources }}</strong>
+          </div>
+          <div class="admin-settings__summary-row">
+            <span>Aktivit&auml;ten</span>
+            <strong>{{ summary.totals.activities }}</strong>
+          </div>
+          <div class="admin-settings__summary-row">
+            <span>Templates</span>
+            <strong>{{ summary.totals.templates }}</strong>
+          </div>
+          <div class="admin-settings__summary-row">
+            <span>Train Runs</span>
+            <strong>{{ summary.totals.trainRuns }}</strong>
+          </div>
+          <div class="admin-settings__summary-row">
+            <span>Train Segments</span>
+            <strong>{{ summary.totals.trainSegments }}</strong>
+          </div>
+        </div>
+        <mat-divider></mat-divider>
+        <div class="admin-settings__stage-grid">
+          <div class="admin-settings__stage">
+            <h4>Basis</h4>
+            <div class="admin-settings__summary-row">
+              <span>Ressourcen</span>
+              <strong>{{ summary.byStage.base.resources }}</strong>
+            </div>
+            <div class="admin-settings__summary-row">
+              <span>Aktivit&auml;ten</span>
+              <strong>{{ summary.byStage.base.activities }}</strong>
+            </div>
+          </div>
+          <div class="admin-settings__stage">
+            <h4>Betrieb</h4>
+            <div class="admin-settings__summary-row">
+              <span>Ressourcen</span>
+              <strong>{{ summary.byStage.operations.resources }}</strong>
+            </div>
+            <div class="admin-settings__summary-row">
+              <span>Aktivit&auml;ten</span>
+              <strong>{{ summary.byStage.operations.activities }}</strong>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <p class="admin-settings__empty">Keine Daten geladen.</p>
+      }
+    </mat-card>
+
+    <mat-card class="admin-settings__card admin-settings__danger">
+      <div class="admin-settings__card-header">
+        <h3>Planungsdaten l&ouml;schen</h3>
+      </div>
+      <p>
+        L&ouml;scht Planungsdaten (Basis/Betrieb) &uuml;ber alle Varianten. Diese Aktion ist nicht
+        r&uuml;ckg&auml;ngig. Stages entfernen auch abh&auml;ngige Daten.
+      </p>
+      <mat-form-field appearance="outline" class="admin-settings__field">
+        <mat-label>Best&auml;tigung</mat-label>
+        <input matInput [(ngModel)]="confirmation" placeholder="DELETE" />
+        <mat-hint>Zum Best&auml;tigen DELETE eingeben</mat-hint>
+      </mat-form-field>
+      <div class="admin-settings__clear-actions">
+        <button
+          mat-raised-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('all')"
+          [disabled]="!canClear()"
+        >
+          <mat-icon fontIcon="delete_forever"></mat-icon>
+          Alles l&ouml;schen
+        </button>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('stages')"
+          [disabled]="!canClear()"
+        >
+          Stages l&ouml;schen
+        </button>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('resources')"
+          [disabled]="!canClear()"
+        >
+          Ressourcen l&ouml;schen
+        </button>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('activities')"
+          [disabled]="!canClear()"
+        >
+          Aktivit&auml;ten l&ouml;schen
+        </button>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('templates')"
+          [disabled]="!canClear()"
+        >
+          Basis-Templates l&ouml;schen
+        </button>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('train-runs')"
+          [disabled]="!canClear()"
+        >
+          Train Runs l&ouml;schen
+        </button>
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="clearPlanningData('train-segments')"
+          [disabled]="!canClear()"
+        >
+          Train Segments l&ouml;schen
+        </button>
+      </div>
+      <p class="admin-settings__hint">
+        Hinweis: Stages l&ouml;schen entfernt auch Ressourcen, Aktivit&auml;ten, Train Runs und Train Segments.
+      </p>
+      <p class="admin-settings__hint">Train Runs l&ouml;schen entfernt auch Train Segments.</p>
+      <p class="admin-settings__hint">Basis-Templates l&ouml;schen betrifft die Basisplanung (Template-Timeline).</p>
+    </mat-card>
+  </div>
+
+  @if (summary(); as summary) {
+    <div class="admin-settings__grid admin-settings__grid--samples">
+      <mat-card class="admin-settings__card">
+        <div class="admin-settings__card-header">
+          <h3>Stages (Sample)</h3>
+          <span class="admin-settings__meta">Limit {{ summary.sampleLimit }}</span>
+        </div>
+        @if (summary.samples.stages.length) {
+        <mat-action-list class="admin-settings__list">
+          @for (row of summary.samples.stages; track row.stageId + row.variantId) {
+            <button
+              mat-list-item
+              type="button"
+              class="admin-settings__list-item admin-settings__list-item--clickable"
+              [class.admin-settings__list-item--active]="isSelected(buildSampleKey('stages', row.stageId, row.variantId))"
+              (click)="selectSample('stages', buildSampleKey('stages', row.stageId, row.variantId), row.stageId + ' | ' + row.variantId, row.raw)"
+            >
+              <div class="admin-settings__list-row">
+                <strong>{{ row.stageId }} &middot; {{ row.variantId }}</strong>
+                <span>{{ row.timelineStart }} &rarr; {{ row.timelineEnd }}</span>
+                <span class="admin-settings__list-meta">Version {{ row.version ?? 'n/a' }}</span>
+                </div>
+              </button>
+            }
+          </mat-action-list>
+        } @else {
+          <p class="admin-settings__empty">Keine Eintr&auml;ge.</p>
+        }
+      </mat-card>
+
+      <mat-card class="admin-settings__card">
+        <div class="admin-settings__card-header">
+          <h3>Ressourcen (Sample)</h3>
+          <span class="admin-settings__meta">Limit {{ summary.sampleLimit }}</span>
+        </div>
+        @if (summary.samples.resources.length) {
+        <mat-action-list class="admin-settings__list">
+          @for (row of summary.samples.resources; track row.id + row.variantId) {
+            <button
+              mat-list-item
+              type="button"
+              class="admin-settings__list-item admin-settings__list-item--clickable"
+              [class.admin-settings__list-item--active]="isSelected(buildSampleKey('resources', row.id, row.variantId))"
+              (click)="selectSample('resources', buildSampleKey('resources', row.id, row.variantId), row.id + ' | ' + row.stageId + ' | ' + row.variantId, row.raw)"
+            >
+              <div class="admin-settings__list-row">
+                <strong>{{ row.id }}</strong>
+                <span>{{ row.kind }} &middot; {{ row.name }}</span>
+                <span class="admin-settings__list-meta">{{ row.stageId }} &middot; {{ row.variantId }}</span>
+                </div>
+              </button>
+            }
+          </mat-action-list>
+        } @else {
+          <p class="admin-settings__empty">Keine Eintr&auml;ge.</p>
+        }
+      </mat-card>
+
+      <mat-card class="admin-settings__card">
+        <div class="admin-settings__card-header">
+          <h3>Aktivit&auml;ten (Sample)</h3>
+          <span class="admin-settings__meta">Limit {{ summary.sampleLimit }}</span>
+        </div>
+        @if (summary.samples.activities.length) {
+        <mat-action-list class="admin-settings__list">
+          @for (row of summary.samples.activities; track row.id + row.variantId) {
+            <button
+              mat-list-item
+              type="button"
+              class="admin-settings__list-item admin-settings__list-item--clickable"
+              [class.admin-settings__list-item--active]="isSelected(buildSampleKey('activities', row.id, row.variantId))"
+              (click)="selectSample('activities', buildSampleKey('activities', row.id, row.variantId), row.id + ' | ' + (row.type ?? 'n/a'), row.raw)"
+            >
+              <div class="admin-settings__list-row">
+                <strong>{{ row.id }}</strong>
+                <span>{{ row.type ?? 'n/a' }} &middot; {{ row.start }} &rarr; {{ row.end ?? 'offen' }}</span>
+                <span class="admin-settings__list-meta">{{ row.stageId }} &middot; {{ row.variantId }}</span>
+                </div>
+              </button>
+            }
+          </mat-action-list>
+        } @else {
+          <p class="admin-settings__empty">Keine Eintr&auml;ge.</p>
+        }
+      </mat-card>
+
+      <mat-card class="admin-settings__card">
+        <div class="admin-settings__card-header">
+          <h3>Template-Aktivit&auml;ten (Sample)</h3>
+          <span class="admin-settings__meta">Limit {{ summary.sampleLimit }}</span>
+        </div>
+        @if (summary.samples.templateActivities.length) {
+        <mat-action-list class="admin-settings__list">
+          @for (row of summary.samples.templateActivities; track row.id + row.templateId) {
+            <button
+              mat-list-item
+              type="button"
+              class="admin-settings__list-item admin-settings__list-item--clickable"
+              [class.admin-settings__list-item--active]="isSelected(buildSampleKey('templateActivities', row.id, row.templateId + ':' + row.variantId))"
+              (click)="selectSample('templateActivities', buildSampleKey('templateActivities', row.id, row.templateId + ':' + row.variantId), row.templateName + ' | ' + row.id, row.raw)"
+            >
+              <div class="admin-settings__list-row">
+                <strong>{{ row.id }}</strong>
+                <span>{{ row.type }} &middot; {{ row.stage }} &middot; {{ row.startTime }} &rarr; {{ row.endTime ?? 'offen' }}</span>
+                <span class="admin-settings__list-meta">
+                  {{ row.templateName }} &middot; {{ row.templateId }} &middot; {{ row.variantId }}
+                </span>
+              </div>
+            </button>
+          }
+        </mat-action-list>
+        } @else {
+          <p class="admin-settings__empty">Keine Eintr&auml;ge.</p>
+        }
+      </mat-card>
+
+      <mat-card class="admin-settings__card">
+        <div class="admin-settings__card-header">
+          <h3>Train Runs (Sample)</h3>
+          <span class="admin-settings__meta">Limit {{ summary.sampleLimit }}</span>
+        </div>
+        @if (summary.samples.trainRuns.length) {
+        <mat-action-list class="admin-settings__list">
+          @for (row of summary.samples.trainRuns; track row.id + row.variantId) {
+            <button
+              mat-list-item
+              type="button"
+              class="admin-settings__list-item admin-settings__list-item--clickable"
+              [class.admin-settings__list-item--active]="isSelected(buildSampleKey('trainRuns', row.id, row.variantId))"
+              (click)="selectSample('trainRuns', buildSampleKey('trainRuns', row.id, row.variantId), row.trainNumber + ' | ' + row.id, row.raw)"
+            >
+              <div class="admin-settings__list-row">
+                <strong>{{ row.trainNumber }}</strong>
+                <span>{{ row.id }}</span>
+                <span class="admin-settings__list-meta">{{ row.stageId }} &middot; {{ row.variantId }}</span>
+                </div>
+              </button>
+            }
+          </mat-action-list>
+        } @else {
+          <p class="admin-settings__empty">Keine Eintr&auml;ge.</p>
+        }
+      </mat-card>
+
+      <mat-card class="admin-settings__card">
+        <div class="admin-settings__card-header">
+          <h3>Train Segments (Sample)</h3>
+          <span class="admin-settings__meta">Limit {{ summary.sampleLimit }}</span>
+        </div>
+        @if (summary.samples.trainSegments.length) {
+        <mat-action-list class="admin-settings__list">
+          @for (row of summary.samples.trainSegments; track row.id + row.variantId) {
+            <button
+              mat-list-item
+              type="button"
+              class="admin-settings__list-item admin-settings__list-item--clickable"
+              [class.admin-settings__list-item--active]="isSelected(buildSampleKey('trainSegments', row.id, row.variantId))"
+              (click)="selectSample('trainSegments', buildSampleKey('trainSegments', row.id, row.variantId), row.id + ' | ' + row.trainRunId, row.raw)"
+            >
+              <div class="admin-settings__list-row">
+                <strong>{{ row.id }}</strong>
+                <span>{{ row.startTime }} &rarr; {{ row.endTime }}</span>
+                <span class="admin-settings__list-meta">
+                  {{ row.trainRunId }} &middot; {{ row.stageId }} &middot; {{ row.variantId }}
+                </span>
+                </div>
+              </button>
+            }
+          </mat-action-list>
+        } @else {
+          <p class="admin-settings__empty">Keine Eintr&auml;ge.</p>
+        }
+      </mat-card>
+    </div>
+
+    <mat-card class="admin-settings__card admin-settings__detail">
+      <div class="admin-settings__card-header">
+        <h3>Eintrag (Details)</h3>
+        @if (selectedSampleTitle(); as title) {
+          <span class="admin-settings__meta">{{ title }}</span>
+        }
+      </div>
+      @if (selectedSample(); as selected) {
+        <pre class="admin-settings__json">{{ selectedSampleJson() }}</pre>
+      } @else {
+        <p class="admin-settings__empty">Eintrag anklicken, um die komplette Zeile zu sehen.</p>
+      }
+    </mat-card>
+  }
+</section>

@@ -211,16 +211,6 @@ export class PlanningDashboardActivityHandlersFacade {
   }
 
   private shouldPersistToTemplate(activityId: string): boolean {
-    const id = (activityId ?? '').toString();
-    if (
-      id.startsWith('svcstart:') ||
-      id.startsWith('svcend:') ||
-      id.startsWith('svcbreak:') ||
-      id.startsWith('svcshortbreak:') ||
-      id.startsWith('svccommute:')
-    ) {
-      return false;
-    }
     return true;
   }
 

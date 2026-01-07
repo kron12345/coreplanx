@@ -94,6 +94,7 @@ export function initSelectionMaintenanceEffects(deps: {
   activeStageSignal: () => PlanningStageId;
   normalizedStageActivitySignals: Record<PlanningStageId, Signal<Activity[]>>;
   activitySelection: PlanningDashboardActivitySelectionFacade;
+  pendingActivitySignal: { (): { stage: PlanningStageId; activity: Activity } | null };
   moveTargetOptions: () => Resource[];
   activityMoveTargetSignal: { set: (val: string) => void; (): string };
 }): void {
@@ -108,6 +109,27 @@ export function initSelectionMaintenanceEffects(deps: {
     const filtered = Array.from(currentSelection).filter((id) => validIds.has(id));
     if (filtered.length !== currentSelection.size) {
       deps.activitySelection.selectedActivityIds.set(new Set(filtered));
+    }
+  });
+
+  effect(() => {
+    const stage = deps.activeStageSignal();
+    const activities = deps.normalizedStageActivitySignals[stage]();
+    const selected = deps.activitySelection.selectedActivityState();
+    if (!selected) {
+      return;
+    }
+    const pending = deps.pendingActivitySignal();
+    if (pending && deps.activitySelection.isPendingSelection(selected.activity.id, pending, stage)) {
+      return;
+    }
+    if (activities.some((activity) => activity.id === selected.activity.id)) {
+      return;
+    }
+    deps.activitySelection.selectedActivityState.set(null);
+    const slot = deps.activitySelection.selectedActivitySlot();
+    if (slot?.activityId === selected.activity.id) {
+      deps.activitySelection.selectedActivitySlot.set(null);
     }
   });
 

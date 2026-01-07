@@ -885,7 +885,7 @@
               color="warn"
               type="button"
               (click)="deleteActivitySelection()"
-              [disabled]="selectedActivities().length === 0"
+              [disabled]="selectedActivities().length === 0 || deletableSelectionCount() === 0"
             >
               Auswahl löschen
             </button>
@@ -904,6 +904,9 @@
             {{ activityTypeLabel(selected.activity.type) }}
             @if (isSelectedActivityPending()) {
               <span class="planning-panel__badge">Entwurf</span>
+            }
+            @if (selectedActivityIsManaged()) {
+              <span class="planning-panel__badge">System</span>
             }
           </div>
         </div>
@@ -1372,7 +1375,13 @@
             >
               Als Vorlage
             </button>
-            <button mat-button color="warn" type="button" (click)="deleteSelectedActivity()">
+            <button
+              mat-button
+              color="warn"
+              type="button"
+              (click)="deleteSelectedActivity()"
+              [disabled]="selectedActivityIsManaged()"
+            >
               Löschen
             </button>
             <button

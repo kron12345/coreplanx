@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListene
 import { CommonModule } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuTrigger } from '@angular/material/menu';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import { GanttComponent } from '../../gantt/gantt.component';
@@ -380,6 +381,7 @@ export class PlanningDashboardComponent {
     this.loadActivityTypePickerState().recents,
   );
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly activityEditPreviewSignal = signal<ActivityEditPreviewState | null>(null);
   protected readonly selectedTemplateId = computed(() => this.templateStore.selectedTemplateWithFallback()?.id ?? null);
   private readonly queryFrom = signal<string | null>(null);
@@ -659,12 +661,26 @@ export class PlanningDashboardComponent {
     { resourceIdsRef: string[]; stageActivitiesRef: Activity[]; result: Activity[] }
   >();
   private readonly lastViewportByBoard = new Map<string, PlanningTimelineRange>();
+  private lastActivityErrorMessage: string | null = null;
 
   @ViewChild('typeSearchInput') private readonly typeSearchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('typeMenuTrigger') private readonly typeMenuTrigger?: MatMenuTrigger;
 
   constructor() {
     this.planningStore.ensureInitialized();
+    effect(() => {
+      const stage = this.activeStageSignal();
+      const error = this.activityError(stage)();
+      if (!error) {
+        this.lastActivityErrorMessage = null;
+        return;
+      }
+      if (error === this.lastActivityErrorMessage) {
+        return;
+      }
+      this.lastActivityErrorMessage = error;
+      this.snackBar.open(error, 'OK', { duration: 6000 });
+    });
     this.activityForm.controls['from'].valueChanges
       .pipe(
         startWith(this.activityForm.controls['from'].value ?? ''),
@@ -757,6 +773,7 @@ export class PlanningDashboardComponent {
       activeStageSignal: () => this.activeStageSignal(),
       normalizedStageActivitySignals: this.normalizedStageActivitySignals,
       activitySelection: this.activitySelection,
+      pendingActivitySignal: this.pendingActivitySignal,
       moveTargetOptions: this.moveTargetOptions,
       activityMoveTargetSignal: this.activityMoveTargetSignal,
     });
@@ -1047,6 +1064,13 @@ export class PlanningDashboardComponent {
 
   protected readonly selectedActivity = this.selectionState.selectedActivity;
   protected readonly selectedActivities = this.selectionState.selectedActivities;
+  protected readonly selectedActivityIsManaged = computed(() => {
+    const selection = this.selectedActivity();
+    return selection ? this.isManagedActivity(selection.activity) : false;
+  });
+  protected readonly deletableSelectionCount = computed(() =>
+    this.selectedActivities().filter((item) => !this.isManagedActivity(item.activity)).length,
+  );
   protected readonly selectedActivityIdsArray = this.selectionState.selectedActivityIdsArray;
   protected readonly selectedActivitySlot = this.selectionState.selectedActivitySlot;
   protected readonly moveTargetOptions = () => this.selectionState.moveTargetOptions();
@@ -1799,7 +1823,17 @@ export class PlanningDashboardComponent {
 
   protected saveSelectedActivityEdits(): void { this.selectionHandlers.saveSelectedActivityEdits(); }
 
-  protected deleteSelectedActivity(): void { this.selectionHandlers.deleteSelectedActivity(); }
+  protected deleteSelectedActivity(): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
+    if (this.isManagedActivity(selection.activity)) {
+      this.notifyManagedDeleteBlocked(1);
+      return;
+    }
+    this.selectionHandlers.deleteSelectedActivity();
+  }
 
   protected duplicateSelectedActivity(): void {
     const selection = this.activitySelection.selectedActivityState();
@@ -1968,11 +2002,20 @@ export class PlanningDashboardComponent {
     if (count === 0) {
       return;
     }
+    const deletable = this.selectedActivities().filter((item) => !this.isManagedActivity(item.activity));
+    if (deletable.length === 0) {
+      this.notifyManagedDeleteBlocked(count);
+      return;
+    }
+    if (deletable.length !== count) {
+      this.notifyManagedDeleteBlocked(count - deletable.length);
+      this.activitySelection.selectedActivityIds.set(new Set(deletable.map((item) => item.activity.id)));
+    }
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '520px',
       data: {
         title: 'Auswahl löschen?',
-        message: `${count} Aktivität(en) werden gelöscht. Fortfahren?`,
+        message: `${deletable.length} Aktivität(en) werden gelöscht. Fortfahren?`,
         confirmLabel: 'Löschen',
         cancelLabel: 'Abbrechen',
       } satisfies ConfirmDialogData,
@@ -1982,6 +2025,25 @@ export class PlanningDashboardComponent {
         this.selectionHandlers.deleteSelection();
       }
     });
+  }
+
+  protected isManagedActivity(activity: Activity | null | undefined): boolean {
+    const id = (activity?.id ?? '').toString();
+    return (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    );
+  }
+
+  private notifyManagedDeleteBlocked(count: number): void {
+    const message =
+      count === 1
+        ? 'Systemvorgaben können nicht gelöscht werden.'
+        : `Systemvorgaben (${count}) können nicht gelöscht werden.`;
+    this.snackBar.open(message, 'OK', { duration: 5000 });
   }
 
   protected shiftSelectedActivityBy(deltaMinutes: number): void { this.selectionHandlers.shiftSelectedActivityBy(deltaMinutes); }

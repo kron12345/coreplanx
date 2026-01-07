@@ -46,6 +46,7 @@ export class PlanningBaseDataController {
       stageDataSignal: WritableSignalLike<Record<PlanningStageId, PlanningStageData>>;
       stageViewportSignal: WritableSignalLike<StageViewportMap>;
       timelineErrorSignal: WritableSignalLike<Record<PlanningStageId, string | null>>;
+      activityErrorSignal: WritableSignalLike<Record<PlanningStageId, string | null>>;
       setStageLoading: (stage: PlanningStageId, value: boolean) => void;
       invalidateViewportSignature: (stage: PlanningStageId) => void;
       scheduleViewportSync: (stage: PlanningStageId) => void;
@@ -283,6 +284,7 @@ export class PlanningBaseDataController {
       attributes: nextAttributes,
     });
     const context = this.deps.currentApiContext();
+    this.deps.activityErrorSignal.update((state) => ({ ...state, base: null }));
 
     this.deps.debug.log('info', 'api', 'Basis: Template-Aktivität speichern', {
       stageId: 'base',
@@ -317,12 +319,20 @@ export class PlanningBaseDataController {
               templatePattern: (attrs[TEMPLATE_PATTERN_KEY] ?? null) as Record<string, unknown> | null,
             },
           });
+          this.deps.activityErrorSignal.update((state) => ({ ...state, base: null }));
+          if (saved.id !== baseId) {
+            this.removeTemplateActivityFamily(baseId);
+          }
           this.applyTemplateActivity(saved);
           this.lastBaseTimelineSignature = null;
           this.reloadBaseTimeline();
         }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to upsert template activity', error);
+          this.deps.activityErrorSignal.update((state) => ({
+            ...state,
+            base: this.describeActivitySyncError(error),
+          }));
           this.deps.debug.reportApiError('Template-Aktivität konnte nicht gespeichert werden.', error, {
             stageId: 'base',
             templateId,
@@ -335,11 +345,13 @@ export class PlanningBaseDataController {
   }
 
   deleteTemplateActivity(templateId: string, activityId: string): void {
+    this.deps.activityErrorSignal.update((state) => ({ ...state, base: null }));
     this.deps.timelineApi
       .deleteTemplateActivity(templateId, activityId, this.deps.currentApiContext())
       .pipe(
         take(1),
         tap(() => {
+          this.deps.activityErrorSignal.update((state) => ({ ...state, base: null }));
           this.removeTemplateActivity(activityId);
           // Auch reflektierte Instanzen (id@datum) entfernen.
           this.deps.stageDataSignal.update((record) => {
@@ -362,6 +374,15 @@ export class PlanningBaseDataController {
         }),
         catchError((error) => {
           console.warn('[PlanningDataService] Failed to delete template activity', error);
+          this.deps.activityErrorSignal.update((state) => ({
+            ...state,
+            base: this.describeActivitySyncError(error),
+          }));
+          this.deps.debug.reportApiError('Template-Aktivität konnte nicht gelöscht werden.', error, {
+            stageId: 'base',
+            templateId,
+            activityId,
+          });
           return EMPTY;
         }),
       )
@@ -426,6 +447,26 @@ export class PlanningBaseDataController {
     this.deps.stageDataSignal.update((record) => {
       const baseStage = record.base;
       const filtered = baseStage.activities.filter((activity) => activity.id !== activityId);
+      if (filtered === baseStage.activities) {
+        return record;
+      }
+      return {
+        ...record,
+        base: {
+          ...baseStage,
+          activities: this.attachServiceWorktimeToBaseActivities(filtered),
+        },
+      };
+    });
+  }
+
+  private removeTemplateActivityFamily(baseId: string): void {
+    this.deps.stageDataSignal.update((record) => {
+      const baseStage = record.base;
+      const filtered = baseStage.activities.filter((activity) => {
+        const candidateBase = activity.id.split('@')[0] ?? activity.id;
+        return activity.id !== baseId && candidateBase !== baseId;
+      });
       if (filtered === baseStage.activities) {
         return record;
       }
@@ -643,6 +684,36 @@ export class PlanningBaseDataController {
       worktimeByService.set(serviceId, Math.max(0, total - breakMs));
     });
     return worktimeByService;
+  }
+
+  private describeActivitySyncError(error: unknown): string {
+    const fallback = 'Änderungen konnten nicht gespeichert werden.';
+    const anyError = error as any;
+    const payload = anyError?.error;
+    const message =
+      typeof payload?.message === 'string'
+        ? payload.message
+        : Array.isArray(payload?.message)
+          ? payload.message.filter((entry: any) => typeof entry === 'string').join(' · ')
+          : null;
+    const violations = Array.isArray(payload?.violations) ? payload.violations : [];
+    if (violations.length) {
+      const first = violations[0] as Record<string, unknown>;
+      const detail = typeof first['message'] === 'string' ? (first['message'] as string) : null;
+      const ownerId = typeof first['ownerId'] === 'string' ? (first['ownerId'] as string) : null;
+      const activityId = typeof first['activityId'] === 'string' ? (first['activityId'] as string) : null;
+      const context = ownerId ?? activityId ?? null;
+      const suffix = context && detail ? `${context}: ${detail}` : detail;
+      if (message && suffix) {
+        return `${message} (${suffix})`;
+      }
+      return message ?? suffix ?? fallback;
+    }
+    if (message) {
+      return message;
+    }
+    const generic = typeof anyError?.message === 'string' ? anyError.message : null;
+    return generic ?? fallback;
   }
 
   private parseTimestamp(value: string | null | undefined): number | null {
