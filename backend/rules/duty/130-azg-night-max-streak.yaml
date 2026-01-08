@@ -3,5 +3,6 @@ kind: constraint
 executor: azg/night-max-streak
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   maxConsecutive: 7 # (AZG Art. 9 Abs. 3)
-

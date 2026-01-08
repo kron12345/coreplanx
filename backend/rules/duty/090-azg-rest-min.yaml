@@ -3,5 +3,6 @@ kind: constraint
 executor: azg/rest-min
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   minMinutes: 660 # 11h (AZG Art. 8 Abs. 1)
-

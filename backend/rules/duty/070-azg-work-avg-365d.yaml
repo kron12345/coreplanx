@@ -3,6 +3,7 @@ kind: constraint
 executor: azg/work-avg-365d
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   windowDays: 365
   maxAverageMinutes: 420 # 7h (AZG Art. 4 Abs. 1)
-

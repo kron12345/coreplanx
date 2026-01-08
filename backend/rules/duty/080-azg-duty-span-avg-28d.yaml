@@ -3,6 +3,7 @@ kind: constraint
 executor: azg/duty-span-avg-28d
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   windowDays: 28
   maxAverageMinutes: 720 # 12h (AZG Art. 6 Abs. 1)
-

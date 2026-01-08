@@ -303,6 +303,35 @@ export class TimetableYearService {
     return `Fahrplanjahr ${index + 1}`;
   }
 
+  private sameRecords(a: TimetableYearRecord[], b: TimetableYearRecord[]): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i += 1) {
+      const left = a[i];
+      const right = b[i];
+      if (!right) {
+        return false;
+      }
+      if (left.id !== right.id) {
+        return false;
+      }
+      if (left.label !== right.label) {
+        return false;
+      }
+      if ((left.startIso ?? '') !== (right.startIso ?? '')) {
+        return false;
+      }
+      if ((left.endIso ?? '') !== (right.endIso ?? '')) {
+        return false;
+      }
+      if ((left.description ?? '') !== (right.description ?? '')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private normalizeIsoDate(value: string | undefined | null): string {
     if (!value) {
       return '';
@@ -401,9 +430,8 @@ export class TimetableYearService {
       ),
     ).sort();
 
-    const existingByLabel = new Map(
-      this.managedRecords().map((record) => [record.label, record] as const),
-    );
+    const current = this.managedRecords();
+    const existingByLabel = new Map(current.map((record) => [record.label, record] as const));
 
     const next = cleaned.map((label, index) => {
       const existing = existingByLabel.get(label);
@@ -414,6 +442,9 @@ export class TimetableYearService {
     });
 
     this.backendYearLabels.set(new Set(cleaned));
+    if (this.sameRecords(current, next)) {
+      return;
+    }
     this.managedRecords.set(next);
     this.persistManagedRecords();
   }

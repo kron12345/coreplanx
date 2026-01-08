@@ -190,7 +190,10 @@ export class PlanningBaseDataController {
     const baseId = dayScopedMatch?.[1] ?? (activity.id.split('@')[0] ?? activity.id);
     const serviceDayIso = dayScopedMatch?.[2] ?? null;
     const baseResources = this.deps.stageDataSignal().base.resources;
-    const normalizedActivity = normalizeActivityParticipants([activity], baseResources)[0] ?? activity;
+    const normalizedActivity =
+      this.ensureSingleServiceOwnerForManagedActivity(
+        normalizeActivityParticipants([activity], baseResources)[0] ?? activity,
+      );
 
     const parsedStartMs = Date.parse(normalizedActivity.start);
     const startDate = Number.isFinite(parsedStartMs) ? new Date(parsedStartMs) : null;
@@ -764,6 +767,50 @@ export class PlanningBaseDataController {
     }
     const id = (activity.id ?? '').toString();
     return id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:');
+  }
+
+  private ensureSingleServiceOwnerForManagedActivity(activity: Activity): Activity {
+    if (!this.isBreakActivity(activity) && !this.isServiceStartActivity(activity) && !this.isServiceEndActivity(activity)) {
+      return activity;
+    }
+    const participants = activity.participants ?? [];
+    if (participants.length === 0) {
+      return activity;
+    }
+    const serviceOwners = participants.filter(
+      (participant) =>
+        participant.kind === 'personnel-service' || participant.kind === 'vehicle-service',
+    );
+    if (serviceOwners.length <= 1) {
+      return activity;
+    }
+    const preferredKind = activity.serviceCategory ?? null;
+    const preferredOwner =
+      (preferredKind
+        ? serviceOwners.find((participant) => participant.kind === preferredKind)
+        : null) ??
+      serviceOwners.find(
+        (participant) =>
+          participant.role === 'primary-personnel' || participant.role === 'primary-vehicle',
+      ) ??
+      serviceOwners[0];
+    if (!preferredOwner) {
+      return activity;
+    }
+    const keepIds = new Set([preferredOwner.resourceId]);
+    const nextParticipants = participants.filter((participant) => {
+      if (participant.kind !== 'personnel-service' && participant.kind !== 'vehicle-service') {
+        return true;
+      }
+      return keepIds.has(participant.resourceId);
+    });
+    if (nextParticipants.length === participants.length) {
+      return activity;
+    }
+    return {
+      ...activity,
+      participants: nextParticipants,
+    };
   }
 
   private toBool(value: unknown): boolean {

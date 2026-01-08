@@ -3,6 +3,7 @@ import { EMPTY, Observable, forkJoin, of } from 'rxjs';
 import { catchError, finalize, map, take, tap } from 'rxjs/operators';
 import { TimetableYearApiService } from '../api/timetable-year-api.service';
 import { SimulationRecord } from '../models/simulation.model';
+import type { TimetableYearBounds } from '../models/timetable-year.model';
 import { TimetableYearService } from './timetable-year.service';
 
 @Injectable({ providedIn: 'root' })
@@ -13,14 +14,22 @@ export class SimulationService {
   private readonly errorSignal = signal<string | null>(null);
   private readonly timetableYears = inject(TimetableYearService);
   private readonly timetableYearBounds = this.timetableYears.managedYearBoundsSignal();
+  private readonly refreshThrottleMs = 1000;
+  private lastRefreshAt = 0;
+  private refreshQueued = false;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastBoundsSignature: string | null = null;
 
   constructor() {
     effect(() => {
       // Refresh variants when timetable years change (productives are created per year).
-      this.timetableYearBounds();
+      const signature = this.boundsSignature(this.timetableYearBounds());
+      if (signature === this.lastBoundsSignature) {
+        return;
+      }
+      this.lastBoundsSignature = signature;
       this.refresh();
     });
-    this.refresh();
   }
 
   readonly records = computed(() => this._records());
@@ -41,8 +50,19 @@ export class SimulationService {
 
   refresh(): void {
     if (this.loadingSignal()) {
+      this.refreshQueued = true;
       return;
     }
+    const now = Date.now();
+    const cooldown = this.refreshThrottleMs - (now - this.lastRefreshAt);
+    if (cooldown > 0) {
+      this.refreshQueued = true;
+      this.scheduleRefresh(cooldown);
+      return;
+    }
+    this.clearRefreshTimer();
+    this.refreshQueued = false;
+    this.lastRefreshAt = now;
     this.loadingSignal.set(true);
     this.api
       .listVariants()
@@ -58,7 +78,13 @@ export class SimulationService {
           this.errorSignal.set('Simulationen konnten nicht geladen werden.');
           return EMPTY;
         }),
-        finalize(() => this.loadingSignal.set(false)),
+        finalize(() => {
+          this.loadingSignal.set(false);
+          if (this.refreshQueued) {
+            this.refreshQueued = false;
+            this.refresh();
+          }
+        }),
       )
       .subscribe();
   }
@@ -122,5 +148,32 @@ export class SimulationService {
       description: variant.description ?? undefined,
       productive: variant.kind === 'productive',
     };
+  }
+
+  private boundsSignature(bounds: TimetableYearBounds[]): string {
+    if (!bounds.length) {
+      return '';
+    }
+    return bounds
+      .map((entry) => `${entry.label}|${entry.startIso}|${entry.endIso}`)
+      .join('||');
+  }
+
+  private scheduleRefresh(delayMs: number): void {
+    if (this.refreshTimer !== null) {
+      return;
+    }
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      this.refresh();
+    }, Math.max(0, delayMs));
+  }
+
+  private clearRefreshTimer(): void {
+    if (this.refreshTimer === null) {
+      return;
+    }
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = null;
   }
 }

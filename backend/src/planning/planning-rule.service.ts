@@ -7,6 +7,7 @@ import type {
   PlanningRule,
   PlanningRuleKind,
   PlanningRuleFormat,
+  ResourceKind,
   StageId,
 } from './planning.types';
 import { PlanningRuleRepository } from './planning-rule.repository';
@@ -35,23 +36,24 @@ export interface DutyAutopilotConfig {
   azg: {
     enabled: boolean;
     exceedBufferMinutes: number;
-    workAvg7d: { enabled: boolean; windowWorkdays: number; maxAverageMinutes: number };
-    workAvg365d: { enabled: boolean; windowDays: number; maxAverageMinutes: number };
-    dutySpanAvg28d: { enabled: boolean; windowDays: number; maxAverageMinutes: number };
-    restMin: { enabled: boolean; minMinutes: number };
-    restAvg28d: { enabled: boolean; windowDays: number; minAverageMinutes: number };
+    workAvg7d: { enabled: boolean; windowWorkdays: number; maxAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
+    workAvg365d: { enabled: boolean; windowDays: number; maxAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
+    dutySpanAvg28d: { enabled: boolean; windowDays: number; maxAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
+    restMin: { enabled: boolean; minMinutes: number; resourceKinds?: ResourceKind[] | null };
+    restAvg28d: { enabled: boolean; windowDays: number; minAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
     breakMaxCount: { enabled: boolean; maxCount: number };
     breakForbiddenNight: { enabled: boolean; startHour: number; endHour: number };
     breakStandard: { enabled: boolean; minMinutes: number };
     breakMidpoint: { enabled: boolean; toleranceMinutes: number };
     breakInterruption: { enabled: boolean; minMinutes: number; maxDutyMinutes: number; maxWorkMinutes: number };
-    nightMaxStreak: { enabled: boolean; maxConsecutive: number };
-    nightMax28d: { enabled: boolean; windowDays: number; maxCount: number };
+    nightMaxStreak: { enabled: boolean; maxConsecutive: number; resourceKinds?: ResourceKind[] | null };
+    nightMax28d: { enabled: boolean; windowDays: number; maxCount: number; resourceKinds?: ResourceKind[] | null };
     restDaysYear: {
       enabled: boolean;
       minRestDays: number;
       minSundayRestDays: number;
       additionalSundayLikeHolidays: string[];
+      resourceKinds?: ResourceKind[] | null;
     };
   };
 }
@@ -242,6 +244,10 @@ export class PlanningRuleService {
       }
       return [];
     };
+    const pickResourceKinds = (ruleId: string): ResourceKind[] | null => {
+      const rule = rules.find((r) => r.id === ruleId && r.enabled);
+      return this.normalizeResourceKinds(rule?.params?.['resourceKinds']);
+    };
 
     return {
       serviceStartTypeId,
@@ -271,25 +277,30 @@ export class PlanningRuleService {
           enabled: isRuleEnabled('azg.work_avg_7d'),
           windowWorkdays: pickInt('azg.work_avg_7d', 'windowWorkdays', 7),
           maxAverageMinutes: pickInt('azg.work_avg_7d', 'maxAverageMinutes', 540),
+          resourceKinds: pickResourceKinds('azg.work_avg_7d'),
         },
         workAvg365d: {
           enabled: isRuleEnabled('azg.work_avg_365d'),
           windowDays: pickInt('azg.work_avg_365d', 'windowDays', 365),
           maxAverageMinutes: pickInt('azg.work_avg_365d', 'maxAverageMinutes', 420),
+          resourceKinds: pickResourceKinds('azg.work_avg_365d'),
         },
         dutySpanAvg28d: {
           enabled: isRuleEnabled('azg.duty_span_avg_28d'),
           windowDays: pickInt('azg.duty_span_avg_28d', 'windowDays', 28),
           maxAverageMinutes: pickInt('azg.duty_span_avg_28d', 'maxAverageMinutes', 720),
+          resourceKinds: pickResourceKinds('azg.duty_span_avg_28d'),
         },
         restMin: {
           enabled: isRuleEnabled('azg.rest_min'),
           minMinutes: pickInt('azg.rest_min', 'minMinutes', 660),
+          resourceKinds: pickResourceKinds('azg.rest_min'),
         },
         restAvg28d: {
           enabled: isRuleEnabled('azg.rest_avg_28d'),
           windowDays: pickInt('azg.rest_avg_28d', 'windowDays', 28),
           minAverageMinutes: pickInt('azg.rest_avg_28d', 'minAverageMinutes', 720),
+          resourceKinds: pickResourceKinds('azg.rest_avg_28d'),
         },
         breakMaxCount: {
           enabled: isRuleEnabled('azg.break_max_count'),
@@ -317,17 +328,20 @@ export class PlanningRuleService {
         nightMaxStreak: {
           enabled: isRuleEnabled('azg.night_max_streak'),
           maxConsecutive: pickInt('azg.night_max_streak', 'maxConsecutive', 7),
+          resourceKinds: pickResourceKinds('azg.night_max_streak'),
         },
         nightMax28d: {
           enabled: isRuleEnabled('azg.night_max_28d'),
           windowDays: pickInt('azg.night_max_28d', 'windowDays', 28),
           maxCount: pickInt('azg.night_max_28d', 'maxCount', 14),
+          resourceKinds: pickResourceKinds('azg.night_max_28d'),
         },
         restDaysYear: {
           enabled: isRuleEnabled('azg.rest_days_year'),
           minRestDays: pickInt('azg.rest_days_year', 'minRestDays', 62),
           minSundayRestDays: pickInt('azg.rest_days_year', 'minSundayRestDays', 20),
           additionalSundayLikeHolidays: pickStringList('azg.rest_days_year', 'additionalSundayLikeHolidays'),
+          resourceKinds: pickResourceKinds('azg.rest_days_year'),
         },
       },
     };
@@ -472,6 +486,44 @@ export class PlanningRuleService {
       return {};
     }
     return value as Record<string, unknown>;
+  }
+
+  private normalizeResourceKinds(value: unknown): ResourceKind[] | null {
+    const entries: string[] = [];
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === 'string') {
+          const trimmed = entry.trim();
+          if (trimmed) {
+            entries.push(trimmed);
+          }
+        }
+      }
+    } else if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        trimmed.split(',').forEach((part) => {
+          const normalized = part.trim();
+          if (normalized) {
+            entries.push(normalized);
+          }
+        });
+      }
+    }
+    if (!entries.length) {
+      return null;
+    }
+    const allowed = new Set<ResourceKind>([
+      'personnel',
+      'vehicle',
+      'personnel-service',
+      'vehicle-service',
+    ]);
+    const filtered = entries.filter((entry) => allowed.has(entry as ResourceKind)) as ResourceKind[];
+    if (!filtered.length) {
+      return null;
+    }
+    return Array.from(new Set(filtered));
   }
 
   private resolveDutyRulesDir(): string | null {

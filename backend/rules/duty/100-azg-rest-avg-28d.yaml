@@ -3,6 +3,7 @@ kind: constraint
 executor: azg/rest-avg-28d
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   windowDays: 28
   minAverageMinutes: 720 # 12h (AZG Art. 8 Abs. 1)
-

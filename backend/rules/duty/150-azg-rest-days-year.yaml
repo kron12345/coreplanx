@@ -3,7 +3,8 @@ kind: constraint
 executor: azg/rest-days-year
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   minRestDays: 62 # (AZG Art. 10 Abs. 1)
   minSundayRestDays: 20 # (AZG Art. 10 Abs. 1)
   additionalSundayLikeHolidays: []
-

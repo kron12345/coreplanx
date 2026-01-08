@@ -1454,7 +1454,11 @@ export class DutyAutopilotService {
       pauseActivities.push(breakActivity);
     });
 
-    const localConflictCodes = this.detectLocalConflicts([...basePayloadActivities, ...generatedCommutes, ...pauseCommutes]);
+    const localConflictCodes = this.detectLocalConflicts([
+      ...basePayloadActivities,
+      ...generatedCommutes,
+      ...pauseCommutes,
+    ]);
     const localUnion = Array.from(
       new Set(
         Array.from(localConflictCodes.values()).flatMap((codes) => Array.from(codes)),
@@ -2226,32 +2230,88 @@ export class DutyAutopilotService {
       );
     };
     const isBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds);
+    const isManagedForConflicts = (activity: Activity) => {
+      if (!this.isManagedId(activity.id)) {
+        return false;
+      }
+      const type = (activity.type ?? '').trim();
+      if (!type) {
+        return true;
+      }
+      if (boundaryTypeIds.has(type)) {
+        return true;
+      }
+      if (breakTypeIds.some((id) => id === type) || type === config.shortBreakTypeId) {
+        return true;
+      }
+      if (type === config.commuteTypeId) {
+        return true;
+      }
+      return false;
+    };
 
     const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
     const updated = new Map<string, Activity>();
 
     const grouping = this.buildComplianceGrouping(stageId, activities, config);
     const groups = grouping.groups;
+    const isTimelineOwner = (owner: ActivityParticipant) =>
+      owner.kind === 'personnel' || owner.kind === 'vehicle';
+    const globalLocationConflictsByOwner = new Map<string, Map<string, Set<string>>>();
+    grouping.ownerBuckets.forEach(({ owner, activities: ownerActivities }, ownerId) => {
+      if (!isTimelineOwner(owner)) {
+        return;
+      }
+      const conflicts = this.detectLocalConflicts(ownerActivities, {
+        includeCapacity: false,
+        includeLocation: true,
+        skipMissingLocations: true,
+      });
+      if (conflicts.size) {
+        globalLocationConflictsByOwner.set(ownerId, conflicts);
+      }
+    });
     for (const group of groups) {
       const serviceId = group.serviceId;
       const ownerId = group.owner.resourceId;
       const payloadActivities = group.activities
         .filter((activity) => !isBoundary(activity))
         .filter((activity) => !isBreak(activity))
-        .filter((activity) => !this.isManagedId(activity.id));
+        .filter((activity) => !isManagedForConflicts(activity));
 
-      const localConflicts = this.detectLocalConflicts(payloadActivities);
+      const capacityConflicts = this.detectLocalConflicts(payloadActivities, {
+        includeLocation: false,
+      });
+      const locationActivities = group.activities;
+      const locationConflicts = this.detectLocalConflicts(locationActivities, {
+        includeCapacity: false,
+        includeLocation: true,
+        skipMissingLocations: true,
+      });
+      const localConflicts = new Map<string, Set<string>>();
+      this.mergeConflictMaps(localConflicts, capacityConflicts);
+      this.mergeConflictMaps(localConflicts, locationConflicts);
       const unionCodes = this.normalizeConflictCodes(
         Array.from(new Set(Array.from(localConflicts.values()).flatMap((set) => Array.from(set)))),
       );
+      const globalLocationConflicts = isTimelineOwner(group.owner)
+        ? globalLocationConflictsByOwner.get(ownerId)
+        : undefined;
 
       for (const groupActivity of group.activities) {
         const current = byId.get(groupActivity.id) ?? groupActivity;
         const scopeCodes = this.withinServiceConflictCodes(this.resolveWithinPreference(current), true);
         const desiredLocalCodes =
-          this.isManagedId(current.id) || isBoundary(current) || isBreak(current)
+          isManagedForConflicts(current) || isBoundary(current) || isBreak(current)
             ? unionCodes
-            : this.normalizeConflictCodes(Array.from(localConflicts.get(current.id) ?? []));
+            : (() => {
+                const localCodes = new Set(localConflicts.get(current.id) ?? []);
+                const globalCodes = globalLocationConflicts?.get(current.id);
+                if (globalCodes) {
+                  globalCodes.forEach((code) => localCodes.add(code));
+                }
+                return this.normalizeConflictCodes(Array.from(localCodes));
+              })();
 
         const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
         const preserved = baseCodes.filter((code) => !managedLocalCodes.has(code));
@@ -2259,7 +2319,7 @@ export class DutyAutopilotService {
         const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
 
         const next =
-          this.isManagedId(current.id) || isBoundary(current)
+          isManagedForConflicts(current) || isBoundary(current)
             ? this.applyDutyMeta(current, serviceId, level, merged, conflictKey, conflictCodesKey)
             : this.applyDutyAssignment(
                 current,
@@ -2276,6 +2336,52 @@ export class DutyAutopilotService {
       }
     }
 
+    const unassignedLocalConflictsByOwner = new Map<string, Map<string, Set<string>>>();
+    grouping.ownerBuckets.forEach(({ activities: ownerActivities }, ownerId) => {
+      const assignments = grouping.assignmentByOwnerId.get(ownerId);
+      const unassignedPayload = ownerActivities
+        .filter((activity) => !(assignments?.get(activity.id) ?? null))
+        .filter((activity) => !isBoundary(activity))
+        .filter((activity) => !isBreak(activity))
+        .filter((activity) => !isManagedForConflicts(activity));
+      if (!unassignedPayload.length) {
+        return;
+      }
+      const byDay = new Map<string, Activity[]>();
+      unassignedPayload.forEach((activity) => {
+        const dayKey = this.utcDayKey(activity.start);
+        const list = byDay.get(dayKey);
+        if (list) {
+          list.push(activity);
+        } else {
+          byDay.set(dayKey, [activity]);
+        }
+      });
+      const merged = new Map<string, Set<string>>();
+      byDay.forEach((list) => {
+        const conflicts = this.detectLocalConflicts(list);
+        conflicts.forEach((codes, activityId) => {
+          let set = merged.get(activityId);
+          if (!set) {
+            set = new Set<string>();
+            merged.set(activityId, set);
+          }
+          codes.forEach((code) => set.add(code));
+        });
+      });
+      const ownerEntry = grouping.ownerBuckets.get(ownerId);
+      const globalLocationConflicts =
+        ownerEntry && isTimelineOwner(ownerEntry.owner)
+          ? globalLocationConflictsByOwner.get(ownerId)
+          : undefined;
+      if (globalLocationConflicts) {
+        this.mergeConflictMaps(merged, globalLocationConflicts);
+      }
+      if (merged.size) {
+        unassignedLocalConflictsByOwner.set(ownerId, merged);
+      }
+    });
+
     grouping.ownerBuckets.forEach(({ activities: ownerActivities }, ownerId) => {
       const assignments = grouping.assignmentByOwnerId.get(ownerId);
       for (const entry of ownerActivities) {
@@ -2284,13 +2390,17 @@ export class DutyAutopilotService {
           continue;
         }
         const current = byId.get(entry.id) ?? entry;
-        if (this.isManagedId(current.id) || isBoundary(current)) {
+        if (isManagedForConflicts(current) || isBoundary(current)) {
           continue;
         }
+        const localConflicts = unassignedLocalConflictsByOwner.get(ownerId);
+        const desiredLocalCodes = this.normalizeConflictCodes(
+          Array.from(localConflicts?.get(current.id) ?? []),
+        );
         const scopeCodes = this.withinServiceConflictCodes(this.resolveWithinPreference(current), false);
         const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
         const preserved = baseCodes.filter((code) => !managedLocalCodes.has(code));
-        const merged = this.normalizeConflictCodes([...preserved, ...scopeCodes]);
+        const merged = this.normalizeConflictCodes([...preserved, ...desiredLocalCodes, ...scopeCodes]);
         const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
         const next = this.applyDutyAssignment(
           current,
@@ -2309,7 +2419,14 @@ export class DutyAutopilotService {
     return Array.from(updated.values());
   }
 
-  private detectLocalConflicts(payloadActivities: Activity[]): Map<string, Set<string>> {
+  private detectLocalConflicts(
+    payloadActivities: Activity[],
+    options?: {
+      includeCapacity?: boolean;
+      includeLocation?: boolean;
+      skipMissingLocations?: boolean;
+    },
+  ): Map<string, Set<string>> {
     const conflicts = new Map<string, Set<string>>();
     const add = (activityId: string, code: string) => {
       let set = conflicts.get(activityId);
@@ -2319,6 +2436,9 @@ export class DutyAutopilotService {
       }
       set.add(code);
     };
+    const includeCapacity = options?.includeCapacity !== false;
+    const includeLocation = options?.includeLocation !== false;
+    const skipMissingLocations = options?.skipMissingLocations !== false;
 
     const normalized = payloadActivities
       .map((activity) => {
@@ -2327,12 +2447,14 @@ export class DutyAutopilotService {
           return null;
         }
         const endMs = this.resolveEndMs(activity, startMs);
+        const fromRaw = this.readStartLocation(activity);
+        const toRaw = this.readEndLocation(activity);
         return {
           id: activity.id,
           startMs,
           endMs: Math.max(startMs, endMs),
-          from: this.normalizeLocation(activity.from),
-          to: this.normalizeLocation(activity.to),
+          from: this.normalizeLocation(fromRaw),
+          to: this.normalizeLocation(toRaw),
           considerCapacity: this.considerCapacityConflicts(activity),
           considerLocation: this.considerLocationConflicts(activity),
         };
@@ -2340,39 +2462,67 @@ export class DutyAutopilotService {
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
       .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 
-    const capacityCandidates = normalized.filter((entry) => entry.considerCapacity);
-    let cluster: typeof capacityCandidates = [];
-    let clusterEndMs = Number.NEGATIVE_INFINITY;
-    for (const entry of capacityCandidates) {
-      if (cluster.length === 0) {
+    if (includeCapacity) {
+      const capacityCandidates = normalized.filter((entry) => entry.considerCapacity);
+      let cluster: typeof capacityCandidates = [];
+      let clusterEndMs = Number.NEGATIVE_INFINITY;
+      for (const entry of capacityCandidates) {
+        if (cluster.length === 0) {
+          cluster = [entry];
+          clusterEndMs = entry.endMs;
+          continue;
+        }
+        if (entry.startMs < clusterEndMs) {
+          cluster.forEach((existing) => add(existing.id, 'CAPACITY_OVERLAP'));
+          add(entry.id, 'CAPACITY_OVERLAP');
+          cluster.push(entry);
+          clusterEndMs = Math.max(clusterEndMs, entry.endMs);
+          continue;
+        }
         cluster = [entry];
         clusterEndMs = entry.endMs;
-        continue;
       }
-      if (entry.startMs < clusterEndMs) {
-        cluster.forEach((existing) => add(existing.id, 'CAPACITY_OVERLAP'));
-        add(entry.id, 'CAPACITY_OVERLAP');
-        cluster.push(entry);
-        clusterEndMs = Math.max(clusterEndMs, entry.endMs);
-        continue;
-      }
-      cluster = [entry];
-      clusterEndMs = entry.endMs;
     }
 
-    for (let i = 0; i < normalized.length - 1; i += 1) {
-      const prev = normalized[i];
-      const next = normalized[i + 1];
-      if (!prev.considerLocation || !next.considerLocation) {
-        continue;
-      }
-      if (prev.to && next.from && prev.to !== next.from) {
+    if (includeLocation) {
+      const locationCandidates = normalized.filter((entry) => {
+        if (!entry.considerLocation) {
+          return false;
+        }
+        if (!skipMissingLocations) {
+          return true;
+        }
+        return !!(entry.from && entry.to);
+      });
+      for (let i = 0; i < locationCandidates.length - 1; i += 1) {
+        const prev = locationCandidates[i];
+        const next = locationCandidates[i + 1];
+        if (!prev.to || !next.from) {
+          continue;
+        }
+        if (prev.to === next.from) {
+          continue;
+        }
         add(prev.id, 'LOCATION_SEQUENCE');
         add(next.id, 'LOCATION_SEQUENCE');
       }
     }
 
     return conflicts;
+  }
+
+  private mergeConflictMaps(
+    target: Map<string, Set<string>>,
+    source: Map<string, Set<string>>,
+  ): void {
+    source.forEach((codes, activityId) => {
+      let set = target.get(activityId);
+      if (!set) {
+        set = new Set<string>();
+        target.set(activityId, set);
+      }
+      codes.forEach((code) => set!.add(code));
+    });
   }
 
   private considerCapacityConflicts(activity: Activity): boolean {
@@ -2448,14 +2598,59 @@ export class DutyAutopilotService {
   }
 
   private resolveDutyOwner(activity: Activity): ActivityParticipant | null {
-    const participants = activity.participants ?? [];
-    return participants.find((p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service') ?? null;
+    return this.resolveDutyOwners(activity)[0] ?? null;
   }
 
   private resolveDutyOwners(activity: Activity): ActivityParticipant[] {
     const participants = activity.participants ?? [];
-    const preferred = participants.filter((p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service');
-    return preferred;
+    const serviceOwners = participants.filter(
+      (p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service',
+    );
+    if (serviceOwners.length) {
+      return serviceOwners;
+    }
+    const directOwners = participants.filter((p) => p.kind === 'personnel' || p.kind === 'vehicle');
+    if (directOwners.length) {
+      return directOwners;
+    }
+
+    const serviceId =
+      this.parseServiceIdFromManagedId(activity.id) ??
+      (typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '');
+    if (!serviceId) {
+      return [];
+    }
+    const ownerId = this.parseOwnerIdFromServiceId(serviceId);
+    if (!ownerId) {
+      return [];
+    }
+    const ownerKind = this.resolveOwnerKindFromSnapshot(ownerId);
+    if (!ownerKind) {
+      return [];
+    }
+    return [
+      {
+        resourceId: ownerId,
+        kind: ownerKind,
+      },
+    ];
+  }
+
+  private resolveOwnerKindFromSnapshot(ownerId: string): ActivityParticipant['kind'] | null {
+    const snapshot = this.masterData.getResourceSnapshot();
+    if (snapshot.personnelServices?.some((svc) => svc.id === ownerId)) {
+      return 'personnel-service';
+    }
+    if (snapshot.vehicleServices?.some((svc) => svc.id === ownerId)) {
+      return 'vehicle-service';
+    }
+    if (snapshot.personnel?.some((person) => person.id === ownerId)) {
+      return 'personnel';
+    }
+    if (snapshot.vehicles?.some((vehicle) => vehicle.id === ownerId)) {
+      return 'vehicle';
+    }
+    return null;
   }
 
   private resolveServiceRole(activity: Activity): 'start' | 'end' | 'segment' | null {
@@ -2506,21 +2701,13 @@ export class DutyAutopilotService {
   }
 
   private isBreakActivity(activity: Activity, breakTypeIds: string[]): boolean {
+    const type = (activity.type ?? '').trim();
+    if (type) {
+      return breakTypeIds.some((id) => id === type);
+    }
     const id = (activity.id ?? '').toString();
     if (id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:')) {
       return true;
-    }
-    const type = (activity.type ?? '').trim();
-    if (type && breakTypeIds.some((id) => id === type)) {
-      return true;
-    }
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const val = attrs?.['is_break'];
-    if (typeof val === 'boolean') {
-      return val;
-    }
-    if (typeof val === 'string') {
-      return val.toLowerCase() === 'true';
     }
     return false;
   }
@@ -3112,22 +3299,13 @@ export class DutyAutopilotService {
   }
 
   private isShortBreakActivity(activity: Activity, shortBreakTypeId: string): boolean {
+    const type = `${activity.type ?? ''}`.trim();
+    if (type) {
+      return type === shortBreakTypeId;
+    }
     const id = (activity.id ?? '').toString();
     if (id.startsWith('svcshortbreak:')) {
       return true;
-    }
-    const type = `${activity.type ?? ''}`.trim();
-    if (type && type === shortBreakTypeId) {
-      return true;
-    }
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const raw = attrs?.['is_short_break'];
-    if (typeof raw === 'boolean') {
-      return raw;
-    }
-    if (typeof raw === 'string') {
-      const normalized = raw.trim().toLowerCase();
-      return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
     }
     return false;
   }
@@ -3375,6 +3553,29 @@ export class DutyAutopilotService {
       set.add(code);
     };
     const addDutyCode = (duty: AzgDutySnapshot, code: string) => addCode(duty.serviceId, code);
+    const filterDutiesByKinds = (
+      duties: AzgDutySnapshot[],
+      kinds: ActivityParticipant['kind'][] | null | undefined,
+    ): AzgDutySnapshot[] => {
+      if (!kinds || kinds.length === 0) {
+        return duties;
+      }
+      return duties.filter((duty) => kinds.includes(duty.ownerKind));
+    };
+    const buildRestGaps = (sortedByStart: AzgDutySnapshot[]) =>
+      sortedByStart
+        .map((duty, index) => {
+          const next = sortedByStart[index + 1];
+          if (!next) {
+            return null;
+          }
+          const minutes = Math.round((next.startMs - duty.endMs) / 60_000);
+          return { prev: duty, next, nextStartMs: next.startMs, minutes };
+        })
+        .filter(
+          (entry): entry is { prev: AzgDutySnapshot; next: AzgDutySnapshot; nextStartMs: number; minutes: number } =>
+            entry !== null,
+        );
 
     const breakMinMinutes = Math.max(0, config.minBreakMinutes);
     const standardBreakMinMinutes = config.azg.breakStandard.enabled
@@ -3503,176 +3704,188 @@ export class DutyAutopilotService {
       const sortedByStart = duties.slice().sort((a, b) => a.startMs - b.startMs);
 
       if (config.azg.workAvg7d.enabled) {
-        const window = Math.max(1, config.azg.workAvg7d.windowWorkdays);
-        const maxAvg = config.azg.workAvg7d.maxAverageMinutes;
-        let streak: AzgDutySnapshot[] = [];
-        const flush = () => {
-          if (streak.length < window) {
-            streak = [];
-            return;
-          }
-          let sum = 0;
-          for (let i = 0; i < streak.length; i += 1) {
-            sum += streak[i].workMinutes;
-            if (i >= window) {
-              sum -= streak[i - window].workMinutes;
+        const candidates = filterDutiesByKinds(sortedByDay, config.azg.workAvg7d.resourceKinds);
+        if (candidates.length) {
+          const window = Math.max(1, config.azg.workAvg7d.windowWorkdays);
+          const maxAvg = config.azg.workAvg7d.maxAverageMinutes;
+          let streak: AzgDutySnapshot[] = [];
+          const flush = () => {
+            if (streak.length < window) {
+              streak = [];
+              return;
             }
-            if (i + 1 >= window) {
-              const avg = sum / window;
-              if (avg > maxAvg) {
-                for (let j = i - window + 1; j <= i; j += 1) {
-                  addDutyCode(streak[j], 'AZG_WORK_AVG_7D');
+            let sum = 0;
+            for (let i = 0; i < streak.length; i += 1) {
+              sum += streak[i].workMinutes;
+              if (i >= window) {
+                sum -= streak[i - window].workMinutes;
+              }
+              if (i + 1 >= window) {
+                const avg = sum / window;
+                if (avg > maxAvg) {
+                  for (let j = i - window + 1; j <= i; j += 1) {
+                    addDutyCode(streak[j], 'AZG_WORK_AVG_7D');
+                  }
                 }
               }
             }
-          }
-          streak = [];
-        };
+            streak = [];
+          };
 
-        for (const duty of sortedByDay) {
-          const prev = streak[streak.length - 1];
-          if (!prev) {
-            streak.push(duty);
-            continue;
+          for (const duty of candidates) {
+            const prev = streak[streak.length - 1];
+            if (!prev) {
+              streak.push(duty);
+              continue;
+            }
+            if (duty.dayStartMs - prev.dayStartMs === dayMs) {
+              streak.push(duty);
+            } else {
+              flush();
+              streak.push(duty);
+            }
           }
-          if (duty.dayStartMs - prev.dayStartMs === dayMs) {
-            streak.push(duty);
-          } else {
-            flush();
-            streak.push(duty);
-          }
+          flush();
         }
-        flush();
       }
 
       if (config.azg.workAvg365d.enabled) {
-        const workdayCount = new Set(sortedByDay.map((d) => d.dayStartMs)).size;
-        const totalWork = sortedByDay.reduce((sum, d) => sum + d.workMinutes, 0);
-        const avg = workdayCount > 0 ? totalWork / workdayCount : 0;
-        if (avg > config.azg.workAvg365d.maxAverageMinutes) {
-          sortedByDay.forEach((duty) => addDutyCode(duty, 'AZG_WORK_AVG_365D'));
+        const candidates = filterDutiesByKinds(sortedByDay, config.azg.workAvg365d.resourceKinds);
+        if (candidates.length) {
+          const workdayCount = new Set(candidates.map((d) => d.dayStartMs)).size;
+          const totalWork = candidates.reduce((sum, d) => sum + d.workMinutes, 0);
+          const avg = workdayCount > 0 ? totalWork / workdayCount : 0;
+          if (avg > config.azg.workAvg365d.maxAverageMinutes) {
+            candidates.forEach((duty) => addDutyCode(duty, 'AZG_WORK_AVG_365D'));
+          }
         }
       }
 
       if (config.azg.dutySpanAvg28d.enabled) {
-        const windowMs = Math.max(1, config.azg.dutySpanAvg28d.windowDays) * dayMs;
-        const maxAvg = config.azg.dutySpanAvg28d.maxAverageMinutes;
-        let start = 0;
-        let sum = 0;
-        for (let end = 0; end < sortedByDay.length; end += 1) {
-          sum += sortedByDay[end].dutySpanMinutes;
-          while (sortedByDay[end].dayStartMs - sortedByDay[start].dayStartMs >= windowMs) {
-            sum -= sortedByDay[start].dutySpanMinutes;
-            start += 1;
-          }
-          const count = end - start + 1;
-          if (!count) {
-            continue;
-          }
-          const avg = sum / count;
-          if (avg > maxAvg) {
-            for (let i = start; i <= end; i += 1) {
-              addDutyCode(sortedByDay[i], 'AZG_DUTY_SPAN_AVG_28D');
+        const candidates = filterDutiesByKinds(sortedByDay, config.azg.dutySpanAvg28d.resourceKinds);
+        if (candidates.length) {
+          const windowMs = Math.max(1, config.azg.dutySpanAvg28d.windowDays) * dayMs;
+          const maxAvg = config.azg.dutySpanAvg28d.maxAverageMinutes;
+          let start = 0;
+          let sum = 0;
+          for (let end = 0; end < candidates.length; end += 1) {
+            sum += candidates[end].dutySpanMinutes;
+            while (candidates[end].dayStartMs - candidates[start].dayStartMs >= windowMs) {
+              sum -= candidates[start].dutySpanMinutes;
+              start += 1;
+            }
+            const count = end - start + 1;
+            if (!count) {
+              continue;
+            }
+            const avg = sum / count;
+            if (avg > maxAvg) {
+              for (let i = start; i <= end; i += 1) {
+                addDutyCode(candidates[i], 'AZG_DUTY_SPAN_AVG_28D');
+              }
             }
           }
         }
       }
 
-      const restGaps = sortedByStart
-        .map((duty, index) => {
-          const next = sortedByStart[index + 1];
-          if (!next) {
-            return null;
-          }
-          const minutes = Math.round((next.startMs - duty.endMs) / 60_000);
-          return { prev: duty, next, nextStartMs: next.startMs, minutes };
-        })
-        .filter((entry): entry is { prev: AzgDutySnapshot; next: AzgDutySnapshot; nextStartMs: number; minutes: number } => entry !== null);
-
       if (config.azg.restMin.enabled) {
-        const minMinutes = config.azg.restMin.minMinutes;
-        for (const gap of restGaps) {
-          if (gap.minutes < minMinutes) {
-            addDutyCode(gap.prev, 'AZG_REST_MIN');
-            addDutyCode(gap.next, 'AZG_REST_MIN');
+        const candidates = filterDutiesByKinds(sortedByStart, config.azg.restMin.resourceKinds);
+        const restGaps = buildRestGaps(candidates);
+        if (restGaps.length) {
+          const minMinutes = config.azg.restMin.minMinutes;
+          for (const gap of restGaps) {
+            if (gap.minutes < minMinutes) {
+              addDutyCode(gap.prev, 'AZG_REST_MIN');
+              addDutyCode(gap.next, 'AZG_REST_MIN');
+            }
           }
         }
       }
 
-      if (config.azg.restAvg28d.enabled && restGaps.length) {
-        const windowMs = Math.max(1, config.azg.restAvg28d.windowDays) * dayMs;
-        const minAvg = config.azg.restAvg28d.minAverageMinutes;
-        let start = 0;
-        let sum = 0;
-        for (let end = 0; end < restGaps.length; end += 1) {
-          sum += restGaps[end].minutes;
-          while (restGaps[end].nextStartMs - restGaps[start].nextStartMs >= windowMs) {
-            sum -= restGaps[start].minutes;
-            start += 1;
-          }
-          const count = end - start + 1;
-          if (!count) {
-            continue;
-          }
-          const avg = sum / count;
-          if (avg < minAvg) {
-            for (let i = start; i <= end; i += 1) {
-              addDutyCode(restGaps[i].prev, 'AZG_REST_AVG_28D');
-              addDutyCode(restGaps[i].next, 'AZG_REST_AVG_28D');
+      if (config.azg.restAvg28d.enabled) {
+        const candidates = filterDutiesByKinds(sortedByStart, config.azg.restAvg28d.resourceKinds);
+        const restGaps = buildRestGaps(candidates);
+        if (restGaps.length) {
+          const windowMs = Math.max(1, config.azg.restAvg28d.windowDays) * dayMs;
+          const minAvg = config.azg.restAvg28d.minAverageMinutes;
+          let start = 0;
+          let sum = 0;
+          for (let end = 0; end < restGaps.length; end += 1) {
+            sum += restGaps[end].minutes;
+            while (restGaps[end].nextStartMs - restGaps[start].nextStartMs >= windowMs) {
+              sum -= restGaps[start].minutes;
+              start += 1;
+            }
+            const count = end - start + 1;
+            if (!count) {
+              continue;
+            }
+            const avg = sum / count;
+            if (avg < minAvg) {
+              for (let i = start; i <= end; i += 1) {
+                addDutyCode(restGaps[i].prev, 'AZG_REST_AVG_28D');
+                addDutyCode(restGaps[i].next, 'AZG_REST_AVG_28D');
+              }
             }
           }
         }
       }
 
       if (config.azg.nightMaxStreak.enabled) {
-        const maxConsecutive = config.azg.nightMaxStreak.maxConsecutive;
-        let streak: AzgDutySnapshot[] = [];
-        const flush = () => {
-          if (streak.length > maxConsecutive) {
-            streak.forEach((duty) => addDutyCode(duty, 'AZG_NIGHT_STREAK_MAX'));
-          }
-          streak = [];
-        };
+        const candidates = filterDutiesByKinds(sortedByDay, config.azg.nightMaxStreak.resourceKinds);
+        if (candidates.length) {
+          const maxConsecutive = config.azg.nightMaxStreak.maxConsecutive;
+          let streak: AzgDutySnapshot[] = [];
+          const flush = () => {
+            if (streak.length > maxConsecutive) {
+              streak.forEach((duty) => addDutyCode(duty, 'AZG_NIGHT_STREAK_MAX'));
+            }
+            streak = [];
+          };
 
-        for (const duty of sortedByDay) {
-          if (!duty.hasNightWork) {
-            flush();
-            continue;
+          for (const duty of candidates) {
+            if (!duty.hasNightWork) {
+              flush();
+              continue;
+            }
+            const prev = streak[streak.length - 1];
+            if (!prev) {
+              streak.push(duty);
+              continue;
+            }
+            if (duty.dayStartMs - prev.dayStartMs === dayMs) {
+              streak.push(duty);
+            } else {
+              flush();
+              streak.push(duty);
+            }
           }
-          const prev = streak[streak.length - 1];
-          if (!prev) {
-            streak.push(duty);
-            continue;
-          }
-          if (duty.dayStartMs - prev.dayStartMs === dayMs) {
-            streak.push(duty);
-          } else {
-            flush();
-            streak.push(duty);
-          }
+          flush();
         }
-        flush();
       }
 
       if (config.azg.nightMax28d.enabled) {
-        const windowMs = Math.max(1, config.azg.nightMax28d.windowDays) * dayMs;
-        const maxCount = config.azg.nightMax28d.maxCount;
-        let start = 0;
-        let nightCount = 0;
-        for (let end = 0; end < sortedByDay.length; end += 1) {
-          if (sortedByDay[end].hasNightWork) {
-            nightCount += 1;
-          }
-          while (sortedByDay[end].dayStartMs - sortedByDay[start].dayStartMs >= windowMs) {
-            if (sortedByDay[start].hasNightWork) {
-              nightCount -= 1;
+        const candidates = filterDutiesByKinds(sortedByDay, config.azg.nightMax28d.resourceKinds);
+        if (candidates.length) {
+          const windowMs = Math.max(1, config.azg.nightMax28d.windowDays) * dayMs;
+          const maxCount = config.azg.nightMax28d.maxCount;
+          let start = 0;
+          let nightCount = 0;
+          for (let end = 0; end < candidates.length; end += 1) {
+            if (candidates[end].hasNightWork) {
+              nightCount += 1;
             }
-            start += 1;
-          }
-          if (nightCount > maxCount) {
-            for (let i = start; i <= end; i += 1) {
-              if (sortedByDay[i].hasNightWork) {
-                addDutyCode(sortedByDay[i], 'AZG_NIGHT_28D_MAX');
+            while (candidates[end].dayStartMs - candidates[start].dayStartMs >= windowMs) {
+              if (candidates[start].hasNightWork) {
+                nightCount -= 1;
+              }
+              start += 1;
+            }
+            if (nightCount > maxCount) {
+              for (let i = start; i <= end; i += 1) {
+                if (candidates[i].hasNightWork) {
+                  addDutyCode(candidates[i], 'AZG_NIGHT_28D_MAX');
+                }
               }
             }
           }
@@ -3688,11 +3901,15 @@ export class DutyAutopilotService {
         const sundayLikeDates = this.computeSundayLikeDates(bounds.startMs, bounds.endMs, config.azg.restDaysYear.additionalSundayLikeHolidays);
 
         for (const [ownerId, duties] of byOwner.entries()) {
+          const candidates = filterDutiesByKinds(duties, config.azg.restDaysYear.resourceKinds);
+          if (!candidates.length) {
+            continue;
+          }
           const dayCount = Math.ceil((bounds.endMs - bounds.startMs + 1) / dayMs);
           const workDays = new Array<boolean>(dayCount).fill(false);
           const absenceDays = new Array<boolean>(dayCount).fill(false);
 
-          duties.forEach((duty) => {
+          candidates.forEach((duty) => {
             this.markDaysOverlap(workDays, bounds.startMs, bounds.endMs, duty.startMs, duty.endMs);
           });
 
@@ -3716,10 +3933,10 @@ export class DutyAutopilotService {
           }
 
           if (restDays < config.azg.restDaysYear.minRestDays) {
-            duties.forEach((duty) => addDutyCode(duty, 'AZG_REST_DAYS_YEAR_MIN'));
+            candidates.forEach((duty) => addDutyCode(duty, 'AZG_REST_DAYS_YEAR_MIN'));
           }
           if (sundayRestDays < config.azg.restDaysYear.minSundayRestDays) {
-            duties.forEach((duty) => addDutyCode(duty, 'AZG_REST_SUNDAYS_YEAR_MIN'));
+            candidates.forEach((duty) => addDutyCode(duty, 'AZG_REST_SUNDAYS_YEAR_MIN'));
           }
         }
       }

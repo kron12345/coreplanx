@@ -236,6 +236,155 @@ describe('DutyAutopilotService', () => {
     expect((((loc1.attributes as any)?.service_by_owner ?? {})['PS-1']?.conflictLevel ?? 0) as number).toBe(1);
   });
 
+  it('flags location conflicts between operational points and personnel sites without walk time', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
+    };
+    const masterData = {
+      ...createMasterDataStub(),
+      listOperationalPoints: () => [
+        {
+          opId: 'OP-BER-HBF',
+          uniqueOpId: 'DE:BER-HBF',
+          countryCode: 'DE',
+          name: 'Berlin Hbf',
+          opType: 'STATION',
+          position: { lat: 52.52508, lng: 13.3694 },
+        },
+      ],
+      listPersonnelSites: () => [
+        {
+          siteId: 'PS-BER',
+          siteType: 'MELDESTELLE',
+          name: 'Berlin Hbf Meldestelle',
+          uniqueOpId: 'DE:BER-HBF',
+          position: { lat: 52.52508, lng: 13.3694 },
+        },
+      ],
+      listTransferEdges: () => [],
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      masterData as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+    const participants = [{ resourceId: 'PS-1', kind: 'personnel-service' as const }];
+
+    const state: Activity[] = [
+      {
+        id: 'loc-op',
+        title: 'Fahrt',
+        start: '2025-02-01T08:00:00.000Z',
+        end: '2025-02-01T09:00:00.000Z',
+        from: 'DE:BER-HBF',
+        to: 'DE:BER-HBF',
+        type: 'travel',
+        participants,
+      },
+      {
+        id: 'loc-site',
+        title: 'Meldestelle',
+        start: '2025-02-01T09:05:00.000Z',
+        end: '2025-02-01T09:15:00.000Z',
+        from: 'DE:BER-HBF',
+        to: 'DE:BER-HBF',
+        locationId: 'PS-BER',
+        type: 'service',
+        participants,
+      },
+    ];
+
+    const result = await service.apply(stageId, variantId, state);
+    const updated = applyAutopilot(state, result);
+    const op = updated.find((a) => a.id === 'loc-op')!;
+    const site = updated.find((a) => a.id === 'loc-site')!;
+    expect(readOwnerCodes(op, 'PS-1')).toEqual(expect.arrayContaining(['LOCATION_SEQUENCE']));
+    expect(readOwnerCodes(site, 'PS-1')).toEqual(expect.arrayContaining(['LOCATION_SEQUENCE']));
+  });
+
+  it('flags location conflicts even when walk time exists between operational point and personnel site', async () => {
+    const rules = {
+      getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),
+    };
+    const masterData = {
+      ...createMasterDataStub(),
+      listOperationalPoints: () => [
+        {
+          opId: 'OP-BER-HBF',
+          uniqueOpId: 'DE:BER-HBF',
+          countryCode: 'DE',
+          name: 'Berlin Hbf',
+          opType: 'STATION',
+          position: { lat: 52.52508, lng: 13.3694 },
+        },
+      ],
+      listPersonnelSites: () => [
+        {
+          siteId: 'PS-BER',
+          siteType: 'MELDESTELLE',
+          name: 'Berlin Hbf Meldestelle',
+          uniqueOpId: 'DE:BER-HBF',
+          position: { lat: 52.52508, lng: 13.3694 },
+        },
+      ],
+      listTransferEdges: () => [
+        {
+          transferId: 'walk-ber',
+          from: { kind: 'OP', uniqueOpId: 'DE:BER-HBF' },
+          to: { kind: 'PERSONNEL_SITE', siteId: 'PS-BER' },
+          mode: 'WALK',
+          avgDurationSec: 180,
+          bidirectional: true,
+        },
+      ],
+    };
+    const service = new DutyAutopilotService(
+      rules as any,
+      masterData as any,
+      createActivityCatalogStub() as any,
+      createRulesetStub() as any,
+    );
+
+    const stageId: StageId = 'base';
+    const variantId = 'default';
+    const participants = [{ resourceId: 'PS-1', kind: 'personnel-service' as const }];
+
+    const state: Activity[] = [
+      {
+        id: 'loc-op',
+        title: 'Fahrt',
+        start: '2025-02-02T08:00:00.000Z',
+        end: '2025-02-02T09:00:00.000Z',
+        from: 'DE:BER-HBF',
+        to: 'DE:BER-HBF',
+        type: 'travel',
+        participants,
+      },
+      {
+        id: 'loc-site',
+        title: 'Meldestelle',
+        start: '2025-02-02T09:05:00.000Z',
+        end: '2025-02-02T09:15:00.000Z',
+        from: 'DE:BER-HBF',
+        to: 'DE:BER-HBF',
+        locationId: 'PS-BER',
+        type: 'service',
+        participants,
+      },
+    ];
+
+    const result = await service.apply(stageId, variantId, state);
+    const updated = applyAutopilot(state, result);
+    const op = updated.find((a) => a.id === 'loc-op')!;
+    const site = updated.find((a) => a.id === 'loc-site')!;
+    expect(readOwnerCodes(op, 'PS-1')).toEqual(expect.arrayContaining(['LOCATION_SEQUENCE']));
+    expect(readOwnerCodes(site, 'PS-1')).toEqual(expect.arrayContaining(['LOCATION_SEQUENCE']));
+  });
+
   it('creates independent duties for each duty owner on linked activities', async () => {
     const rules = {
       getDutyAutopilotConfig: jest.fn().mockResolvedValue(config),

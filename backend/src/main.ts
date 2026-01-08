@@ -14,6 +14,7 @@ async function bootstrap() {
   const apiPrefix = 'api/v1';
   const fastifyAdapter = new FastifyAdapter({
     bodyLimit: 50 * 1024 * 1024,
+    maxParamLength: 512,
   });
   await fastifyAdapter.register(fastifySse);
   const app = await NestFactory.create(AppModule, fastifyAdapter);

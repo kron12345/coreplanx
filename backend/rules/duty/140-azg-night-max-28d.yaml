@@ -3,6 +3,7 @@ kind: constraint
 executor: azg/night-max-28d
 enabled: true
 params:
+  resourceKinds:
+    - personnel
   windowDays: 28
   maxCount: 14 # (AZG Art. 9 Abs. 3)
-

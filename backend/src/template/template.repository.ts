@@ -495,6 +495,39 @@ export class TemplateRepository {
     };
   }
 
+  async getManagedServiceWindow(
+    tableName: string,
+    serviceId: string,
+  ): Promise<{ start: string | null; end: string | null }> {
+    const safeTable = this.tableUtil.sanitize(tableName);
+    const startId = `svcstart:${serviceId}`;
+    const endId = `svcend:${serviceId}`;
+    const result = await this.database.query<{ id: string; start_time: string | Date | null }>(
+      `
+        SELECT id, start_time
+        FROM ${safeTable}
+        WHERE deleted = FALSE
+          AND id = ANY($1::text[])
+      `,
+      [[startId, endId]],
+    );
+    let start: string | null = null;
+    let end: string | null = null;
+    result.rows.forEach((row) => {
+      const iso = this.normalizeTimestamp(row.start_time);
+      if (!iso) {
+        return;
+      }
+      if (row.id === startId) {
+        start = iso;
+      }
+      if (row.id === endId) {
+        end = iso;
+      }
+    });
+    return { start, end };
+  }
+
   private enrichServiceMetadata(activity: ActivityDto): ActivityDto {
     const role = this.resolveServiceRole(activity);
     if (!role) {
@@ -799,5 +832,21 @@ export class TemplateRepository {
       specialDays: Array.isArray(row.special_days) ? row.special_days : [],
       attributes: row.attributes ?? undefined,
     };
+  }
+
+  private normalizeTimestamp(value: string | Date | null | undefined): string | null {
+    if (!value) {
+      return null;
+    }
+    if (value instanceof Date) {
+      const ms = value.getTime();
+      return Number.isFinite(ms) ? value.toISOString() : null;
+    }
+    const text = value.toString().trim();
+    if (!text) {
+      return null;
+    }
+    const ms = Date.parse(text);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : text;
   }
 }

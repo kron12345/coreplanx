@@ -208,7 +208,7 @@ export class TemplateService {
   ): Promise<ActivityDto> {
     this.ensureDbForWrites();
     const set = await this.getTemplateSet(templateId, variantId);
-    const normalized = this.normalizeManagedTemplateActivity(activity);
+    const normalized = await this.normalizeManagedTemplateActivity(activity, set.tableName);
     const saved = await this.repository.upsertActivity(set.tableName, normalized.activity);
     if (normalized.deletedId) {
       await this.repository.deleteActivity(set.tableName, normalized.deletedId);
@@ -337,9 +337,10 @@ export class TemplateService {
     };
   }
 
-  private normalizeManagedTemplateActivity(
+  private async normalizeManagedTemplateActivity(
     activity: ActivityDto,
-  ): { activity: ActivityDto; deletedId: string | null } {
+    tableName: string,
+  ): Promise<{ activity: ActivityDto; deletedId: string | null }> {
     const role = this.resolveServiceRole(activity);
     const isShortBreak = this.isShortBreakActivity(activity);
     const isBreak = this.isBreakActivity(activity);
@@ -378,13 +379,33 @@ export class TemplateService {
     }
     const ownerId = owners[0];
     const serviceId = this.computeServiceId(activity.stage, ownerId, activity.start);
+    if (!role && (isBreak || isShortBreak)) {
+      const shouldBind = await this.shouldBindBreakToService(tableName, serviceId, activity.start);
+      if (!shouldBind) {
+        const prefix = isShortBreak ? 'svcshortbreak' : 'svcbreak';
+        const managedId = (activity.id ?? '').toString().startsWith(`${prefix}:`);
+        const cleanedId = managedId
+          ? this.normalizeManagedBreakSuffix(prefix, serviceId, activity.id)
+          : activity.id;
+        const cleaned: ActivityDto = {
+          ...activity,
+          id: cleanedId,
+          serviceId: null,
+          serviceRole: null,
+        };
+        return {
+          activity: cleaned,
+          deletedId: managedId && cleanedId !== activity.id ? activity.id : null,
+        };
+      }
+    }
     let targetId = activity.id;
     if (role) {
       targetId = `${role === 'start' ? 'svcstart' : 'svcend'}:${serviceId}`;
     } else {
       const prefix = isShortBreak ? 'svcshortbreak' : 'svcbreak';
-      const suffix = this.sanitizeManagedSuffix(activity.id);
-      targetId = `${prefix}:${serviceId}:${suffix || 'auto'}`;
+      const suffix = this.normalizeManagedBreakSuffix(prefix, serviceId, activity.id);
+      targetId = `${prefix}:${serviceId}:${suffix}`;
     }
 
     const next: ActivityDto = {
@@ -484,6 +505,21 @@ export class TemplateService {
     return (value ?? '').toString().replace(/[^a-zA-Z0-9_-]/g, '_');
   }
 
+  private normalizeManagedBreakSuffix(
+    prefix: 'svcbreak' | 'svcshortbreak',
+    serviceId: string,
+    rawId: string,
+  ): string {
+    const stripped = this.stripManagedBreakId(rawId);
+    let suffix = this.sanitizeManagedSuffix(stripped);
+    const serviceToken = this.sanitizeManagedSuffix(serviceId);
+    const nestedPrefix = `${prefix}_${serviceToken}_`;
+    while (suffix.startsWith(nestedPrefix)) {
+      suffix = suffix.slice(nestedPrefix.length);
+    }
+    return suffix || 'auto';
+  }
+
   private computeServiceId(stage: 'base' | 'operations', ownerId: string, startIso: string): string {
     const date = new Date(startIso);
     const y = date.getUTCFullYear();
@@ -500,6 +536,41 @@ export class TemplateService {
       id.startsWith('svcshortbreak:') ||
       id.startsWith('svccommute:')
     );
+  }
+
+  private async shouldBindBreakToService(
+    tableName: string,
+    serviceId: string,
+    activityStart: string,
+  ): Promise<boolean> {
+    const window = await this.repository.getManagedServiceWindow(tableName, serviceId);
+    if (!window.start || !window.end) {
+      return false;
+    }
+    const startMs = Date.parse(activityStart);
+    const windowStart = Date.parse(window.start);
+    const windowEnd = Date.parse(window.end);
+    if (!Number.isFinite(startMs) || !Number.isFinite(windowStart) || !Number.isFinite(windowEnd)) {
+      return false;
+    }
+    return startMs >= windowStart && startMs <= windowEnd;
+  }
+
+  private stripManagedBreakId(id: string): string {
+    const value = (id ?? '').toString();
+    if (value.startsWith('svcbreak:')) {
+      const rest = value.slice('svcbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const suffix = idx >= 0 ? rest.slice(idx + 1) : rest;
+      return suffix || value;
+    }
+    if (value.startsWith('svcshortbreak:')) {
+      const rest = value.slice('svcshortbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const suffix = idx >= 0 ? rest.slice(idx + 1) : rest;
+      return suffix || value;
+    }
+    return value;
   }
 
   async rolloutTemplate(
