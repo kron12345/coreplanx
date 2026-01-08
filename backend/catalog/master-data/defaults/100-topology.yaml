@@ -50,11 +50,23 @@ topology:
       attributes: []
 
   personnelSites:
+    - siteId: SITE-BER-MELD
+      siteType: MELDESTELLE
+      name: Meldestelle Berlin Hbf
+      uniqueOpId: DE:BER-HBF
+      position: { lat: 52.52505, lng: 13.36955 }
+      attributes: []
     - siteId: SITE-BER-PAUSE
       siteType: PAUSENRAUM
       name: Pausenraum Berlin Hbf
       uniqueOpId: DE:BER-HBF
       position: { lat: 52.52525, lng: 13.36990 }
+      attributes: []
+    - siteId: SITE-BER-KURZPAUSE
+      siteType: PAUSENRAUM
+      name: Kurzpausenraum Berlin Hbf
+      uniqueOpId: DE:BER-HBF
+      position: { lat: 52.52538, lng: 13.36972 }
       attributes: []
 
   replacementStops:
@@ -104,11 +116,27 @@ topology:
       attributes: []
 
   transferEdges:
+    - transferId: TR-BER-MELD
+      from: { kind: OP, uniqueOpId: DE:BER-HBF }
+      to: { kind: PERSONNEL_SITE, siteId: SITE-BER-MELD }
+      mode: WALK
+      avgDurationSec: 60
+      distanceM: 50
+      bidirectional: true
+      attributes: []
     - transferId: TR-BER-PAUSE
       from: { kind: OP, uniqueOpId: DE:BER-HBF }
       to: { kind: PERSONNEL_SITE, siteId: SITE-BER-PAUSE }
       mode: WALK
       avgDurationSec: 180
       distanceM: 160
+      bidirectional: true
+      attributes: []
+    - transferId: TR-BER-KURZPAUSE
+      from: { kind: OP, uniqueOpId: DE:BER-HBF }
+      to: { kind: PERSONNEL_SITE, siteId: SITE-BER-KURZPAUSE }
+      mode: WALK
+      avgDurationSec: 120
+      distanceM: 90
       bidirectional: true
       attributes: []

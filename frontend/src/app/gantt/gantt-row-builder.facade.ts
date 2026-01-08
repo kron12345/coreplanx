@@ -473,7 +473,12 @@ export class GanttRowBuilderFacade {
       }
       if (
         set.has('LOCATION_SEQUENCE') ||
-        Array.from(set).some((code) => code.startsWith('HOME_DEPOT_') || code.startsWith('WALK_TIME_'))
+        Array.from(set).some(
+          (code) =>
+            code.startsWith('HOME_DEPOT_') ||
+            code.startsWith('WALK_TIME_') ||
+            code.endsWith('LOCATION_MISSING'),
+        )
       ) {
         classes.push('gantt-activity--conflict-location');
       }

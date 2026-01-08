@@ -2228,6 +2228,7 @@ export class PlanningStageService implements OnModuleInit {
       AZG_REST_SUNDAYS_YEAR_MIN: 'Zu wenige Ruhesonntage im Fahrplanjahr.',
       AZG_WORK_EXCEED_BUFFER: 'Höchstarbeitszeit deutlich überschritten.',
       AZG_DUTY_SPAN_EXCEED_BUFFER: 'Dienstspanne deutlich überschritten.',
+      HOME_DEPOT_NOT_IN_DEPOT: 'Nicht im Heimdepot.',
     };
     return labels[code] ?? `Arbeitszeitregel verletzt (${code})`;
   }

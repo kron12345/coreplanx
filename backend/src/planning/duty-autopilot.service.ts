@@ -1067,6 +1067,60 @@ export class DutyAutopilotService {
       }
     }
 
+    const homeDepotOutsideCode = 'HOME_DEPOT_NOT_IN_DEPOT';
+    if (homeDepotSelection.selection) {
+      const selection = homeDepotSelection.selection;
+      const allowedStartEnd = this.buildAllowedSiteLookup(selection.depot.siteIds ?? [], context);
+      const allowedBreaks = this.buildAllowedSiteLookup(selection.depot.breakSiteIds ?? [], context);
+      const allowedShortBreaks = this.buildAllowedSiteLookup(selection.depot.shortBreakSiteIds ?? [], context);
+
+      const recordOutside = (label: string, location: string | null, activityId?: string) => {
+        homeDepotCodes.push(homeDepotOutsideCode);
+        const detail = activityId
+          ? `${label}: ${activityId} (${location ?? '—'})`
+          : `${label}: ${location ?? '—'}`;
+        this.appendConflictDetail(homeDepotDetails, homeDepotOutsideCode, detail);
+      };
+
+      const first = this.findFirstActivity(basePayloadActivities);
+      const last = this.findLastActivity(basePayloadActivities);
+      const startCandidate = first ? this.readStartLocation(first) : null;
+      const endCandidate = last ? this.readEndLocation(last) : null;
+
+      if (allowedStartEnd.siteIds.size > 0) {
+        if (startCandidate && !this.isLocationInAllowedSites(startCandidate, allowedStartEnd, context)) {
+          recordOutside('Dienstanfang', startCandidate);
+        }
+        if (endCandidate && !this.isLocationInAllowedSites(endCandidate, allowedStartEnd, context)) {
+          recordOutside('Dienstende', endCandidate);
+        }
+      }
+
+      if (allowedBreaks.siteIds.size > 0) {
+        for (const activity of group.activities) {
+          if (!isRegularBreak(activity) || this.isManagedId(activity.id)) {
+            continue;
+          }
+          const location = this.readStartLocation(activity);
+          if (!this.isLocationInAllowedSites(location, allowedBreaks, context)) {
+            recordOutside('Pause', location, activity.id);
+          }
+        }
+      }
+
+      if (allowedShortBreaks.siteIds.size > 0) {
+        for (const activity of group.activities) {
+          if (!isShortBreak(activity) || this.isManagedId(activity.id)) {
+            continue;
+          }
+          const location = this.readStartLocation(activity);
+          if (!this.isLocationInAllowedSites(location, allowedShortBreaks, context)) {
+            recordOutside('Kurzpause', location, activity.id);
+          }
+        }
+      }
+    }
+
     const generatedCommutes: Activity[] = [];
     if (homeDepotSelection.selection) {
       const selection = homeDepotSelection.selection;
@@ -1955,10 +2009,15 @@ export class DutyAutopilotService {
       'HOME_DEPOT_START_LOCATION_MISSING',
       'HOME_DEPOT_END_LOCATION_MISSING',
       'HOME_DEPOT_PAUSE_LOCATION_MISSING',
+      'HOME_DEPOT_NOT_IN_DEPOT',
       'HOME_DEPOT_OVERNIGHT_LOCATION_MISSING',
       'HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN',
       'HOME_DEPOT_NO_BREAK_SITES',
       'HOME_DEPOT_NO_SHORT_BREAK_SITES',
+      'SERVICE_START_LOCATION_MISSING',
+      'SERVICE_END_LOCATION_MISSING',
+      'BREAK_LOCATION_MISSING',
+      'SHORT_BREAK_LOCATION_MISSING',
       'WALK_TIME_MISSING_START',
       'WALK_TIME_MISSING_END',
       'WALK_TIME_MISSING_BREAK',
@@ -2219,6 +2278,10 @@ export class DutyAutopilotService {
       'LOCATION_SEQUENCE',
       'WITHIN_SERVICE_REQUIRED',
       'OUTSIDE_SERVICE_REQUIRED',
+      'SERVICE_START_LOCATION_MISSING',
+      'SERVICE_END_LOCATION_MISSING',
+      'BREAK_LOCATION_MISSING',
+      'SHORT_BREAK_LOCATION_MISSING',
     ]);
 
     const isBoundary = (activity: Activity) => {
@@ -2291,6 +2354,8 @@ export class DutyAutopilotService {
       const localConflicts = new Map<string, Set<string>>();
       this.mergeConflictMaps(localConflicts, capacityConflicts);
       this.mergeConflictMaps(localConflicts, locationConflicts);
+      const requiredLocationConflicts = this.collectRequiredLocationConflicts(group.activities, config);
+      this.mergeConflictMaps(localConflicts, requiredLocationConflicts);
       const unionCodes = this.normalizeConflictCodes(
         Array.from(new Set(Array.from(localConflicts.values()).flatMap((set) => Array.from(set)))),
       );
@@ -2511,6 +2576,54 @@ export class DutyAutopilotService {
     return conflicts;
   }
 
+  private collectRequiredLocationConflicts(
+    activities: Activity[],
+    config: ResolvedDutyAutopilotConfig,
+  ): Map<string, Set<string>> {
+    const conflicts = new Map<string, Set<string>>();
+    const add = (activityId: string, code: string) => {
+      let set = conflicts.get(activityId);
+      if (!set) {
+        set = new Set<string>();
+        conflicts.set(activityId, set);
+      }
+      set.add(code);
+    };
+
+    const startTypeIds = config.resolvedTypeIds.startTypeIds;
+    const endTypeIds = config.resolvedTypeIds.endTypeIds;
+    const breakTypeIds = config.breakTypeIds;
+    const shortBreakTypeId = config.shortBreakTypeId || 'short-break';
+
+    const isStartBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'start' || startTypeIds.has((activity.type ?? '').trim());
+    };
+    const isEndBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
+    };
+    const isShortBreak = (activity: Activity) => this.isShortBreakActivity(activity, shortBreakTypeId);
+    const isRegularBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
+
+    activities.forEach((activity) => {
+      if (isStartBoundary(activity) && !this.readStartLocation(activity)) {
+        add(activity.id, 'SERVICE_START_LOCATION_MISSING');
+      }
+      if (isEndBoundary(activity) && !this.readEndLocation(activity)) {
+        add(activity.id, 'SERVICE_END_LOCATION_MISSING');
+      }
+      if (isRegularBreak(activity) && !this.readStartLocation(activity)) {
+        add(activity.id, 'BREAK_LOCATION_MISSING');
+      }
+      if (isShortBreak(activity) && !this.readStartLocation(activity)) {
+        add(activity.id, 'SHORT_BREAK_LOCATION_MISSING');
+      }
+    });
+
+    return conflicts;
+  }
+
   private mergeConflictMaps(
     target: Map<string, Set<string>>,
     source: Map<string, Set<string>>,
@@ -2595,6 +2708,47 @@ export class DutyAutopilotService {
       return matches[0][0];
     }
     return null;
+  }
+
+  private buildAllowedSiteLookup(
+    siteIds: string[] | null | undefined,
+    context: MasterDataContext,
+  ): { siteIds: Set<string>; opIds: Set<string> } {
+    const normalizedSiteIds = new Set(
+      (Array.isArray(siteIds) ? siteIds : []).map((id) => `${id ?? ''}`.trim()).filter((id) => id.length > 0),
+    );
+    const opIds = new Set<string>();
+    normalizedSiteIds.forEach((siteId) => {
+      const site = context.personnelSitesById.get(siteId) ?? null;
+      if (!site?.uniqueOpId) {
+        return;
+      }
+      const opId = this.normalizeLocation(site.uniqueOpId);
+      if (opId) {
+        opIds.add(opId);
+      }
+    });
+    return { siteIds: normalizedSiteIds, opIds };
+  }
+
+  private isLocationInAllowedSites(
+    location: string | null,
+    allowed: { siteIds: Set<string>; opIds: Set<string> },
+    context: MasterDataContext,
+  ): boolean {
+    const raw = `${location ?? ''}`.trim();
+    if (!raw) {
+      return false;
+    }
+    if (allowed.siteIds.has(raw)) {
+      return true;
+    }
+    const opId = this.resolveOperationalPointId(raw, context);
+    const normalizedOpId = opId ? this.normalizeLocation(opId) : null;
+    if (normalizedOpId && allowed.opIds.has(normalizedOpId)) {
+      return true;
+    }
+    return false;
   }
 
   private resolveDutyOwner(activity: Activity): ActivityParticipant | null {

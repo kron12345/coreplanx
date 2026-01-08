@@ -6,6 +6,7 @@ resources:
       serviceIds:
         - PS-001
         - PS-002
+      homeDepotId: HD-BER-HBF
       shiftCoordinator: Heike Sommer
       contactEmail: koordination-re1@coreplanx.local
     - id: PSP-IC
@@ -13,6 +14,7 @@ resources:
       description: Fernverkehrsdienste für durchgehende Tagesumläufe.
       serviceIds:
         - PS-010
+      homeDepotId: HD-BER-HBF
       shiftCoordinator: Dirk Vogt
       contactEmail: ic-dispo@coreplanx.local
 
@@ -67,6 +69,18 @@ resources:
       locationCode: DE:POT-HBF
       personnelIds:
         - P-010
+
+  homeDepots:
+    - id: HD-BER-HBF
+      name: Heimdepot Berlin Hbf
+      description: Beispiel-Heimdepot Berlin Hbf.
+      siteIds:
+        - SITE-BER-MELD
+      breakSiteIds:
+        - SITE-BER-PAUSE
+      shortBreakSiteIds:
+        - SITE-BER-KURZPAUSE
+      overnightSiteIds: []
 
   personnel:
     - id: P-001
