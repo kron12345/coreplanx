@@ -1,14 +1,14 @@
 import { Activity } from '../../models/activity';
-import { ActivityTypeDefinition } from '../../core/services/activity-type.service';
 import { ActivityCatalogOption } from './planning-dashboard.types';
 import { buildAttributesFromCatalog } from './planning-dashboard-activity.utils';
+import { readAttributeBoolean } from '../../core/utils/activity-definition.utils';
 import { fromLocalDateTime } from './planning-dashboard-time.utils';
 
 export interface BuildActivityFromFormDeps {
-  findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null;
+  findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null;
   selectedCatalogOption: () => ActivityCatalogOption | null;
-  buildActivityTitle: (definition: ActivityTypeDefinition | null) => string;
-  definitionHasField: (definition: ActivityTypeDefinition, field: string) => boolean;
+  buildActivityTitle: (label?: string | null) => string;
+  definitionHasField: (definition: ActivityCatalogOption, field: string) => boolean;
   applyActivityTypeConstraints: (activity: Activity) => Activity;
 }
 
@@ -33,9 +33,19 @@ export function buildActivityFromForm(
     return null;
   }
   const desiredType = formValue.type && formValue.type.length > 0 ? formValue.type : selection.activity.type ?? '';
-  const definition = deps.findActivityType(desiredType) ?? deps.findActivityType(selection.activity.type ?? null);
-  const catalog = deps.selectedCatalogOption();
+  const definition =
+    deps.findCatalogOptionByTypeId(desiredType) ??
+    deps.findCatalogOptionByTypeId(selection.activity.type ?? null);
+  const catalogOption = deps.selectedCatalogOption();
+  const attrs = selection.activity.attributes as Record<string, unknown> | undefined;
+  const activityKey = typeof attrs?.['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
+  const matchesKey = !!activityKey && catalogOption?.id === activityKey;
+  const matchesType = !!desiredType && catalogOption?.activityTypeId === desiredType;
+  const catalog = matchesKey || matchesType ? catalogOption : null;
   const isPoint = definition?.timeMode === 'point';
+  const breakAttrs = (catalog?.attributes ?? definition?.attributes) ?? null;
+  const isBreakType =
+    readAttributeBoolean(breakAttrs, 'is_break') || readAttributeBoolean(breakAttrs, 'is_short_break');
   const parseDuration = () => {
     const raw = formValue.durationMinutes;
     const val = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN;
@@ -55,15 +65,31 @@ export function buildActivityFromForm(
   const mergedAttributes = catalog
     ? { ...(selection.activity.attributes ?? {}), ...(buildAttributesFromCatalog(catalog) ?? {}) }
     : selection.activity.attributes;
+  const cleanedAttributes =
+    isBreakType && mergedAttributes && typeof mergedAttributes === 'object' && !Array.isArray(mergedAttributes)
+      ? (() => {
+          const attrs = { ...(mergedAttributes as Record<string, unknown>) };
+          delete attrs['is_service_start'];
+          delete attrs['is_service_end'];
+          if (attrs['activityKey'] && typeof attrs['activityKey'] === 'string' && attrs['activityKey'] !== desiredType) {
+            delete attrs['activityKey'];
+            delete attrs['templateId'];
+          }
+          return attrs;
+        })()
+      : mergedAttributes;
 
   const updated: Activity = {
     ...selection.activity,
-    title: catalog?.label ?? deps.buildActivityTitle(definition ?? null),
+    title: deps.buildActivityTitle(catalog?.label ?? definition?.label ?? null),
     start: startDate.toISOString(),
     end: endDateValid ? endDateValid.toISOString() : null,
     type: desiredType || selection.activity.type || '',
-    attributes: mergedAttributes,
+    attributes: cleanedAttributes,
   };
+  if (isBreakType) {
+    updated.serviceRole = null;
+  }
 
   if (definition) {
     if (deps.definitionHasField(definition, 'from')) {

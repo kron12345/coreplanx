@@ -12,10 +12,11 @@ import yaml from 'js-yaml';
 import type {
   ActivityAttributeValue,
   ActivityCatalogSnapshot,
+  ActivityCategory,
   ActivityDefinition,
   ActivityFieldKey,
   ActivityTemplate,
-  ActivityTypeDefinition,
+  ActivityTimeMode,
   CustomAttributeDefinition,
   CustomAttributeState,
   LayerGroup,
@@ -30,8 +31,6 @@ type ActivityCatalogDefaultsFile = {
   definitions?: ActivityDefinition | ActivityDefinition[];
   templates?: ActivityTemplate | ActivityTemplate[];
   activityTemplates?: ActivityTemplate | ActivityTemplate[];
-  types?: ActivityTypeDefinition | ActivityTypeDefinition[];
-  activityTypes?: ActivityTypeDefinition | ActivityTypeDefinition[];
   layerGroups?: LayerGroup | LayerGroup[];
   translations?: TranslationState;
   customAttributes?: CustomAttributeState;
@@ -40,7 +39,6 @@ type ActivityCatalogDefaultsFile = {
 @Injectable()
 export class PlanningActivityCatalogService implements OnModuleInit {
   private readonly logger = new Logger(PlanningActivityCatalogService.name);
-  private activityTypes: ActivityTypeDefinition[] = [];
   private activityTemplates: ActivityTemplate[] = [];
   private activityDefinitions: ActivityDefinition[] = [];
   private activityLayerGroups: LayerGroup[] = [];
@@ -71,6 +69,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     snapshot: ActivityCatalogSnapshot,
   ): Promise<ActivityCatalogSnapshot> {
     const normalized = this.normalizeCatalogSnapshot(snapshot);
+    this.assertSystemDefinitionsPreserved(normalized.definitions);
     this.applyCatalogState(normalized);
     await this.persistActivityCatalog();
     return this.buildActivityCatalogSnapshot();
@@ -90,69 +89,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       throw new BadRequestException('Activity-Katalog Defaults sind nicht konfiguriert.');
     }
     return this.replaceActivityCatalog(defaults);
-  }
-
-  listActivityTypes(): ActivityTypeDefinition[] {
-    return this.activityTypes.map((type) => this.cloneActivityType(type));
-  }
-
-  async replaceActivityTypes(
-    payload: ActivityTypeDefinition[],
-  ): Promise<ActivityTypeDefinition[]> {
-    this.activityTypes = (payload ?? []).map((type) =>
-      this.normalizeActivityTypeDefinition(type),
-    );
-    this.sortActivityCatalog();
-    await this.persistActivityCatalog();
-    return this.listActivityTypes();
-  }
-
-  getActivityType(typeId: string): ActivityTypeDefinition {
-    const found = this.activityTypes.find((type) => type.id === typeId);
-    if (!found) {
-      throw new NotFoundException(`Activity Type ${typeId} ist nicht vorhanden.`);
-    }
-    return this.cloneActivityType(found);
-  }
-
-  async createActivityType(
-    payload: ActivityTypeDefinition,
-  ): Promise<ActivityTypeDefinition> {
-    const normalized = this.normalizeActivityTypeDefinition(payload);
-    if (this.activityTypes.some((type) => type.id === normalized.id)) {
-      throw new ConflictException(
-        `Activity Type ${normalized.id} existiert bereits.`,
-      );
-    }
-    this.activityTypes.push(normalized);
-    this.sortActivityCatalog();
-    await this.persistActivityCatalog();
-    return this.cloneActivityType(normalized);
-  }
-
-  async upsertActivityType(
-    typeId: string,
-    payload: ActivityTypeDefinition,
-  ): Promise<ActivityTypeDefinition> {
-    const normalized = this.normalizeActivityTypeDefinition(payload, typeId);
-    const index = this.activityTypes.findIndex((type) => type.id === typeId);
-    if (index >= 0) {
-      this.activityTypes[index] = normalized;
-    } else {
-      this.activityTypes.push(normalized);
-    }
-    this.sortActivityCatalog();
-    await this.persistActivityCatalog();
-    return this.cloneActivityType(normalized);
-  }
-
-  async deleteActivityType(typeId: string): Promise<void> {
-    const index = this.activityTypes.findIndex((type) => type.id === typeId);
-    if (index < 0) {
-      throw new NotFoundException(`Activity Type ${typeId} ist nicht vorhanden.`);
-    }
-    this.activityTypes.splice(index, 1);
-    await this.persistActivityCatalog();
   }
 
   listActivityTemplates(): ActivityTemplate[] {
@@ -241,9 +177,11 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   async replaceActivityDefinitions(
     payload: ActivityDefinition[],
   ): Promise<ActivityDefinition[]> {
-    this.activityDefinitions = (payload ?? []).map((definition) =>
+    const normalized = (payload ?? []).map((definition) =>
       this.normalizeActivityDefinition(definition),
     );
+    this.assertSystemDefinitionsPreserved(normalized);
+    this.activityDefinitions = normalized;
     this.sortActivityCatalog();
     await this.persistActivityCatalog();
     return this.listActivityDefinitions();
@@ -289,6 +227,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       (definition) => definition.id === definitionId,
     );
     if (index >= 0) {
+      const existing = this.activityDefinitions[index];
+      if (this.isSystemDefinition(existing) && !this.isSystemDefinition(normalized)) {
+        this.throwManagedDeleteForbidden([definitionId]);
+      }
       this.activityDefinitions[index] = normalized;
     } else {
       this.activityDefinitions.push(normalized);
@@ -306,6 +248,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       throw new NotFoundException(
         `Activity Definition ${definitionId} ist nicht vorhanden.`,
       );
+    }
+    const definition = this.activityDefinitions[index];
+    if (this.isSystemDefinition(definition)) {
+      this.throwManagedDeleteForbidden([definitionId]);
     }
     this.activityDefinitions.splice(index, 1);
     await this.persistActivityCatalog();
@@ -459,7 +405,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       return;
     }
     const hasAny =
-      this.activityTypes.length > 0 ||
       this.activityTemplates.length > 0 ||
       this.activityDefinitions.length > 0 ||
       this.activityLayerGroups.length > 0 ||
@@ -489,7 +434,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       );
       this.applyCatalogState(
         this.normalizeCatalogSnapshot({
-          types: [],
           templates: [],
           definitions: [],
           layerGroups: [],
@@ -655,16 +599,11 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       ...this.collectDefaultsList<ActivityTemplate>(doc.templates),
       ...this.collectDefaultsList<ActivityTemplate>(doc.activityTemplates),
     ];
-    const types = [
-      ...this.collectDefaultsList<ActivityTypeDefinition>(doc.types),
-      ...this.collectDefaultsList<ActivityTypeDefinition>(doc.activityTypes),
-    ];
     const layerGroups = this.collectDefaultsList<LayerGroup>(doc.layerGroups);
     const translations = (doc.translations ?? {}) as TranslationState;
     const customAttributes = (doc.customAttributes ?? {}) as CustomAttributeState;
 
     const snapshot: ActivityCatalogSnapshot = {
-      types,
       templates,
       definitions,
       layerGroups,
@@ -672,9 +611,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       customAttributes,
     };
 
-    if (!snapshot.definitions.length && snapshot.types.length) {
-      snapshot.definitions = this.buildDefinitionsFromTypes(snapshot.types);
-    }
     return this.normalizeCatalogSnapshot(snapshot);
   }
 
@@ -685,57 +621,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return Array.isArray(value) ? value : [value];
   }
 
-  private buildDefinitionsFromTypes(
-    types: ActivityTypeDefinition[],
-  ): ActivityDefinition[] {
-    return types.map((type) => ({
-      id: type.id,
-      label: type.label,
-      description: type.description ?? undefined,
-      activityType: type.id,
-      defaultDurationMinutes: type.defaultDurationMinutes,
-      relevantFor: type.relevantFor,
-      attributes: this.buildDefinitionAttributesFromType(type.attributes),
-    }));
-  }
-
-  private buildDefinitionAttributesFromType(
-    attributes?: Record<string, unknown> | null,
-  ): ActivityAttributeValue[] {
-    if (!attributes || typeof attributes !== 'object') {
-      return [];
-    }
-    return Object.entries(attributes).map(([key, value]) => ({
-      key,
-      meta: this.normalizeDefinitionAttributeMeta(value),
-    }));
-  }
-
-  private normalizeDefinitionAttributeMeta(
-    value: unknown,
-  ): Record<string, string> | undefined {
-    if (value === undefined || value === null) {
-      return undefined;
-    }
-    if (typeof value === 'object' && !Array.isArray(value)) {
-      const meta: Record<string, string> = {};
-      Object.entries(value as Record<string, unknown>).forEach(([k, v]) => {
-        const key = (k ?? '').trim();
-        if (!key) {
-          return;
-        }
-        meta[key] = (v ?? '').toString().trim();
-      });
-      return Object.keys(meta).length ? meta : undefined;
-    }
-    return { value: String(value) };
-  }
-
   private cloneActivityCatalogSnapshot(
     snapshot: ActivityCatalogSnapshot,
   ): ActivityCatalogSnapshot {
     return {
-      types: snapshot.types.map((type) => this.cloneActivityType(type)),
       templates: snapshot.templates.map((template) =>
         this.cloneActivityTemplate(template),
       ),
@@ -745,18 +634,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       layerGroups: snapshot.layerGroups.map((layer) => this.cloneLayerGroup(layer)),
       translations: this.cloneTranslationState(snapshot.translations),
       customAttributes: this.cloneCustomAttributeState(snapshot.customAttributes),
-    };
-  }
-
-  private cloneActivityType(type: ActivityTypeDefinition): ActivityTypeDefinition {
-    return {
-      ...type,
-      description: type.description ?? undefined,
-      appliesTo: [...(type.appliesTo ?? [])],
-      relevantFor: [...(type.relevantFor ?? [])],
-      fields: [...(type.fields ?? [])],
-      attributes: type.attributes ? { ...type.attributes } : undefined,
-      meta: type.meta ? { ...type.meta } : undefined,
     };
   }
 
@@ -820,7 +697,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   private buildActivityCatalogSnapshot(): ActivityCatalogSnapshot {
     this.sortActivityCatalog();
     return {
-      types: this.activityTypes.map((type) => this.cloneActivityType(type)),
       templates: this.activityTemplates.map((template) =>
         this.cloneActivityTemplate(template),
       ),
@@ -836,7 +712,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   private applyCatalogState(snapshot: ActivityCatalogSnapshot): void {
-    this.activityTypes = snapshot.types.map((type) => this.cloneActivityType(type));
     this.activityTemplates = snapshot.templates.map((template) =>
       this.cloneActivityTemplate(template),
     );
@@ -852,7 +727,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   private sortActivityCatalog(): void {
-    this.activityTypes.sort((a, b) => a.id.localeCompare(b.id));
     this.activityTemplates.sort((a, b) => a.id.localeCompare(b.id));
     this.activityDefinitions.sort((a, b) => a.id.localeCompare(b.id));
     this.activityLayerGroups.sort((a, b) => {
@@ -876,9 +750,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     snapshot: ActivityCatalogSnapshot,
   ): ActivityCatalogSnapshot {
     return {
-      types: (snapshot.types ?? []).map((type) =>
-        this.normalizeActivityTypeDefinition(type),
-      ),
       templates: (snapshot.templates ?? []).map((template) =>
         this.normalizeActivityTemplate(template),
       ),
@@ -890,62 +761,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       ),
       translations: this.normalizeTranslations(snapshot.translations),
       customAttributes: this.normalizeCustomAttributes(snapshot.customAttributes),
-    };
-  }
-
-  private normalizeActivityTypeDefinition(
-    payload: ActivityTypeDefinition,
-    overrideId?: string,
-  ): ActivityTypeDefinition {
-    const id = this.normalizeIdentifier(
-      overrideId ?? payload.id,
-      'Activity Type ID',
-    );
-    const label = this.normalizeIdentifier(
-      payload.label,
-      'Activity Type Label',
-    );
-    const appliesTo = this.normalizeResourceKinds(payload.appliesTo);
-    if (!appliesTo.length) {
-      throw new BadRequestException(
-        'Activity Type benötigt mindestens ein appliesTo-Element.',
-      );
-    }
-    const relevantFor = this.normalizeResourceKinds(payload.relevantFor);
-    if (!relevantFor.length) {
-      throw new BadRequestException(
-        'Activity Type benötigt mindestens ein relevantFor-Element.',
-      );
-    }
-    const fields = this.normalizeActivityFields(payload.fields);
-    const defaultDuration = this.normalizeOptionalNumber(payload.defaultDurationMinutes);
-    if (defaultDuration === undefined) {
-      throw new BadRequestException('Activity Type defaultDurationMinutes muss gesetzt sein.');
-    }
-    if (defaultDuration < 0) {
-      throw new BadRequestException(
-        'Activity Type defaultDurationMinutes darf nicht negativ sein.',
-      );
-    }
-    if (!payload.category) {
-      throw new BadRequestException('Activity Type category ist erforderlich.');
-    }
-    if (!payload.timeMode) {
-      throw new BadRequestException('Activity Type timeMode ist erforderlich.');
-    }
-
-    return {
-      id,
-      label,
-      description: payload.description?.trim() || undefined,
-      appliesTo,
-      relevantFor,
-      category: payload.category,
-      timeMode: payload.timeMode,
-      fields,
-      defaultDurationMinutes: defaultDuration,
-      attributes: this.normalizeMetaRecord(payload.attributes) ?? undefined,
-      meta: this.normalizeMetaRecord(payload.meta) ?? undefined,
     };
   }
 
@@ -1002,7 +817,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     }
     const relevantFor = this.normalizeResourceKinds(payload.relevantFor);
 
-    return {
+    const normalized: ActivityDefinition = {
       id,
       label,
       description: payload.description?.trim() || undefined,
@@ -1012,6 +827,8 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       relevantFor: relevantFor.length ? relevantFor : undefined,
       attributes: this.normalizeAttributeList(payload.attributes),
     };
+    this.assertSystemDefinitionAttributes(normalized);
+    return normalized;
   }
 
   private normalizeLayerGroup(payload: LayerGroup, overrideId?: string): LayerGroup {
@@ -1131,15 +948,6 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return Array.from(new Set(cleaned));
   }
 
-  private normalizeActivityFields(values?: (string | ActivityFieldKey)[]): ActivityFieldKey[] {
-    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
-    const allowedSet = new Set<ActivityFieldKey>(allowed);
-    const cleaned = (values ?? [])
-      .map((entry) => (entry ?? '').trim())
-      .filter((entry) => allowedSet.has(entry as ActivityFieldKey)) as ActivityFieldKey[];
-    return Array.from(new Set(cleaned));
-  }
-
   private normalizeLocale(locale: string): string {
     const normalized = (locale ?? '').trim();
     if (!normalized) {
@@ -1166,12 +974,210 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return list;
   }
 
-  private normalizeMetaRecord(
-    value?: Record<string, unknown> | null,
-  ): Record<string, unknown> | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  private readAttributeValue(
+    attributes: ActivityAttributeValue[] | undefined,
+    key: string,
+  ): string | null {
+    const entry = (attributes ?? []).find((attr) => attr.key === key);
+    const meta = entry?.meta as Record<string, unknown> | undefined;
+    if (!meta || typeof meta !== 'object') {
       return null;
     }
-    return { ...value };
+    const raw = meta['value'];
+    if (raw === undefined || raw === null) {
+      return null;
+    }
+    const normalized = String(raw).trim();
+    return normalized.length ? normalized : null;
   }
+
+  private readAttributeBoolean(
+    attributes: ActivityAttributeValue[] | undefined,
+    key: string,
+  ): boolean {
+    const raw = this.readAttributeValue(attributes, key);
+    if (!raw) {
+      return false;
+    }
+    const normalized = raw.trim().toLowerCase();
+    return (
+      normalized === 'true' ||
+      normalized === 'yes' ||
+      normalized === 'ja' ||
+      normalized === '1'
+    );
+  }
+
+  private readAttributeNumber(
+    attributes: ActivityAttributeValue[] | undefined,
+    key: string,
+  ): number | null {
+    const raw = this.readAttributeValue(attributes, key);
+    if (!raw) {
+      return null;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+    const normalized = Math.trunc(parsed);
+    return normalized > 0 ? normalized : null;
+  }
+
+  private readAttributeList(
+    attributes: ActivityAttributeValue[] | undefined,
+    key: string,
+  ): string[] {
+    const raw = this.readAttributeValue(attributes, key);
+    if (!raw) {
+      return [];
+    }
+    return raw
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  private readAttributeFields(
+    attributes: ActivityAttributeValue[] | undefined,
+  ): Set<ActivityFieldKey> {
+    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
+    const allowedSet = new Set<ActivityFieldKey>(allowed);
+    const fields = new Set<ActivityFieldKey>();
+    (attributes ?? []).forEach((attr) => {
+      const key = (attr?.key ?? '').trim();
+      if (!key.startsWith('field:')) {
+        return;
+      }
+      const field = key.slice('field:'.length).trim();
+      if (allowedSet.has(field as ActivityFieldKey)) {
+        fields.add(field as ActivityFieldKey);
+      }
+    });
+    return fields;
+  }
+
+  private isSystemDefinition(definition: ActivityDefinition): boolean {
+    const attributes = definition.attributes ?? [];
+    if (this.readAttributeBoolean(attributes, 'is_system')) {
+      return true;
+    }
+    const flags = [
+      'is_service_start',
+      'is_service_end',
+      'is_break',
+      'is_short_break',
+      'is_vehicle_on',
+      'is_vehicle_off',
+      'is_commute',
+    ];
+    return flags.some((key) => this.readAttributeBoolean(attributes, key));
+  }
+
+  private assertSystemDefinitionsPreserved(
+    next: ActivityDefinition[],
+  ): void {
+    const protectedIds = this.activityDefinitions
+      .filter((definition) => this.isSystemDefinition(definition))
+      .map((definition) => definition.id);
+    if (!protectedIds.length) {
+      return;
+    }
+    const nextMap = new Map(next.map((definition) => [definition.id, definition] as const));
+    const missing = protectedIds.filter((id) => !nextMap.has(id));
+    if (missing.length) {
+      this.throwManagedDeleteForbidden(missing);
+    }
+    const downgraded = protectedIds.filter((id) => {
+      const candidate = nextMap.get(id);
+      return candidate ? !this.isSystemDefinition(candidate) : false;
+    });
+    if (downgraded.length) {
+      this.throwManagedDeleteForbidden(downgraded);
+    }
+  }
+
+  private assertSystemDefinitionAttributes(
+    definition: ActivityDefinition,
+  ): void {
+    if (!this.isSystemDefinition(definition)) {
+      return;
+    }
+    const attributes = definition.attributes ?? [];
+
+    const category = this.readAttributeValue(attributes, 'category');
+    const timeMode = this.readAttributeValue(attributes, 'time_mode');
+    const defaultDuration = this.readAttributeNumber(attributes, 'default_duration');
+    const relevantFor = this.readAttributeList(attributes, 'relevant_for');
+    const fields = this.readAttributeFields(attributes);
+    const color = this.readAttributeValue(attributes, 'color');
+
+    const allowedCategories = new Set<ActivityCategory>([
+      'rest',
+      'movement',
+      'service',
+      'other',
+    ]);
+    const allowedTimeModes = new Set<ActivityTimeMode>([
+      'duration',
+      'range',
+      'point',
+    ]);
+    const allowedRelevant = new Set<ResourceKind>([
+      'personnel',
+      'vehicle',
+      'personnel-service',
+      'vehicle-service',
+    ]);
+
+    if (!category || !allowedCategories.has(category as ActivityCategory)) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt ein gültiges category-Attribut.`,
+      );
+    }
+    if (!timeMode || !allowedTimeModes.has(timeMode as ActivityTimeMode)) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt ein gültiges time_mode-Attribut.`,
+      );
+    }
+    if (!defaultDuration) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt default_duration in Minuten.`,
+      );
+    }
+    if (!relevantFor.length || relevantFor.some((entry) => !allowedRelevant.has(entry as ResourceKind))) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt ein gültiges relevant_for-Attribut.`,
+      );
+    }
+    if (!fields.has('start')) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt das Feld start.`,
+      );
+    }
+    if ((timeMode as ActivityTimeMode) !== 'point' && !fields.has('end')) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt das Feld end.`,
+      );
+    }
+    if (!color) {
+      throw new BadRequestException(
+        `System-Activity ${definition.id} benötigt ein color-Attribut.`,
+      );
+    }
+  }
+
+  private throwManagedDeleteForbidden(definitionIds: string[]): never {
+    throw new BadRequestException({
+      message: 'Systemvorgaben dürfen nicht gelöscht werden.',
+      error: 'ValidationError',
+      statusCode: 400,
+      violations: definitionIds.map((id) => ({
+        activityId: id,
+        code: 'MANAGED_DELETE_FORBIDDEN',
+        message: 'Systemvorgaben dürfen nicht gelöscht werden.',
+      })),
+    });
+  }
+
 }

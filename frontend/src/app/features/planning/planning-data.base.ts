@@ -730,12 +730,12 @@ export class PlanningBaseDataController {
 
   private isServiceStartActivity(activity: Activity): boolean {
     const role = activity.serviceRole ?? null;
-    const type = (activity.type ?? '').toString().trim();
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
     const id = (activity.id ?? '').toString();
     if (role === 'start') {
       return true;
     }
-    if (type === 'service-start') {
+    if (attrs && this.toBool(attrs['is_service_start'])) {
       return true;
     }
     return id.startsWith('svcstart:');
@@ -743,22 +743,18 @@ export class PlanningBaseDataController {
 
   private isServiceEndActivity(activity: Activity): boolean {
     const role = activity.serviceRole ?? null;
-    const type = (activity.type ?? '').toString().trim();
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
     const id = (activity.id ?? '').toString();
     if (role === 'end') {
       return true;
     }
-    if (type === 'service-end') {
+    if (attrs && this.toBool(attrs['is_service_end'])) {
       return true;
     }
     return id.startsWith('svcend:');
   }
 
   private isBreakActivity(activity: Activity): boolean {
-    const type = (activity.type ?? '').toString().trim();
-    if (type === 'break' || type === 'short-break') {
-      return true;
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     if (attrs) {
       if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {

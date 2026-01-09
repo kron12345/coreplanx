@@ -687,10 +687,7 @@ export class PlanningStageService implements OnModuleInit {
   }
 
   private isServiceStartActivity(activity: Activity): boolean {
-    if (activity.serviceRole === 'start' || activity.type === 'service-start') {
-      return true;
-    }
-    if ((activity.id ?? '').toString().startsWith('svcstart:')) {
+    if (activity.serviceRole === 'start') {
       return true;
     }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
@@ -698,10 +695,7 @@ export class PlanningStageService implements OnModuleInit {
   }
 
   private isServiceEndActivity(activity: Activity): boolean {
-    if (activity.serviceRole === 'end' || activity.type === 'service-end') {
-      return true;
-    }
-    if ((activity.id ?? '').toString().startsWith('svcend:')) {
+    if (activity.serviceRole === 'end') {
       return true;
     }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
@@ -712,20 +706,15 @@ export class PlanningStageService implements OnModuleInit {
     if (!activity.end) {
       return false;
     }
-    const type = (activity.type ?? '').toString().trim().toLowerCase();
     const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const isBreak = this.parseBoolean(attrs?.['is_break']) || type === 'break';
-    const isShort = this.parseBoolean(attrs?.['is_short_break']) || type === 'short-break';
+    const isBreak = this.parseBoolean(attrs?.['is_break']);
+    const isShort = this.parseBoolean(attrs?.['is_short_break']);
     return isBreak && !isShort;
   }
 
   private isShortBreakActivity(activity: Activity): boolean {
     if (!activity.end) {
       return false;
-    }
-    const type = (activity.type ?? '').toString().trim().toLowerCase();
-    if (type === 'short-break') {
-      return true;
     }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const raw = attrs?.['is_short_break'];
@@ -761,7 +750,7 @@ export class PlanningStageService implements OnModuleInit {
     if (!deleteIds.length) {
       return;
     }
-    const managedDeletes = deleteIds.filter((id) => this.isManagedServiceActivityId(id));
+    const managedDeletes = deleteIds.filter((id) => this.isDeletionBlockedServiceActivityId(id));
     if (!managedDeletes.length) {
       return;
     }
@@ -1062,47 +1051,56 @@ export class PlanningStageService implements OnModuleInit {
     );
   }
 
+  private isDeletionBlockedServiceActivityId(id: string): boolean {
+    return id.startsWith('svccommute:');
+  }
+
   private async loadActivityTypeRequirements(): Promise<
     Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>
   > {
     if (this.activityTypeRequirements) {
       return this.activityTypeRequirements;
     }
-    try {
-      const entries = this.activityCatalog.listActivityTypes();
-      const toBool = (value: unknown) => {
-        if (typeof value === 'boolean') {
-          return value;
-        }
-        if (typeof value === 'string') {
-          const normalized = value.trim().toLowerCase();
-          return normalized === 'true' || normalized === 'yes' || normalized === '1';
-        }
-        if (typeof value === 'number') {
-          return Number.isFinite(value) && value !== 0;
-        }
-        return false;
-      };
-      const map = new Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>();
-      for (const entry of entries) {
-        const id = (entry?.id ?? '').toString().trim();
-        if (!id) {
-          continue;
-        }
-        const attrs = entry.attributes as Record<string, unknown> | undefined;
-        map.set(id, {
-          requiresVehicle: toBool(attrs?.['requires_vehicle']),
-          isVehicleOn: toBool(attrs?.['is_vehicle_on']),
-          isVehicleOff: toBool(attrs?.['is_vehicle_off']),
-        });
-      }
-      this.activityTypeRequirements = map;
-      return map;
-    } catch (error) {
-      this.logger.warn(`Activity catalog requirements could not be loaded: ${(error as Error).message ?? String(error)}`);
-      this.activityTypeRequirements = new Map();
-      return this.activityTypeRequirements;
+    const entries = this.activityCatalog.listActivityDefinitions();
+    if (!entries.length) {
+      throw new Error('Activity-Katalog enthält keine Activity-Definitionen.');
     }
+    const toBool = (value: unknown) => {
+      if (typeof value === 'boolean') {
+        return value;
+      }
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === 'yes' || normalized === '1';
+      }
+      if (typeof value === 'number') {
+        return Number.isFinite(value) && value !== 0;
+      }
+      return false;
+    };
+    const readAttributeValue = (
+      attributes: { key: string; meta?: Record<string, unknown> | null }[] | undefined,
+      key: string,
+    ): unknown => {
+      const entry = (attributes ?? []).find((attr) => attr.key === key);
+      const meta = entry?.meta as Record<string, unknown> | undefined;
+      return meta?.['value'];
+    };
+    const map = new Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>();
+    for (const entry of entries) {
+      const id = (entry?.activityType ?? '').toString().trim();
+      if (!id) {
+        continue;
+      }
+      const attrs = entry.attributes ?? [];
+      map.set(id, {
+        requiresVehicle: toBool(readAttributeValue(attrs, 'requires_vehicle')),
+        isVehicleOn: toBool(readAttributeValue(attrs, 'is_vehicle_on')),
+        isVehicleOff: toBool(readAttributeValue(attrs, 'is_vehicle_off')),
+      });
+    }
+    this.activityTypeRequirements = map;
+    return map;
   }
 
   private async assertVehicleServiceBoundaries(

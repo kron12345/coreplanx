@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Activity, ActivityParticipant, ActivityTypeDefinition, ResourceKind } from './planning.types';
+import type { Activity, ActivityAttributeValue, ActivityDefinition, ActivityParticipant, ResourceKind } from './planning.types';
 import type { PlanningStageSnapshot } from './planning.types';
 import type { RulesetIR } from './planning-ruleset.types';
 import type { PlanningCandidate, PlanningCandidateBuildResult } from './planning-candidate-builder.service';
@@ -411,18 +411,13 @@ export class PlanningSolverService {
   }
 
   private isBreakActivity(activity: Activity): boolean {
-    const type = (activity.type ?? '').toString().trim();
-    if (type === 'break' || type === 'short-break') {
-      return true;
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     if (attrs && typeof attrs === 'object') {
       if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
         return true;
       }
     }
-    const id = activity.id ?? '';
-    return id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:');
+    return false;
   }
 
   private resolveActivityType(candidate: PlanningCandidate): string {
@@ -787,21 +782,11 @@ export class PlanningSolverService {
   }
 
   private resolveBoundaryTypeIndex(): ServiceBoundaryTypeIndex {
-    try {
-      const types = this.catalog.listActivityTypes();
-      return this.pickBoundaryTypes(types);
-    } catch (error) {
-      this.logger.warn(`Konnte Activity Types nicht laden: ${(error as Error).message ?? String(error)}`);
-      return {
-        personnelStart: 'service-start',
-        personnelEnd: 'service-end',
-        vehicleStart: 'vehicle-on',
-        vehicleEnd: 'vehicle-off',
-      };
-    }
+    const definitions = this.catalog.listActivityDefinitions();
+    return this.pickBoundaryTypes(definitions);
   }
 
-  private pickBoundaryTypes(types: ActivityTypeDefinition[]): ServiceBoundaryTypeIndex {
+  private pickBoundaryTypes(definitions: ActivityDefinition[]): ServiceBoundaryTypeIndex {
     const flags = {
       serviceStart: [] as string[],
       serviceEnd: [] as string[],
@@ -810,24 +795,34 @@ export class PlanningSolverService {
     };
     const toBool = (value: unknown) =>
       typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
-    types.forEach((type) => {
-      const id = `${type?.id ?? ''}`.trim();
+    const readAttributeValue = (
+      attributes: ActivityAttributeValue[] | undefined,
+      key: string,
+    ): unknown => {
+      const entry = (attributes ?? []).find((attr) => attr.key === key);
+      const meta = entry?.meta as Record<string, unknown> | undefined;
+      return meta?.['value'];
+    };
+    const recordFlag = (
+      list: string[],
+      id: string,
+      attributes: ActivityAttributeValue[] | undefined,
+      key: string,
+    ) => {
+      if (toBool(readAttributeValue(attributes, key))) {
+        list.push(id);
+      }
+    };
+    definitions.forEach((definition) => {
+      const id = `${definition?.activityType ?? ''}`.trim();
       if (!id) {
         return;
       }
-      const attrs = (type.attributes ?? {}) as Record<string, unknown>;
-      if (toBool(attrs['is_service_start'])) {
-        flags.serviceStart.push(id);
-      }
-      if (toBool(attrs['is_service_end'])) {
-        flags.serviceEnd.push(id);
-      }
-      if (toBool(attrs['is_vehicle_on'])) {
-        flags.vehicleOn.push(id);
-      }
-      if (toBool(attrs['is_vehicle_off'])) {
-        flags.vehicleOff.push(id);
-      }
+      const attrs = definition.attributes ?? [];
+      recordFlag(flags.serviceStart, id, attrs, 'is_service_start');
+      recordFlag(flags.serviceEnd, id, attrs, 'is_service_end');
+      recordFlag(flags.vehicleOn, id, attrs, 'is_vehicle_on');
+      recordFlag(flags.vehicleOff, id, attrs, 'is_vehicle_off');
     });
 
     const vehicleOnSet = new Set(flags.vehicleOn);
@@ -835,11 +830,37 @@ export class PlanningSolverService {
     const serviceStartCandidates = flags.serviceStart.filter((id) => !vehicleOnSet.has(id));
     const serviceEndCandidates = flags.serviceEnd.filter((id) => !vehicleOffSet.has(id));
 
+    const pickRequired = (label: string, ...candidates: Array<string | undefined>) => {
+      const match = candidates.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
+      if (!match) {
+        throw new Error(`Activity-Katalog fehlt ${label}.`);
+      }
+      return match;
+    };
+
     return {
-      personnelStart: serviceStartCandidates[0] ?? flags.serviceStart[0] ?? 'service-start',
-      personnelEnd: serviceEndCandidates[0] ?? flags.serviceEnd[0] ?? 'service-end',
-      vehicleStart: flags.vehicleOn[0] ?? flags.serviceStart[0] ?? 'vehicle-on',
-      vehicleEnd: flags.vehicleOff[0] ?? flags.serviceEnd[0] ?? 'vehicle-off',
+      personnelStart: pickRequired(
+        'Dienststart-Definition (Attribut is_service_start)',
+        serviceStartCandidates[0],
+        flags.serviceStart[0],
+      ),
+      personnelEnd: pickRequired(
+        'Dienstende-Definition (Attribut is_service_end)',
+        serviceEndCandidates[0],
+        flags.serviceEnd[0],
+      ),
+      vehicleStart: pickRequired(
+        'Fahrzeugstart-Definition (Attribut is_vehicle_on oder is_service_start)',
+        flags.vehicleOn[0],
+        serviceStartCandidates[0],
+        flags.serviceStart[0],
+      ),
+      vehicleEnd: pickRequired(
+        'Fahrzeugende-Definition (Attribut is_vehicle_off oder is_service_end)',
+        flags.vehicleOff[0],
+        serviceEndCandidates[0],
+        flags.serviceEnd[0],
+      ),
     };
   }
 

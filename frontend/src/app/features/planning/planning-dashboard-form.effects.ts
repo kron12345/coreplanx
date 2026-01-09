@@ -6,8 +6,10 @@ import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-a
 import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facade';
 import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.facade';
 import { PlanningStageId } from './planning-stage.model';
-import { ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import { locationFieldDefaults } from './planning-dashboard-location-defaults.utils';
+import { ActivityCatalogOption } from './planning-dashboard.types';
 import { fromLocalDateTime, toLocalDateTime } from './planning-dashboard-time.utils';
+import { readAttributeBoolean } from '../../core/utils/activity-definition.utils';
 
 export interface PlanningDashboardFormEffectsDeps {
   destroyRef: DestroyRef;
@@ -15,8 +17,8 @@ export interface PlanningDashboardFormEffectsDeps {
   activityFormTypeSignal: (value?: string) => string;
   setActivityFormType: (value: string) => void;
   setActivityFormPristine: () => void;
-  findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null;
-  selectedCatalogOption: () => { activityTypeId?: string; label?: string; defaultDurationMinutes?: number | null } | null;
+  findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null;
+  selectedCatalogOption: () => ActivityCatalogOption | null;
   selectedActivityState: PlanningDashboardActivitySelectionFacade['selectedActivityState'];
   activitySelection: PlanningDashboardActivitySelectionFacade;
   isPendingSelection: (activityId: string | null | undefined) => boolean;
@@ -44,7 +46,7 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
     syncInProgress = true;
     try {
       const typeId = deps.activityFormTypeSignal();
-      const definition = deps.findActivityType(typeId);
+      const definition = deps.findCatalogOptionByTypeId(typeId);
       const endControl = deps.activityForm.controls['end'];
       const durationControl = deps.activityForm.controls['durationMinutes'];
       const syncSource = deps.timeSyncSource();
@@ -195,10 +197,16 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
 
   effect(() => {
     const selection = deps.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
     const attrs = selection?.activity.attributes as Record<string, unknown> | undefined;
     const activityKey = attrs && typeof attrs['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
-    if (activityKey && deps.selectedCatalogOptionMapHas(activityKey)) {
-      deps.activityCreationToolSetter(activityKey);
+    const fallbackType = (selection.activity.type ?? '').toString().trim();
+    const candidates = [activityKey, fallbackType].filter((entry) => !!entry) as string[];
+    const match = candidates.find((entry) => deps.selectedCatalogOptionMapHas(entry)) ?? null;
+    if (match) {
+      deps.activityCreationToolSetter(match);
     }
   });
 
@@ -216,7 +224,7 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
 
   effect(() => {
     const typeId = deps.activityFormTypeSignal();
-    const definition = deps.findActivityType(typeId);
+    const definition = deps.findCatalogOptionByTypeId(typeId);
     if (definition?.timeMode === 'point') {
       const control = deps.activityForm.controls['end'];
       if (control.value) {
@@ -236,7 +244,7 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
   effect(() => {
     const selection = deps.activitySelection.selectedActivityState();
     const typeId = deps.activityFormTypeSignal();
-    const definition = deps.findActivityType(typeId);
+    const definition = deps.findCatalogOptionByTypeId(typeId);
 
     const activityId = selection?.activity.id ?? null;
     if (!activityId || !deps.isPendingSelection(activityId)) {
@@ -267,7 +275,7 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
       return;
     }
     const option = deps.selectedCatalogOption();
-    const durationMinutes = option?.defaultDurationMinutes ?? definition.defaultDurationMinutes ?? null;
+    const durationMinutes = option?.defaultDurationMinutes ?? definition?.defaultDurationMinutes ?? null;
     if (!durationMinutes || durationMinutes <= 0) {
       return;
     }
@@ -278,20 +286,30 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
 
   effect(() => {
     const typeId = deps.activityFormTypeSignal();
-    const definition = deps.findActivityType(typeId);
+    const definition = deps.findCatalogOptionByTypeId(typeId);
+    const option = deps.selectedCatalogOption();
+    const locationDefinition = definition
+      ? { ...definition, attributes: option?.attributes ?? definition.attributes }
+      : null;
+    const fromHidden = locationDefinition ? locationFieldDefaults(locationDefinition, 'from').hidden : false;
+    const toHidden = locationDefinition ? locationFieldDefaults(locationDefinition, 'to').hidden : false;
 
-    const attrs = definition?.attributes as Record<string, unknown> | null | undefined;
-    const rawConsiderLocation = attrs?.['consider_location_conflicts'];
-    const considerLocation =
-      typeof rawConsiderLocation === 'boolean'
-        ? rawConsiderLocation
-        : typeof rawConsiderLocation === 'string'
-          ? ['true', 'yes', '1'].includes(rawConsiderLocation.trim().toLowerCase())
-          : false;
+    const attrs = definition?.attributes ?? null;
+    const isServiceBoundary =
+      readAttributeBoolean(attrs, 'is_service_start') ||
+      readAttributeBoolean(attrs, 'is_service_end');
+    const isBreak =
+      readAttributeBoolean(attrs, 'is_break') ||
+      readAttributeBoolean(attrs, 'is_short_break');
+    const considerLocation = readAttributeBoolean(attrs, 'consider_location_conflicts');
+    const selection = deps.activitySelection.selectedActivityState();
+    const isPending = selection ? deps.isPendingSelection(selection.activity.id) : false;
     const requiresRoute = !!definition && (definition.category === 'movement' || considerLocation);
+    const requiresLocation = requiresRoute || (isPending && (isServiceBoundary || isBreak));
 
-    const fromRequired = !!definition && requiresRoute && definition.fields.includes('from');
-    const toRequired = !!definition && requiresRoute && definition.fields.includes('to');
+    const fields = definition?.fields ?? [];
+    const fromRequired = !!definition && requiresLocation && fields.includes('from') && !fromHidden;
+    const toRequired = !!definition && requiresLocation && fields.includes('to') && !toHidden;
 
     const fromControl = deps.activityForm.controls['from'];
     const toControl = deps.activityForm.controls['to'];

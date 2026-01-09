@@ -1,17 +1,18 @@
-import { ActivityFieldKey, ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityFieldKey } from '../../core/models/activity-definition';
+import type { ActivityCatalogOption } from './planning-dashboard.types';
 
-export function findActivityTypeById(
-  definitions: () => ActivityTypeDefinition[],
+export function findCatalogOptionByTypeId(
+  options: () => ActivityCatalogOption[],
   id: string | null | undefined,
-): ActivityTypeDefinition | null {
+): ActivityCatalogOption | null {
   if (!id) {
     return null;
   }
-  return definitions().find((definition) => definition.id === id) ?? null;
+  return options().find((option) => option.activityTypeId === id) ?? null;
 }
 
 export function definitionHasField(
-  definition: ActivityTypeDefinition | null,
+  definition: ActivityCatalogOption | null,
   field: ActivityFieldKey,
 ): boolean {
   if (field === 'start' || field === 'end') {
@@ -20,10 +21,10 @@ export function definitionHasField(
   if (!definition) {
     return false;
   }
-  return definition.fields.includes(field);
+  return definition.fields?.includes(field) ?? false;
 }
 
-export function shouldShowEndField(definition: ActivityTypeDefinition | null): boolean {
+export function shouldShowEndField(definition: ActivityCatalogOption | null): boolean {
   if (!definition) {
     return true;
   }

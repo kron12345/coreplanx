@@ -235,7 +235,6 @@ export class AssistantActionBase {
         continue;
       }
       if (
-        task.type === 'activityTypes' ||
         task.type === 'activityTemplates' ||
         task.type === 'activityDefinitions' ||
         task.type === 'layerGroups' ||
@@ -292,9 +291,6 @@ export class AssistantActionBase {
       }
       if (task.type === 'timetableYear') {
         hints.add('timetable-years');
-      }
-      if (task.type === 'activityTypes') {
-        hints.add('activity-types');
       }
       if (task.type === 'activityTemplates') {
         hints.add('activity-templates');

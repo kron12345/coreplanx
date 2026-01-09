@@ -159,14 +159,20 @@ export class PlanningDashboardBaseHandlers {
 
   private markBoundaryManual(activity: Activity): Activity {
     const role = activity.serviceRole ?? null;
-    const type = (activity.type ?? '').toString();
-    const isBoundary = role === 'start' || role === 'end' || type === 'service-start' || type === 'service-end';
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const toBool = (value: unknown) =>
+      typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
+    const isBoundary =
+      role === 'start' ||
+      role === 'end' ||
+      toBool(attrs?.['is_service_start']) ||
+      toBool(attrs?.['is_service_end']);
     if (!isBoundary) {
       return activity;
     }
-    const attrs = { ...(activity.attributes ?? {}) } as Record<string, unknown>;
-    attrs['manual_service_boundary'] = true;
-    return { ...activity, attributes: attrs };
+    const nextAttrs = { ...(activity.attributes ?? {}) } as Record<string, unknown>;
+    nextAttrs['manual_service_boundary'] = true;
+    return { ...activity, attributes: nextAttrs };
   }
 
   private shiftDayScopedId(activityId: string, shiftDeltaMs: number): string {

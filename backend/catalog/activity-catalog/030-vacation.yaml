@@ -1,25 +1,83 @@
 activities: []
 templates: []
 types:
-  - id: vacation
-    label: Ferien
-    description: Urlaubszeitraum für Personalressourcen.
-    appliesTo:
-      - personnel
-      - personnel-service
-    relevantFor:
-      - personnel
-      - personnel-service
-    category: rest
-    timeMode: range
-    fields:
-      - start
-      - end
-      - remark
-    defaultDurationMinutes: 1440
-    attributes:
-      is_within_service: no
-      is_absence: true
-      consider_capacity_conflicts: false
-      consider_location_conflicts: false
-      color: '#6d4c41'
+- id: vacation
+  label: Ferien
+  description: "Urlaubszeitraum f\xFCr Personalressourcen."
+  appliesTo:
+  - personnel
+  - personnel-service
+  relevantFor: &id001
+  - personnel
+  - personnel-service
+  category: rest
+  timeMode: range
+  fields:
+  - start
+  - end
+  - remark
+  defaultDurationMinutes: 1440
+  attributes:
+    is_within_service: false
+    is_absence: true
+    consider_capacity_conflicts: false
+    consider_location_conflicts: false
+    color: '#6d4c41'
+definitions:
+- id: vacation
+  label: Ferien
+  description: "Urlaubszeitraum f\xFCr Personalressourcen."
+  activityType: vacation
+  defaultDurationMinutes: 1440
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: rest
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: range
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '1440'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,personnel-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'false'
+  - key: is_absence
+    meta:
+      value: 'true'
+  - key: consider_capacity_conflicts
+    meta:
+      value: 'false'
+  - key: consider_location_conflicts
+    meta:
+      value: 'false'
+  - key: color
+    meta:
+      value: '#6d4c41'

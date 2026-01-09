@@ -1,13 +1,27 @@
 import { Activity } from '../../models/activity';
-import { ActivityTypeDefinition } from '../../core/services/activity-type.service';
 import { ActivityCatalogOption } from './planning-dashboard.types';
-import { buildAttributesFromCatalog, defaultColorForType, resolveServiceRole } from './planning-dashboard-activity.utils';
+import { buildAttributesFromCatalog, resolveServiceRole } from './planning-dashboard-activity.utils';
 
-type TypeMap = Map<string, ActivityTypeDefinition>;
 type CatalogMap = Map<string, ActivityCatalogOption>;
 
-export function applyActivityTypeConstraints(activity: Activity, typeMap: () => TypeMap): Activity {
-  const definition = typeMap().get(activity.type ?? '');
+function resolveCatalogOption(
+  activity: Activity,
+  maps: { byId: () => CatalogMap; byType: () => CatalogMap },
+): ActivityCatalogOption | null {
+  const attrs = (activity.attributes ?? {}) as Record<string, unknown>;
+  const activityKey = typeof attrs['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
+  if (activityKey) {
+    return maps.byId().get(activityKey) ?? null;
+  }
+  const typeId = (activity.type ?? '').trim();
+  return typeId ? maps.byType().get(typeId) ?? null : null;
+}
+
+export function applyActivityTypeConstraints(
+  activity: Activity,
+  maps: { byId: () => CatalogMap; byType: () => CatalogMap },
+): Activity {
+  const definition = resolveCatalogOption(activity, maps);
   if (!definition) {
     return activity;
   }
@@ -22,15 +36,15 @@ export function applyActivityTypeConstraints(activity: Activity, typeMap: () => 
 
 export function ensureActivityCatalogAttributes(
   activity: Activity,
-  catalogMap: () => CatalogMap,
+  maps: { byId: () => CatalogMap; byType: () => CatalogMap },
 ): Activity {
   const attrs = (activity.attributes ?? {}) as Record<string, unknown>;
   const existingKey = typeof attrs['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
-  const candidateKey = existingKey ?? activity.type ?? null;
-  if (!candidateKey) {
+  const option = resolveCatalogOption(activity, maps);
+  const candidateKey = existingKey ?? option?.id ?? activity.type ?? null;
+  if (!option || !candidateKey) {
     return activity;
   }
-  const option = catalogMap().get(candidateKey) ?? null;
   let changed = false;
   let nextAttrs: Record<string, unknown> = { ...attrs };
   if (!existingKey) {
@@ -51,15 +65,6 @@ export function ensureActivityCatalogAttributes(
       changed = true;
     });
   }
-  if (!nextAttrs['color']) {
-    const color =
-      (option?.attributes.find((attr) => attr.key === 'color')?.meta?.['value'] as string | undefined) ??
-      defaultColorForType(activity.type ?? option?.activityTypeId ?? null, option?.typeDefinition.category);
-    if (color) {
-      nextAttrs['color'] = color;
-      changed = true;
-    }
-  }
   const role = resolveServiceRole(option);
   if (role && activity.serviceRole !== role) {
     changed = true;
@@ -72,15 +77,21 @@ export function ensureActivityCatalogAttributes(
 
 export function normalizeActivityList(
   list: Activity[],
-  deps: { typeMap: () => TypeMap; catalogMap: () => CatalogMap },
+  deps: { catalogMap: () => CatalogMap; catalogTypeMap: () => CatalogMap },
 ): Activity[] {
   if (!list.length) {
     return list;
   }
   let mutated = false;
   const normalized = list.map((activity) => {
-    let next = applyActivityTypeConstraints(activity, deps.typeMap);
-    next = ensureActivityCatalogAttributes(next, deps.catalogMap);
+    let next = applyActivityTypeConstraints(activity, {
+      byId: deps.catalogMap,
+      byType: deps.catalogTypeMap,
+    });
+    next = ensureActivityCatalogAttributes(next, {
+      byId: deps.catalogMap,
+      byType: deps.catalogTypeMap,
+    });
     if (next !== activity) {
       mutated = true;
     }

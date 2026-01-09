@@ -695,20 +695,6 @@ export type ActivityCategory = 'rest' | 'movement' | 'service' | 'other';
 export type ActivityTimeMode = 'duration' | 'range' | 'point';
 export type ActivityFieldKey = 'start' | 'end' | 'from' | 'to' | 'remark';
 
-export interface ActivityTypeDefinition {
-  id: string;
-  label: string;
-  description?: string | null;
-  appliesTo: ResourceKind[];
-  relevantFor: ResourceKind[];
-  category: ActivityCategory;
-  timeMode: ActivityTimeMode;
-  fields: ActivityFieldKey[];
-  defaultDurationMinutes: number;
-  attributes?: Record<string, unknown> | null;
-  meta?: Record<string, unknown> | null;
-}
-
 export interface ActivityTemplate {
   id: string;
   label: string;
@@ -771,7 +757,6 @@ export interface CustomAttributeDefinition {
 export type CustomAttributeState = Record<string, CustomAttributeDefinition[]>;
 
 export interface ActivityCatalogSnapshot {
-  types: ActivityTypeDefinition[];
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];

@@ -1,5 +1,5 @@
 import type { Activity } from '../../models/activity';
-import type { ActivityCategory } from '../../core/services/activity-type.service';
+import type { ActivityCategory } from '../../core/models/activity-definition';
 import type { PlanningStageId } from './planning-stage.model';
 import type { StageResourceGroupConfig } from './planning-dashboard-board.facade';
 
@@ -72,4 +72,3 @@ export const TYPE_PICKER_META: Array<{
   { id: 'service', label: 'Dienst & Pause', icon: 'schedule' },
   { id: 'other', label: 'Sonstige', icon: 'widgets' },
 ];
-

@@ -13,17 +13,17 @@ import type {
 import { PlanningRuleRepository } from './planning-rule.repository';
 
 export interface DutyAutopilotConfig {
-  serviceStartTypeId: string;
-  serviceEndTypeId: string;
+  serviceStartTypeId?: string | null;
+  serviceEndTypeId?: string | null;
   personnelStartTypeId?: string | null;
   personnelEndTypeId?: string | null;
   vehicleStartTypeId?: string | null;
   vehicleEndTypeId?: string | null;
   rulesetId?: string | null;
   rulesetVersion?: string | null;
-  breakTypeIds: string[];
-  shortBreakTypeId: string;
-  commuteTypeId: string;
+  breakTypeIds?: string[] | null;
+  shortBreakTypeId?: string | null;
+  commuteTypeId?: string | null;
   conflictAttributeKey: string;
   conflictCodesAttributeKey: string;
   maxConflictLevel: number;
@@ -184,8 +184,8 @@ export class PlanningRuleService {
       const trimmed = raw.trim();
       return trimmed.length ? trimmed : null;
     };
-    const serviceStartTypeId = String(params['serviceStartTypeId'] ?? 'service-start');
-    const serviceEndTypeId = String(params['serviceEndTypeId'] ?? 'service-end');
+    const serviceStartTypeId = readOptionalTypeId('serviceStartTypeId');
+    const serviceEndTypeId = readOptionalTypeId('serviceEndTypeId');
     const personnelStartTypeId =
       readOptionalTypeId('personnelStartTypeId') ??
       readOptionalTypeId('personnelServiceStartTypeId');
@@ -203,9 +203,9 @@ export class PlanningRuleService {
     const breakTypeIdsRaw = params['breakTypeIds'];
     const breakTypeIds = Array.isArray(breakTypeIdsRaw)
       ? breakTypeIdsRaw.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
-      : ['break'];
-    const shortBreakTypeId = String(params['shortBreakTypeId'] ?? 'short-break');
-    const commuteTypeId = String(params['commuteTypeId'] ?? 'commute');
+      : null;
+    const shortBreakTypeId = readOptionalTypeId('shortBreakTypeId');
+    const commuteTypeId = readOptionalTypeId('commuteTypeId');
     const conflictAttributeKey = String(params['conflictAttributeKey'] ?? 'service_conflict_level');
     const conflictCodesAttributeKey = String(
       params['conflictCodesAttributeKey'] ?? 'service_conflict_codes',

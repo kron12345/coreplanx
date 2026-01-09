@@ -1,28 +1,83 @@
 activities: []
 templates: []
 types:
-  - id: cleaning
-    label: Innenreinigung
-    description: Reinigungsarbeiten am Fahrzeug.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: service
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - remark
-    defaultDurationMinutes: 45
-    attributes:
-      is_within_service: yes
-      is_cleaning: true
-      requires_vehicle: true
-      color: '#00897b'
+- id: cleaning
+  label: Innenreinigung
+  description: Reinigungsarbeiten am Fahrzeug.
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: service
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - remark
+  defaultDurationMinutes: 45
+  attributes:
+    is_within_service: true
+    is_cleaning: true
+    requires_vehicle: true
+    color: '#00897b'
+definitions:
+- id: cleaning
+  label: Innenreinigung
+  description: Reinigungsarbeiten am Fahrzeug.
+  activityType: cleaning
+  defaultDurationMinutes: 45
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: service
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '45'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_cleaning
+    meta:
+      value: 'true'
+  - key: requires_vehicle
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#00897b'

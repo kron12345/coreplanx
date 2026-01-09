@@ -5,7 +5,7 @@ import { PlanningStageId } from './planning-stage.model';
 import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.facade';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { addParticipantToActivity, resourceParticipantCategory } from './planning-dashboard-participant.utils';
-import { ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityCatalogOption } from './planning-dashboard.types';
 import { ActivityGroupRole } from '../../models/activity';
 import { applyActivityGroup, readActivityGroupMeta } from './planning-activity-group.utils';
 
@@ -22,7 +22,7 @@ export class PlanningDashboardSelectionActionsFacade {
       isPendingSelection: (activityId: string | null | undefined) => boolean;
       commitPendingActivityUpdate: (activity: Activity) => void;
       replaceActivity: (activity: Activity) => void;
-      findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null;
+      findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null;
       activityMoveTargetSignal: WritableSignal<string>;
       saveTemplateActivity: (activity: Activity) => void;
     },
@@ -170,7 +170,7 @@ export class PlanningDashboardSelectionActionsFacade {
       deltaMinutes,
       normalizedActivities,
       this.deps.activitySelection.selectedActivityState(),
-      (typeId) => this.deps.findActivityType(typeId),
+      (typeId) => this.deps.findCatalogOptionByTypeId(typeId),
       (activityId) => this.deps.isPendingSelection(activityId),
       (activity) => this.deps.applyActivityTypeConstraints(activity),
       (activity) => this.deps.commitPendingActivityUpdate(activity),
@@ -182,7 +182,7 @@ export class PlanningDashboardSelectionActionsFacade {
     direction: 'previous' | 'next',
     findNeighbors: (activity: Activity) => { previous: Activity | null; next: Activity | null },
     activityForm: { patchValue: (val: any) => void },
-    findType: (typeId: string | null | undefined) => ActivityTypeDefinition | null,
+    findType: (typeId: string | null | undefined) => ActivityCatalogOption | null,
   ): void {
     this.deps.activityFacade.snapToNeighbor(
       direction,
@@ -196,7 +196,7 @@ export class PlanningDashboardSelectionActionsFacade {
   fillGapForSelectedActivity(
     findNeighbors: (activity: Activity) => { previous: Activity | null; next: Activity | null },
     activityForm: { patchValue: (val: any) => void },
-    findType: (typeId: string | null | undefined) => ActivityTypeDefinition | null,
+    findType: (typeId: string | null | undefined) => ActivityCatalogOption | null,
   ): void {
     this.deps.activityFacade.fillGapForSelectedActivity(
       this.deps.activitySelection.selectedActivityState(),

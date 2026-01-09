@@ -8,7 +8,6 @@ import type {
   ActivityMutationRequest,
   ActivityMutationResponse,
   ActivityTemplate,
-  ActivityTypeDefinition,
   CustomAttributeState,
   ActivityValidationRequest,
   ActivityValidationResponse,
@@ -338,35 +337,6 @@ export class PlanningService {
 
   resetActivityCatalogToDefaults(): Promise<ActivityCatalogSnapshot> {
     return this.catalogService.resetActivityCatalogToDefaults();
-  }
-
-  listActivityTypes(): ActivityTypeDefinition[] {
-    return this.catalogService.listActivityTypes();
-  }
-
-  replaceActivityTypes(
-    payload: ActivityTypeDefinition[],
-  ): Promise<ActivityTypeDefinition[]> {
-    return this.catalogService.replaceActivityTypes(payload);
-  }
-
-  getActivityType(typeId: string): ActivityTypeDefinition {
-    return this.catalogService.getActivityType(typeId);
-  }
-
-  createActivityType(payload: ActivityTypeDefinition): Promise<ActivityTypeDefinition> {
-    return this.catalogService.createActivityType(payload);
-  }
-
-  upsertActivityType(
-    typeId: string,
-    payload: ActivityTypeDefinition,
-  ): Promise<ActivityTypeDefinition> {
-    return this.catalogService.upsertActivityType(typeId, payload);
-  }
-
-  deleteActivityType(typeId: string): Promise<void> {
-    return this.catalogService.deleteActivityType(typeId);
   }
 
   listActivityTemplates(): ActivityTemplate[] {

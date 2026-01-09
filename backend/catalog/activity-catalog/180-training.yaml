@@ -1,23 +1,75 @@
 activities: []
 templates: []
 types:
-  - id: training
-    label: Schulung
-    description: Schulung oder Fortbildung während des Dienstplans.
-    appliesTo:
-      - personnel
-      - personnel-service
-    relevantFor:
-      - personnel
-      - personnel-service
-    category: other
-    timeMode: range
-    fields:
-      - start
-      - end
-      - remark
-    defaultDurationMinutes: 240
-    attributes:
-      is_within_service: yes
-      is_training: true
-      color: '#7b1fa2'
+- id: training
+  label: Schulung
+  description: "Schulung oder Fortbildung w\xE4hrend des Dienstplans."
+  appliesTo:
+  - personnel
+  - personnel-service
+  relevantFor: &id001
+  - personnel
+  - personnel-service
+  category: other
+  timeMode: range
+  fields:
+  - start
+  - end
+  - remark
+  defaultDurationMinutes: 240
+  attributes:
+    is_within_service: true
+    is_training: true
+    color: '#7b1fa2'
+definitions:
+- id: training
+  label: Schulung
+  description: "Schulung oder Fortbildung w\xE4hrend des Dienstplans."
+  activityType: training
+  defaultDurationMinutes: 240
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: other
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: range
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '240'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,personnel-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_training
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#7b1fa2'

@@ -13,7 +13,6 @@ import { PlanningDataService } from '../../features/planning/planning-data.servi
 import { PlanningStoreService } from '../../shared/planning-store.service';
 import { SimulationService } from './simulation.service';
 import { TimetableYearService } from './timetable-year.service';
-import { ActivityTypeService } from './activity-type.service';
 import { ActivityCatalogService } from './activity-catalog.service';
 import { LayerGroupService } from './layer-group.service';
 import { TranslationService } from './translation.service';
@@ -29,7 +28,6 @@ export class AssistantActionService {
   private readonly planningStore = inject(PlanningStoreService);
   private readonly simulations = inject(SimulationService);
   private readonly timetableYears = inject(TimetableYearService);
-  private readonly activityTypes = inject(ActivityTypeService);
   private readonly activityCatalog = inject(ActivityCatalogService);
   private readonly layerGroups = inject(LayerGroupService);
   private readonly translations = inject(TranslationService);
@@ -184,11 +182,7 @@ export class AssistantActionService {
     if (hintSet.has('timetable-years')) {
       this.timetableYears.refresh();
     }
-    if (hintSet.has('activity-types')) {
-      void this.activityTypes.refresh();
-    }
     if (
-      hintSet.has('activity-types') ||
       hintSet.has('activity-templates') ||
       hintSet.has('activity-definitions')
     ) {

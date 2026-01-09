@@ -1,5 +1,5 @@
 import { FormGroup } from '@angular/forms';
-import { ActivityCategory } from '../../core/services/activity-type.service';
+import type { ActivityCategory } from '../../core/models/activity-definition';
 import { ActivityCatalogOption } from './planning-dashboard.types';
 
 export class PlanningDashboardUiFacade {

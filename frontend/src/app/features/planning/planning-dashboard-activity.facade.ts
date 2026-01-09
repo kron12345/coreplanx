@@ -3,7 +3,7 @@ import { Activity, ActivityParticipantRole, ServiceRole } from '../../models/act
 import { ActivityParticipantCategory } from '../../models/activity-ownership';
 import { Resource } from '../../models/resource';
 import { PlanningStageId } from './planning-stage.model';
-import { ActivityFieldKey, ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityFieldKey } from '../../core/models/activity-definition';
 import { ActivityCatalogOption } from './planning-dashboard.types';
 import { fromLocalDateTime, toLocalDateTime } from './planning-dashboard-time.utils';
 
@@ -25,7 +25,7 @@ export class PlanningDashboardActivityFacade {
       ) => Activity;
       moveParticipantToResource: (activity: Activity, participantId: string, target: Resource) => Activity;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
-      definitionHasField: (definition: ActivityTypeDefinition | null, field: ActivityFieldKey) => boolean;
+      definitionHasField: (definition: ActivityCatalogOption | null, field: ActivityFieldKey) => boolean;
       resolveServiceCategory: (resource: Resource) => Activity['serviceCategory'];
       resourceParticipantCategory: (resource: Resource | null) => ActivityParticipantCategory;
       updateStageActivities: (stage: PlanningStageId, updater: (activities: Activity[]) => Activity[]) => void;
@@ -33,29 +33,31 @@ export class PlanningDashboardActivityFacade {
       saveTemplateActivity: (activity: Activity) => void;
       buildAttributesFromCatalog: (option: ActivityCatalogOption | null) => Record<string, unknown> | undefined;
       resolveServiceRole: (option: ActivityCatalogOption | null) => ServiceRole | null;
-      buildActivityTitle: (definition: ActivityTypeDefinition) => string;
+      buildActivityTitle: (label?: string | null) => string;
       generateActivityId: (seed: string) => string;
-      findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null;
+      findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null;
     },
   ) {}
 
   createDraft(
     _stage: PlanningStageId,
     event: { resource: Resource; start: Date },
-    definition: ActivityTypeDefinition,
+    definition: ActivityCatalogOption,
     option: ActivityCatalogOption | null,
   ): Activity {
-    const durationMinutes = option?.defaultDurationMinutes ?? definition.defaultDurationMinutes;
+    const durationMinutes = option?.defaultDurationMinutes ?? definition.defaultDurationMinutes ?? null;
     const endDate =
-      definition.timeMode === 'duration'
+      (definition.timeMode ?? option?.timeMode) === 'duration' && typeof durationMinutes === 'number'
         ? new Date(event.start.getTime() + durationMinutes * 60 * 1000)
         : null;
+    const labelSource = option?.label ?? definition.label;
+    const typeId = option?.activityTypeId ?? definition.activityTypeId;
     const draft: Activity = {
       id: this.deps.generateActivityId(option?.id ?? definition.id),
-      title: option?.label ?? this.deps.buildActivityTitle(definition),
+      title: this.deps.buildActivityTitle(labelSource),
       start: event.start.toISOString(),
       end: endDate ? endDate.toISOString() : null,
-      type: definition.id,
+      type: typeId,
       serviceCategory: this.deps.resolveServiceCategory(event.resource),
       serviceRole: this.deps.resolveServiceRole(option),
       attributes: this.deps.buildAttributesFromCatalog(option),
@@ -169,7 +171,7 @@ export class PlanningDashboardActivityFacade {
     deltaMinutes: number,
     selectedActivities: { activity: Activity; resource: Resource }[],
     selectedActivityState: { activity: Activity; resource: Resource } | null,
-    findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null,
+    findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null,
     isPendingSelection: (activityId: string | null | undefined) => boolean,
     applyActivityTypeConstraints: (activity: Activity) => Activity,
     commitPendingActivityUpdate: (activity: Activity) => void,
@@ -183,7 +185,7 @@ export class PlanningDashboardActivityFacade {
     const { activity } = target;
     const deltaMs = deltaMinutes * 60 * 1000;
     const start = new Date(activity.start).getTime() + deltaMs;
-    const definition = findActivityType(activity.type ?? null);
+    const definition = findCatalogOptionByTypeId(activity.type ?? null);
     const end =
       definition?.timeMode === 'point' || !activity.end
         ? null
@@ -205,7 +207,7 @@ export class PlanningDashboardActivityFacade {
     selection: { activity: Activity; resource: Resource } | null,
     form: FormGroup,
     findNeighborActivities: (activity: Activity) => { previous: Activity | null; next: Activity | null },
-    findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null,
+    findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null,
   ): void {
     if (!selection) {
       return;
@@ -228,7 +230,7 @@ export class PlanningDashboardActivityFacade {
     const neighbors = findNeighborActivities(reference);
     const previous = neighbors.previous;
     const next = neighbors.next;
-    const definition = findActivityType(base.type ?? null);
+    const definition = findCatalogOptionByTypeId(base.type ?? null);
     const isPoint = definition?.timeMode === 'point';
     if (!previous || !next || isPoint) {
       return;
@@ -258,7 +260,7 @@ export class PlanningDashboardActivityFacade {
     selection: { activity: Activity; resource: Resource } | null,
     form: FormGroup,
     findNeighborActivities: (activity: Activity) => { previous: Activity | null; next: Activity | null },
-    findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null,
+    findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null,
   ): void {
     if (!selection) {
       return;
@@ -283,7 +285,7 @@ export class PlanningDashboardActivityFacade {
     if (!neighbor) {
       return;
     }
-    const definition = findActivityType(base.type ?? null);
+    const definition = findCatalogOptionByTypeId(base.type ?? null);
     const isPoint = definition?.timeMode === 'point';
 
     if (direction === 'previous') {

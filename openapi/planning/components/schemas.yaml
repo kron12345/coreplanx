@@ -189,59 +189,6 @@ schemas:
     - id
     - title
     - start
-  ActivityTypeDefinition:
-    type: object
-    description: "Definition eines Activity Types (technisch)."
-    properties:
-      id:
-        type: string
-      label:
-        type: string
-      description:
-        type: string
-        nullable: true
-      appliesTo:
-        type: array
-        items:
-          type: string
-          enum: [personnel, vehicle, personnel-service, vehicle-service]
-      relevantFor:
-        type: array
-        items:
-          type: string
-          enum: [personnel, vehicle, personnel-service, vehicle-service]
-      category:
-        type: string
-        enum: [rest, movement, service, other]
-      timeMode:
-        type: string
-        enum: [duration, range, point]
-      fields:
-        type: array
-        items:
-          type: string
-          enum: [start, end, from, to, remark]
-      defaultDurationMinutes:
-        type: integer
-        format: int32
-      attributes:
-        type: object
-        additionalProperties: true
-        nullable: true
-      meta:
-        type: object
-        additionalProperties: true
-        nullable: true
-    required: [id, label, appliesTo, relevantFor, category, timeMode, fields, defaultDurationMinutes]
-    example:
-      id: service-start
-      label: Dienstanfang
-      appliesTo: [personnel, vehicle, personnel-service, vehicle-service]
-      relevantFor: [personnel, vehicle, personnel-service, vehicle-service]
-      category: service
-      timeMode: point
-      fields: [start, end, from, to, remark]
-      defaultDurationMinutes: 45
   ActivityTemplate:
     type: object
     properties:
@@ -312,12 +259,8 @@ schemas:
             value: true
   ActivityCatalogSnapshot:
     type: object
-    description: "Gesamter Katalog für Activity Types, Templates, Definitions, Layer und Übersetzungen."
+    description: "Gesamter Katalog für Activity Templates, Definitions, Layer und Übersetzungen."
     properties:
-      types:
-        type: array
-        items:
-          $ref: '#/components/schemas/ActivityTypeDefinition'
       templates:
         type: array
         items:
@@ -334,25 +277,8 @@ schemas:
         $ref: '#/components/schemas/TranslationState'
       customAttributes:
         $ref: '#/components/schemas/CustomAttributeState'
-    required: [types, templates, definitions, layerGroups, translations, customAttributes]
+    required: [templates, definitions, layerGroups, translations, customAttributes]
     example:
-      types:
-        - id: service-start
-          label: Dienstanfang
-          appliesTo: [personnel, vehicle, personnel-service, vehicle-service]
-          relevantFor: [personnel, vehicle, personnel-service, vehicle-service]
-          category: service
-          timeMode: point
-          fields: [start, end, from, to, remark]
-          defaultDurationMinutes: 45
-        - id: break
-          label: Pause
-          appliesTo: [personnel, vehicle, personnel-service, vehicle-service]
-          relevantFor: [personnel, vehicle, personnel-service, vehicle-service]
-          category: service
-          timeMode: duration
-          fields: [start, end, remark]
-          defaultDurationMinutes: 30
       templates:
         - id: pause-30-template
           label: Pause 30 min

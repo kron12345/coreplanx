@@ -22,7 +22,7 @@ import { ResourceKind } from '../../models/resource';
 import { AbstractControl, FormGroup, FormControl } from '@angular/forms';
 import { TranslationService } from '../../core/services/translation.service';
 import { LayerGroupService, LayerGroup } from '../../core/services/layer-group.service';
-import { ActivityTypeService } from '../../core/services/activity-type.service';
+import { isSystemDefinition } from '../../core/utils/activity-definition.utils';
 
 const DRAW_AS_OPTIONS = [
   'line-above',
@@ -62,13 +62,17 @@ export class ActivityCatalogSettingsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly catalog = inject(ActivityCatalogService);
   private readonly translationService = inject(TranslationService);
-  protected readonly activityTypes = inject(ActivityTypeService);
   private readonly layerGroups = inject(LayerGroupService);
-  private readonly activityTypeMap = computed(() => {
-    const map = new Map<string, { label: string; category: string }>();
-    this.activityTypes.definitions().forEach((t) =>
-      map.set(t.id, { label: t.label, category: t.category }),
-    );
+  private readonly activityTypeLabelMap = computed(() => {
+    this.translationService.translations();
+    const map = new Map<string, string>();
+    this.activities().forEach((def) => {
+      if (!def.activityType || map.has(def.activityType)) {
+        return;
+      }
+      const translated = this.translationService.translate(`activityType:${def.activityType}`, def.activityType);
+      map.set(def.activityType, translated?.trim().length ? translated.trim() : def.activityType);
+    });
     return map;
   });
 
@@ -125,6 +129,14 @@ export class ActivityCatalogSettingsComponent {
       map.set(trimmed, meta ?? {});
     };
     const seedMeta: Record<string, Record<string, string>> = {
+      category: { datatype: 'enum', options: 'rest,movement,service,other', value: 'other' },
+      time_mode: { datatype: 'enum', options: 'duration,range,point', value: 'duration' },
+      default_duration: { datatype: 'number', unit: 'minutes', value: '60' },
+      relevant_for: {
+        datatype: 'list',
+        options: 'personnel,vehicle,personnel-service,vehicle-service',
+        value: 'personnel,vehicle',
+      },
       'field:start': { datatype: 'timepoint', oncreate: 'edit', onupdate: 'edit' },
       'field:end': { datatype: 'timepoint', oncreate: 'edit', onupdate: 'edit' },
       'field:from': { datatype: 'string', oncreate: 'edit', onupdate: 'edit' },
@@ -153,6 +165,8 @@ export class ActivityCatalogSettingsComponent {
       is_break: { datatype: 'boolean', value: 'true' },
       is_service_start: { datatype: 'boolean', value: 'true' },
       is_service_end: { datatype: 'boolean', value: 'true' },
+      is_overnight: { datatype: 'boolean', value: 'true' },
+      is_system: { datatype: 'boolean', value: 'true' },
       is_within_service: {
         datatype: 'enum',
         options: 'yes,no,both',
@@ -261,15 +275,12 @@ export class ActivityCatalogSettingsComponent {
   }
 
   protected typeLabel(typeId: string): string {
-    return this.activityTypeMap().get(typeId)?.label ?? typeId;
+    return this.activityTypeLabelMap().get(typeId) ?? typeId;
   }
 
   protected activityDisplayName(activity: ActivityDefinition): string {
-    const typeLabel = this.typeLabel(activity.activityType);
-    return (
-      this.translationService.translate(`activityType:${activity.activityType}`, typeLabel) ||
-      typeLabel
-    );
+    const translated = this.translationService.translate(`activityType:${activity.activityType}`, activity.label);
+    return translated?.trim().length ? translated.trim() : activity.label;
   }
 
   protected startTemplateEdit(template: ActivityTemplate): void {
@@ -327,7 +338,7 @@ export class ActivityCatalogSettingsComponent {
       return;
     }
     await this.catalog.resetToDefaults();
-    await Promise.all([this.activityTypes.refresh(), this.layerGroups.refresh()]);
+    await this.layerGroups.refresh();
     this.cancelTemplateEdit();
     this.cancelActivityEdit();
   }
@@ -335,39 +346,13 @@ export class ActivityCatalogSettingsComponent {
   protected startActivityEdit(activity: ActivityDefinition): void {
     this.activityEditId.set(activity.id);
     const normalizedAttrs = this.normalizeAttributes(activity.attributes);
-    const attrMap = new Map(normalizedAttrs.map((a) => [a.key, a] as const));
-    const durationAttr = attrMap.get('default_duration');
-    const relevantAttr = attrMap.get('relevant_for');
-    const duration =
-      durationAttr?.meta?.['value'] && Number(durationAttr.meta['value']) > 0
-        ? Number(durationAttr.meta['value'])
-        : activity.defaultDurationMinutes ?? null;
-    const relevantRaw =
-      relevantAttr?.meta?.['value'] && typeof relevantAttr.meta['value'] === 'string'
-        ? (relevantAttr.meta['value'] as string)
-        : null;
-    const relevant =
-      relevantRaw?.split(',').map((v) => v.trim()).filter(Boolean) ??
-      activity.relevantFor ??
-      [];
     this.activityForm.reset({
-      label: this.translationService.translate(`activityType:${activity.activityType}`, activity.label),
+      label: activity.label,
       id: activity.id,
       activityType: activity.activityType,
       templateId: activity.templateId ?? null,
     });
     this.setAttributes(this.activityAttributes, normalizedAttrs);
-    // Falls Attribute fehlen, optional hinzufügen
-    if (duration && !attrMap.has('default_duration')) {
-      this.addActivityAttributeFromPreset('default_duration');
-      const last = this.activityAttributes.at(this.activityAttributes.length - 1) as FormGroup;
-      this.metaValueControl(last).setValue(duration.toString());
-    }
-    if (relevant.length && !attrMap.has('relevant_for')) {
-      this.addActivityAttributeFromPreset('relevant_for');
-      const last = this.activityAttributes.at(this.activityAttributes.length - 1) as FormGroup;
-      this.metaValueControl(last).setValue(relevant.join(','));
-    }
   }
 
   protected newActivity(): void {
@@ -401,6 +386,12 @@ export class ActivityCatalogSettingsComponent {
   }
 
   protected removeActivity(activity: ActivityDefinition): void {
+    if (this.isSystemActivity(activity)) {
+      if (typeof window !== 'undefined') {
+        window.alert('Systemaktivitäten dürfen nicht gelöscht werden.');
+      }
+      return;
+    }
     this.catalog.removeDefinition(activity.id);
     if (this.activityEditId() === activity.id) {
       this.cancelActivityEdit();
@@ -560,16 +551,11 @@ export class ActivityCatalogSettingsComponent {
     const raw = this.activityForm.getRawValue();
     const attrs = this.collectAttributes(this.activityAttributes);
     const activityTypeId = (raw.activityType ?? '').trim();
-    const fallbackTypeLabel =
-      this.activityTypes.definitions().find((type) => type.id === activityTypeId)?.label ??
-      activityTypeId;
-    const translatedLabel = this.translationService.translate(
-      `activityType:${activityTypeId}`,
-      fallbackTypeLabel,
-    );
+    const fallbackLabel = (raw.id ?? '').trim() || activityTypeId;
+    const label = (raw.label ?? '').trim() || fallbackLabel;
     return {
       id: (raw.id ?? '').trim(),
-      label: translatedLabel || fallbackTypeLabel,
+      label,
       activityType: activityTypeId,
       templateId: raw.templateId ?? null,
       defaultDurationMinutes: null,
@@ -594,6 +580,13 @@ export class ActivityCatalogSettingsComponent {
   protected updateRelevantForMeta(attrGroup: AbstractControl, values: string[]): void {
     const ctrl = this.metaValueControl(attrGroup);
     ctrl.setValue(values.join(','));
+  }
+
+  protected isSystemActivity(activity: ActivityDefinition | null | undefined): boolean {
+    if (!activity) {
+      return false;
+    }
+    return isSystemDefinition(activity.attributes ?? []);
   }
 
   private confirmFactoryReset(scopeLabel: string): boolean {

@@ -108,7 +108,8 @@
                     mat-icon-button
                     color="warn"
                     type="button"
-                    matTooltip="Activity löschen"
+                    [matTooltip]="isSystemActivity(selectedActivity()) ? 'Systemaktivitäten dürfen nicht gelöscht werden' : 'Activity löschen'"
+                    [disabled]="isSystemActivity(selectedActivity())"
                     (click)="removeActivity(selectedActivity()!)"
                   >
                     <mat-icon fontIcon="delete"></mat-icon>
@@ -129,11 +130,7 @@
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Activity-Type</mat-label>
-                  <mat-select formControlName="activityType">
-                    @for (type of activityTypes.definitions(); track type.id) {
-                      <mat-option [value]="type.id">{{ type.label }} ({{ type.id }})</mat-option>
-                    }
-                  </mat-select>
+                  <input matInput formControlName="activityType" />
                 </mat-form-field>
               </div>
               <div class="form__row">
@@ -413,12 +410,7 @@
               <div class="form__row">
                 <mat-form-field appearance="outline">
                   <mat-label>Activity-Type</mat-label>
-                  <mat-select formControlName="activityType">
-                    <mat-option [value]="''">Optional</mat-option>
-                    @for (type of activityTypes.definitions(); track type.id) {
-                      <mat-option [value]="type.id">{{ type.label }} ({{ type.id }})</mat-option>
-                    }
-                  </mat-select>
+                  <input matInput formControlName="activityType" placeholder="Optional" />
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Beschreibung</mat-label>

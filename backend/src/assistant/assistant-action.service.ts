@@ -319,10 +319,6 @@ export class AssistantActionService extends AssistantActionBase {
           await this.applyTopologyCommitTask(task);
           break;
         }
-        case 'activityTypes': {
-          await this.planning.replaceActivityTypes(task.items);
-          break;
-        }
         case 'activityTemplates': {
           await this.planning.replaceActivityTemplates(task.items);
           break;
@@ -619,24 +615,18 @@ export class AssistantActionService extends AssistantActionBase {
         );
       case 'delete_transfer_edge':
         return this.topologyTransfers.buildDeleteTransferEdgePreview(payload, snapshot, context);
-      case 'create_activity_type':
-        return this.settings.buildCreateActivityTypePreview(payload, snapshot, context);
       case 'create_activity_template':
         return this.settings.buildCreateActivityTemplatePreview(payload, snapshot, context);
       case 'create_activity_definition':
         return this.settings.buildCreateActivityDefinitionPreview(payload, snapshot, context);
       case 'create_layer_group':
         return this.settings.buildCreateLayerGroupPreview(payload, snapshot, context);
-      case 'update_activity_type':
-        return this.settings.buildUpdateActivityTypePreview(payload, snapshot, context);
       case 'update_activity_template':
         return this.settings.buildUpdateActivityTemplatePreview(payload, snapshot, context);
       case 'update_activity_definition':
         return this.settings.buildUpdateActivityDefinitionPreview(payload, snapshot, context);
       case 'update_layer_group':
         return this.settings.buildUpdateLayerGroupPreview(payload, snapshot, context);
-      case 'delete_activity_type':
-        return this.settings.buildDeleteActivityTypePreview(payload, snapshot, context);
       case 'delete_activity_template':
         return this.settings.buildDeleteActivityTemplatePreview(payload, snapshot, context);
       case 'delete_activity_definition':

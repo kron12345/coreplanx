@@ -1,80 +1,74 @@
 import { Signal, computed } from '@angular/core';
-import { ActivityCategory, ActivityTypeDefinition, ActivityTypeService } from '../../core/services/activity-type.service';
 import { ActivityCatalogService } from '../../core/services/activity-catalog.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
 import { ResourceKind } from '../../models/resource';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
+import type { ActivityCategory } from '../../core/models/activity-definition';
+import {
+  isSystemDefinition,
+  readDefinitionCategory,
+  readDefinitionDefaultDuration,
+  readDefinitionFields,
+  readDefinitionRelevantFor,
+  readDefinitionTimeMode,
+} from '../../core/utils/activity-definition.utils';
 
 export class PlanningDashboardCatalogFacade {
-  readonly activityTypeDefinitions: Signal<ActivityTypeDefinition[]>;
-  readonly activityTypeDisplayLabelMap = computed(() => {
+  private readonly activityCatalogOptions = computed<ActivityCatalogOption[]>(() => {
     this.translationService.translations();
-    const map = new Map<string, string>();
-    this.activityTypeDefinitions().forEach((definition) => {
-      const translated = this.translationService.translate(
-        `activityType:${definition.id}`,
-        definition.label,
-      );
-      map.set(definition.id, translated || definition.label);
+    return this.activityCatalog
+      .definitions()
+      .map((entry) => {
+        const attributes = entry.attributes ?? [];
+        const translated = this.translationService.translate(
+          `activityType:${entry.activityType}`,
+          entry.label,
+        );
+        const label = translated?.trim().length ? translated.trim() : entry.label;
+        return {
+          id: entry.id,
+          label,
+          description: entry.description ?? undefined,
+          defaultDurationMinutes: readDefinitionDefaultDuration(attributes),
+          attributes,
+          templateId: entry.templateId ?? null,
+          activityTypeId: entry.activityType,
+          relevantFor: readDefinitionRelevantFor(attributes),
+          category: readDefinitionCategory(attributes),
+          timeMode: readDefinitionTimeMode(attributes),
+          fields: readDefinitionFields(attributes),
+          isSystem: isSystemDefinition(attributes),
+        } as ActivityCatalogOption;
+      })
+      .filter((entry) => !!entry.activityTypeId);
+  });
+
+  readonly activityCatalogOptionMap = computed(() =>
+    new Map<string, ActivityCatalogOption>(
+      this.activityCatalogOptions().map((option) => [option.id, option] as const),
+    ),
+  );
+
+  readonly activityCatalogOptionTypeMap = computed(() => {
+    const map = new Map<string, ActivityCatalogOption>();
+    this.activityCatalogOptions().forEach((option) => {
+      if (!map.has(option.activityTypeId)) {
+        map.set(option.activityTypeId, option);
+      }
     });
     return map;
   });
 
-  readonly activityTypeMap = computed(() => {
-    const map = new Map<string, ActivityTypeDefinition>();
-    this.activityTypeDefinitions().forEach((definition) => map.set(definition.id, definition));
+  readonly activityTypeDisplayLabelMap = computed(() => {
+    const map = new Map<string, string>();
+    this.activityCatalogOptions().forEach((option) => {
+      if (!map.has(option.activityTypeId)) {
+        map.set(option.activityTypeId, option.label);
+      }
+    });
     return map;
   });
-
-  private readonly activityCatalogOptions = computed<ActivityCatalogOption[]>(() => {
-    const typeMap = this.activityTypeMap();
-    const displayLabelMap = this.activityTypeDisplayLabelMap();
-    return this.activityCatalog
-      .definitions()
-      .map((entry) => {
-        const type = typeMap.get(entry.activityType ?? '');
-        if (!type) {
-          return null;
-        }
-        const attrList = entry.attributes ?? [];
-        const attrByKey = new Map(attrList.map((a) => [a.key, a] as const));
-        const durationAttr = attrByKey.get('default_duration');
-        const relevantAttr = attrByKey.get('relevant_for');
-        const durationFromAttr = durationAttr?.meta?.['value'] ? Number(durationAttr.meta['value']) : null;
-        const relevantFromAttr = relevantAttr?.meta?.['value']
-          ? (relevantAttr.meta['value'] as string).split(',').map((v) => v.trim()).filter(Boolean)
-          : null;
-        const effectiveDuration =
-          Number.isFinite(durationFromAttr ?? NaN) && (durationFromAttr ?? 0) > 0
-            ? (durationFromAttr as number)
-            : entry.defaultDurationMinutes ?? type.defaultDurationMinutes;
-        const effectiveRelevantFor =
-          (relevantFromAttr && relevantFromAttr.length
-            ? (relevantFromAttr as ResourceKind[])
-            : entry.relevantFor && entry.relevantFor.length
-              ? entry.relevantFor
-              : type.relevantFor) ?? type.appliesTo;
-        const translatedTypeLabel = displayLabelMap.get(type.id) ?? type.label;
-
-        return {
-          id: entry.id,
-          label: translatedTypeLabel,
-          description: entry.description ?? type.description,
-          defaultDurationMinutes: effectiveDuration ?? null,
-          attributes: attrList,
-          templateId: entry.templateId ?? null,
-          activityTypeId: entry.activityType ?? type.id,
-          typeDefinition: type,
-          relevantFor: effectiveRelevantFor,
-        } as ActivityCatalogOption;
-      })
-      .filter((entry): entry is ActivityCatalogOption => !!entry);
-  });
-
-  readonly activityCatalogOptionMap = computed(() =>
-    new Map<string, ActivityCatalogOption>(this.activityCatalogOptions().map((option) => [option.id, option])),
-  );
 
   readonly activityCreationOptions = this.activityCatalogOptions;
 
@@ -86,7 +80,10 @@ export class PlanningDashboardCatalogFacade {
       return options;
     }
     return options.filter((option) => {
-      const relevant = option.relevantFor ?? option.typeDefinition.relevantFor ?? option.typeDefinition.appliesTo;
+      const relevant = option.relevantFor ?? null;
+      if (!relevant || !relevant.length) {
+        return true;
+      }
       return relevant.includes(resourceKind);
     });
   });
@@ -112,7 +109,7 @@ export class PlanningDashboardCatalogFacade {
       items: [] as ActivityCatalogOption[],
     }));
     options.forEach((option) => {
-      const targetId = option.typeDefinition.category ?? 'other';
+      const targetId = option.category ?? 'other';
       const target =
         groups.find((group) => group.id === targetId) ??
         groups.find((group) => group.id === 'other') ??
@@ -144,14 +141,11 @@ export class PlanningDashboardCatalogFacade {
   });
 
   constructor(
-    private readonly activityTypeService: ActivityTypeService,
     private readonly activityCatalog: ActivityCatalogService,
     private readonly translationService: TranslationService,
     private readonly typePickerMeta: Array<{ id: ActivityCategory; label: string; icon: string }>,
     private readonly selection?: PlanningDashboardActivitySelectionFacade,
     private readonly activityCreationToolSignal?: () => string,
     private readonly activityTypeMenuSelection?: () => string | null,
-  ) {
-    this.activityTypeDefinitions = this.activityTypeService.definitions;
-  }
+  ) {}
 }

@@ -1,31 +1,99 @@
 activities: []
 templates: []
 types:
-  - id: shunting
-    label: Rangieren
-    description: Rangierbewegungen inkl. Quelle und Ziel.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: movement
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - from
-      - to
-      - remark
-    defaultDurationMinutes: 60
-    attributes:
-      is_within_service: yes
-      is_shunting: true
-      requires_vehicle: true
-      consider_location_conflicts: true
-      color: '#00838f'
+- id: shunting
+  label: Rangieren
+  description: Rangierbewegungen inkl. Quelle und Ziel.
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: movement
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+  defaultDurationMinutes: 60
+  attributes:
+    is_within_service: true
+    is_shunting: true
+    requires_vehicle: true
+    consider_location_conflicts: true
+    color: '#00838f'
+definitions:
+- id: shunting
+  label: Rangieren
+  description: Rangierbewegungen inkl. Quelle und Ziel.
+  activityType: shunting
+  defaultDurationMinutes: 60
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: movement
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '60'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:to
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_shunting
+    meta:
+      value: 'true'
+  - key: requires_vehicle
+    meta:
+      value: 'true'
+  - key: consider_location_conflicts
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#00838f'

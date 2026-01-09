@@ -9,7 +9,6 @@ import { AssistantActionBase } from './assistant-action.base';
 import {
   ACTIVITY_DEFINITION_KEYS,
   ACTIVITY_TEMPLATE_KEYS,
-  ACTIVITY_TYPE_KEYS,
   ALLOWED_ACTIONS,
   CUSTOM_ATTRIBUTE_KEYS,
   DEFAULT_ROOT_FIELDS,
@@ -301,12 +300,6 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
           break;
         case 'transferEdges':
           sanitized.transferEdges = this.sanitizeEntity(record[key], TRANSFER_EDGE_KEYS);
-          break;
-        case 'activityType':
-          sanitized.activityType = this.sanitizeEntity(record[key], ACTIVITY_TYPE_KEYS);
-          break;
-        case 'activityTypes':
-          sanitized.activityTypes = this.sanitizeEntity(record[key], ACTIVITY_TYPE_KEYS);
           break;
         case 'activityTemplate':
           sanitized.activityTemplate = this.sanitizeEntity(record[key], ACTIVITY_TEMPLATE_KEYS);

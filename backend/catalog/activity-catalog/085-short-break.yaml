@@ -1,29 +1,107 @@
 activities: []
 templates: []
 types:
-  - id: short-break
-    label: Kurzpause (Arbeitsunterbrechung)
-    description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
-    appliesTo:
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel-service
-      - vehicle-service
-    category: service
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - from
-      - to
-      - remark
-    defaultDurationMinutes: 20
-    attributes:
-      is_break: true
-      is_short_break: true
-      is_within_service: yes
-      to_hidden: true
-      to_location_mode: previous
-      consider_capacity_conflicts: true
-      color: '#ffe082'
+- id: short-break
+  label: Kurzpause (Arbeitsunterbrechung)
+  description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
+  appliesTo:
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel-service
+  - vehicle-service
+  category: service
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+  defaultDurationMinutes: 20
+  attributes:
+    is_break: true
+    is_short_break: true
+    is_within_service: true
+    to_hidden: true
+    to_location_mode: previous
+    consider_capacity_conflicts: true
+    color: '#ffe082'
+definitions:
+- id: short-break
+  label: Kurzpause (Arbeitsunterbrechung)
+  description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
+  activityType: short-break
+  defaultDurationMinutes: 20
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: service
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '20'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:to
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_break
+    meta:
+      value: 'true'
+  - key: is_short_break
+    meta:
+      value: 'true'
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: to_hidden
+    meta:
+      value: 'true'
+  - key: to_location_mode
+    meta:
+      value: previous
+  - key: consider_capacity_conflicts
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#ffe082'
+  - key: is_system
+    meta:
+      datatype: boolean
+      value: 'true'

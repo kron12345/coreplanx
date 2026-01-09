@@ -12,10 +12,25 @@ describe('PlanningStageService', () => {
       normalizeManagedServiceActivities: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], entries: [] }),
     } as any;
     const activityCatalog = {
-      listActivityTypes: jest.fn().mockReturnValue([
-        { id: 'travel', attributes: { requires_vehicle: true } },
-        { id: 'vehicle-on', attributes: { requires_vehicle: true, is_vehicle_on: true } },
-        { id: 'vehicle-off', attributes: { requires_vehicle: true, is_vehicle_off: true } },
+      listActivityDefinitions: jest.fn().mockReturnValue([
+        {
+          activityType: 'travel',
+          attributes: [{ key: 'requires_vehicle', meta: { value: true } }],
+        },
+        {
+          activityType: 'vehicle-on',
+          attributes: [
+            { key: 'requires_vehicle', meta: { value: true } },
+            { key: 'is_vehicle_on', meta: { value: true } },
+          ],
+        },
+        {
+          activityType: 'vehicle-off',
+          attributes: [
+            { key: 'requires_vehicle', meta: { value: true } },
+            { key: 'is_vehicle_off', meta: { value: true } },
+          ],
+        },
       ]),
     } as any;
     return {

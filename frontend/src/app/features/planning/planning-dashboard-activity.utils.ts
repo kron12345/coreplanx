@@ -1,9 +1,8 @@
-import { ActivityCategory, ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityCatalogOption } from './planning-dashboard.types';
 import { Activity, ActivityParticipantRole } from '../../models/activity';
 import { ActivityLinkRole } from './activity-link-role-dialog.component';
 import { Resource } from '../../models/resource';
 import { ActivityParticipant } from '../../models/activity';
-import { ActivityCatalogOption } from './planning-dashboard.types';
 
 export function defaultTemplatePeriod(bounds: { startIso: string; endIso: string }) {
   return [
@@ -33,14 +32,6 @@ export function buildAttributesFromCatalog(option: ActivityCatalogOption | null)
       attrs[key] = val;
     }
   });
-  const colorKeys = ['color', 'bar_color', 'display_color', 'main_color'];
-  const hasColor = colorKeys.some((key) => typeof attrs[key] === 'string' && (attrs[key] as string).trim().length > 0);
-  if (!hasColor) {
-    const fallback = defaultColorForType(option.activityTypeId, option.typeDefinition.category);
-    if (fallback) {
-      attrs['color'] = fallback;
-    }
-  }
   return attrs;
 }
 
@@ -68,34 +59,6 @@ export function resolveServiceRole(option: ActivityCatalogOption | null) {
   return null;
 }
 
-export function defaultColorForType(typeId: string | null, category?: ActivityCategory | null): string | null {
-  const type = typeId?.toLowerCase() ?? '';
-  if (type.includes('break') || type.includes('pause')) {
-    return '#ffb74d';
-  }
-  if (type.includes('travel') || type.includes('fahrt')) {
-    return '#26a69a';
-  }
-  if (type.includes('transfer')) {
-    return '#26c6da';
-  }
-  if (type.includes('service-start')) {
-    return '#43a047';
-  }
-  if (type.includes('service-end')) {
-    return '#c62828';
-  }
-  if (category === 'movement') {
-    return '#26c6da';
-  }
-  if (category === 'rest') {
-    return '#8d6e63';
-  }
-  if (category === 'other') {
-    return '#7b1fa2';
-  }
-  return '#1976d2';
-}
 
 export function isActivityOwnedBy(activity: Activity, resourceId: string): boolean {
   const participants = activity.participants ?? [];
@@ -130,8 +93,14 @@ export function findNeighborActivities(
 ): { previous: Activity | null; next: Activity | null } {
   const serviceId = serviceIdForOwner(activity, ownerId);
   const role = activity.serviceRole ?? null;
-  const type = activity.type ?? '';
-  const isServiceBoundary = role === 'start' || role === 'end' || type === 'service-start' || type === 'service-end';
+  const attrs = activity.attributes as Record<string, unknown> | undefined;
+  const toBool = (value: unknown) =>
+    typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
+  const isServiceBoundary =
+    role === 'start' ||
+    role === 'end' ||
+    toBool(attrs?.['is_service_start']) ||
+    toBool(attrs?.['is_service_end']);
   const requireServiceMatch = !!serviceId && !isServiceBoundary;
   if (!ownerId) {
     return { previous: null, next: null };
@@ -222,28 +191,30 @@ export function applyParticipantRoleUpdates(
   return changed ? { ...activity, participants } : activity;
 }
 
-export function buildActivityTitle(definition: ActivityTypeDefinition | null): string {
-  return definition?.label ?? 'Aktivität';
+export function buildActivityTitle(label?: string | null): string {
+  const trimmed = label?.trim();
+  return trimmed && trimmed.length ? trimmed : 'Aktivität';
 }
 
-export function definitionAppliesToResource(definition: ActivityTypeDefinition, resource: Resource): boolean {
-  return (definition.relevantFor ?? definition.appliesTo).includes(resource.kind);
+export function definitionAppliesToResource(option: ActivityCatalogOption, resource: Resource): boolean {
+  const relevant = option.relevantFor ?? [];
+  return relevant.length ? relevant.includes(resource.kind) : true;
 }
 
 export function resolveActivityTypeForResource(
   resource: Resource,
   requestedId: string | null | undefined,
-  definitions: ActivityTypeDefinition[],
-): ActivityTypeDefinition | null {
+  options: ActivityCatalogOption[],
+): ActivityCatalogOption | null {
   if (requestedId) {
-    const requested = definitions.find(
-      (definition) => definition.id === requestedId && definitionAppliesToResource(definition, resource),
+    const requested = options.find(
+      (option) => option.activityTypeId === requestedId && definitionAppliesToResource(option, resource),
     );
     if (requested) {
       return requested;
     }
   }
-  return definitions.find((definition) => definitionAppliesToResource(definition, resource)) ?? null;
+  return options.find((option) => definitionAppliesToResource(option, resource)) ?? null;
 }
 
 export function resolveServiceCategory(

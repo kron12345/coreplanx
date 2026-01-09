@@ -2,7 +2,6 @@ import type {
   Activity,
   ActivityDefinition,
   ActivityTemplate,
-  ActivityTypeDefinition,
   CustomAttributeState,
   LayerGroup,
   OperationalPoint,
@@ -67,7 +66,6 @@ export interface MasterDataSets {
 }
 
 export interface ActivityCatalogData {
-  types: ActivityTypeDefinition[];
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];

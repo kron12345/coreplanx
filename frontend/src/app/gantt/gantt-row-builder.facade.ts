@@ -279,17 +279,11 @@ export class GanttRowBuilderFacade {
         }
         accumulator.minLeft = Math.min(accumulator.minLeft, displayStart);
         accumulator.maxRight = Math.max(accumulator.maxRight, displayEnd);
-        if (
-          (activity.type === 'service-start' || activity.serviceRole === 'start') &&
-          (accumulator.startLeft === null || displayStart < accumulator.startLeft)
-        ) {
+        if (this.isServiceStart(activity) && (accumulator.startLeft === null || displayStart < accumulator.startLeft)) {
           accumulator.startLeft = displayStart;
           accumulator.startMs = activity.startMs;
         }
-        if (
-          (activity.type === 'service-end' || activity.serviceRole === 'end') &&
-          (accumulator.endLeft === null || displayEnd > accumulator.endLeft)
-        ) {
+        if (this.isServiceEnd(activity) && (accumulator.endLeft === null || displayEnd > accumulator.endLeft)) {
           accumulator.endLeft = displayEnd;
           accumulator.endMs = activity.endMs;
         }
@@ -449,9 +443,9 @@ export class GanttRowBuilderFacade {
     const serviceId = this.serviceIdForSlot(activity, resourceId);
     if (serviceId) {
       classes.push('gantt-activity--within-service');
-      if (activity.serviceRole === 'start' || activity.type === 'service-start') {
+      if (this.isServiceStart(activity)) {
         classes.push('gantt-activity--service-boundary', 'gantt-activity--service-boundary-start');
-      } else if (activity.serviceRole === 'end' || activity.type === 'service-end') {
+      } else if (this.isServiceEnd(activity)) {
         classes.push('gantt-activity--service-boundary', 'gantt-activity--service-boundary-end');
       }
     } else {
@@ -532,6 +526,33 @@ export class GanttRowBuilderFacade {
     return { level, codes };
   }
 
+  private isServiceStart(activity: Activity): boolean {
+    if (activity.serviceRole === 'start') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    return this.toBool(attrs?.['is_service_start']);
+  }
+
+  private isServiceEnd(activity: Activity): boolean {
+    if (activity.serviceRole === 'end') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    return this.toBool(attrs?.['is_service_end']);
+  }
+
+  private toBool(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === 'yes' || normalized === '1';
+    }
+    return false;
+  }
+
   private readOwnerServiceEntry(
     activity: PreparedActivity,
     resourceId: string,
@@ -575,8 +596,7 @@ export class GanttRowBuilderFacade {
     if (role === 'start' || role === 'end') {
       return true;
     }
-    const type = (activity.type ?? '').toString();
-    return type === 'service-start' || type === 'service-end';
+    return false;
   }
 
   private createServiceRange(entry: ServiceRangeAccumulator, resource: Resource): GanttServiceRange | null {
@@ -721,7 +741,8 @@ export class GanttRowBuilderFacade {
   private activityDisplayInfo(activity: Activity): { label: string; showRoute: boolean } {
     const typeId = activity.type ?? '';
     const info = this.deps.activityTypeInfo()[typeId];
-    const label = info?.label ?? (typeId || 'Aktivität');
+    const fallbackLabel = (activity.title ?? '').trim() || 'Aktivität';
+    const label = info?.label ?? fallbackLabel;
     const showRoute = info?.showRoute ?? false;
     return { label, showRoute };
   }

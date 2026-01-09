@@ -53,8 +53,6 @@ export type ActionPayload = {
   opReplacementStopLinks?: unknown;
   transferEdge?: unknown;
   transferEdges?: unknown;
-  activityType?: unknown;
-  activityTypes?: unknown;
   activityTemplate?: unknown;
   activityTemplates?: unknown;
   activityDefinition?: unknown;

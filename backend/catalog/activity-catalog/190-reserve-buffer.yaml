@@ -1,27 +1,79 @@
 activities: []
 templates: []
 types:
-  - id: reserve-buffer
-    label: Reserven / Puffer
-    description: Geplanter Puffer zur Abfederung von Störungen.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: other
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - remark
-    defaultDurationMinutes: 30
-    attributes:
-      is_within_service: yes
-      is_reserve: true
-      color: '#546e7a'
+- id: reserve-buffer
+  label: Reserven / Puffer
+  description: "Geplanter Puffer zur Abfederung von St\xF6rungen."
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: other
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - remark
+  defaultDurationMinutes: 30
+  attributes:
+    is_within_service: true
+    is_reserve: true
+    color: '#546e7a'
+definitions:
+- id: reserve-buffer
+  label: Reserven / Puffer
+  description: "Geplanter Puffer zur Abfederung von St\xF6rungen."
+  activityType: reserve-buffer
+  defaultDurationMinutes: 30
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: other
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '30'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_reserve
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#546e7a'

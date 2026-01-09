@@ -11,7 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { TranslationService } from '../../core/services/translation.service';
-import { ActivityTypeService } from '../../core/services/activity-type.service';
+import { ActivityCatalogService } from '../../core/services/activity-catalog.service';
 import { map, startWith } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 
@@ -44,7 +44,7 @@ interface TranslationRow {
 })
 export class TranslationSettingsComponent {
   private readonly i18n = inject(TranslationService);
-  private readonly activityTypes = inject(ActivityTypeService);
+  private readonly activityCatalog = inject(ActivityCatalogService);
   private readonly fb = inject(FormBuilder);
 
   protected readonly activeLocale = this.i18n.activeLocale;
@@ -56,14 +56,19 @@ export class TranslationSettingsComponent {
   protected filteredKnownKeys$: Observable<string[]>;
 
   protected readonly presets = computed(() => {
-    return this.activityTypes
+    const seen = new Set<string>();
+    const items = this.activityCatalog
       .definitions()
-      .map((type) => ({
-        key: `activityType:${type.id}`,
-        label: type.label,
-        hint: 'Activity Type',
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+      .filter((def) => !!def.activityType && !seen.has(def.activityType))
+      .map((def) => {
+        seen.add(def.activityType);
+        return {
+          key: `activityType:${def.activityType}`,
+          label: def.label,
+          hint: 'Activity Type',
+        };
+      });
+    return items.sort((a, b) => a.label.localeCompare(b.label, 'de'));
   });
 
   protected readonly rows = computed<TranslationRow[]>(() => {

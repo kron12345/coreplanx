@@ -674,10 +674,6 @@ export class PlanningCandidateBuilder {
     if (role === 'start' || role === 'end') {
       return true;
     }
-    const type = (activity.type ?? '').trim();
-    if (type === 'service-start' || type === 'service-end' || type === 'vehicle-on' || type === 'vehicle-off') {
-      return true;
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     if (!attrs) {
       return false;
@@ -686,10 +682,6 @@ export class PlanningCandidateBuilder {
   }
 
   private isBreakActivity(activity: Activity): boolean {
-    const type = (activity.type ?? '').toString().trim();
-    if (type === 'break' || type === 'short-break') {
-      return true;
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     if (!attrs) {
       return false;
@@ -697,8 +689,7 @@ export class PlanningCandidateBuilder {
     if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
       return true;
     }
-    const id = activity.id ?? '';
-    return id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:');
+    return false;
   }
 
   private toBool(value: unknown): boolean {

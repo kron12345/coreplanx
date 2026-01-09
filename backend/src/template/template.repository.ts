@@ -562,9 +562,6 @@ export class TemplateRepository {
   private resolveServiceRole(
     activity: ActivityDto,
   ): 'start' | 'end' | 'segment' | undefined {
-    if (activity.serviceRole) {
-      return activity.serviceRole;
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const toBool = (val: unknown) =>
       typeof val === 'boolean'
@@ -572,6 +569,15 @@ export class TemplateRepository {
         : typeof val === 'string'
           ? val.toLowerCase() === 'true'
           : false;
+    const isBreak =
+      toBool(attrs?.['is_break']) ||
+      toBool(attrs?.['is_short_break']);
+    if (isBreak) {
+      return undefined;
+    }
+    if (activity.serviceRole) {
+      return activity.serviceRole;
+    }
     if (attrs) {
       if (toBool((attrs as any)['is_service_start'])) {
         return 'start';

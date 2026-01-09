@@ -1,31 +1,97 @@
 activities: []
 templates: []
 types:
-  - id: maintenance
-    label: Werkstattbuchung
-    description: Werkstattaufenthalt inkl. Ort und Zeitraum.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: movement
-    timeMode: range
-    fields:
-      - from
-      - start
-      - end
-      - remark
-    defaultDurationMinutes: 480
-    attributes:
-      is_within_service: no
-      is_maintenance: true
-      requires_vehicle: true
-      consider_capacity_conflicts: false
-      consider_location_conflicts: false
-      color: '#455a64'
+- id: maintenance
+  label: Werkstattbuchung
+  description: Werkstattaufenthalt inkl. Ort und Zeitraum.
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: movement
+  timeMode: range
+  fields:
+  - from
+  - start
+  - end
+  - remark
+  defaultDurationMinutes: 480
+  attributes:
+    is_within_service: false
+    is_maintenance: true
+    requires_vehicle: true
+    consider_capacity_conflicts: false
+    consider_location_conflicts: false
+    color: '#455a64'
+definitions:
+- id: maintenance
+  label: Werkstattbuchung
+  description: Werkstattaufenthalt inkl. Ort und Zeitraum.
+  activityType: maintenance
+  defaultDurationMinutes: 480
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: movement
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: range
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '480'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'false'
+  - key: is_maintenance
+    meta:
+      value: 'true'
+  - key: requires_vehicle
+    meta:
+      value: 'true'
+  - key: consider_capacity_conflicts
+    meta:
+      value: 'false'
+  - key: consider_location_conflicts
+    meta:
+      value: 'false'
+  - key: color
+    meta:
+      value: '#455a64'

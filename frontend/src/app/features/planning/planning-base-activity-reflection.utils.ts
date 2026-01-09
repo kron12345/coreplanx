@@ -242,12 +242,14 @@ type BoundaryTemplate = { sourceId: string; activity: Activity; meta: BoundaryTe
 
 function isServiceBoundary(activity: Activity): boolean {
   const role = activity.serviceRole ?? null;
-  const type = (activity.type ?? '').toString().trim();
+  const attrs = activity.attributes as Record<string, unknown> | undefined;
+  const toBool = (value: unknown) =>
+    typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
   const id = (activity.id ?? '').toString();
   if (role === 'start' || role === 'end') {
     return true;
   }
-  if (type === 'service-start' || type === 'service-end') {
+  if (toBool(attrs?.['is_service_start']) || toBool(attrs?.['is_service_end'])) {
     return true;
   }
   return id.startsWith('svcstart:') || id.startsWith('svcend:');
@@ -324,11 +326,13 @@ function normalizeServiceRole(activity: Activity): 'start' | 'end' | null {
   if (role === 'start' || role === 'end') {
     return role;
   }
-  const type = (activity.type ?? '').toString().trim();
-  if (type === 'service-start') {
+  const attrs = activity.attributes as Record<string, unknown> | undefined;
+  const toBool = (value: unknown) =>
+    typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
+  if (toBool(attrs?.['is_service_start'])) {
     return 'start';
   }
-  if (type === 'service-end') {
+  if (toBool(attrs?.['is_service_end'])) {
     return 'end';
   }
   return null;

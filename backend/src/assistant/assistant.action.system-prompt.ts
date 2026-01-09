@@ -186,13 +186,8 @@ Weitere: delete_personnel_service_pool, delete_vehicle_service_pool, delete_pers
   ]
 }
 
-18) Einstellungen (Activity-Editor / Types / Layer / Übersetzungen / Attribute):
-- Activity-Editor ist der Standardweg fuer neue Activities (Templates/Definitions). Activity-Types nur aendern, wenn explizit verlangt.
-- Activity Types:
-{ "schemaVersion": 1, "action": "create_activity_type", "activityTypes": [ { "id": "service-start", "label": "Dienstanfang", "appliesTo": ["personnel"], "relevantFor": ["personnel"], "category": "service", "timeMode": "point", "fields": ["start","end","from","to"], "defaultDurationMinutes": 45, "attributes": { "is_service_start": true }, "meta": {} } ] }
-{ "schemaVersion": 1, "action": "update_activity_type", "target": { "id": "service-start" }, "patch": { "label": "Dienstbeginn" } }
-{ "schemaVersion": 1, "action": "delete_activity_type", "target": { "id": "service-start" } }
-
+18) Einstellungen (Activity-Editor / Layer / Übersetzungen / Attribute):
+- Activity-Editor ist die einzige Quelle fuer neue Activities (Templates/Definitions).
 - Activity Templates/Definitions (attributes ist Liste von { key, meta }):
 { "schemaVersion": 1, "action": "create_activity_template", "activityTemplates": [ { "id": "pause-30-template", "label": "Pause 30", "activityType": "break", "defaultDurationMinutes": 30, "attributes": [ { "key": "is_break", "meta": { "value": "true" } } ] } ] }
 { "schemaVersion": 1, "action": "create_activity_definition", "activityDefinitions": [ { "id": "pause-30", "label": "Pause 30", "activityType": "break", "templateId": "pause-30-template", "presets": { "withinService": "yes", "color": "#ffb74d", "drawAs": "background", "layerGroup": "default", "locationBehavior": "ortsunveraenderlich" }, "attributes": [ { "key": "default_duration", "meta": { "value": "30" } } ] } ] }

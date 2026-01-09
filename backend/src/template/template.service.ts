@@ -222,7 +222,7 @@ export class TemplateService {
     variantId?: string,
   ): Promise<void> {
     this.ensureDbForWrites();
-    if (this.isManagedServiceActivityId(activityId)) {
+    if (this.isDeletionBlockedServiceActivityId(activityId)) {
       throw new BadRequestException({
         message: 'Systemvorgaben können nicht gelöscht werden.',
         error: 'ValidationError',
@@ -341,14 +341,16 @@ export class TemplateService {
     activity: ActivityDto,
     tableName: string,
   ): Promise<{ activity: ActivityDto; deletedId: string | null }> {
-    const role = this.resolveServiceRole(activity);
     const isShortBreak = this.isShortBreakActivity(activity);
     const isBreak = this.isBreakActivity(activity);
+    const normalizedActivity =
+      isBreak || isShortBreak ? this.stripServiceBoundaryFlags(activity) : activity;
+    const role = !isBreak && !isShortBreak ? this.resolveServiceRole(normalizedActivity) : null;
     if (!role && !isBreak && !isShortBreak) {
-      return { activity, deletedId: null };
+      return { activity: normalizedActivity, deletedId: null };
     }
 
-    const owners = this.resolveServiceOwners(activity);
+    const owners = this.resolveServiceOwners(normalizedActivity);
     if (owners.length === 0) {
       throw new BadRequestException({
         message: 'Dienstgrenzen/Pausen benötigen genau einen Dienst.',
@@ -378,46 +380,70 @@ export class TemplateService {
       });
     }
     const ownerId = owners[0];
-    const serviceId = this.computeServiceId(activity.stage, ownerId, activity.start);
+    const serviceId = this.computeServiceId(
+      normalizedActivity.stage,
+      ownerId,
+      normalizedActivity.start,
+    );
     if (!role && (isBreak || isShortBreak)) {
-      const shouldBind = await this.shouldBindBreakToService(tableName, serviceId, activity.start);
+      const shouldBind = await this.shouldBindBreakToService(
+        tableName,
+        serviceId,
+        normalizedActivity.start,
+      );
       if (!shouldBind) {
         const prefix = isShortBreak ? 'svcshortbreak' : 'svcbreak';
-        const managedId = (activity.id ?? '').toString().startsWith(`${prefix}:`);
+        const managedId = (normalizedActivity.id ?? '').toString().startsWith(`${prefix}:`);
         const cleanedId = managedId
-          ? this.normalizeManagedBreakSuffix(prefix, serviceId, activity.id)
-          : activity.id;
+          ? this.normalizeManagedBreakSuffix(prefix, serviceId, normalizedActivity.id)
+          : normalizedActivity.id;
         const cleaned: ActivityDto = {
-          ...activity,
+          ...normalizedActivity,
           id: cleanedId,
           serviceId: null,
           serviceRole: null,
         };
         return {
           activity: cleaned,
-          deletedId: managedId && cleanedId !== activity.id ? activity.id : null,
+          deletedId:
+            managedId && cleanedId !== normalizedActivity.id ? normalizedActivity.id : null,
         };
       }
     }
-    let targetId = activity.id;
+    let targetId = normalizedActivity.id;
     if (role) {
       targetId = `${role === 'start' ? 'svcstart' : 'svcend'}:${serviceId}`;
     } else {
       const prefix = isShortBreak ? 'svcshortbreak' : 'svcbreak';
-      const suffix = this.normalizeManagedBreakSuffix(prefix, serviceId, activity.id);
+      const suffix = this.normalizeManagedBreakSuffix(prefix, serviceId, normalizedActivity.id);
       targetId = `${prefix}:${serviceId}:${suffix}`;
     }
 
     const next: ActivityDto = {
-      ...activity,
+      ...normalizedActivity,
       id: targetId,
       serviceId,
-      serviceRole: role ?? activity.serviceRole ?? null,
+      serviceRole: role ?? normalizedActivity.serviceRole ?? null,
     };
-    if (targetId === activity.id) {
+    if (targetId === normalizedActivity.id) {
       return { activity: next, deletedId: null };
     }
-    return { activity: next, deletedId: activity.id };
+    return { activity: next, deletedId: normalizedActivity.id };
+  }
+
+  private stripServiceBoundaryFlags(activity: ActivityDto): ActivityDto {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const hasRole = activity.serviceRole !== null && activity.serviceRole !== undefined;
+    if (!attrs || typeof attrs !== 'object' || Array.isArray(attrs)) {
+      return hasRole ? { ...activity, serviceRole: null } : activity;
+    }
+    if (!('is_service_start' in attrs) && !('is_service_end' in attrs)) {
+      return hasRole ? { ...activity, serviceRole: null } : activity;
+    }
+    const nextAttrs = { ...attrs };
+    delete nextAttrs['is_service_start'];
+    delete nextAttrs['is_service_end'];
+    return { ...activity, attributes: nextAttrs, serviceRole: null };
   }
 
   private resolveServiceOwners(activity: ActivityDto): string[] {
@@ -452,22 +478,10 @@ export class TemplateService {
         return 'end';
       }
     }
-    const type = (activity.type ?? '').toString().trim();
-    if (type === 'service-start') {
-      return 'start';
-    }
-    if (type === 'service-end') {
-      return 'end';
-    }
     return null;
   }
 
   private isBreakActivity(activity: ActivityDto): boolean {
-    const id = (activity.id ?? '').toString();
-    if (id.startsWith('svcbreak:') || id.startsWith('svcshortbreak:')) {
-      return true;
-    }
-    const type = (activity.type ?? '').toString().trim().toLowerCase();
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const toBool = (val: unknown) =>
       typeof val === 'boolean'
@@ -475,20 +489,12 @@ export class TemplateService {
         : typeof val === 'string'
           ? val.toLowerCase() === 'true'
           : false;
-    const isBreak = toBool(attrs?.['is_break']) || type === 'break';
-    const isShort = toBool(attrs?.['is_short_break']) || type === 'short-break';
+    const isBreak = toBool(attrs?.['is_break']);
+    const isShort = toBool(attrs?.['is_short_break']);
     return isBreak && !isShort;
   }
 
   private isShortBreakActivity(activity: ActivityDto): boolean {
-    const id = (activity.id ?? '').toString();
-    if (id.startsWith('svcshortbreak:')) {
-      return true;
-    }
-    const type = (activity.type ?? '').toString().trim().toLowerCase();
-    if (type === 'short-break') {
-      return true;
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const raw = attrs?.['is_short_break'];
     if (typeof raw === 'boolean') {
@@ -536,6 +542,10 @@ export class TemplateService {
       id.startsWith('svcshortbreak:') ||
       id.startsWith('svccommute:')
     );
+  }
+
+  private isDeletionBlockedServiceActivityId(id: string): boolean {
+    return id.startsWith('svccommute:');
   }
 
   private async shouldBindBreakToService(

@@ -1,33 +1,109 @@
 activities: []
 templates: []
 types:
-  - id: park
-    label: Parken
-    description: Fahrzeug abstellen bzw. parken.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: movement
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - from
-      - remark
-    defaultDurationMinutes: 15
-    attributes:
-      is_service_end: true
-      to_hidden: true
-      to_location_mode: previous
-      is_within_service: yes
-      requires_vehicle: true
-      is_parking: true
-      consider_location_conflicts: true
-      color: '#6d4c41'
+- id: park
+  label: Parken
+  description: Fahrzeug abstellen bzw. parken.
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: movement
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - from
+  - remark
+  defaultDurationMinutes: 15
+  attributes:
+    is_service_end: true
+    to_hidden: true
+    to_location_mode: previous
+    is_within_service: true
+    requires_vehicle: true
+    is_parking: true
+    consider_location_conflicts: true
+    color: '#6d4c41'
+definitions:
+- id: park
+  label: Parken
+  description: Fahrzeug abstellen bzw. parken.
+  activityType: park
+  defaultDurationMinutes: 15
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: movement
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '15'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_service_end
+    meta:
+      value: 'true'
+  - key: to_hidden
+    meta:
+      value: 'true'
+  - key: to_location_mode
+    meta:
+      value: previous
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: requires_vehicle
+    meta:
+      value: 'true'
+  - key: is_parking
+    meta:
+      value: 'true'
+  - key: consider_location_conflicts
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#6d4c41'
+  - key: is_system
+    meta:
+      datatype: boolean
+      value: 'true'

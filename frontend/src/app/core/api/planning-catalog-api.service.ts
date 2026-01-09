@@ -2,7 +2,6 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { API_CONFIG } from '../config/api-config';
-import type { ActivityTypeDefinition } from '../services/activity-type.service';
 import type { ActivityDefinition, ActivityTemplate } from '../services/activity-catalog.service';
 import type { LayerGroup } from '../services/layer-group.service';
 import type { CustomAttributeState } from '../services/custom-attribute.service';
@@ -13,7 +12,6 @@ export type TranslationState = Record<
 >;
 
 export interface ActivityCatalogSnapshot {
-  types: ActivityTypeDefinition[];
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];
@@ -26,12 +24,6 @@ export class PlanningCatalogApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(API_CONFIG);
 
-  listTypes(): Promise<ActivityTypeDefinition[]> {
-    return lastValueFrom(
-      this.http.get<ActivityTypeDefinition[]>(`${this.baseUrl()}/planning/catalog/types`),
-    ).then((res) => res ?? []);
-  }
-
   getCatalogDefaults(): Promise<ActivityCatalogSnapshot> {
     return lastValueFrom(
       this.http.get<ActivityCatalogSnapshot>(`${this.baseUrl()}/planning/catalog/defaults`),
@@ -41,36 +33,6 @@ export class PlanningCatalogApiService {
   resetCatalog(): Promise<ActivityCatalogSnapshot> {
     return lastValueFrom(
       this.http.post<ActivityCatalogSnapshot>(`${this.baseUrl()}/planning/catalog/reset`, {}),
-    );
-  }
-
-  replaceTypes(payload: ActivityTypeDefinition[]): Promise<ActivityTypeDefinition[]> {
-    return lastValueFrom(
-      this.http.put<ActivityTypeDefinition[]>(
-        `${this.baseUrl()}/planning/catalog/types`,
-        payload ?? [],
-      ),
-    ).then((res) => res ?? []);
-  }
-
-  createType(payload: ActivityTypeDefinition): Promise<ActivityTypeDefinition> {
-    return lastValueFrom(
-      this.http.post<ActivityTypeDefinition>(`${this.baseUrl()}/planning/catalog/types`, payload),
-    );
-  }
-
-  upsertType(typeId: string, payload: ActivityTypeDefinition): Promise<ActivityTypeDefinition> {
-    return lastValueFrom(
-      this.http.put<ActivityTypeDefinition>(
-        `${this.baseUrl()}/planning/catalog/types/${typeId}`,
-        payload,
-      ),
-    );
-  }
-
-  deleteType(typeId: string): Promise<void> {
-    return lastValueFrom(
-      this.http.delete<void>(`${this.baseUrl()}/planning/catalog/types/${typeId}`),
     );
   }
 

@@ -1,28 +1,85 @@
 activities: []
 templates: []
 types:
-  - id: standby
-    label: Bereitschaft
-    description: Bereitschaftszeit mit möglichen Ortsangaben.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: service
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - from
-      - remark
-    defaultDurationMinutes: 60
-    attributes:
-      is_within_service: yes
-      is_standby: true
-      color: '#6a1b9a'
+- id: standby
+  label: Bereitschaft
+  description: "Bereitschaftszeit mit m\xF6glichen Ortsangaben."
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: service
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - from
+  - remark
+  defaultDurationMinutes: 60
+  attributes:
+    is_within_service: true
+    is_standby: true
+    color: '#6a1b9a'
+definitions:
+- id: standby
+  label: Bereitschaft
+  description: "Bereitschaftszeit mit m\xF6glichen Ortsangaben."
+  activityType: standby
+  defaultDurationMinutes: 60
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: service
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '60'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_standby
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#6a1b9a'

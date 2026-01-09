@@ -12,7 +12,6 @@ import type {
   ActivityCatalogSnapshot,
   ActivityDefinition,
   ActivityTemplate,
-  ActivityTypeDefinition,
   CustomAttributeState,
   LayerGroup,
   TranslationState,
@@ -42,40 +41,6 @@ export class PlanningCatalogController {
   @Put()
   replaceCatalog(@Body() payload: ActivityCatalogSnapshot) {
     return this.planningService.replaceActivityCatalog(payload);
-  }
-
-  @Get('types')
-  listTypes() {
-    return this.planningService.listActivityTypes();
-  }
-
-  @Put('types')
-  replaceTypes(@Body() payload: ActivityTypeDefinition[]) {
-    return this.planningService.replaceActivityTypes(payload);
-  }
-
-  @Post('types')
-  createType(@Body() payload: ActivityTypeDefinition) {
-    return this.planningService.createActivityType(payload);
-  }
-
-  @Get('types/:typeId')
-  getType(@Param('typeId') typeId: string) {
-    return this.planningService.getActivityType(typeId);
-  }
-
-  @Put('types/:typeId')
-  upsertType(
-    @Param('typeId') typeId: string,
-    @Body() payload: ActivityTypeDefinition,
-  ) {
-    return this.planningService.upsertActivityType(typeId, payload);
-  }
-
-  @Delete('types/:typeId')
-  @HttpCode(204)
-  deleteType(@Param('typeId') typeId: string) {
-    return this.planningService.deleteActivityType(typeId);
   }
 
   @Get('templates')

@@ -1,4 +1,4 @@
-import { ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityCatalogOption } from './planning-dashboard.types';
 import type { ActivityAttributeValue } from '../../core/services/activity-catalog.service';
 import { Activity } from '../../models/activity';
 import { findNeighborActivities } from './planning-dashboard-activity.utils';
@@ -10,10 +10,7 @@ export interface ActivityLocationFieldDefaults {
   hidden: boolean;
 }
 
-export interface ActivityLocationDefinition {
-  type: ActivityTypeDefinition | null;
-  attributes?: ActivityAttributeValue[] | null;
-}
+export type ActivityLocationDefinition = ActivityCatalogOption | null;
 
 function readBool(raw: unknown): boolean {
   if (typeof raw === 'boolean') {
@@ -49,28 +46,15 @@ function readAttributeValue(
   return undefined;
 }
 
-function readTypeAttributeValue(
-  attributes: Record<string, unknown> | null | undefined,
-  key: string,
-): unknown {
-  if (!attributes || typeof attributes !== 'object') {
-    return undefined;
-  }
-  return attributes[key];
-}
-
 export function locationFieldDefaults(
   definition: ActivityLocationDefinition | null,
   field: 'from' | 'to',
 ): ActivityLocationFieldDefaults {
   const attrs = definition?.attributes ?? null;
-  const typeAttrs = definition?.type?.attributes ?? null;
   const hiddenKey = field === 'from' ? 'from_hidden' : 'to_hidden';
   const modeKey = field === 'from' ? 'from_location_mode' : 'to_location_mode';
-  const hiddenRaw =
-    readAttributeValue(attrs, hiddenKey) ?? readTypeAttributeValue(typeAttrs, hiddenKey);
-  const modeRaw =
-    readAttributeValue(attrs, modeKey) ?? readTypeAttributeValue(typeAttrs, modeKey);
+  const hiddenRaw = readAttributeValue(attrs, hiddenKey);
+  const modeRaw = readAttributeValue(attrs, modeKey);
   const hidden = readBool(hiddenRaw);
   const mode = readMode(modeRaw);
   return { hidden, mode };
@@ -118,12 +102,13 @@ export function applyLocationDefaults(options: {
   ownerId: string | null;
 }): Activity {
   const { activity, definition, activities, ownerId } = options;
-  if (!definition?.type || !ownerId) {
+  if (!definition || !ownerId) {
     return activity;
   }
 
-  const hasFrom = definition.type.fields.includes('from');
-  const hasTo = definition.type.fields.includes('to');
+  const fields = definition.fields ?? [];
+  const hasFrom = fields.includes('from');
+  const hasTo = fields.includes('to');
   if (!hasFrom && !hasTo) {
     return activity;
   }

@@ -3,9 +3,7 @@ import { DatabaseService } from '../database/database.service';
 import type {
   ActivityAttributeValue,
   ActivityDefinition,
-  ActivityFieldKey,
   ActivityTemplate,
-  ActivityTypeDefinition,
   CustomAttributeDefinition,
   CustomAttributeState,
   LayerGroup,
@@ -13,20 +11,6 @@ import type {
   TranslationState,
 } from './planning.types';
 import type { ActivityCatalogData } from './planning.repository.types';
-
-interface ActivityTypeDefinitionRow {
-  id: string;
-  label: string;
-  description: string | null;
-  applies_to: string[];
-  relevant_for: string[];
-  category: string;
-  time_mode: string;
-  fields: string[];
-  default_duration_minutes: number;
-  attributes: Record<string, unknown> | null;
-  meta: Record<string, unknown> | null;
-}
 
 interface ActivityTemplateRow {
   id: string;
@@ -91,95 +75,74 @@ export class PlanningActivityCatalogRepository {
     }
 
     const [
-      typeResult,
       templateResult,
       definitionResult,
       layerResult,
       translationResult,
       customAttributeResult,
-    ] =
-      await Promise.all([
-        this.database.query<ActivityTypeDefinitionRow>(
-          `
-            SELECT
-              id,
-              label,
-              description,
-              applies_to,
-              relevant_for,
-              category,
-              time_mode,
-              fields,
-              default_duration_minutes,
-              attributes,
-              meta
-            FROM activity_type_definition
-            ORDER BY id
-          `,
-        ),
-        this.database.query<ActivityTemplateRow>(
-          `
-            SELECT
-              id,
-              label,
-              description,
-              activity_type,
-              default_duration_minutes,
-              attributes
-            FROM activity_template
-            ORDER BY id
-          `,
-        ),
-        this.database.query<ActivityDefinitionRow>(
-          `
-            SELECT
-              id,
-              label,
-              description,
-              activity_type,
-              template_id,
-              default_duration_minutes,
-              relevant_for,
-              attributes
-            FROM activity_definition
-            ORDER BY id
-          `,
-        ),
-        this.database.query<ActivityLayerGroupRow>(
-          `
-            SELECT id, label, sort_order, description
-            FROM activity_layer_group
-            ORDER BY sort_order, id
-          `,
-        ),
-        this.database.query<ActivityTranslationRow>(
-          `
-            SELECT locale, translation_key, label, abbreviation
-            FROM activity_translation
-            ORDER BY locale, translation_key
-          `,
-        ),
-        this.database.query<CustomAttributeDefinitionRow>(
-          `
-            SELECT
-              id,
-              entity_id,
-              key,
-              label,
-              type,
-              description,
-              temporal,
-              required,
-              created_at,
-              updated_at
-            FROM custom_attribute_definition
-            ORDER BY entity_id, key
-          `,
-        ),
-      ]);
+    ] = await Promise.all([
+      this.database.query<ActivityTemplateRow>(
+        `
+          SELECT
+            id,
+            label,
+            description,
+            activity_type,
+            default_duration_minutes,
+            attributes
+          FROM activity_template
+          ORDER BY id
+        `,
+      ),
+      this.database.query<ActivityDefinitionRow>(
+        `
+          SELECT
+            id,
+            label,
+            description,
+            activity_type,
+            template_id,
+            default_duration_minutes,
+            relevant_for,
+            attributes
+          FROM activity_definition
+          ORDER BY id
+        `,
+      ),
+      this.database.query<ActivityLayerGroupRow>(
+        `
+          SELECT id, label, sort_order, description
+          FROM activity_layer_group
+          ORDER BY sort_order, id
+        `,
+      ),
+      this.database.query<ActivityTranslationRow>(
+        `
+          SELECT locale, translation_key, label, abbreviation
+          FROM activity_translation
+          ORDER BY locale, translation_key
+        `,
+      ),
+      this.database.query<CustomAttributeDefinitionRow>(
+        `
+          SELECT
+            id,
+            entity_id,
+            key,
+            label,
+            type,
+            description,
+            temporal,
+            required,
+            created_at,
+            updated_at
+          FROM custom_attribute_definition
+          ORDER BY entity_id, key
+        `,
+      ),
+    ]);
 
     return {
-      types: typeResult.rows.map((row) => this.mapActivityTypeDefinition(row)),
       templates: templateResult.rows.map((row) => this.mapActivityTemplate(row)),
       definitions: definitionResult.rows.map((row) => this.mapActivityDefinition(row)),
       layerGroups: layerResult.rows.map((row) => this.mapActivityLayerGroup(row)),
@@ -197,7 +160,6 @@ export class PlanningActivityCatalogRepository {
       try {
         await client.query('DELETE FROM activity_definition');
         await client.query('DELETE FROM activity_template');
-        await client.query('DELETE FROM activity_type_definition');
         await client.query('DELETE FROM activity_layer_group');
         await client.query('DELETE FROM activity_translation');
         await client.query('DELETE FROM custom_attribute_definition');
@@ -228,56 +190,6 @@ export class PlanningActivityCatalogRepository {
               FROM incoming
             `,
             [JSON.stringify(catalog.layerGroups)],
-          );
-        }
-
-        if (catalog.types.length) {
-          await client.query(
-            `
-              WITH incoming AS (
-                SELECT *
-                FROM jsonb_to_recordset($1::jsonb) AS t(
-                  id TEXT,
-                  label TEXT,
-                  description TEXT,
-                  "appliesTo" TEXT[],
-                  "relevantFor" TEXT[],
-                  category TEXT,
-                  "timeMode" TEXT,
-                  fields TEXT[],
-                  "defaultDurationMinutes" INTEGER,
-                  attributes JSONB,
-                  meta JSONB
-                )
-              )
-              INSERT INTO activity_type_definition (
-                id,
-                label,
-                description,
-                applies_to,
-                relevant_for,
-                category,
-                time_mode,
-                fields,
-                default_duration_minutes,
-                attributes,
-                meta
-              )
-              SELECT
-                id,
-                label,
-                description,
-                "appliesTo",
-                "relevantFor",
-                category,
-                "timeMode",
-                fields,
-                COALESCE("defaultDurationMinutes", 0),
-                attributes,
-                meta
-              FROM incoming
-            `,
-            [JSON.stringify(catalog.types)],
           );
         }
 
@@ -445,28 +357,11 @@ export class PlanningActivityCatalogRepository {
 
   private createEmptyActivityCatalog(): ActivityCatalogData {
     return {
-      types: [],
       templates: [],
       definitions: [],
       layerGroups: [],
       translations: {},
       customAttributes: {},
-    };
-  }
-
-  private mapActivityTypeDefinition(row: ActivityTypeDefinitionRow): ActivityTypeDefinition {
-    return {
-      id: row.id,
-      label: row.label,
-      description: row.description ?? undefined,
-      appliesTo: this.toResourceKinds(row.applies_to),
-      relevantFor: this.toResourceKinds(row.relevant_for),
-      category: row.category as ActivityTypeDefinition['category'],
-      timeMode: row.time_mode as ActivityTypeDefinition['timeMode'],
-      fields: this.toActivityFields(row.fields),
-      defaultDurationMinutes: row.default_duration_minutes,
-      attributes: this.normalizeMetaRecord(row.attributes) ?? undefined,
-      meta: this.normalizeMetaRecord(row.meta) ?? undefined,
     };
   }
 
@@ -599,24 +494,6 @@ export class PlanningActivityCatalogRepository {
         (entry): entry is ResourceKind =>
           Boolean(entry) && allowedSet.has(entry as ResourceKind),
       );
-  }
-
-  private toActivityFields(values?: string[] | null): ActivityFieldKey[] {
-    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
-    const allowedSet = new Set<ActivityFieldKey>(allowed);
-    return (values ?? [])
-      .map((entry) => entry?.trim())
-      .filter(
-        (entry): entry is ActivityFieldKey =>
-          Boolean(entry) && allowedSet.has(entry as ActivityFieldKey),
-      );
-  }
-
-  private normalizeMetaRecord(value?: unknown): Record<string, unknown> | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return null;
-    }
-    return { ...(value as Record<string, unknown>) };
   }
 
   private normalizeAttributeList(value?: unknown): ActivityAttributeValue[] {

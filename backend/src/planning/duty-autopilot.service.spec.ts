@@ -38,7 +38,28 @@ function createMasterDataStub() {
 
 function createActivityCatalogStub() {
   return {
-    listActivityTypes: () => [],
+    listActivityDefinitions: () => [
+      {
+        activityType: 'service-start',
+        attributes: [{ key: 'is_service_start', meta: { value: true } }],
+      },
+      {
+        activityType: 'service-end',
+        attributes: [{ key: 'is_service_end', meta: { value: true } }],
+      },
+      {
+        activityType: 'break',
+        attributes: [{ key: 'is_break', meta: { value: true } }],
+      },
+      {
+        activityType: 'short-break',
+        attributes: [{ key: 'is_short_break', meta: { value: true } }],
+      },
+      {
+        activityType: 'commute',
+        attributes: [{ key: 'is_commute', meta: { value: true } }],
+      },
+    ],
   };
 }
 

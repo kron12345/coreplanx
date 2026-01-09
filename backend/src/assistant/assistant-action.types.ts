@@ -1,7 +1,6 @@
 import type {
   ActivityDefinition,
   ActivityTemplate,
-  ActivityTypeDefinition,
   CustomAttributeState,
   LayerGroup,
   OperationalPoint,
@@ -18,7 +17,6 @@ export type AssistantActionRefreshHint =
   | 'topology'
   | 'simulations'
   | 'timetable-years'
-  | 'activity-types'
   | 'activity-templates'
   | 'activity-definitions'
   | 'layer-groups'
@@ -64,10 +62,6 @@ export type AssistantActionCommitTask =
         | OpReplacementStopLink
         | TransferEdge
       >;
-    }
-  | {
-      type: 'activityTypes';
-      items: ActivityTypeDefinition[];
     }
   | {
       type: 'activityTemplates';

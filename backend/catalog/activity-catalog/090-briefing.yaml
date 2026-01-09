@@ -1,23 +1,75 @@
 activities: []
 templates: []
 types:
-  - id: briefing
-    label: Dienstbesprechung
-    description: Briefing oder Debriefing vor bzw. nach dem Dienst.
-    appliesTo:
-      - personnel
-      - personnel-service
-    relevantFor:
-      - personnel
-      - personnel-service
-    category: service
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - remark
-    defaultDurationMinutes: 20
-    attributes:
-      is_within_service: yes
-      is_briefing: true
-      color: '#3949ab'
+- id: briefing
+  label: Dienstbesprechung
+  description: Briefing oder Debriefing vor bzw. nach dem Dienst.
+  appliesTo:
+  - personnel
+  - personnel-service
+  relevantFor: &id001
+  - personnel
+  - personnel-service
+  category: service
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - remark
+  defaultDurationMinutes: 20
+  attributes:
+    is_within_service: true
+    is_briefing: true
+    color: '#3949ab'
+definitions:
+- id: briefing
+  label: Dienstbesprechung
+  description: Briefing oder Debriefing vor bzw. nach dem Dienst.
+  activityType: briefing
+  defaultDurationMinutes: 20
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: service
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '20'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,personnel-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_briefing
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#3949ab'

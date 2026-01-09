@@ -823,6 +823,10 @@
   line-height: 1.2;
 }
 
+.mat-mdc-option.planning-location-option--site .mdc-list-item__primary-text {
+  padding-left: 16px;
+}
+
 .planning-type-menu .mat-mdc-menu-content {
   max-height: 70vh;
   overflow-x: hidden;

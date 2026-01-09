@@ -905,9 +905,6 @@ export class PlanningStageRepository {
   }
 
   private resolveServiceRole(activity: Activity): 'start' | 'end' | 'segment' | null {
-    if (activity.serviceRole) {
-      return activity.serviceRole as 'start' | 'end' | 'segment';
-    }
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const toBool = (val: unknown) =>
       typeof val === 'boolean'
@@ -915,6 +912,13 @@ export class PlanningStageRepository {
         : typeof val === 'string'
           ? val.toLowerCase() === 'true'
           : false;
+    const isBreak = toBool(attrs?.['is_break']) || toBool(attrs?.['is_short_break']);
+    if (isBreak) {
+      return null;
+    }
+    if (activity.serviceRole) {
+      return activity.serviceRole as 'start' | 'end' | 'segment';
+    }
     if (attrs) {
       if (toBool((attrs as any)['is_service_start'])) {
         return 'start';

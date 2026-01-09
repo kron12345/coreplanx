@@ -2,7 +2,7 @@ import { Signal, WritableSignal } from '@angular/core';
 import { Activity, ServiceRole } from '../../models/activity';
 import { Resource } from '../../models/resource';
 import { ActivityParticipantCategory } from '../../models/activity-ownership';
-import { ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityCatalogOption } from './planning-dashboard.types';
 import { PlanningStageId } from './planning-stage.model';
 import { PlanningDashboardPendingFacade } from './planning-dashboard-pending.facade';
 import { PlanningDashboardSelectionActionsFacade } from './planning-dashboard-selection-actions.facade';
@@ -28,7 +28,7 @@ export class PlanningDashboardSelectionHandlers {
       operationsHandlers: PlanningDashboardOperationsHandlers;
       copyHandlers: PlanningDashboardCopyHandlers;
       activityHandlers: PlanningDashboardActivityHandlersFacade;
-      findActivityType: (id: string | null | undefined) => ActivityTypeDefinition | null;
+      findCatalogOptionByTypeId: (id: string | null | undefined) => ActivityCatalogOption | null;
       activityForm: { patchValue: (val: any) => void };
       selectedActivities: Signal<{ activity: Activity; resource: Resource }[]>;
       activityMoveTargetSignal: WritableSignal<string>;
@@ -54,8 +54,11 @@ export class PlanningDashboardSelectionHandlers {
     this.deps.pendingFacade.clearEditingPreview();
   }
 
-  saveSelectedActivityEdits(): void {
-    this.deps.activityHandlers.saveSelectedActivityEdits();
+  async saveSelectedActivityEdits(): Promise<void> {
+    const saved = await this.deps.activityHandlers.saveSelectedActivityEdits();
+    if (saved) {
+      this.clearSelectedActivity();
+    }
   }
 
   deleteSelectedActivity(): void {
@@ -122,12 +125,16 @@ export class PlanningDashboardSelectionHandlers {
       direction,
       neighborFinder,
       this.deps.activityForm,
-      this.deps.findActivityType,
+      this.deps.findCatalogOptionByTypeId,
     );
   }
 
   fillGapForSelectedActivity(neighborFinder: NeighborFinder): void {
-    this.deps.selectionActions.fillGapForSelectedActivity(neighborFinder, this.deps.activityForm, this.deps.findActivityType);
+    this.deps.selectionActions.fillGapForSelectedActivity(
+      neighborFinder,
+      this.deps.activityForm,
+      this.deps.findCatalogOptionByTypeId,
+    );
   }
 
   createGroupFromSelection(options: { label: string; role: ActivityGroupRole; attachedToActivityId?: string | null }): void {

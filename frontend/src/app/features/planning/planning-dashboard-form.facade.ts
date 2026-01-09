@@ -1,7 +1,7 @@
 import { Signal } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { Activity } from '../../models/activity';
-import { ActivityFieldKey, ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityFieldKey } from '../../core/models/activity-definition';
 import { ActivityCatalogOption } from './planning-dashboard.types';
 import { PlanningStageId } from './planning-stage.model';
 import { PlanningDashboardActivityFacade, PendingActivityState } from './planning-dashboard-activity.facade';
@@ -20,9 +20,9 @@ export class PlanningDashboardFormFacade {
       pendingActivitySignal: Signal<PendingActivityState | null>;
       activeStage: () => PlanningStageId;
       selectedCatalogOption: () => ActivityCatalogOption | null;
-      findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null;
-      buildActivityTitle: (definition: ActivityTypeDefinition | null) => string;
-      definitionHasField: (definition: ActivityTypeDefinition | null, field: ActivityFieldKey) => boolean;
+      findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null;
+      buildActivityTitle: (label?: string | null) => string;
+      definitionHasField: (definition: ActivityCatalogOption | null, field: ActivityFieldKey) => boolean;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
       setEditPreview: (state: { stage: PlanningStageId; activity: Activity } | null) => void;
       clearEditPreview: () => void;
@@ -36,9 +36,9 @@ export class PlanningDashboardFormFacade {
       this.deps.pendingActivitySignal(),
       (selection) =>
         buildActivityFromForm(selection, this.deps.activityForm.getRawValue(), {
-          findActivityType: (id) => this.deps.findActivityType(id),
+          findCatalogOptionByTypeId: (id) => this.deps.findCatalogOptionByTypeId(id),
           selectedCatalogOption: this.deps.selectedCatalogOption,
-          buildActivityTitle: (definition) => this.deps.buildActivityTitle(definition),
+          buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
           definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
           applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
         }),
@@ -58,9 +58,9 @@ export class PlanningDashboardFormFacade {
       return;
     }
     const normalized = buildActivityFromForm(selection, this.deps.activityForm.getRawValue(), {
-      findActivityType: (id) => this.deps.findActivityType(id),
+      findCatalogOptionByTypeId: (id) => this.deps.findCatalogOptionByTypeId(id),
       selectedCatalogOption: this.deps.selectedCatalogOption,
-      buildActivityTitle: (definition) => this.deps.buildActivityTitle(definition),
+      buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
       definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
       applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
     });

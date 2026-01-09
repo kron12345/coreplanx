@@ -1,31 +1,103 @@
 activities: []
 templates: []
 types:
-  - id: commute
-    label: Wegezeit
-    description: An- oder Abreise zwischen Standorten.
-    appliesTo:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    relevantFor:
-      - personnel
-      - vehicle
-      - personnel-service
-      - vehicle-service
-    category: movement
-    timeMode: duration
-    fields:
-      - start
-      - end
-      - from
-      - to
-      - remark
-    defaultDurationMinutes: 45
-    attributes:
-      is_within_service: yes
-      is_travel: true
-      is_commute: true
-      consider_location_conflicts: true
-      color: '#0288d1'
+- id: commute
+  label: Wegezeit
+  description: An- oder Abreise zwischen Standorten.
+  appliesTo:
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  relevantFor: &id001
+  - personnel
+  - vehicle
+  - personnel-service
+  - vehicle-service
+  category: movement
+  timeMode: duration
+  fields:
+  - start
+  - end
+  - from
+  - to
+  - remark
+  defaultDurationMinutes: 45
+  attributes:
+    is_within_service: true
+    is_travel: true
+    is_commute: true
+    consider_location_conflicts: true
+    color: '#0288d1'
+definitions:
+- id: commute
+  label: Wegezeit
+  description: An- oder Abreise zwischen Standorten.
+  activityType: commute
+  defaultDurationMinutes: 45
+  relevantFor: *id001
+  attributes:
+  - key: category
+    meta:
+      datatype: enum
+      options: rest,movement,service,other
+      value: movement
+  - key: time_mode
+    meta:
+      datatype: enum
+      options: duration,range,point
+      value: duration
+  - key: default_duration
+    meta:
+      datatype: number
+      unit: minutes
+      value: '45'
+  - key: relevant_for
+    meta:
+      datatype: list
+      options: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel,vehicle,personnel-service,vehicle-service
+  - key: field:start
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:end
+    meta:
+      datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:to
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:remark
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: is_within_service
+    meta:
+      value: 'true'
+  - key: is_travel
+    meta:
+      value: 'true'
+  - key: is_commute
+    meta:
+      value: 'true'
+  - key: consider_location_conflicts
+    meta:
+      value: 'true'
+  - key: color
+    meta:
+      value: '#0288d1'
+  - key: is_system
+    meta:
+      datatype: boolean
+      value: 'true'

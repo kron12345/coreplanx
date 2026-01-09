@@ -32,123 +32,6 @@ const DRAW_AS_OPTIONS = [
 ];
 
 export class AssistantActionSettings extends AssistantActionSettingsBase {
-  buildCreateActivityTypePreview(
-    payload: ActionPayload,
-    snapshot: ResourceSnapshot,
-    context: ActionContext,
-  ): ActionApplyOutcome {
-    const entries = this.extractEntries(payload, ['activityTypes', 'activityType', 'items']);
-    if (!entries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Activity Type fehlt.');
-    }
-
-    const existing = this.planning.listActivityTypes();
-    const next = [...existing];
-    const changes: AssistantActionChangeDto[] = [];
-    const summaries: string[] = [];
-    const newIds = new Set<string>();
-
-    for (const entry of entries) {
-      const normalized = this.normalizeActivityTypeInput(entry);
-      if (normalized.error || !normalized.value) {
-        return this.buildFeedbackResponse(normalized.error ?? 'Activity Type ist ungueltig.');
-      }
-      const candidate = normalized.value;
-      if (existing.some((item) => item.id === candidate.id) || newIds.has(candidate.id)) {
-        return this.buildFeedbackResponse(`Activity Type ID "${candidate.id}" existiert bereits.`);
-      }
-      if (this.findByLabel(existing, candidate.label)) {
-        return this.buildFeedbackResponse(`Activity Type "${candidate.label}" existiert bereits.`);
-      }
-      newIds.add(candidate.id);
-      next.push(candidate);
-      changes.push({
-        kind: 'create',
-        entityType: 'activityType',
-        id: candidate.id,
-        label: candidate.label,
-      });
-      summaries.push(`Activity Type "${candidate.label}" anlegen.`);
-    }
-
-    return this.buildCatalogOutcome(snapshot, summaries, changes, [
-      { type: 'activityTypes', items: next },
-    ]);
-  }
-
-  buildUpdateActivityTypePreview(
-    payload: ActionPayload,
-    snapshot: ResourceSnapshot,
-    context: ActionContext,
-  ): ActionApplyOutcome {
-    const existing = this.planning.listActivityTypes();
-    const targetRef = this.extractTargetReference(payload);
-    if (!targetRef) {
-      return this.buildFeedbackResponse('Activity Type (target) fehlt.');
-    }
-    const resolved = this.resolveByIdOrLabel(existing, targetRef, {
-      title: `Mehrere Activity Types passen zu "${targetRef}". Welchen meinst du?`,
-      apply: { mode: 'value', path: [...context.pathPrefix, 'target'] },
-    });
-    if (resolved.clarification) {
-      return this.buildClarificationResponse(resolved.clarification, context);
-    }
-    if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Activity Type nicht gefunden.');
-    }
-
-    const patch = this.asRecord(payload.patch) ?? {};
-    const updated = this.applyActivityTypePatch(resolved.item, patch);
-    const next = existing.map((item) => (item.id === resolved.item!.id ? updated : item));
-    const changes: AssistantActionChangeDto[] = [
-      {
-        kind: 'update',
-        entityType: 'activityType',
-        id: updated.id,
-        label: updated.label,
-      },
-    ];
-    const summary = `Activity Type "${updated.label}" aktualisieren.`;
-    return this.buildCatalogOutcome(snapshot, [summary], changes, [
-      { type: 'activityTypes', items: next },
-    ]);
-  }
-
-  buildDeleteActivityTypePreview(
-    payload: ActionPayload,
-    snapshot: ResourceSnapshot,
-    context: ActionContext,
-  ): ActionApplyOutcome {
-    const existing = this.planning.listActivityTypes();
-    const targetRef = this.extractTargetReference(payload);
-    if (!targetRef) {
-      return this.buildFeedbackResponse('Activity Type (target) fehlt.');
-    }
-    const resolved = this.resolveByIdOrLabel(existing, targetRef, {
-      title: `Mehrere Activity Types passen zu "${targetRef}". Welchen meinst du?`,
-      apply: { mode: 'value', path: [...context.pathPrefix, 'target'] },
-    });
-    if (resolved.clarification) {
-      return this.buildClarificationResponse(resolved.clarification, context);
-    }
-    if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Activity Type nicht gefunden.');
-    }
-
-    const next = existing.filter((item) => item.id !== resolved.item!.id);
-    const changes: AssistantActionChangeDto[] = [
-      {
-        kind: 'delete',
-        entityType: 'activityType',
-        id: resolved.item.id,
-        label: resolved.item.label,
-      },
-    ];
-    const summary = `Activity Type "${resolved.item.label}" löschen.`;
-    return this.buildCatalogOutcome(snapshot, [summary], changes, [
-      { type: 'activityTypes', items: next },
-    ]);
-  }
 
   buildCreateActivityTemplatePreview(
     payload: ActionPayload,
@@ -161,14 +44,14 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     }
 
     const existing = this.planning.listActivityTemplates();
-    const types = this.planning.listActivityTypes();
+    const definitions = this.planning.listActivityDefinitions();
     const next = [...existing];
     const changes: AssistantActionChangeDto[] = [];
     const summaries: string[] = [];
     const newIds = new Set<string>();
 
     for (const entry of entries) {
-      const normalized = this.normalizeTemplateInput(entry, types, context);
+      const normalized = this.normalizeTemplateInput(entry, definitions, context);
       if (normalized.clarification) {
         return this.buildClarificationResponse(normalized.clarification, context);
       }
@@ -201,7 +84,7 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     context: ActionContext,
   ): ActionApplyOutcome {
     const existing = this.planning.listActivityTemplates();
-    const types = this.planning.listActivityTypes();
+    const definitions = this.planning.listActivityDefinitions();
     const targetRef = this.extractTargetReference(payload);
     if (!targetRef) {
       return this.buildFeedbackResponse('Activity Template (target) fehlt.');
@@ -218,7 +101,7 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     }
 
     const patch = this.asRecord(payload.patch) ?? {};
-    const updated = this.applyTemplatePatch(resolved.item, patch, types, context);
+    const updated = this.applyTemplatePatch(resolved.item, patch, definitions, context);
     if (updated.clarification) {
       return this.buildClarificationResponse(updated.clarification, context);
     }
@@ -287,7 +170,6 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     }
 
     const existing = this.planning.listActivityDefinitions();
-    const types = this.planning.listActivityTypes();
     const templates = this.planning.listActivityTemplates();
     const next = [...existing];
     const changes: AssistantActionChangeDto[] = [];
@@ -297,7 +179,7 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
 
     for (const [index, entry] of entries.entries()) {
       const entryPath = entryPaths[index] ?? [];
-      const normalized = this.normalizeDefinitionInput(entry, types, templates, context);
+      const normalized = this.normalizeDefinitionInput(entry, existing, templates, context);
       if (normalized.clarification) {
         return this.buildClarificationResponse(normalized.clarification, context);
       }
@@ -334,7 +216,6 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     context: ActionContext,
   ): ActionApplyOutcome {
     const existing = this.planning.listActivityDefinitions();
-    const types = this.planning.listActivityTypes();
     const templates = this.planning.listActivityTemplates();
     const targetRef = this.extractTargetReference(payload);
     if (!targetRef) {
@@ -352,7 +233,7 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     }
 
     const patch = this.asRecord(payload.patch) ?? {};
-    const updated = this.applyDefinitionPatch(resolved.item, patch, types, templates, context);
+    const updated = this.applyDefinitionPatch(resolved.item, patch, existing, templates, context);
     if (updated.clarification) {
       return this.buildClarificationResponse(updated.clarification, context);
     }

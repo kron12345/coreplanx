@@ -3,7 +3,7 @@ import { FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { Activity } from '../../models/activity';
 import { Resource } from '../../models/resource';
-import { ActivityFieldKey, ActivityTypeDefinition } from '../../core/services/activity-type.service';
+import type { ActivityFieldKey } from '../../core/models/activity-definition';
 import { PlanningDashboardActivityFacade, PendingActivityState } from './planning-dashboard-activity.facade';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { PlanningStageId } from './planning-stage.model';
@@ -20,6 +20,7 @@ import {
   ActivityRequiredParticipantDialogResult,
 } from './activity-required-participant-dialog.component';
 import { readActivityGroupMetaFromAttributes, writeActivityGroupMetaToAttributes } from './planning-activity-group.utils';
+import { readAttributeBoolean } from '../../core/utils/activity-definition.utils';
 
 export class PlanningDashboardActivityHandlersFacade {
   constructor(
@@ -36,7 +37,7 @@ export class PlanningDashboardActivityHandlersFacade {
       resolveActivityTypeForResource: (
         resource: Resource,
         typeId: string | null | undefined,
-      ) => ActivityTypeDefinition | null;
+      ) => ActivityCatalogOption | null;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
       stageActivities: (stage: PlanningStageId) => Activity[];
       applyLocationDefaults: (activity: Activity, activities: Activity[]) => Activity;
@@ -51,9 +52,9 @@ export class PlanningDashboardActivityHandlersFacade {
       startPendingActivity: (stage: PlanningStageId, resource: Resource, activity: Activity) => void;
       activityForm: FormGroup;
       selectedCatalogOption: () => ActivityCatalogOption | null;
-      findActivityType: (typeId: string | null | undefined) => ActivityTypeDefinition | null;
-      buildActivityTitle: (definition: ActivityTypeDefinition | null) => string;
-      definitionHasField: (definition: ActivityTypeDefinition | null, field: ActivityFieldKey) => boolean;
+      findCatalogOptionByTypeId: (typeId: string | null | undefined) => ActivityCatalogOption | null;
+      buildActivityTitle: (label?: string | null) => string;
+      definitionHasField: (definition: ActivityCatalogOption | null, field: ActivityFieldKey) => boolean;
       isPendingSelection: (id: string | null | undefined) => boolean;
       updateStageActivities: (stage: PlanningStageId, updater: (activities: Activity[]) => Activity[]) => void;
       saveTemplateActivity: (activity: Activity) => void;
@@ -71,7 +72,7 @@ export class PlanningDashboardActivityHandlersFacade {
     }
     const toolId = this.deps.activityCreationTool();
     const option = this.deps.catalogOptionById(toolId) ?? null;
-    const typeId = option?.activityTypeId ?? option?.typeDefinition.id ?? null;
+    const typeId = option?.activityTypeId ?? null;
     const definition = this.deps.resolveActivityTypeForResource(event.resource, typeId);
     if (!definition) {
       return;
@@ -79,12 +80,8 @@ export class PlanningDashboardActivityHandlersFacade {
     const draft = this.deps.activityFacade.createDraft(stage, event, definition, option);
     const normalized = this.deps.applyActivityTypeConstraints(draft);
     const withDefaults = this.deps.applyLocationDefaults(normalized, this.deps.stageActivities(stage));
-    const ensured = await this.ensureRequiredParticipants(stage, event.resource, withDefaults);
-    if (!ensured) {
-      return;
-    }
-    this.deps.pendingActivityOriginal.set(ensured);
-    this.deps.startPendingActivity(stage, event.resource, ensured);
+    this.deps.pendingActivityOriginal.set(withDefaults);
+    this.deps.startPendingActivity(stage, event.resource, withDefaults);
   }
 
   handleActivityEdit(event: { resource: Resource; activity: Activity }): void {
@@ -123,31 +120,31 @@ export class PlanningDashboardActivityHandlersFacade {
     this.deps.clearEditingPreview();
   }
 
-  async saveSelectedActivityEdits(): Promise<void> {
+  async saveSelectedActivityEdits(): Promise<boolean> {
     const selection = this.deps.activitySelection.selectedActivityState();
     if (!selection) {
-      return;
+      return false;
     }
     if (this.deps.activityForm.invalid) {
       this.deps.activityForm.markAllAsTouched();
-      return;
+      return false;
     }
     const stage = this.deps.activeStage();
     const pending = this.deps.pendingActivitySignal();
     const isPendingDraft = pending && pending.stage === stage && pending.activity.id === selection.activity.id;
     const normalized = buildActivityFromForm(selection, this.deps.activityForm.getRawValue(), {
-      findActivityType: (id) => this.deps.findActivityType(id),
+      findCatalogOptionByTypeId: (id) => this.deps.findCatalogOptionByTypeId(id),
       selectedCatalogOption: this.deps.selectedCatalogOption,
-      buildActivityTitle: (definition) => this.deps.buildActivityTitle(definition),
+      buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
       definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
       applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
     });
     if (!normalized) {
-      return;
+      return false;
     }
     const ensured = await this.ensureRequiredParticipants(stage, selection.resource, normalized);
     if (!ensured) {
-      return;
+      return false;
     }
     const withDefaults = this.deps.applyLocationDefaults(ensured, this.deps.stageActivities(stage));
     if (isPendingDraft) {
@@ -161,7 +158,7 @@ export class PlanningDashboardActivityHandlersFacade {
       this.deps.activitySelection.selectedActivityState.set({ activity: withDefaults, resource: selection.resource });
       this.deps.clearEditingPreview();
       this.deps.onActivityMutated?.(withDefaults, stage);
-      return;
+      return true;
     }
     if (stage === 'base') {
       const previousActivityId = selection.activity.id;
@@ -204,10 +201,11 @@ export class PlanningDashboardActivityHandlersFacade {
       this.deps.activitySelection.selectedActivityState.set({ activity: normalizedMain, resource: selection.resource });
       this.deps.clearEditingPreview();
       this.deps.onActivityMutated?.(normalizedMain, stage);
-      return;
+      return true;
     }
     this.deps.replaceActivity(withDefaults);
     this.deps.onActivityMutated?.(withDefaults, stage);
+    return true;
   }
 
   private shouldPersistToTemplate(activityId: string): boolean {
@@ -364,8 +362,8 @@ export class PlanningDashboardActivityHandlersFacade {
     activity: Activity,
   ): Promise<Activity | null> {
     const typeId = (activity.type ?? '').toString().trim();
-    const typeDefinition = typeId ? this.deps.findActivityType(typeId) : null;
-    const requiresVehicleFromType = this.toBool((typeDefinition?.attributes as any)?.['requires_vehicle']);
+    const definition = typeId ? this.deps.findCatalogOptionByTypeId(typeId) : null;
+    const requiresVehicleFromType = readAttributeBoolean(definition?.attributes ?? null, 'requires_vehicle');
     const requiresVehicleFromAttributes = this.toBool((activity.attributes as any)?.['requires_vehicle']);
     const requiresVehicle = requiresVehicleFromType || requiresVehicleFromAttributes;
     const participants = activity.participants ?? [];

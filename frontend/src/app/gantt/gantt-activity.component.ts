@@ -23,26 +23,6 @@ const TIME_ONLY_FORMAT = new Intl.DateTimeFormat('de-DE', {
 
 const DURATION_PIPE = new DurationPipe();
 
-const TYPE_LABELS: Record<string, string> = {
-  'service-start': 'Dienstbeginn',
-  'service-end': 'Dienstende',
-  service: 'Dienstleistung',
-  break: 'Pause',
-  travel: 'Fahrt',
-  transfer: 'Transfer',
-  other: 'Sonstige',
-};
-
-const TYPE_SHORT_LABELS: Record<string, string> = {
-  'service-start': 'Start',
-  'service-end': 'Ende',
-  service: 'DL',
-  break: 'PA',
-  travel: 'TR',
-  transfer: 'TF',
-  other: 'AKT',
-};
-
 const POPOVER_POSITIONS: ConnectedPosition[] = [
   {
     originX: 'center',
@@ -196,25 +176,6 @@ export class GanttActivityComponent {
     return this.widthPx >= 120 && this.hasRoute;
   }
 
-  get typeLabel(): string {
-    if (!this.activity) {
-      return '';
-    }
-    return TYPE_LABELS[this.activity.type ?? 'service'] ?? 'Aktivität';
-  }
-
-  get compactTypeLabel(): string {
-    if (!this.activity) {
-      return '';
-    }
-    const type = this.activity.type ?? 'service';
-    return TYPE_SHORT_LABELS[type] ?? TYPE_LABELS[type] ?? 'Aktivität';
-  }
-
-  get useCompactLabels(): boolean {
-    return this.widthPx < 80;
-  }
-
   get hasRoute(): boolean {
     return !!(this.activity?.from || this.activity?.to);
   }
@@ -248,7 +209,8 @@ export class GanttActivityComponent {
     if (explicit) {
       return explicit;
     }
-    return this.useCompactLabels ? this.compactTypeLabel : this.typeLabel;
+    const base = (this.activity?.title ?? '').trim();
+    return base.length ? base : 'Aktivität';
   }
 
   get routeLabel(): string {
@@ -329,7 +291,7 @@ export class GanttActivityComponent {
     if (!this.activity) {
       return false;
     }
-    if (this.activity.serviceRole === 'start' || this.activity.type === 'service-start') {
+    if (this.activity.serviceRole === 'start') {
       return true;
     }
     const attrs = this.activity.attributes as Record<string, unknown> | undefined;

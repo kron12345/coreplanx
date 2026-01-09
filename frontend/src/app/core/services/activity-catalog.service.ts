@@ -181,12 +181,6 @@ export class ActivityCatalogService {
     const id = this.slugify(input.id || input.label);
     const attributes = this.normalizeAttributes(input.attributes);
     const relevantFor = this.normalizeRelevantFor(input.relevantFor);
-    const enhancedAttributes = this.ensureBehaviorAttributes(
-      attributes,
-      input.defaultDurationMinutes,
-      relevantFor,
-    );
-
     return {
       id,
       label: (input.label ?? id).trim(),
@@ -195,7 +189,7 @@ export class ActivityCatalogService {
       templateId: input.templateId ?? null,
       defaultDurationMinutes: this.normalizeDuration(input.defaultDurationMinutes),
       relevantFor,
-      attributes: enhancedAttributes,
+      attributes,
     };
   }
 
@@ -290,56 +284,6 @@ export class ActivityCatalogService {
     const allowed: ResourceKind[] = ['personnel', 'vehicle', 'personnel-service', 'vehicle-service'];
     const list = Array.from(new Set(values)).filter((v): v is ResourceKind => allowed.includes(v));
     return list.length ? list : undefined;
-  }
-
-  private ensureBehaviorAttributes(
-    attributes: ActivityAttributeValue[],
-    defaultDurationMinutes: number | null | undefined,
-    relevantFor: ResourceKind[] | undefined,
-  ): ActivityAttributeValue[] {
-    const result = [...attributes];
-    const byKey = new Map<string, ActivityAttributeValue>();
-    result.forEach((attr) => {
-      byKey.set(attr.key, attr);
-    });
-
-    if (defaultDurationMinutes !== null && defaultDurationMinutes !== undefined) {
-      const key = 'default_duration';
-      const existing = byKey.get(key);
-      const minutes = Math.max(1, Math.trunc(defaultDurationMinutes));
-      const meta: Record<string, string> = {
-        datatype: 'number',
-        unit: 'minutes',
-        value: minutes.toString(),
-        ...(existing?.meta ?? {}),
-      };
-      const updated: ActivityAttributeValue = { key, meta };
-      if (existing) {
-        Object.assign(existing, updated);
-      } else {
-        result.push(updated);
-      }
-    }
-
-    if (relevantFor && relevantFor.length) {
-      const key = 'relevant_for';
-      const existing = byKey.get(key);
-      const value = relevantFor.join(',');
-      const meta: Record<string, string> = {
-        datatype: 'list',
-        options: 'personnel,vehicle,personnel-service,vehicle-service',
-        value,
-        ...(existing?.meta ?? {}),
-      };
-      const updated: ActivityAttributeValue = { key, meta };
-      if (existing) {
-        Object.assign(existing, updated);
-      } else {
-        result.push(updated);
-      }
-    }
-
-    return result;
   }
 
   private normalizeMeta(

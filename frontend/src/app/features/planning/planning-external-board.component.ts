@@ -8,9 +8,10 @@ import { Resource } from '../../models/resource';
 import { Activity, ServiceRole } from '../../models/activity';
 import { getActivityOwnerId } from '../../models/activity-ownership';
 import type { PlanningTimelineRange } from './planning-data.types';
-import { ActivityTypeDefinition, ActivityTypeService } from '../../core/services/activity-type.service';
+import { ActivityCatalogService } from '../../core/services/activity-catalog.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { readDefinitionFields } from '../../core/utils/activity-definition.utils';
 
 function deriveYearLabelFromVariantId(variantId: string): string | undefined {
   const trimmed = variantId?.trim();
@@ -42,7 +43,7 @@ function deriveVariantType(variantId: string): 'productive' | 'simulation' {
 export class PlanningExternalBoardComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly data = inject(PlanningDataService);
-  private readonly activityTypes = inject(ActivityTypeService);
+  private readonly activityCatalog = inject(ActivityCatalogService);
   private readonly translationService = inject(TranslationService);
 
   private readonly stageId = signal<PlanningStageId>('base');
@@ -146,17 +147,22 @@ export class PlanningExternalBoardComponent {
 
   private buildActivityTypeInfo(): Record<string, { label: string; showRoute: boolean; serviceRole: ServiceRole | null }> {
     const record: Record<string, { label: string; showRoute: boolean; serviceRole: ServiceRole | null }> = {};
-    const definitions: ActivityTypeDefinition[] = this.activityTypes.definitions();
+    const definitions = this.activityCatalog.definitions();
     // Touch translations for reactivity
     this.translationService.translations();
     definitions.forEach((definition) => {
+      const typeId = definition.activityType;
+      if (!typeId || record[typeId]) {
+        return;
+      }
       const translated = this.translationService.translate(
-        `activityType:${definition.id}`,
+        `activityType:${typeId}`,
         definition.label,
       );
-      record[definition.id] = {
+      const fields = readDefinitionFields(definition.attributes ?? []);
+      record[typeId] = {
         label: translated && translated.trim().length ? translated.trim() : definition.label,
-        showRoute: definition.fields.includes('from') || definition.fields.includes('to'),
+        showRoute: fields.includes('from') || fields.includes('to'),
         serviceRole: null,
       };
     });

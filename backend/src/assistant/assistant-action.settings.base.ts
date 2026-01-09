@@ -3,7 +3,6 @@ import type {
   ActivityDefinition,
   ActivityFieldKey,
   ActivityTemplate,
-  ActivityTypeDefinition,
   CustomAttributeDefinition,
   LayerGroup,
   ResourceKind,
@@ -115,100 +114,55 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     );
   }
 
-  protected normalizeActivityTypeInput(
-    entry: unknown,
-  ): { value?: ActivityTypeDefinition; error?: string } {
-    const record = this.asRecord(entry);
-    const label =
-      this.cleanText(record?.['label'] ?? record?.['name']) ??
-      (typeof entry === 'string' ? this.cleanText(entry) : undefined);
-    const id =
-      this.cleanText(record?.['id'] ?? record?.['typeId']) ??
-      (label ? this.slugify(label) : undefined);
-    if (!id) {
-      return { error: 'Activity Type ID fehlt.' };
-    }
-    const finalLabel = label ?? id;
-    const appliesTo = this.normalizeResourceKinds(
-      record?.['appliesTo'] ?? record?.['applies_to'],
-    );
-    const relevantFor = this.normalizeResourceKinds(
-      record?.['relevantFor'] ?? record?.['relevant_for'],
-    );
-    const appliedApplies = appliesTo.length ? appliesTo : relevantFor;
-    const appliedRelevant = relevantFor.length ? relevantFor : appliedApplies;
-    const defaultKinds: ResourceKind[] = ['personnel', 'vehicle'];
-    const normalizedApplies: ResourceKind[] = appliedApplies.length ? appliedApplies : defaultKinds;
-    const normalizedRelevant: ResourceKind[] = appliedRelevant.length
-      ? appliedRelevant
-      : normalizedApplies;
-    const category = this.normalizeCategory(this.cleanText(record?.['category']));
-    const timeMode = this.normalizeTimeMode(
-      this.cleanText(record?.['timeMode'] ?? record?.['time_mode']),
-    );
-    const fields = this.normalizeActivityFields(record?.['fields']);
-    const defaultDuration =
-      this.parseNumber(
-        record?.['defaultDurationMinutes'] ?? record?.['default_duration_minutes'],
-      ) ?? 60;
-
-    return {
-      value: {
-        id,
-        label: finalLabel,
-        description: this.cleanText(record?.['description']),
-        appliesTo: normalizedApplies,
-        relevantFor: normalizedRelevant,
-        category,
-        timeMode,
-        fields: fields.length ? fields : ['start', 'end', 'remark'],
-        defaultDurationMinutes: Math.max(0, Math.trunc(defaultDuration)),
-        attributes: this.normalizeMetaRecord(record?.['attributes']),
-        meta: this.normalizeMetaRecord(record?.['meta']),
-      },
-    };
+  protected buildActivityTypeChoices(
+    definitions: ActivityDefinition[],
+  ): Array<{ id: string; label?: string }> {
+    const map = new Map<string, { id: string; label?: string }>();
+    definitions.forEach((definition) => {
+      const id = (definition.activityType ?? '').trim();
+      if (!id || map.has(id)) {
+        return;
+      }
+      map.set(id, { id, label: definition.label ?? id });
+    });
+    return Array.from(map.values());
   }
 
-  protected applyActivityTypePatch(
-    existing: ActivityTypeDefinition,
-    patch: Record<string, unknown>,
-  ): ActivityTypeDefinition {
-    const appliesTo = this.normalizeResourceKinds(
-      patch['appliesTo'] ?? patch['applies_to'],
-    );
-    const relevantFor = this.normalizeResourceKinds(
-      patch['relevantFor'] ?? patch['relevant_for'],
-    );
-    const fields = this.normalizeActivityFields(patch['fields']);
-    const defaultDuration = this.parseNumber(
-      patch['defaultDurationMinutes'] ?? patch['default_duration_minutes'],
-    );
-    return {
-      ...existing,
-      label: this.cleanText(patch['label']) ?? existing.label,
-      description: this.cleanText(patch['description']) ?? existing.description,
-      appliesTo: appliesTo.length ? appliesTo : existing.appliesTo,
-      relevantFor: relevantFor.length ? relevantFor : existing.relevantFor,
-      category: patch['category']
-        ? this.normalizeCategory(this.cleanText(patch['category']))
-        : existing.category,
-      timeMode:
-        patch['timeMode'] || patch['time_mode']
-          ? this.normalizeTimeMode(this.cleanText(patch['timeMode'] ?? patch['time_mode']))
-          : existing.timeMode,
-      fields: fields.length ? fields : existing.fields,
-      defaultDurationMinutes:
-        defaultDuration !== undefined
-          ? Math.max(0, Math.trunc(defaultDuration))
-          : existing.defaultDurationMinutes,
-      attributes: this.normalizeMetaRecord(patch['attributes']) ?? existing.attributes,
-      meta: this.normalizeMetaRecord(patch['meta']) ?? existing.meta,
-    };
+  protected resolveActivityTypeRef(options: {
+    ref: string;
+    choices: Array<{ id: string; label?: string }>;
+    context: ActionContext;
+    path: Array<string | number>;
+    allowNew: boolean;
+  }): { id?: string; error?: string; clarification?: ClarificationRequest } {
+    const cleaned = this.cleanText(options.ref);
+    if (!cleaned) {
+      return { error: 'Activity Type fehlt.' };
+    }
+    if (options.choices.length) {
+      const resolved = this.resolveByIdOrLabel(options.choices, cleaned, {
+        title: `Mehrere Activity Types passen zu "${cleaned}". Welchen meinst du?`,
+        apply: { mode: 'value', path: options.path },
+      });
+      if (resolved.clarification) {
+        return { clarification: resolved.clarification };
+      }
+      if (resolved.item) {
+        return { id: resolved.item.id };
+      }
+      if (!options.allowNew) {
+        return { error: resolved.feedback ?? 'Activity Type nicht gefunden.' };
+      }
+    } else if (!options.allowNew) {
+      return { error: 'Keine Activity Definitions vorhanden.' };
+    }
+    const normalized = /^[a-zA-Z0-9_-]+$/.test(cleaned) ? cleaned : this.slugify(cleaned);
+    return { id: normalized };
   }
 
   protected normalizeTemplateInput(
     entry: unknown,
-    types: ActivityTypeDefinition[],
+    definitions: ActivityDefinition[],
     context: ActionContext,
   ): { value?: ActivityTemplate; error?: string; clarification?: ClarificationRequest } {
     const record = this.asRecord(entry);
@@ -221,23 +175,23 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (!id) {
       return { error: 'Activity Template ID fehlt.' };
     }
-    const activityTypeRef = this.cleanText(
-      record?.['activityType'] ?? record?.['activity_type'],
-    );
+    const activityTypeRef = this.cleanText(record?.['activityType'] ?? record?.['activity_type']);
     let activityType: string | undefined;
     if (activityTypeRef) {
-      const resolved = this.resolveByIdOrLabel(types, activityTypeRef, {
-        title: `Mehrere Activity Types passen zu "${activityTypeRef}". Welchen meinst du?`,
-        apply: { mode: 'value', path: [...context.pathPrefix, 'activityTemplate', 'activityType'] },
+      const resolved = this.resolveActivityTypeRef({
+        ref: activityTypeRef,
+        choices: this.buildActivityTypeChoices(definitions),
+        context,
+        path: [...context.pathPrefix, 'activityTemplate', 'activityType'],
+        allowNew: false,
       });
       if (resolved.clarification) {
         return { clarification: resolved.clarification };
       }
-      if (resolved.item) {
-        activityType = resolved.item.id;
-      } else if (resolved.feedback) {
-        return { error: resolved.feedback };
+      if (!resolved.id) {
+        return { error: resolved.error ?? 'Activity Type nicht gefunden.' };
       }
+      activityType = resolved.id;
     }
     const defaultDuration = this.parseNumber(
       record?.['defaultDurationMinutes'] ?? record?.['default_duration_minutes'],
@@ -259,23 +213,26 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
   protected applyTemplatePatch(
     existing: ActivityTemplate,
     patch: Record<string, unknown>,
-    types: ActivityTypeDefinition[],
+    definitions: ActivityDefinition[],
     context: ActionContext,
   ): { value?: ActivityTemplate; error?: string; clarification?: ClarificationRequest } {
     const activityTypeRef = this.cleanText(patch['activityType'] ?? patch['activity_type']);
     let activityType = existing.activityType;
     if (activityTypeRef) {
-      const resolved = this.resolveByIdOrLabel(types, activityTypeRef, {
-        title: `Mehrere Activity Types passen zu "${activityTypeRef}". Welchen meinst du?`,
-        apply: { mode: 'value', path: [...context.pathPrefix, 'patch', 'activityType'] },
+      const resolved = this.resolveActivityTypeRef({
+        ref: activityTypeRef,
+        choices: this.buildActivityTypeChoices(definitions),
+        context,
+        path: [...context.pathPrefix, 'patch', 'activityType'],
+        allowNew: false,
       });
       if (resolved.clarification) {
         return { clarification: resolved.clarification };
       }
-      if (!resolved.item) {
-        return { error: resolved.feedback ?? 'Activity Type nicht gefunden.' };
+      if (!resolved.id) {
+        return { error: resolved.error ?? 'Activity Type nicht gefunden.' };
       }
-      activityType = resolved.item.id;
+      activityType = resolved.id;
     }
     const defaultDuration = this.parseNumber(
       patch['defaultDurationMinutes'] ?? patch['default_duration_minutes'],
@@ -297,7 +254,7 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
 
   protected normalizeDefinitionInput(
     entry: unknown,
-    types: ActivityTypeDefinition[],
+    definitions: ActivityDefinition[],
     templates: ActivityTemplate[],
     context: ActionContext,
   ): { value?: ActivityDefinition; error?: string; clarification?: ClarificationRequest } {
@@ -311,21 +268,22 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (!id) {
       return { error: 'Activity Definition ID fehlt.' };
     }
-    const activityTypeRef = this.cleanText(
-      record?.['activityType'] ?? record?.['activity_type'],
-    );
+    const activityTypeRef = this.cleanText(record?.['activityType'] ?? record?.['activity_type']);
     if (!activityTypeRef) {
       return { error: 'Activity Definition activityType fehlt.' };
     }
-    const typeResolved = this.resolveByIdOrLabel(types, activityTypeRef, {
-      title: `Mehrere Activity Types passen zu "${activityTypeRef}". Welchen meinst du?`,
-      apply: { mode: 'value', path: [...context.pathPrefix, 'activityDefinition', 'activityType'] },
+    const typeResolved = this.resolveActivityTypeRef({
+      ref: activityTypeRef,
+      choices: this.buildActivityTypeChoices(definitions),
+      context,
+      path: [...context.pathPrefix, 'activityDefinition', 'activityType'],
+      allowNew: true,
     });
     if (typeResolved.clarification) {
       return { clarification: typeResolved.clarification };
     }
-    if (!typeResolved.item) {
-      return { error: typeResolved.feedback ?? 'Activity Type nicht gefunden.' };
+    if (!typeResolved.id) {
+      return { error: typeResolved.error ?? 'Activity Type nicht gefunden.' };
     }
     const templateRef = this.cleanText(record?.['templateId'] ?? record?.['template_id']);
     let templateId: string | undefined;
@@ -358,7 +316,7 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
         id,
         label: label ?? id,
         description: this.cleanText(record?.['description']),
-        activityType: typeResolved.item.id,
+        activityType: typeResolved.id,
         templateId: templateId ?? undefined,
         defaultDurationMinutes:
           defaultDuration !== undefined ? Math.max(0, Math.trunc(defaultDuration)) : undefined,
@@ -371,24 +329,27 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
   protected applyDefinitionPatch(
     existing: ActivityDefinition,
     patch: Record<string, unknown>,
-    types: ActivityTypeDefinition[],
+    definitions: ActivityDefinition[],
     templates: ActivityTemplate[],
     context: ActionContext,
   ): { value?: ActivityDefinition; error?: string; clarification?: ClarificationRequest } {
     let activityType = existing.activityType;
     const activityTypeRef = this.cleanText(patch['activityType'] ?? patch['activity_type']);
     if (activityTypeRef) {
-      const resolved = this.resolveByIdOrLabel(types, activityTypeRef, {
-        title: `Mehrere Activity Types passen zu "${activityTypeRef}". Welchen meinst du?`,
-        apply: { mode: 'value', path: [...context.pathPrefix, 'patch', 'activityType'] },
+      const resolved = this.resolveActivityTypeRef({
+        ref: activityTypeRef,
+        choices: this.buildActivityTypeChoices(definitions),
+        context,
+        path: [...context.pathPrefix, 'patch', 'activityType'],
+        allowNew: true,
       });
       if (resolved.clarification) {
         return { clarification: resolved.clarification };
       }
-      if (!resolved.item) {
-        return { error: resolved.feedback ?? 'Activity Type nicht gefunden.' };
+      if (!resolved.id) {
+        return { error: resolved.error ?? 'Activity Type nicht gefunden.' };
       }
-      activityType = resolved.item.id;
+      activityType = resolved.id;
     }
 
     let templateId = existing.templateId;
@@ -482,29 +443,6 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       return 50;
     }
     return Math.max(...existing.map((item) => item.order ?? 50)) + 10;
-  }
-
-  protected normalizeCategory(value?: string): ActivityTypeDefinition['category'] {
-    switch (value) {
-      case 'rest':
-      case 'movement':
-      case 'service':
-      case 'other':
-        return value;
-      default:
-        return 'other';
-    }
-  }
-
-  protected normalizeTimeMode(value?: string): ActivityTypeDefinition['timeMode'] {
-    switch (value) {
-      case 'range':
-      case 'point':
-      case 'duration':
-        return value;
-      default:
-        return 'duration';
-    }
   }
 
   protected normalizeResourceKinds(value: unknown): ResourceKind[] {
