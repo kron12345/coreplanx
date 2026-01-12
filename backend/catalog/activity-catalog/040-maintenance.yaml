@@ -5,16 +5,10 @@ types:
   label: Werkstattbuchung
   description: Werkstattaufenthalt inkl. Ort und Zeitraum.
   appliesTo:
-  - personnel
   - vehicle
-  - personnel-service
-  - vehicle-service
   relevantFor: &id001
-  - personnel
   - vehicle
-  - personnel-service
-  - vehicle-service
-  category: movement
+  category: other
   timeMode: range
   fields:
   - from
@@ -40,8 +34,8 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
-      value: movement
+      options: rest,movement,travel-time,train-ride,service,other
+      value: other
   - key: time_mode
     meta:
       datatype: enum
@@ -56,7 +50,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,vehicle,personnel-service,vehicle-service
+      value: vehicle
   - key: field:from
     meta:
       datatype: string

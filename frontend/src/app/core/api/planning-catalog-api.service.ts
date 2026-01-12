@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { API_CONFIG } from '../config/api-config';
 import type { ActivityDefinition, ActivityTemplate } from '../services/activity-catalog.service';
+import type { ActivityCategoryDefinition } from '../services/activity-category.service';
 import type { LayerGroup } from '../services/layer-group.service';
 import type { CustomAttributeState } from '../services/custom-attribute.service';
 
@@ -15,6 +16,7 @@ export interface ActivityCatalogSnapshot {
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];
+  categories: ActivityCategoryDefinition[];
   translations: TranslationState;
   customAttributes: CustomAttributeState;
 }
@@ -144,6 +146,50 @@ export class PlanningCatalogApiService {
   deleteLayerGroup(layerId: string): Promise<void> {
     return lastValueFrom(
       this.http.delete<void>(`${this.baseUrl()}/planning/catalog/layers/${layerId}`),
+    );
+  }
+
+  listActivityCategories(): Promise<ActivityCategoryDefinition[]> {
+    return lastValueFrom(
+      this.http.get<ActivityCategoryDefinition[]>(`${this.baseUrl()}/planning/catalog/categories`),
+    ).then((res) => res ?? []);
+  }
+
+  replaceActivityCategories(
+    payload: ActivityCategoryDefinition[],
+  ): Promise<ActivityCategoryDefinition[]> {
+    return lastValueFrom(
+      this.http.put<ActivityCategoryDefinition[]>(
+        `${this.baseUrl()}/planning/catalog/categories`,
+        payload ?? [],
+      ),
+    ).then((res) => res ?? []);
+  }
+
+  createActivityCategory(payload: ActivityCategoryDefinition): Promise<ActivityCategoryDefinition> {
+    return lastValueFrom(
+      this.http.post<ActivityCategoryDefinition>(
+        `${this.baseUrl()}/planning/catalog/categories`,
+        payload,
+      ),
+    );
+  }
+
+  upsertActivityCategory(
+    categoryId: string,
+    payload: ActivityCategoryDefinition,
+  ): Promise<ActivityCategoryDefinition> {
+    return lastValueFrom(
+      this.http.put<ActivityCategoryDefinition>(
+        `${this.baseUrl()}/planning/catalog/categories/${categoryId}`,
+        payload,
+      ),
+    );
+  }
+
+  deleteActivityCategory(categoryId: string): Promise<void> {
+    return lastValueFrom(
+      this.http.delete<void>(`${this.baseUrl()}/planning/catalog/categories/${categoryId}`),
     );
   }
 

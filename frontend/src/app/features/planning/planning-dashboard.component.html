@@ -979,32 +979,47 @@
 	                }
 	              </mat-form-field>
 	            </div>
-	            <mat-divider></mat-divider>
+            <mat-divider></mat-divider>
 
-	            @for (group of filteredActivityTypePickerGroups(); track group.id) {
-	              <button mat-menu-item type="button" disabled class="planning-type-menu__header">
-	                <mat-icon [fontIcon]="group.icon"></mat-icon>
-	                <span>{{ group.label }}</span>
-	              </button>
-	              @for (option of group.items; track option.id) {
-	                <button mat-menu-item type="button" (click)="selectCatalogActivity(option.id)">
-	                  <span class="planning-type-menu__item">
-	                    <span
-	                      class="planning-type-menu__swatch"
-	                      [style.background]="activityTypeOptionColor(option)"
-	                    ></span>
-	                    <span class="planning-type-menu__text">
-	                      <span class="planning-type-menu__label">{{ option.label }}</span>
-	                      <span class="planning-type-menu__description">
-	                        {{ option.description ?? '' }}
-	                      </span>
-	                    </span>
-	                  </span>
-	                </button>
-	              }
-	              <mat-divider></mat-divider>
-	            }
-	          </mat-menu>
+            @for (group of filteredActivityTypePickerGroups(); track group.id) {
+              <div
+                class="planning-type-menu__header mat-mdc-menu-item"
+                role="button"
+                tabindex="0"
+                [attr.aria-expanded]="isActivityTypeGroupExpanded(group.id)"
+                (click)="toggleActivityTypeGroup(group.id); $event.stopPropagation()"
+                (keydown.enter)="toggleActivityTypeGroup(group.id); $event.stopPropagation()"
+                (keydown.space)="toggleActivityTypeGroup(group.id); $event.stopPropagation()"
+              >
+                <mat-icon [fontIcon]="group.icon"></mat-icon>
+                <span>{{ group.label }}</span>
+                <span class="planning-type-menu__spacer"></span>
+                <mat-icon
+                  class="planning-type-menu__toggle"
+                  [fontIcon]="isActivityTypeGroupExpanded(group.id) ? 'expand_more' : 'chevron_right'"
+                ></mat-icon>
+              </div>
+              @if (isActivityTypeGroupExpanded(group.id)) {
+                @for (option of group.items; track option.id) {
+                  <button mat-menu-item type="button" (click)="selectCatalogActivity(option.id)">
+                    <span class="planning-type-menu__item">
+                      <span
+                        class="planning-type-menu__swatch"
+                        [style.background]="activityTypeOptionColor(option)"
+                      ></span>
+                      <span class="planning-type-menu__text">
+                        <span class="planning-type-menu__label">{{ option.label }}</span>
+                        <span class="planning-type-menu__description">
+                          {{ option.description ?? '' }}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                }
+              }
+              <mat-divider></mat-divider>
+            }
+          </mat-menu>
 
 	          @if (isSelectedActivityPending() && quickActivityTypes().length > 0) {
 	            <section class="planning-type-quick planning-side-panels__full">
@@ -1171,7 +1186,8 @@
                 @if (shouldShowEndField(selectedActivityDefinition())) {
                   <mat-form-field
                     appearance="outline"
-                    class="planning-attribute-grid__item planning-attribute-grid__item--span-2"
+                    class="planning-attribute-grid__item"
+                    [class.planning-attribute-grid__item--span-2]="!linkedServiceFieldVisible()"
                   >
                     <mat-label>Dauer</mat-label>
                     <input
@@ -1183,6 +1199,30 @@
                       (focus)="markTimeSyncSource('duration')"
                     />
                     <span matTextSuffix>min</span>
+                  </mat-form-field>
+                }
+                @if (linkedServiceFieldVisible()) {
+                  <mat-form-field
+                    appearance="outline"
+                    class="planning-attribute-grid__item"
+                    [class.planning-attribute-grid__item--span-2]="!shouldShowEndField(selectedActivityDefinition())"
+                  >
+                    <mat-label>{{ linkedServiceLabel() }}</mat-label>
+                    <mat-select formControlName="linkedServiceId">
+                      @if (!linkedServiceRequired()) {
+                        <mat-option value="">Keine Verknüpfung</mat-option>
+                      }
+                      @for (option of linkedServiceOptions(); track option.id) {
+                        <mat-option [value]="option.id">{{ option.name }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (
+                      linkedServiceRequired() &&
+                      activityForm.controls.linkedServiceId.invalid &&
+                      (activityForm.controls.linkedServiceId.dirty || activityForm.controls.linkedServiceId.touched)
+                    ) {
+                      <mat-error>{{ linkedServiceLabel() }} ist erforderlich.</mat-error>
+                    }
                   </mat-form-field>
                 }
               </div>

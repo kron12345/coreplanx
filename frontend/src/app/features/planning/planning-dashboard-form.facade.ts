@@ -1,6 +1,7 @@
 import { Signal } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { Activity } from '../../models/activity';
+import { Resource } from '../../models/resource';
 import type { ActivityFieldKey } from '../../core/models/activity-definition';
 import { ActivityCatalogOption } from './planning-dashboard.types';
 import { PlanningStageId } from './planning-stage.model';
@@ -24,6 +25,7 @@ export class PlanningDashboardFormFacade {
       buildActivityTitle: (label?: string | null) => string;
       definitionHasField: (definition: ActivityCatalogOption | null, field: ActivityFieldKey) => boolean;
       applyActivityTypeConstraints: (activity: Activity) => Activity;
+      resolveResourceById: (resourceId: string) => Resource | null;
       setEditPreview: (state: { stage: PlanningStageId; activity: Activity } | null) => void;
       clearEditPreview: () => void;
     },
@@ -38,10 +40,11 @@ export class PlanningDashboardFormFacade {
         buildActivityFromForm(selection, this.deps.activityForm.getRawValue(), {
           findCatalogOptionByTypeId: (id) => this.deps.findCatalogOptionByTypeId(id),
           selectedCatalogOption: this.deps.selectedCatalogOption,
-          buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
-          definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
-          applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
-        }),
+        buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
+        definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
+        applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
+        resolveResourceById: (id) => this.deps.resolveResourceById(id),
+      }),
       (a, b) => areActivitiesEquivalent(a, b),
       (activity) => this.deps.pendingFacade.commitPendingActivityUpdate(activity),
     );
@@ -63,6 +66,7 @@ export class PlanningDashboardFormFacade {
       buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
       definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
       applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
+      resolveResourceById: (id) => this.deps.resolveResourceById(id),
     });
     if (!normalized) {
       this.deps.clearEditPreview();

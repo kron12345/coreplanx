@@ -1,0 +1,100 @@
+<div class="category-settings">
+  <header class="category-settings__header">
+    <div>
+      <h1>Activity-Kategorien</h1>
+      <p>Definiert die Top-Level-Gruppen für den Typ-Picker.</p>
+    </div>
+    <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
+      Werkseinstellungen
+    </button>
+    <button mat-stroked-button type="button" (click)="newCategory()">
+      <mat-icon fontIcon="add"></mat-icon>
+      Neu
+    </button>
+  </header>
+
+  <div class="category-settings__grid">
+    <mat-card class="category-settings__list">
+      <div class="category-settings__list-header">
+        <span>Key</span>
+        <span>Label</span>
+        <span>Icon</span>
+        <span>Order</span>
+        <span></span>
+      </div>
+      @for (category of categories(); track category.id) {
+        <div
+          class="category-settings__row"
+          [class.category-settings__row--active]="selectedId() === category.id"
+          (click)="select(category)"
+        >
+          <span class="mono">{{ category.id }}</span>
+          <span>{{ category.label }}</span>
+          <span class="category-settings__icon">
+            <mat-icon [fontIcon]="category.icon || 'category'"></mat-icon>
+            <span>{{ category.icon || 'category' }}</span>
+          </span>
+          <span>{{ category.order }}</span>
+          <span class="category-settings__row-actions">
+            <button mat-icon-button type="button" (click)="move(category, 'up'); $event.stopPropagation()">
+              <mat-icon fontIcon="arrow_upward"></mat-icon>
+            </button>
+            <button mat-icon-button type="button" (click)="move(category, 'down'); $event.stopPropagation()">
+              <mat-icon fontIcon="arrow_downward"></mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              color="warn"
+              (click)="remove(category); $event.stopPropagation()"
+              matTooltip="Kategorie löschen"
+            >
+              <mat-icon fontIcon="delete"></mat-icon>
+            </button>
+          </span>
+        </div>
+      }
+    </mat-card>
+
+    <mat-card class="category-settings__detail">
+      <div class="category-settings__detail-header">
+        <div>
+          <p class="eyebrow">Detail</p>
+          <h3>{{ selectedId() ? 'Kategorie bearbeiten' : 'Neue Kategorie' }}</h3>
+        </div>
+        <button mat-flat-button color="primary" type="button" (click)="save()">
+          <mat-icon fontIcon="save"></mat-icon>
+          Speichern
+        </button>
+      </div>
+
+      <form class="category-settings__form" [formGroup]="form">
+        <mat-form-field appearance="outline">
+          <mat-label>Key</mat-label>
+          <input matInput formControlName="id" placeholder="z. B. travel-time" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Label</mat-label>
+          <input matInput formControlName="label" placeholder="Anzeigename" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Icon (Material)</mat-label>
+          <input matInput formControlName="icon" placeholder="z. B. train" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Order</mat-label>
+          <input matInput type="number" formControlName="order" />
+          <mat-hint>Kleinere Werte erscheinen zuerst.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Beschreibung</mat-label>
+          <textarea matInput formControlName="description" rows="2"></textarea>
+        </mat-form-field>
+      </form>
+    </mat-card>
+  </div>
+</div>

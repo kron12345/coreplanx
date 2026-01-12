@@ -22,6 +22,7 @@ import { ResourceKind } from '../../models/resource';
 import { AbstractControl, FormGroup, FormControl } from '@angular/forms';
 import { TranslationService } from '../../core/services/translation.service';
 import { LayerGroupService, LayerGroup } from '../../core/services/layer-group.service';
+import { ActivityCategoryService } from '../../core/services/activity-category.service';
 import { isSystemDefinition } from '../../core/utils/activity-definition.utils';
 
 const DRAW_AS_OPTIONS = [
@@ -63,6 +64,7 @@ export class ActivityCatalogSettingsComponent {
   private readonly catalog = inject(ActivityCatalogService);
   private readonly translationService = inject(TranslationService);
   private readonly layerGroups = inject(LayerGroupService);
+  private readonly activityCategories = inject(ActivityCategoryService);
   private readonly activityTypeLabelMap = computed(() => {
     this.translationService.translations();
     const map = new Map<string, string>();
@@ -83,6 +85,7 @@ export class ActivityCatalogSettingsComponent {
   protected readonly drawFilter = signal<string | null>(null);
   protected readonly layerFilter = signal<string | null>(null);
   protected readonly layerOptions = computed<LayerGroup[]>(() => this.layerGroups.groups());
+  protected readonly categoryOptions = computed(() => this.activityCategories.categories());
   protected readonly sortedTemplates = computed(() =>
     [...this.templates()].sort((a, b) => a.id.localeCompare(b.id, 'de')),
   );
@@ -128,8 +131,12 @@ export class ActivityCatalogSettingsComponent {
       }
       map.set(trimmed, meta ?? {});
     };
+    const categoryIds = this.categoryOptions().map((category) => category.id).filter((id) => id);
+    const categoryOptions = categoryIds.join(',');
+    const defaultCategory =
+      (categoryIds.includes('other') && 'other') || categoryIds[0] || '';
     const seedMeta: Record<string, Record<string, string>> = {
-      category: { datatype: 'enum', options: 'rest,movement,service,other', value: 'other' },
+      category: { datatype: 'enum', options: categoryOptions, value: defaultCategory },
       time_mode: { datatype: 'enum', options: 'duration,range,point', value: 'duration' },
       default_duration: { datatype: 'number', unit: 'minutes', value: '60' },
       relevant_for: {

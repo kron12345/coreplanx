@@ -77,17 +77,22 @@ export function readDefinitionFields(
 
 export function readDefinitionCategory(
   attributes: ActivityAttributeValue[] | null | undefined,
+  allowedCategories?: Set<string> | string[],
 ): ActivityCategory | null {
   const raw = readAttributeValue(attributes, 'category');
-  switch (raw) {
-    case 'rest':
-    case 'movement':
-    case 'service':
-    case 'other':
-      return raw;
-    default:
-      return null;
+  if (!raw) {
+    return null;
   }
+  if (!allowedCategories) {
+    return raw;
+  }
+  const set = Array.isArray(allowedCategories)
+    ? new Set(allowedCategories)
+    : allowedCategories;
+  if (!set.size) {
+    return raw;
+  }
+  return set.has(raw) ? raw : null;
 }
 
 export function readDefinitionTimeMode(

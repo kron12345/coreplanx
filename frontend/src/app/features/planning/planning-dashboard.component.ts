@@ -70,6 +70,10 @@ import {
   isPrimaryParticipantRole,
   resourceParticipantCategory,
 } from './planning-dashboard-participant.utils';
+import {
+  resolveLinkedServiceFieldState,
+  resolveLinkedServiceLabel,
+} from './planning-dashboard-linked-service.utils';
 import { PlanningDashboardServiceAssignmentFacade } from './planning-dashboard-service-assignment.facade';
 import { PlanningDashboardSelectionActionsFacade } from './planning-dashboard-selection-actions.facade';
 import { PlanningDashboardSelectionHandlers } from './planning-dashboard-selection.handlers';
@@ -120,7 +124,8 @@ import { PlanningDashboardFilterFacade } from './planning-dashboard-filter.facad
 import { PlanningDashboardActivityFacade } from './planning-dashboard-activity.facade';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
 import { findCatalogOptionByTypeId, definitionHasField, shouldShowEndField } from './planning-dashboard-activity.helpers';
-import { STAGE_RESOURCE_GROUPS, TYPE_PICKER_META, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
+import { STAGE_RESOURCE_GROUPS, type ActivityEditPreviewState, type PendingActivityState } from './planning-dashboard.constants';
+import { ActivityCategoryService } from '../../core/services/activity-category.service';
 import {
   applyLocationDefaults as applyLocationDefaultsUtil,
   type ActivityLocationDefinition,
@@ -328,10 +333,11 @@ export class PlanningDashboardComponent {
 
   private readonly activityCatalog = inject(ActivityCatalogService);
   private readonly translationService = inject(TranslationService);
+  private readonly activityCategories = inject(ActivityCategoryService);
   private readonly catalogFacade = new PlanningDashboardCatalogFacade(
     this.activityCatalog,
     this.translationService,
-    TYPE_PICKER_META,
+    () => this.activityCategories.categories(),
     this.activitySelection,
     () => this.activityCreationToolSignal(),
     () => this.activityTypeMenuSelection(),
@@ -347,6 +353,9 @@ export class PlanningDashboardComponent {
   private readonly activityCreationToolSignal = signal<string>('');
   private readonly activityFormTypeSignal = signal<string>('');
   private readonly activityTypeMenuSelection = signal<ActivityCategory | null>(null);
+  private readonly activityTypeGroupCollapseSignal = signal<Record<string, boolean>>(
+    this.loadActivityTypeGroupCollapseState(),
+  );
   private readonly activityMoveTargetSignal = signal<string>('');
   private readonly pendingServiceResourceSignal = signal<Resource | null>(null);
   private readonly serviceAssignmentTargetSignal = signal<string | null>(null);
@@ -519,6 +528,7 @@ export class PlanningDashboardComponent {
     from: [''],
     to: [''],
     remark: [''],
+    linkedServiceId: [''],
   });
 
   private readonly operationalPointLocationOptions = computed<LocationAutocompleteOption[]>(() => {
@@ -1001,6 +1011,8 @@ export class PlanningDashboardComponent {
     buildActivityTitle: (label) => buildActivityTitle(label),
     definitionHasField: (definition, field) => this.definitionHasField(definition, field as ActivityFieldKey),
     applyActivityTypeConstraints: (activity) => this.applyActivityTypeConstraints(activity),
+    resolveResourceById: (id) =>
+      this.stageResourceSignals[this.activeStageSignal()]().find((resource) => resource.id === id) ?? null,
     setEditPreview: (state) => this.activityEditPreviewSignal.set(state),
     clearEditPreview: () => this.pendingFacade.clearEditingPreview(),
   });
@@ -1210,6 +1222,42 @@ export class PlanningDashboardComponent {
     return findCatalogOptionByTypeId(this.activityCreationOptions, typeId);
   });
 
+  protected readonly linkedServiceFieldState = computed(() => {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return { kind: null, visible: false, required: false };
+    }
+    const typeOverride = this.activityFormTypeSignal();
+    const typeId = (typeOverride || selection.activity.type) ?? null;
+    const definition = this.findCatalogOptionByTypeId(typeId);
+    const option = this.selectedCatalogOption();
+    const attrs = selection.activity.attributes as Record<string, unknown> | undefined;
+    const activityKey = typeof attrs?.['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
+    const matchesKey = !!activityKey && option?.id === activityKey;
+    const matchesType = !!typeId && option?.activityTypeId === typeId;
+    const catalogOption = matchesKey || matchesType ? option : null;
+    return resolveLinkedServiceFieldState({
+      anchor: selection.resource,
+      definition,
+      catalogOption,
+    });
+  });
+
+  protected readonly linkedServiceFieldVisible = computed(() => this.linkedServiceFieldState().visible);
+  protected readonly linkedServiceRequired = computed(() => this.linkedServiceFieldState().required);
+  protected readonly linkedServiceLabel = computed(() => resolveLinkedServiceLabel(this.linkedServiceFieldState().kind));
+  protected readonly linkedServiceOptions = computed(() => {
+    const state = this.linkedServiceFieldState();
+    if (!state.kind) {
+      return [] as Array<{ id: string; name: string }>;
+    }
+    const resources = this.stageResourceSignals[this.activeStageSignal()]();
+    return resources
+      .filter((resource) => resource.kind === state.kind)
+      .map((resource) => ({ id: resource.id, name: resource.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  });
+
   protected readonly selectedGroupSummary = computed(() => {
     const items = this.selectedActivities();
     if (!items.length) {
@@ -1367,6 +1415,26 @@ export class PlanningDashboardComponent {
       input?.focus();
       input?.select();
     }, 0);
+  }
+
+  protected toggleActivityTypeGroup(groupId: string): void {
+    const trimmed = (groupId ?? '').trim();
+    if (!trimmed) {
+      return;
+    }
+    this.activityTypeGroupCollapseSignal.update((current) => ({
+      ...current,
+      [trimmed]: !(current[trimmed] ?? false),
+    }));
+    this.persistActivityTypeGroupCollapseState();
+  }
+
+  protected isActivityTypeGroupExpanded(groupId: string): boolean {
+    const query = this.activityTypeSearchQuerySignal().trim();
+    if (query.length) {
+      return true;
+    }
+    return !(this.activityTypeGroupCollapseSignal()[groupId] ?? false);
   }
 
   protected isActivityTypeFavorite(optionId: string): boolean {
@@ -1553,6 +1621,46 @@ export class PlanningDashboardComponent {
       return next;
     });
     this.persistActivityTypePickerState();
+  }
+
+  private loadActivityTypeGroupCollapseState(): Record<string, boolean> {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+    try {
+      const raw = window.localStorage.getItem('coreplanx:planning:type-picker-groups:v1');
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw) as any;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      const state: Record<string, boolean> = {};
+      Object.entries(parsed).forEach(([key, value]) => {
+        if (!key) {
+          return;
+        }
+        state[key] = Boolean(value);
+      });
+      return state;
+    } catch {
+      return {};
+    }
+  }
+
+  private persistActivityTypeGroupCollapseState(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        'coreplanx:planning:type-picker-groups:v1',
+        JSON.stringify(this.activityTypeGroupCollapseSignal()),
+      );
+    } catch {
+      // ignore storage issues
+    }
   }
 
   private loadActivityTypePickerState(): { favorites: string[]; recents: string[]; usage: Record<string, number> } {

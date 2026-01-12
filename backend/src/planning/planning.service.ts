@@ -3,6 +3,7 @@ import type { Observable } from 'rxjs';
 import type {
   Activity,
   ActivityCatalogSnapshot,
+  ActivityCategoryDefinition,
   ActivityDefinition,
   ActivityFilters,
   ActivityMutationRequest,
@@ -393,6 +394,37 @@ export class PlanningService {
 
   deleteActivityDefinition(definitionId: string): Promise<void> {
     return this.catalogService.deleteActivityDefinition(definitionId);
+  }
+
+  listActivityCategories(): ActivityCategoryDefinition[] {
+    return this.catalogService.listActivityCategories();
+  }
+
+  replaceActivityCategories(
+    payload: ActivityCategoryDefinition[],
+  ): Promise<ActivityCategoryDefinition[]> {
+    return this.catalogService.replaceActivityCategories(payload);
+  }
+
+  getActivityCategory(categoryId: string): ActivityCategoryDefinition {
+    return this.catalogService.getActivityCategory(categoryId);
+  }
+
+  createActivityCategory(
+    payload: ActivityCategoryDefinition,
+  ): Promise<ActivityCategoryDefinition> {
+    return this.catalogService.createActivityCategory(payload);
+  }
+
+  upsertActivityCategory(
+    categoryId: string,
+    payload: ActivityCategoryDefinition,
+  ): Promise<ActivityCategoryDefinition> {
+    return this.catalogService.upsertActivityCategory(categoryId, payload);
+  }
+
+  deleteActivityCategory(categoryId: string): Promise<void> {
+    return this.catalogService.deleteActivityCategory(categoryId);
   }
 
   listLayerGroups(): LayerGroup[] {

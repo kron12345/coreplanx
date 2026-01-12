@@ -5,13 +5,9 @@ types:
   label: Sonstige
   description: "Freie Aktivit\xE4t mit allen Angaben."
   appliesTo:
-  - personnel
-  - vehicle
   - personnel-service
   - vehicle-service
   relevantFor: &id001
-  - personnel
-  - vehicle
   - personnel-service
   - vehicle-service
   category: other
@@ -37,7 +33,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: other
   - key: time_mode
     meta:
@@ -53,7 +49,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel-service,vehicle-service
   - key: field:start
     meta:
       datatype: timepoint

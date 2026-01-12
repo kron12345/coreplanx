@@ -1,0 +1,27 @@
+activities: []
+templates: []
+activityCategories:
+  - id: rest
+    label: Freitage
+    icon: beach_access
+    order: 10
+  - id: movement
+    label: Rangieren
+    icon: precision_manufacturing
+    order: 20
+  - id: travel-time
+    label: Reisezeit
+    icon: commute
+    order: 30
+  - id: train-ride
+    label: Zugfahrten
+    icon: train
+    order: 40
+  - id: service
+    label: Dienst & Pause
+    icon: schedule
+    order: 50
+  - id: other
+    label: Sonstige
+    icon: widgets
+    order: 60

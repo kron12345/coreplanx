@@ -6,10 +6,8 @@ types:
   description: "Ganzt\xE4giger Ruhetag ohne Ortsangaben."
   appliesTo:
   - personnel
-  - personnel-service
   relevantFor: &id001
   - personnel
-  - personnel-service
   category: rest
   timeMode: range
   fields:
@@ -34,7 +32,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: rest
   - key: time_mode
     meta:
@@ -50,7 +48,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,personnel-service
+      value: personnel
   - key: field:start
     meta:
       datatype: timepoint

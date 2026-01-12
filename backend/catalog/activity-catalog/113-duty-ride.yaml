@@ -1,14 +1,14 @@
 activities: []
 templates: []
 types:
-- id: short-break
-  label: Kurzpause (Arbeitsunterbrechung)
-  description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
+- id: duty-ride
+  label: Dienstfahrt
+  description: Dienstliche Reise zwischen zwei Orten.
   appliesTo:
   - personnel-service
   relevantFor: &id001
   - personnel-service
-  category: service
+  category: travel-time
   timeMode: duration
   fields:
   - start
@@ -16,28 +16,25 @@ types:
   - from
   - to
   - remark
-  defaultDurationMinutes: 20
+  defaultDurationMinutes: 45
   attributes:
-    is_break: true
-    is_short_break: true
     is_within_service: true
-    to_hidden: true
-    to_location_mode: previous
-    consider_capacity_conflicts: true
-    color: '#ffe082'
+    is_travel: true
+    consider_location_conflicts: true
+    color: '#0288d1'
 definitions:
-- id: short-break
-  label: Kurzpause (Arbeitsunterbrechung)
-  description: Arbeitsunterbrechung innerhalb eines Dienstes (gilt als Arbeitszeit).
-  activityType: short-break
-  defaultDurationMinutes: 20
+- id: duty-ride
+  label: Dienstfahrt
+  description: Dienstliche Reise zwischen zwei Orten.
+  activityType: duty-ride
+  defaultDurationMinutes: 45
   relevantFor: *id001
   attributes:
   - key: category
     meta:
       datatype: enum
       options: rest,movement,travel-time,train-ride,service,other
-      value: service
+      value: travel-time
   - key: time_mode
     meta:
       datatype: enum
@@ -47,7 +44,7 @@ definitions:
     meta:
       datatype: number
       unit: minutes
-      value: '20'
+      value: '45'
   - key: relevant_for
     meta:
       datatype: list
@@ -78,28 +75,15 @@ definitions:
       datatype: string
       oncreate: edit
       onupdate: edit
-  - key: is_break
-    meta:
-      value: 'true'
-  - key: is_short_break
-    meta:
-      value: 'true'
   - key: is_within_service
     meta:
       value: 'true'
-  - key: to_hidden
+  - key: is_travel
     meta:
       value: 'true'
-  - key: to_location_mode
-    meta:
-      value: previous
-  - key: consider_capacity_conflicts
+  - key: consider_location_conflicts
     meta:
       value: 'true'
   - key: color
     meta:
-      value: '#ffe082'
-  - key: is_system
-    meta:
-      datatype: boolean
-      value: 'true'
+      value: '#0288d1'

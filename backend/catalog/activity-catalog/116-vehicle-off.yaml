@@ -5,14 +5,8 @@ types:
   label: Ausschalten
   description: "Fahrzeug ausschalten bzw. au\xDFer Betrieb nehmen."
   appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
   - vehicle-service
   relevantFor: &id001
-  - personnel
-  - vehicle
-  - personnel-service
   - vehicle-service
   category: service
   timeMode: duration
@@ -20,6 +14,7 @@ types:
   - start
   - end
   - from
+  - to
   - remark
   defaultDurationMinutes: 10
   attributes:
@@ -41,7 +36,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: service
   - key: time_mode
     meta:
@@ -57,7 +52,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,vehicle,personnel-service,vehicle-service
+      value: vehicle-service
   - key: field:start
     meta:
       datatype: timepoint
@@ -69,6 +64,11 @@ definitions:
       oncreate: edit
       onupdate: edit
   - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:to
     meta:
       datatype: string
       oncreate: edit

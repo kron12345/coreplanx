@@ -252,6 +252,16 @@ export class DutyAutopilotService {
       updated.set(activity.id, activity);
     }
 
+    const homeDepotUpserts = this.applyHomeDepotCompliance(
+      stageId,
+      Array.from(byId.values()),
+      resolvedConfig,
+    );
+    for (const activity of homeDepotUpserts) {
+      byId.set(activity.id, activity);
+      updated.set(activity.id, activity);
+    }
+
     const complianceUpserts = this.applyAzgCompliance(
       stageId,
       variantId,
@@ -505,6 +515,20 @@ export class DutyAutopilotService {
       }
       return [this.buildOwnerParticipant(owner), ...participants];
     };
+    const normalizeManagedAttributes = (
+      attributes: ActivityAttributes | null | undefined,
+    ): ActivityAttributes | undefined => {
+      if (!attributes) {
+        return attributes ?? undefined;
+      }
+      const serviceByOwnerKey = this.serviceByOwnerKey();
+      if (!Object.prototype.hasOwnProperty.call(attributes, serviceByOwnerKey)) {
+        return attributes;
+      }
+      const next = { ...attributes } as ActivityAttributes;
+      delete (next as any)[serviceByOwnerKey];
+      return Object.keys(next).length ? next : undefined;
+    };
 
     for (const activity of activities) {
       if (!isBoundary(activity) && !isBreak(activity) && !isShortBreak(activity)) {
@@ -530,18 +554,21 @@ export class DutyAutopilotService {
         }
         usedIds.add(targetId);
         const participants = ensureOwnerParticipant(activity, owner);
+        const attributes = normalizeManagedAttributes(activity.attributes);
         const next: Activity = {
           ...activity,
           id: targetId,
           serviceId,
           serviceRole: role,
           participants,
+          attributes,
         };
         const changed =
           targetId !== activity.id ||
           (activity.serviceId ?? null) !== serviceId ||
           activity.serviceRole !== role ||
-          participants !== activity.participants;
+          participants !== activity.participants ||
+          attributes !== activity.attributes;
         if (changed) {
           upserts.set(next.id, next);
         }
@@ -574,14 +601,19 @@ export class DutyAutopilotService {
         targetId = claimId(`${prefix}:${serviceId}:${suffix || 'auto'}`);
       }
       const participants = ensureOwnerParticipant(activity, owner);
+      const attributes = normalizeManagedAttributes(activity.attributes);
       const next: Activity = {
         ...activity,
         id: targetId,
         serviceId,
         participants,
+        attributes,
       };
       const changed =
-        targetId !== activity.id || (activity.serviceId ?? null) !== serviceId || participants !== activity.participants;
+        targetId !== activity.id ||
+        (activity.serviceId ?? null) !== serviceId ||
+        participants !== activity.participants ||
+        attributes !== activity.attributes;
       if (changed) {
         upserts.set(next.id, next);
       }
@@ -2515,6 +2547,262 @@ export class DutyAutopilotService {
     return Array.from(updated.values());
   }
 
+  private applyHomeDepotCompliance(
+    stageId: StageId,
+    activities: Activity[],
+    config: ResolvedDutyAutopilotConfig,
+  ): Activity[] {
+    if (!activities.length) {
+      return [];
+    }
+
+    const grouping = this.buildComplianceGrouping(stageId, activities, config);
+    const groups = grouping.groups.filter(
+      (group) => group.owner.kind === 'personnel' || group.owner.kind === 'personnel-service',
+    );
+    if (!groups.length) {
+      return [];
+    }
+
+    const conflictKey = config.conflictAttributeKey;
+    const conflictCodesKey = config.conflictCodesAttributeKey;
+    const breakTypeIds = config.breakTypeIds;
+    const shortBreakTypeId = config.shortBreakTypeId;
+    const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
+    const startTypeIds = config.resolvedTypeIds.startTypeIds;
+    const endTypeIds = config.resolvedTypeIds.endTypeIds;
+
+    const isBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return (
+        role === 'start' ||
+        role === 'end' ||
+        boundaryTypeIds.has((activity.type ?? '').trim())
+      );
+    };
+    const isStartBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'start' || startTypeIds.has((activity.type ?? '').trim());
+    };
+    const isEndBoundary = (activity: Activity) => {
+      const role = this.resolveServiceRole(activity);
+      return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
+    };
+    const isShortBreak = (activity: Activity) =>
+      this.isShortBreakActivity(activity, shortBreakTypeId);
+    const isRegularBreak = (activity: Activity) =>
+      this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
+    const isAnyPause = (activity: Activity) => isRegularBreak(activity) || isShortBreak(activity);
+    const isHomeDepotCode = (code: string) =>
+      code.startsWith('HOME_DEPOT_') || code.startsWith('WALK_TIME_');
+
+    const context = this.buildMasterDataContext();
+    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const updated = new Map<string, Activity>();
+
+    for (const group of groups) {
+      const ownerId = group.owner.resourceId;
+      const serviceId = group.serviceId;
+      const groupActivities = group.activities.map((activity) => byId.get(activity.id) ?? activity);
+
+      const basePayloadActivities = groupActivities
+        .filter((activity) => !isBoundary(activity))
+        .filter((activity) => !isAnyPause(activity))
+        .filter((activity) => !this.isManagedId(activity.id));
+
+      const startBoundary =
+        groupActivities.find((activity) => activity.id === `svcstart:${serviceId}`) ??
+        groupActivities.find((activity) => isStartBoundary(activity)) ??
+        null;
+      const endBoundary =
+        groupActivities.find((activity) => activity.id === `svcend:${serviceId}`) ??
+        groupActivities.find((activity) => isEndBoundary(activity)) ??
+        null;
+
+      let selectionActivities = basePayloadActivities;
+      if (!selectionActivities.length) {
+        selectionActivities = [];
+        if (startBoundary) {
+          selectionActivities.push(startBoundary);
+        }
+        if (endBoundary && endBoundary.id !== startBoundary?.id) {
+          selectionActivities.push(endBoundary);
+        }
+      }
+      if (!selectionActivities.length) {
+        selectionActivities = groupActivities.filter((activity) => !isAnyPause(activity));
+      }
+      if (!selectionActivities.length) {
+        selectionActivities = groupActivities;
+      }
+
+      const homeDepotSelection = this.resolveHomeDepotSelection(group.owner, selectionActivities, context);
+      const homeDepotCodes: string[] = [...homeDepotSelection.conflictCodes];
+      const homeDepotDetails: ConflictDetails = {};
+      this.mergeConflictDetails(homeDepotDetails, homeDepotSelection.conflictDetails);
+
+      if (homeDepotSelection.selection) {
+        const selection = homeDepotSelection.selection;
+        const allowedStartEnd = this.buildAllowedSiteLookup(selection.depot.siteIds ?? [], context);
+        const allowedBreaks = this.buildAllowedSiteLookup(selection.depot.breakSiteIds ?? [], context);
+        const allowedShortBreaks = this.buildAllowedSiteLookup(selection.depot.shortBreakSiteIds ?? [], context);
+
+        const recordOutside = (label: string, location: string | null, activityId?: string) => {
+          const normalized = `${location ?? ''}`.trim();
+          if (!normalized) {
+            return;
+          }
+          homeDepotCodes.push('HOME_DEPOT_NOT_IN_DEPOT');
+          const detail = activityId ? `${label}: ${activityId} (${normalized})` : `${label}: ${normalized}`;
+          this.appendConflictDetail(homeDepotDetails, 'HOME_DEPOT_NOT_IN_DEPOT', detail);
+        };
+
+        if (allowedStartEnd.siteIds.size > 0) {
+          const firstPayload = this.findFirstActivity(basePayloadActivities);
+          const lastPayload = this.findLastActivity(basePayloadActivities);
+          const firstFallback =
+            firstPayload ?? startBoundary ?? this.findFirstActivity(selectionActivities) ?? null;
+          const lastFallback =
+            lastPayload ?? endBoundary ?? this.findLastActivity(selectionActivities) ?? null;
+
+          const startCandidates = [
+            firstPayload
+              ? { activity: firstPayload, location: this.readStartLocation(firstPayload) }
+              : null,
+            startBoundary
+              ? { activity: startBoundary, location: this.readStartLocation(startBoundary) }
+              : null,
+            !firstPayload && !startBoundary && firstFallback
+              ? { activity: firstFallback, location: this.readStartLocation(firstFallback) }
+              : null,
+          ].filter(
+            (entry): entry is { activity: Activity; location: string | null } => entry !== null,
+          );
+
+          const endCandidates = [
+            lastPayload
+              ? { activity: lastPayload, location: this.readEndLocation(lastPayload) }
+              : null,
+            endBoundary
+              ? { activity: endBoundary, location: this.readEndLocation(endBoundary) }
+              : null,
+            !lastPayload && !endBoundary && lastFallback
+              ? { activity: lastFallback, location: this.readEndLocation(lastFallback) }
+              : null,
+          ].filter(
+            (entry): entry is { activity: Activity; location: string | null } => entry !== null,
+          );
+
+          for (const candidate of startCandidates) {
+            const location = candidate.location;
+            if (!location) {
+              continue;
+            }
+            if (!this.isLocationInAllowedSites(location, allowedStartEnd, context)) {
+              recordOutside('Dienstanfang', location, candidate.activity.id);
+            }
+          }
+
+          for (const candidate of endCandidates) {
+            const location = candidate.location;
+            if (!location) {
+              continue;
+            }
+            if (!this.isLocationInAllowedSites(location, allowedStartEnd, context)) {
+              recordOutside('Dienstende', location, candidate.activity.id);
+            }
+          }
+        }
+
+        if (allowedBreaks.siteIds.size > 0) {
+          for (const activity of groupActivities) {
+            if (!isRegularBreak(activity)) {
+              continue;
+            }
+            const location = this.readStartLocation(activity);
+            if (!this.isLocationInAllowedSites(location, allowedBreaks, context)) {
+              recordOutside('Pause', location, activity.id);
+            }
+          }
+        }
+
+        if (allowedShortBreaks.siteIds.size > 0) {
+          for (const activity of groupActivities) {
+            if (!isShortBreak(activity)) {
+              continue;
+            }
+            const location = this.readStartLocation(activity);
+            if (!this.isLocationInAllowedSites(location, allowedShortBreaks, context)) {
+              recordOutside('Kurzpause', location, activity.id);
+            }
+          }
+        }
+      }
+
+      const normalizedHomeDepotCodes = this.normalizeConflictCodes(homeDepotCodes);
+      const normalizedHomeDepotDetails = this.normalizeConflictDetails(homeDepotDetails);
+      const filteredHomeDepotDetails = this.detailsForCodes(
+        normalizedHomeDepotDetails,
+        normalizedHomeDepotCodes,
+      );
+
+      for (const activity of groupActivities) {
+        const current = byId.get(activity.id) ?? activity;
+        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
+        const preservedCodes = baseCodes.filter((code) => !isHomeDepotCode(code));
+        const mergedCodes = this.normalizeConflictCodes([...preservedCodes, ...normalizedHomeDepotCodes]);
+
+        const baseDetails = this.readConflictDetailsForActivity(current, ownerId);
+        const preservedDetails: ConflictDetails = {};
+        Object.entries(baseDetails).forEach(([code, entries]) => {
+          if (!isHomeDepotCode(code)) {
+            preservedDetails[code] = entries;
+          }
+        });
+
+        const mergedDetails: ConflictDetails = {};
+        this.mergeConflictDetails(mergedDetails, preservedDetails);
+        this.mergeConflictDetails(mergedDetails, filteredHomeDepotDetails);
+        const normalizedDetails = this.detailsForCodes(
+          this.normalizeConflictDetails(mergedDetails),
+          mergedCodes,
+        );
+
+        const level = this.conflictLevelForCodes(mergedCodes, config.maxConflictLevel);
+        const next =
+          this.isManagedId(current.id) || isBoundary(current)
+            ? this.applyDutyMeta(
+                current,
+                serviceId,
+                level,
+                mergedCodes,
+                conflictKey,
+                conflictCodesKey,
+                normalizedDetails,
+              )
+            : this.applyDutyAssignment(
+                current,
+                ownerId,
+                {
+                  serviceId,
+                  conflictLevel: level,
+                  conflictCodes: mergedCodes,
+                  conflictDetails: normalizedDetails,
+                },
+                conflictKey,
+                conflictCodesKey,
+              );
+
+        if (next !== current) {
+          byId.set(next.id, next);
+          updated.set(next.id, next);
+        }
+      }
+    }
+
+    return Array.from(updated.values());
+  }
+
   private detectLocalConflicts(
     payloadActivities: Activity[],
     options?: {
@@ -4129,6 +4417,28 @@ export class DutyAutopilotService {
       return raw.map((code) => `${code ?? ''}`.trim()).filter((code) => code.length > 0);
     }
     return [];
+  }
+
+  private readConflictDetailsForActivity(
+    activity: Activity,
+    ownerId: string,
+  ): ConflictDetails {
+    const attrs = (activity.attributes ?? {}) as Record<string, any>;
+    const map = attrs[this.serviceByOwnerKey()];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      const entry = (map as Record<string, any>)[ownerId];
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const raw = (entry as Record<string, unknown>).conflictDetails;
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          return this.normalizeConflictDetails(raw);
+        }
+      }
+    }
+    const raw = attrs[this.conflictDetailsKey()];
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return this.normalizeConflictDetails(raw);
+    }
+    return {};
   }
 
   private utcDayStartMsFromDayKey(dayKey: string): number | null {

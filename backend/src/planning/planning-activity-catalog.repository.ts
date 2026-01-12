@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import type {
   ActivityAttributeValue,
+  ActivityCategoryDefinition,
   ActivityDefinition,
   ActivityTemplate,
   CustomAttributeDefinition,
@@ -36,6 +37,14 @@ interface ActivityLayerGroupRow {
   id: string;
   label: string;
   sort_order: number;
+  description: string | null;
+}
+
+interface ActivityCategoryRow {
+  id: string;
+  label: string;
+  sort_order: number | null;
+  icon: string | null;
   description: string | null;
 }
 
@@ -77,6 +86,7 @@ export class PlanningActivityCatalogRepository {
     const [
       templateResult,
       definitionResult,
+      categoryResult,
       layerResult,
       translationResult,
       customAttributeResult,
@@ -107,6 +117,13 @@ export class PlanningActivityCatalogRepository {
             attributes
           FROM activity_definition
           ORDER BY id
+        `,
+      ),
+      this.database.query<ActivityCategoryRow>(
+        `
+          SELECT id, label, sort_order, icon, description
+          FROM activity_category
+          ORDER BY sort_order, id
         `,
       ),
       this.database.query<ActivityLayerGroupRow>(
@@ -145,6 +162,7 @@ export class PlanningActivityCatalogRepository {
     return {
       templates: templateResult.rows.map((row) => this.mapActivityTemplate(row)),
       definitions: definitionResult.rows.map((row) => this.mapActivityDefinition(row)),
+      categories: categoryResult.rows.map((row) => this.mapActivityCategory(row)),
       layerGroups: layerResult.rows.map((row) => this.mapActivityLayerGroup(row)),
       translations: this.mapTranslations(translationResult.rows),
       customAttributes: this.mapCustomAttributes(customAttributeResult.rows),
@@ -160,9 +178,42 @@ export class PlanningActivityCatalogRepository {
       try {
         await client.query('DELETE FROM activity_definition');
         await client.query('DELETE FROM activity_template');
+        await client.query('DELETE FROM activity_category');
         await client.query('DELETE FROM activity_layer_group');
         await client.query('DELETE FROM activity_translation');
         await client.query('DELETE FROM custom_attribute_definition');
+
+        if (catalog.categories.length) {
+          await client.query(
+            `
+              WITH incoming AS (
+                SELECT *
+                FROM jsonb_to_recordset($1::jsonb) AS t(
+                  id TEXT,
+                  label TEXT,
+                  "order" INTEGER,
+                  icon TEXT,
+                  description TEXT
+                )
+              )
+              INSERT INTO activity_category (
+                id,
+                label,
+                sort_order,
+                icon,
+                description
+              )
+              SELECT
+                id,
+                label,
+                COALESCE("order", 0),
+                icon,
+                description
+              FROM incoming
+            `,
+            [JSON.stringify(catalog.categories)],
+          );
+        }
 
         if (catalog.layerGroups.length) {
           await client.query(
@@ -359,6 +410,7 @@ export class PlanningActivityCatalogRepository {
     return {
       templates: [],
       definitions: [],
+      categories: [],
       layerGroups: [],
       translations: {},
       customAttributes: {},
@@ -394,6 +446,16 @@ export class PlanningActivityCatalogRepository {
       id: row.id,
       label: row.label,
       order: row.sort_order ?? undefined,
+      description: row.description ?? undefined,
+    };
+  }
+
+  private mapActivityCategory(row: ActivityCategoryRow): ActivityCategoryDefinition {
+    return {
+      id: row.id,
+      label: row.label,
+      order: row.sort_order ?? undefined,
+      icon: row.icon ?? undefined,
       description: row.description ?? undefined,
     };
   }

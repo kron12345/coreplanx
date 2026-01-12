@@ -6,10 +6,8 @@ types:
   description: Abschlussleistung mit Ziel und Bemerkung.
   appliesTo:
   - personnel-service
-  - vehicle-service
   relevantFor: &id001
   - personnel-service
-  - vehicle-service
   category: service
   timeMode: point
   fields:
@@ -36,7 +34,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: service
   - key: time_mode
     meta:
@@ -52,7 +50,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel-service,vehicle-service
+      value: personnel-service
   - key: field:start
     meta:
       datatype: timepoint

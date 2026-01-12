@@ -12,7 +12,7 @@ import yaml from 'js-yaml';
 import type {
   ActivityAttributeValue,
   ActivityCatalogSnapshot,
-  ActivityCategory,
+  ActivityCategoryDefinition,
   ActivityDefinition,
   ActivityFieldKey,
   ActivityTemplate,
@@ -32,6 +32,7 @@ type ActivityCatalogDefaultsFile = {
   templates?: ActivityTemplate | ActivityTemplate[];
   activityTemplates?: ActivityTemplate | ActivityTemplate[];
   layerGroups?: LayerGroup | LayerGroup[];
+  activityCategories?: ActivityCategoryDefinition | ActivityCategoryDefinition[];
   translations?: TranslationState;
   customAttributes?: CustomAttributeState;
 };
@@ -42,6 +43,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   private activityTemplates: ActivityTemplate[] = [];
   private activityDefinitions: ActivityDefinition[] = [];
   private activityLayerGroups: LayerGroup[] = [];
+  private activityCategories: ActivityCategoryDefinition[] = [];
   private activityTranslations: TranslationState = {};
   private customAttributes: CustomAttributeState = {};
   private defaultsLoaded = false;
@@ -257,6 +259,73 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     await this.persistActivityCatalog();
   }
 
+  listActivityCategories(): ActivityCategoryDefinition[] {
+    return this.activityCategories.map((category) => this.cloneActivityCategory(category));
+  }
+
+  async replaceActivityCategories(
+    payload: ActivityCategoryDefinition[],
+  ): Promise<ActivityCategoryDefinition[]> {
+    this.activityCategories = (payload ?? []).map((category) =>
+      this.normalizeActivityCategory(category),
+    );
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.listActivityCategories();
+  }
+
+  getActivityCategory(categoryId: string): ActivityCategoryDefinition {
+    const found = this.activityCategories.find((category) => category.id === categoryId);
+    if (!found) {
+      throw new NotFoundException(
+        `Activity Kategorie ${categoryId} ist nicht vorhanden.`,
+      );
+    }
+    return this.cloneActivityCategory(found);
+  }
+
+  async createActivityCategory(
+    payload: ActivityCategoryDefinition,
+  ): Promise<ActivityCategoryDefinition> {
+    const normalized = this.normalizeActivityCategory(payload);
+    if (this.activityCategories.some((category) => category.id === normalized.id)) {
+      throw new ConflictException(
+        `Activity Kategorie ${normalized.id} existiert bereits.`,
+      );
+    }
+    this.activityCategories.push(normalized);
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.cloneActivityCategory(normalized);
+  }
+
+  async upsertActivityCategory(
+    categoryId: string,
+    payload: ActivityCategoryDefinition,
+  ): Promise<ActivityCategoryDefinition> {
+    const normalized = this.normalizeActivityCategory(payload, categoryId);
+    const index = this.activityCategories.findIndex((category) => category.id === categoryId);
+    if (index >= 0) {
+      this.activityCategories[index] = normalized;
+    } else {
+      this.activityCategories.push(normalized);
+    }
+    this.sortActivityCatalog();
+    await this.persistActivityCatalog();
+    return this.cloneActivityCategory(normalized);
+  }
+
+  async deleteActivityCategory(categoryId: string): Promise<void> {
+    const index = this.activityCategories.findIndex((category) => category.id === categoryId);
+    if (index < 0) {
+      throw new NotFoundException(
+        `Activity Kategorie ${categoryId} ist nicht vorhanden.`,
+      );
+    }
+    this.activityCategories.splice(index, 1);
+    await this.persistActivityCatalog();
+  }
+
   listLayerGroups(): LayerGroup[] {
     return this.activityLayerGroups.map((layer) => this.cloneLayerGroup(layer));
   }
@@ -408,6 +477,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       this.activityTemplates.length > 0 ||
       this.activityDefinitions.length > 0 ||
       this.activityLayerGroups.length > 0 ||
+      this.activityCategories.length > 0 ||
       Object.keys(this.activityTranslations).length > 0 ||
       Object.keys(this.customAttributes).length > 0;
     if (hasAny) {
@@ -427,6 +497,17 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       const catalog = await this.repository.loadActivityCatalog();
       const normalized = this.normalizeCatalogSnapshot(catalog);
       this.applyCatalogState(normalized);
+      if (!this.activityCategories.length) {
+        const defaults = this.getDefaultCatalogSnapshot();
+        if (defaults?.categories?.length) {
+          const patched = this.normalizeCatalogSnapshot({
+            ...normalized,
+            categories: defaults.categories,
+          });
+          this.applyCatalogState(patched);
+          await this.persistActivityCatalog();
+        }
+      }
     } catch (error) {
       this.logger.error(
         'Activity-Katalog konnte nicht aus der Datenbank geladen werden – verwende leeren Katalog.',
@@ -437,6 +518,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
           templates: [],
           definitions: [],
           layerGroups: [],
+          categories: [],
           translations: {},
           customAttributes: {},
         }),
@@ -600,6 +682,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       ...this.collectDefaultsList<ActivityTemplate>(doc.activityTemplates),
     ];
     const layerGroups = this.collectDefaultsList<LayerGroup>(doc.layerGroups);
+    const categories = this.collectDefaultsList<ActivityCategoryDefinition>(doc.activityCategories);
     const translations = (doc.translations ?? {}) as TranslationState;
     const customAttributes = (doc.customAttributes ?? {}) as CustomAttributeState;
 
@@ -607,6 +690,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       templates,
       definitions,
       layerGroups,
+      categories,
       translations,
       customAttributes,
     };
@@ -632,6 +716,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
         this.cloneActivityDefinition(definition),
       ),
       layerGroups: snapshot.layerGroups.map((layer) => this.cloneLayerGroup(layer)),
+      categories: snapshot.categories.map((category) => this.cloneActivityCategory(category)),
       translations: this.cloneTranslationState(snapshot.translations),
       customAttributes: this.cloneCustomAttributeState(snapshot.customAttributes),
     };
@@ -663,6 +748,17 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       ...layer,
       order: layer.order ?? undefined,
       description: layer.description ?? undefined,
+    };
+  }
+
+  private cloneActivityCategory(
+    category: ActivityCategoryDefinition,
+  ): ActivityCategoryDefinition {
+    return {
+      ...category,
+      order: category.order ?? undefined,
+      icon: category.icon ?? undefined,
+      description: category.description ?? undefined,
     };
   }
 
@@ -706,6 +802,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       layerGroups: this.activityLayerGroups.map((layer) =>
         this.cloneLayerGroup(layer),
       ),
+      categories: this.activityCategories.map((category) =>
+        this.cloneActivityCategory(category),
+      ),
       translations: this.cloneTranslationState(this.activityTranslations),
       customAttributes: this.cloneCustomAttributeState(this.customAttributes),
     };
@@ -721,6 +820,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     this.activityLayerGroups = snapshot.layerGroups.map((layer) =>
       this.cloneLayerGroup(layer),
     );
+    this.activityCategories = snapshot.categories.map((category) =>
+      this.cloneActivityCategory(category),
+    );
     this.activityTranslations = this.cloneTranslationState(snapshot.translations);
     this.customAttributes = this.cloneCustomAttributeState(snapshot.customAttributes);
     this.sortActivityCatalog();
@@ -730,6 +832,14 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     this.activityTemplates.sort((a, b) => a.id.localeCompare(b.id));
     this.activityDefinitions.sort((a, b) => a.id.localeCompare(b.id));
     this.activityLayerGroups.sort((a, b) => {
+      const orderA = this.normalizeOptionalNumber(a.order) ?? 50;
+      const orderB = this.normalizeOptionalNumber(b.order) ?? 50;
+      if (orderA === orderB) {
+        return a.id.localeCompare(b.id);
+      }
+      return orderA - orderB;
+    });
+    this.activityCategories.sort((a, b) => {
       const orderA = this.normalizeOptionalNumber(a.order) ?? 50;
       const orderB = this.normalizeOptionalNumber(b.order) ?? 50;
       if (orderA === orderB) {
@@ -749,16 +859,21 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   private normalizeCatalogSnapshot(
     snapshot: ActivityCatalogSnapshot,
   ): ActivityCatalogSnapshot {
+    const categories = (snapshot.categories ?? []).map((category) =>
+      this.normalizeActivityCategory(category),
+    );
+    const allowedCategories = new Set(categories.map((category) => category.id));
     return {
       templates: (snapshot.templates ?? []).map((template) =>
         this.normalizeActivityTemplate(template),
       ),
       definitions: (snapshot.definitions ?? []).map((definition) =>
-        this.normalizeActivityDefinition(definition),
+        this.normalizeActivityDefinition(definition, undefined, allowedCategories),
       ),
       layerGroups: (snapshot.layerGroups ?? []).map((layer) =>
         this.normalizeLayerGroup(layer),
       ),
+      categories,
       translations: this.normalizeTranslations(snapshot.translations),
       customAttributes: this.normalizeCustomAttributes(snapshot.customAttributes),
     };
@@ -796,6 +911,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   private normalizeActivityDefinition(
     payload: ActivityDefinition,
     overrideId?: string,
+    allowedCategories?: Set<string>,
   ): ActivityDefinition {
     const id = this.normalizeIdentifier(
       overrideId ?? payload.id,
@@ -827,8 +943,24 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       relevantFor: relevantFor.length ? relevantFor : undefined,
       attributes: this.normalizeAttributeList(payload.attributes),
     };
-    this.assertSystemDefinitionAttributes(normalized);
+    this.assertSystemDefinitionAttributes(normalized, allowedCategories);
     return normalized;
+  }
+
+  private normalizeActivityCategory(
+    payload: ActivityCategoryDefinition,
+    overrideId?: string,
+  ): ActivityCategoryDefinition {
+    const id = this.normalizeIdentifier(overrideId ?? payload.id, 'Activity Kategorie ID');
+    const label = this.normalizeIdentifier(payload.label, 'Activity Kategorie Label');
+    const order = this.normalizeOptionalNumber(payload.order) ?? 50;
+    return {
+      id,
+      label,
+      order,
+      icon: payload.icon?.trim() || undefined,
+      description: payload.description?.trim() || undefined,
+    };
   }
 
   private normalizeLayerGroup(payload: LayerGroup, overrideId?: string): LayerGroup {
@@ -1099,6 +1231,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
 
   private assertSystemDefinitionAttributes(
     definition: ActivityDefinition,
+    allowedCategories?: Set<string>,
   ): void {
     if (!this.isSystemDefinition(definition)) {
       return;
@@ -1112,12 +1245,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     const fields = this.readAttributeFields(attributes);
     const color = this.readAttributeValue(attributes, 'color');
 
-    const allowedCategories = new Set<ActivityCategory>([
-      'rest',
-      'movement',
-      'service',
-      'other',
-    ]);
+    const allowedCategoryIds =
+      allowedCategories ??
+      new Set(this.activityCategories.map((entry) => entry.id).filter((id) => id));
     const allowedTimeModes = new Set<ActivityTimeMode>([
       'duration',
       'range',
@@ -1130,7 +1260,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       'vehicle-service',
     ]);
 
-    if (!category || !allowedCategories.has(category as ActivityCategory)) {
+    if (allowedCategoryIds.size && (!category || !allowedCategoryIds.has(category))) {
       throw new BadRequestException(
         `System-Activity ${definition.id} benötigt ein gültiges category-Attribut.`,
       );

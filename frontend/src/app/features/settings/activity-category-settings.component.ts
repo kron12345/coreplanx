@@ -1,0 +1,116 @@
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import {
+  ActivityCategoryDefinition,
+  ActivityCategoryService,
+} from '../../core/services/activity-category.service';
+
+@Component({
+  selector: 'app-activity-category-settings',
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTooltipModule,
+    ReactiveFormsModule,
+  ],
+  templateUrl: './activity-category-settings.component.html',
+  styleUrl: './activity-category-settings.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ActivityCategorySettingsComponent {
+  private readonly service = inject(ActivityCategoryService);
+  private readonly fb = inject(FormBuilder);
+
+  protected readonly categories = this.service.categories;
+  protected readonly selectedId = signal<string | null>(null);
+
+  protected readonly form = this.fb.group({
+    id: ['', [Validators.required, Validators.maxLength(80)]],
+    label: ['', [Validators.required, Validators.maxLength(80)]],
+    icon: ['', [Validators.maxLength(80)]],
+    order: [50, [Validators.required]],
+    description: [''],
+  });
+
+  protected select(category: ActivityCategoryDefinition): void {
+    this.selectedId.set(category.id);
+    this.form.reset({
+      id: category.id,
+      label: category.label,
+      icon: category.icon ?? '',
+      order: category.order,
+      description: category.description ?? '',
+    });
+  }
+
+  protected newCategory(): void {
+    this.selectedId.set(null);
+    this.form.reset({
+      id: '',
+      label: '',
+      icon: '',
+      order: 50,
+      description: '',
+    });
+  }
+
+  protected async resetToDefaults(): Promise<void> {
+    if (!this.confirmFactoryReset('Activity-Kategorien')) {
+      return;
+    }
+    await this.service.resetToDefaults();
+    this.newCategory();
+  }
+
+  protected save(): void {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    const raw = this.form.getRawValue();
+    const payload: ActivityCategoryDefinition = {
+      id: (raw.id ?? '').trim(),
+      label: (raw.label ?? '').trim(),
+      icon: (raw.icon ?? '').trim() || undefined,
+      order: Number(raw.order) || 0,
+      description: raw.description?.trim() || undefined,
+    };
+    if (this.selectedId()) {
+      this.service.update(this.selectedId()!, payload);
+    } else {
+      this.service.add(payload);
+    }
+    this.select(payload);
+  }
+
+  protected remove(category: ActivityCategoryDefinition): void {
+    this.service.remove(category.id);
+    if (this.selectedId() === category.id) {
+      this.newCategory();
+    }
+  }
+
+  protected move(category: ActivityCategoryDefinition, dir: 'up' | 'down'): void {
+    this.service.move(category.id, dir);
+  }
+
+  private confirmFactoryReset(scopeLabel: string): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.confirm(
+      `${scopeLabel}: Werkseinstellungen wiederherstellen?\n\nAlle Änderungen in diesem Bereich werden überschrieben.`,
+    );
+  }
+}

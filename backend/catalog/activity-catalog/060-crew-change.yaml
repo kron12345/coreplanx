@@ -5,10 +5,8 @@ types:
   label: Personalwechsel
   description: "\xDCbergabe zwischen zwei Personalen an einem Bahnhof."
   appliesTo:
-  - personnel
   - personnel-service
   relevantFor: &id001
-  - personnel
   - personnel-service
   category: service
   timeMode: duration
@@ -16,11 +14,14 @@ types:
   - start
   - end
   - from
+  - to
   - remark
   defaultDurationMinutes: 20
   attributes:
     is_within_service: true
     is_crew_change: true
+    to_hidden: true
+    to_location_mode: previous
     color: '#5e35b1'
 definitions:
 - id: crew-change
@@ -33,7 +34,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: service
   - key: time_mode
     meta:
@@ -49,7 +50,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,personnel-service
+      value: personnel-service
   - key: field:start
     meta:
       datatype: timepoint
@@ -65,6 +66,11 @@ definitions:
       datatype: string
       oncreate: edit
       onupdate: edit
+  - key: field:to
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
   - key: field:remark
     meta:
       datatype: string
@@ -76,6 +82,12 @@ definitions:
   - key: is_crew_change
     meta:
       value: 'true'
+  - key: to_hidden
+    meta:
+      value: 'true'
+  - key: to_location_mode
+    meta:
+      value: previous
   - key: color
     meta:
       value: '#5e35b1'

@@ -5,14 +5,8 @@ types:
   label: Entparken
   description: Fahrzeug aus dem Abstellbereich holen bzw. entparken.
   appliesTo:
-  - personnel
-  - vehicle
-  - personnel-service
   - vehicle-service
   relevantFor: &id001
-  - personnel
-  - vehicle
-  - personnel-service
   - vehicle-service
   category: movement
   timeMode: duration
@@ -43,7 +37,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: movement
   - key: time_mode
     meta:
@@ -59,7 +53,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,vehicle,personnel-service,vehicle-service
+      value: vehicle-service
   - key: field:start
     meta:
       datatype: timepoint

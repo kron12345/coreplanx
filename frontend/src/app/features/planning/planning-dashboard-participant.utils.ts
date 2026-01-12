@@ -1,6 +1,64 @@
 import { Activity, ActivityParticipant, ActivityParticipantRole } from '../../models/activity';
-import { Resource } from '../../models/resource';
+import { Resource, ResourceKind } from '../../models/resource';
 import { ActivityParticipantCategory, getActivityOwnerByCategory } from '../../models/activity-ownership';
+
+const VEHICLE_KINDS = new Set<ResourceKind>(['vehicle', 'vehicle-service']);
+const PERSONNEL_KINDS = new Set<ResourceKind>(['personnel', 'personnel-service']);
+
+export function isVehicleKind(kind: ResourceKind | null | undefined): boolean {
+  return !!kind && VEHICLE_KINDS.has(kind);
+}
+
+export function isPersonnelKind(kind: ResourceKind | null | undefined): boolean {
+  return !!kind && PERSONNEL_KINDS.has(kind);
+}
+
+export function expandRelevantParticipantKinds(relevantFor?: ResourceKind[] | null): ResourceKind[] | null {
+  if (!relevantFor || relevantFor.length === 0) {
+    return null;
+  }
+  const allowsVehicle = relevantFor.some((kind) => isVehicleKind(kind));
+  const allowsPersonnel = relevantFor.some((kind) => isPersonnelKind(kind));
+  const allowed: ResourceKind[] = [];
+  if (allowsVehicle) {
+    allowed.push('vehicle', 'vehicle-service');
+  }
+  if (allowsPersonnel) {
+    allowed.push('personnel', 'personnel-service');
+  }
+  return allowed.length ? allowed : null;
+}
+
+export function resolveOppositeParticipantKind(kind: ResourceKind | null | undefined): ResourceKind | null {
+  switch (kind) {
+    case 'personnel':
+      return 'vehicle';
+    case 'personnel-service':
+      return 'vehicle-service';
+    case 'vehicle':
+      return 'personnel';
+    case 'vehicle-service':
+      return 'personnel-service';
+    default:
+      return null;
+  }
+}
+
+export function filterParticipantsByKind(activity: Activity, allowedKinds?: ResourceKind[] | null): Activity {
+  if (!allowedKinds || allowedKinds.length === 0) {
+    return activity;
+  }
+  const participants = activity.participants ?? [];
+  if (participants.length === 0) {
+    return activity;
+  }
+  const allowed = new Set(allowedKinds);
+  const filtered = participants.filter((participant) => allowed.has(participant.kind));
+  if (filtered.length === participants.length) {
+    return activity;
+  }
+  return { ...activity, participants: filtered };
+}
 
 export function resolvePrimaryRoleForResource(resource: Resource): ActivityParticipantRole {
   return resource.kind === 'vehicle' || resource.kind === 'vehicle-service'
@@ -131,10 +189,10 @@ export function resourceParticipantCategory(resource: Resource | null): Activity
   if (!resource) {
     return 'other';
   }
-  if (resource.kind === 'vehicle' || resource.kind === 'vehicle-service') {
+  if (isVehicleKind(resource.kind)) {
     return 'vehicle';
   }
-  if (resource.kind === 'personnel' || resource.kind === 'personnel-service') {
+  if (isPersonnelKind(resource.kind)) {
     return 'personnel';
   }
   return 'other';

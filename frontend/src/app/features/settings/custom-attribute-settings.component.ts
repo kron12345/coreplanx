@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { AttributeDefinitionEditorComponent } from './attribute-definition-editor.component';
 import { ActivityCatalogSettingsComponent } from './activity-catalog-settings.component';
+import { ActivityCategorySettingsComponent } from './activity-category-settings.component';
 import { TranslationSettingsComponent } from './translation-settings.component';
 import { LayerGroupSettingsComponent } from './layer-group-settings.component';
 import { PlanningRuleSettingsComponent } from './planning-rule-settings.component';
@@ -14,6 +15,7 @@ import { environment } from '../../../environments/environment';
 const SETTINGS_TABS = [
   { label: 'Attribut-Editor', docKey: 'settings-attributes' },
   { label: 'Activity-Editor', docKey: 'settings-activity-catalog' },
+  { label: 'Activity-Kategorien', docKey: 'settings-activity-categories' },
   { label: 'Layer-Gruppen', docKey: 'settings-layer-groups' },
   { label: 'Übersetzungen', docKey: 'settings-translations' },
   { label: 'Regeln', docKey: 'settings-planning-rules' },
@@ -28,6 +30,7 @@ const SETTINGS_TABS = [
         MatTabsModule,
         AttributeDefinitionEditorComponent,
         ActivityCatalogSettingsComponent,
+        ActivityCategorySettingsComponent,
         TranslationSettingsComponent,
         LayerGroupSettingsComponent,
         PlanningRuleSettingsComponent,

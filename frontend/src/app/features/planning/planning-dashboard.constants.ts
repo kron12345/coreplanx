@@ -1,5 +1,4 @@
 import type { Activity } from '../../models/activity';
-import type { ActivityCategory } from '../../core/models/activity-definition';
 import type { PlanningStageId } from './planning-stage.model';
 import type { StageResourceGroupConfig } from './planning-dashboard-board.facade';
 
@@ -61,14 +60,3 @@ export const STAGE_RESOURCE_GROUPS: Record<PlanningStageId, StageResourceGroupCo
     },
   ],
 };
-
-export const TYPE_PICKER_META: Array<{
-  id: ActivityCategory;
-  label: string;
-  icon: string;
-}> = [
-  { id: 'rest', label: 'Freitage', icon: 'beach_access' },
-  { id: 'movement', label: 'Rangieren', icon: 'precision_manufacturing' },
-  { id: 'service', label: 'Dienst & Pause', icon: 'schedule' },
-  { id: 'other', label: 'Sonstige', icon: 'widgets' },
-];

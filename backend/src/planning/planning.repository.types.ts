@@ -2,6 +2,7 @@ import type {
   Activity,
   ActivityDefinition,
   ActivityTemplate,
+  ActivityCategoryDefinition,
   CustomAttributeState,
   LayerGroup,
   OperationalPoint,
@@ -69,6 +70,7 @@ export interface ActivityCatalogData {
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];
+  categories: ActivityCategoryDefinition[];
   translations: TranslationState;
   customAttributes: CustomAttributeState;
 }

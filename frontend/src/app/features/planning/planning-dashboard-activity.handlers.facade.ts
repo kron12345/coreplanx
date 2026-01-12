@@ -12,6 +12,10 @@ import { buildActivityFromForm } from './planning-dashboard-activity.handlers';
 import { toLocalDateTime } from './planning-dashboard-time.utils';
 import {
   addParticipantToActivity,
+  expandRelevantParticipantKinds,
+  filterParticipantsByKind,
+  isPersonnelKind,
+  isVehicleKind,
   resolveSuggestedParticipantRole,
 } from './planning-dashboard-participant.utils';
 import { serviceIdForOwner } from './planning-dashboard-activity.utils';
@@ -21,6 +25,10 @@ import {
 } from './activity-required-participant-dialog.component';
 import { readActivityGroupMetaFromAttributes, writeActivityGroupMetaToAttributes } from './planning-activity-group.utils';
 import { readAttributeBoolean } from '../../core/utils/activity-definition.utils';
+import {
+  extractLinkedServiceParticipantId,
+  resolveLinkedServiceFieldState,
+} from './planning-dashboard-linked-service.utils';
 
 export class PlanningDashboardActivityHandlersFacade {
   constructor(
@@ -80,8 +88,12 @@ export class PlanningDashboardActivityHandlersFacade {
     const draft = this.deps.activityFacade.createDraft(stage, event, definition, option);
     const normalized = this.deps.applyActivityTypeConstraints(draft);
     const withDefaults = this.deps.applyLocationDefaults(normalized, this.deps.stageActivities(stage));
-    this.deps.pendingActivityOriginal.set(withDefaults);
-    this.deps.startPendingActivity(stage, event.resource, withDefaults);
+    const ensured = await this.ensureRequiredParticipants(stage, event.resource, withDefaults, { prompt: false });
+    if (!ensured) {
+      return;
+    }
+    this.deps.pendingActivityOriginal.set(ensured);
+    this.deps.startPendingActivity(stage, event.resource, ensured);
   }
 
   handleActivityEdit(event: { resource: Resource; activity: Activity }): void {
@@ -108,6 +120,23 @@ export class PlanningDashboardActivityHandlersFacade {
     }
     this.deps.pendingActivitySignal.set({ stage: pendingState.stage, activity: original });
     this.deps.activitySelection.selectedActivityState.set({ activity: original, resource: selection.resource });
+    const definition = (original.type ?? '').toString().trim()
+      ? this.deps.findCatalogOptionByTypeId(original.type ?? null)
+      : null;
+    const option = this.deps.selectedCatalogOption();
+    const attrs = original.attributes as Record<string, unknown> | undefined;
+    const activityKey = typeof attrs?.['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
+    const matchesKey = !!activityKey && option?.id === activityKey;
+    const matchesType = !!original.type && option?.activityTypeId === original.type;
+    const catalogOption = matchesKey || matchesType ? option : null;
+    const linkState = resolveLinkedServiceFieldState({
+      anchor: selection.resource,
+      definition,
+      catalogOption,
+    });
+    const linkedServiceId = linkState.visible
+      ? extractLinkedServiceParticipantId(original, linkState.kind) ?? ''
+      : '';
     this.deps.activityForm.setValue({
       start: toLocalDateTime(original.start),
       end: original.end ? toLocalDateTime(original.end) : '',
@@ -115,6 +144,7 @@ export class PlanningDashboardActivityHandlersFacade {
       from: original.from ?? '',
       to: original.to ?? '',
       remark: original.remark ?? '',
+      linkedServiceId,
     });
     this.deps.activityForm.markAsPristine();
     this.deps.clearEditingPreview();
@@ -138,6 +168,8 @@ export class PlanningDashboardActivityHandlersFacade {
       buildActivityTitle: (label) => this.deps.buildActivityTitle(label),
       definitionHasField: (definition, field) => this.deps.definitionHasField(definition, field as ActivityFieldKey),
       applyActivityTypeConstraints: (activity) => this.deps.applyActivityTypeConstraints(activity),
+      resolveResourceById: (id) =>
+        this.deps.stageResources(stage).find((resource) => resource.id === id) ?? null,
     });
     if (!normalized) {
       return false;
@@ -360,24 +392,40 @@ export class PlanningDashboardActivityHandlersFacade {
     stage: PlanningStageId,
     anchorResource: Resource,
     activity: Activity,
+    options?: { prompt?: boolean },
   ): Promise<Activity | null> {
     const typeId = (activity.type ?? '').toString().trim();
     const definition = typeId ? this.deps.findCatalogOptionByTypeId(typeId) : null;
-    const requiresVehicleFromType = readAttributeBoolean(definition?.attributes ?? null, 'requires_vehicle');
-    const requiresVehicleFromAttributes = this.toBool((activity.attributes as any)?.['requires_vehicle']);
-    const requiresVehicle = requiresVehicleFromType || requiresVehicleFromAttributes;
-    const participants = activity.participants ?? [];
-    const hasVehicle = participants.some((p) => p.kind === 'vehicle-service' || p.kind === 'vehicle');
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const activityKey = typeof attrs?.['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
+    const catalog = activityKey ? this.deps.catalogOptionById(activityKey) ?? null : null;
+    const typeAttributes = catalog?.attributes ?? definition?.attributes ?? null;
+    const relevantFor = catalog?.relevantFor ?? definition?.relevantFor ?? null;
+    const allowedKinds = expandRelevantParticipantKinds(relevantFor);
+    const prompt = options?.prompt !== false;
+    const allowsVehicle = !relevantFor || relevantFor.length === 0 ? true : relevantFor.some((kind) => isVehicleKind(kind));
+    const allowsPersonnel = !relevantFor || relevantFor.length === 0 ? true : relevantFor.some((kind) => isPersonnelKind(kind));
+
+    let updated = filterParticipantsByKind(activity, allowedKinds);
+    const requiresVehicleFromType = readAttributeBoolean(typeAttributes ?? null, 'requires_vehicle');
+    const requiresPersonnelFromType = readAttributeBoolean(typeAttributes ?? null, 'requires_personnel');
+    const requiresVehicleFromAttributes = this.toBool((updated.attributes as any)?.['requires_vehicle']);
+    const requiresPersonnelFromAttributes = this.toBool((updated.attributes as any)?.['requires_personnel']);
+    const requiresVehicle = (requiresVehicleFromType || requiresVehicleFromAttributes || (allowsVehicle && !allowsPersonnel)) && allowsVehicle;
+    const requiresPersonnel =
+      (requiresPersonnelFromType || requiresPersonnelFromAttributes || (allowsPersonnel && !allowsVehicle)) && allowsPersonnel;
+    const participants = updated.participants ?? [];
+    const hasVehicle = participants.some((p) => isVehicleKind(p.kind));
+    const hasPersonnel = participants.some((p) => isPersonnelKind(p.kind));
     const realm = anchorResource.kind === 'personnel-service' || anchorResource.kind === 'vehicle-service' ? 'service' : 'resource';
     const desiredVehicleKind: Resource['kind'] = realm === 'service' ? 'vehicle-service' : 'vehicle';
-
-    let updated = activity;
+    const desiredPersonnelKind: Resource['kind'] = realm === 'service' ? 'personnel-service' : 'personnel';
 
     if (requiresVehicle && !hasVehicle) {
-      const inferred = this.inferRequiredVehicleParticipant(stage, anchorResource, updated, desiredVehicleKind);
+      const inferred = this.inferRequiredParticipant(stage, anchorResource, updated, desiredVehicleKind);
       if (inferred) {
-        updated = this.attachParticipant(stage, updated, inferred, anchorResource);
-      } else {
+        updated = this.attachParticipant(stage, updated, inferred, anchorResource, { allowedKinds });
+      } else if (prompt) {
         const selected = await this.promptForRequiredParticipant({
           stage,
           anchorResource,
@@ -388,7 +436,26 @@ export class PlanningDashboardActivityHandlersFacade {
         if (!selected) {
           return null;
         }
-        updated = this.attachParticipant(stage, updated, selected, anchorResource);
+        updated = this.attachParticipant(stage, updated, selected, anchorResource, { allowedKinds });
+      }
+    }
+
+    if (requiresPersonnel && !hasPersonnel) {
+      const inferred = this.inferRequiredParticipant(stage, anchorResource, updated, desiredPersonnelKind);
+      if (inferred) {
+        updated = this.attachParticipant(stage, updated, inferred, anchorResource, { allowedKinds });
+      } else if (prompt) {
+        const selected = await this.promptForRequiredParticipant({
+          stage,
+          anchorResource,
+          activity: updated,
+          kind: desiredPersonnelKind,
+          label: realm === 'service' ? 'Personaldienst' : 'Personal',
+        });
+        if (!selected) {
+          return null;
+        }
+        updated = this.attachParticipant(stage, updated, selected, anchorResource, { allowedKinds });
       }
     }
 
@@ -403,15 +470,30 @@ export class PlanningDashboardActivityHandlersFacade {
     return this.ensureRequiredParticipants(stage, anchorResource, activity);
   }
 
-  private attachParticipant(stage: PlanningStageId, activity: Activity, participant: Resource, anchorResource: Resource): Activity {
+  private attachParticipant(
+    stage: PlanningStageId,
+    activity: Activity,
+    participant: Resource,
+    anchorResource: Resource,
+    options?: { allowedKinds?: Array<Resource['kind']> | null },
+  ): Activity {
     const resources = this.deps.stageResources(stage);
+    const allowedKinds = options?.allowedKinds ?? null;
+    const allowedSet = allowedKinds ? new Set(allowedKinds) : null;
     const ownerResource =
       this.resolveOwnerResource(activity, resources) ??
       resources.find((res) => res.id === (activity.participants?.[0]?.resourceId ?? '')) ??
-      anchorResource;
-    return addParticipantToActivity(activity, ownerResource, participant, resolveSuggestedParticipantRole(activity, participant), {
-      retainPreviousOwner: true,
-    });
+      (allowedSet && !allowedSet.has(anchorResource.kind) ? null : anchorResource);
+    const resolvedOwner = ownerResource ?? participant;
+    return addParticipantToActivity(
+      activity,
+      resolvedOwner,
+      participant,
+      resolveSuggestedParticipantRole(activity, participant),
+      {
+        retainPreviousOwner: true,
+      },
+    );
   }
 
   private resolveOwnerResource(activity: Activity, resources: Resource[]): Resource | null {
@@ -426,15 +508,12 @@ export class PlanningDashboardActivityHandlersFacade {
     return resources.find((res) => res.id === owner.resourceId) ?? null;
   }
 
-  private inferRequiredVehicleParticipant(
+  private inferRequiredParticipant(
     stage: PlanningStageId,
     anchorResource: Resource,
     activity: Activity,
     kind: Resource['kind'],
   ): Resource | null {
-    if (kind !== 'vehicle-service' && kind !== 'vehicle') {
-      return null;
-    }
     const anchorKind = anchorResource.kind;
     const ownerId =
       anchorKind === 'personnel-service' || anchorKind === 'vehicle-service'

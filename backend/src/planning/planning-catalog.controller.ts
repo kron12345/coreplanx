@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type {
   ActivityCatalogSnapshot,
+  ActivityCategoryDefinition,
   ActivityDefinition,
   ActivityTemplate,
   CustomAttributeState,
@@ -109,6 +110,40 @@ export class PlanningCatalogController {
   @HttpCode(204)
   deleteDefinition(@Param('definitionId') definitionId: string) {
     return this.planningService.deleteActivityDefinition(definitionId);
+  }
+
+  @Get('categories')
+  listCategories() {
+    return this.planningService.listActivityCategories();
+  }
+
+  @Put('categories')
+  replaceCategories(@Body() payload: ActivityCategoryDefinition[]) {
+    return this.planningService.replaceActivityCategories(payload);
+  }
+
+  @Post('categories')
+  createCategory(@Body() payload: ActivityCategoryDefinition) {
+    return this.planningService.createActivityCategory(payload);
+  }
+
+  @Get('categories/:categoryId')
+  getCategory(@Param('categoryId') categoryId: string) {
+    return this.planningService.getActivityCategory(categoryId);
+  }
+
+  @Put('categories/:categoryId')
+  upsertCategory(
+    @Param('categoryId') categoryId: string,
+    @Body() payload: ActivityCategoryDefinition,
+  ) {
+    return this.planningService.upsertActivityCategory(categoryId, payload);
+  }
+
+  @Delete('categories/:categoryId')
+  @HttpCode(204)
+  deleteCategory(@Param('categoryId') categoryId: string) {
+    return this.planningService.deleteActivityCategory(categoryId);
   }
 
   @Get('layers')

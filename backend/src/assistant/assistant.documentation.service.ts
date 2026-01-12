@@ -20,6 +20,7 @@ type MasterDataDocKey =
 type SettingsDocKey =
   | 'settings-attributes'
   | 'settings-activity-catalog'
+  | 'settings-activity-categories'
   | 'settings-layer-groups'
   | 'settings-translations'
   | 'settings-planning-rules'
@@ -67,6 +68,10 @@ const SETTINGS_DOCS: Record<SettingsDocKey, AssistantDocDescriptor> = {
     title: 'Einstellungen · Activity-Editor',
     relativePath: 'docs/assistant/einstellungen-activity-editor.md',
   },
+  'settings-activity-categories': {
+    title: 'Einstellungen · Activity-Kategorien',
+    relativePath: 'docs/assistant/einstellungen-activity-kategorien.md',
+  },
   'settings-layer-groups': {
     title: 'Einstellungen · Layer-Gruppen',
     relativePath: 'docs/assistant/einstellungen-layer-gruppen.md',
@@ -88,6 +93,7 @@ const SETTINGS_DOCS: Record<SettingsDocKey, AssistantDocDescriptor> = {
 const SETTINGS_TITLE_TO_DOC_KEY: Record<string, SettingsDocKey> = {
   'Attribut-Editor': 'settings-attributes',
   'Activity-Editor': 'settings-activity-catalog',
+  'Activity-Kategorien': 'settings-activity-categories',
   'Layer-Gruppen': 'settings-layer-groups',
   Übersetzungen: 'settings-translations',
   Regeln: 'settings-planning-rules',

@@ -1,10 +1,10 @@
 import { Signal, computed } from '@angular/core';
 import { ActivityCatalogService } from '../../core/services/activity-catalog.service';
+import { ActivityCategoryDefinition } from '../../core/services/activity-category.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { ActivityCatalogOption, ActivityTypePickerGroup } from './planning-dashboard.types';
 import { ResourceKind } from '../../models/resource';
 import { PlanningDashboardActivitySelectionFacade } from './planning-dashboard-activity-selection.facade';
-import type { ActivityCategory } from '../../core/models/activity-definition';
 import {
   isSystemDefinition,
   readDefinitionCategory,
@@ -17,6 +17,8 @@ import {
 export class PlanningDashboardCatalogFacade {
   private readonly activityCatalogOptions = computed<ActivityCatalogOption[]>(() => {
     this.translationService.translations();
+    const categories = this.categoryDefinitions?.() ?? [];
+    const categorySet = new Set(categories.map((category) => category.id));
     return this.activityCatalog
       .definitions()
       .map((entry) => {
@@ -35,7 +37,7 @@ export class PlanningDashboardCatalogFacade {
           templateId: entry.templateId ?? null,
           activityTypeId: entry.activityType,
           relevantFor: readDefinitionRelevantFor(attributes),
-          category: readDefinitionCategory(attributes),
+          category: readDefinitionCategory(attributes, categorySet),
           timeMode: readDefinitionTimeMode(attributes),
           fields: readDefinitionFields(attributes),
           isSystem: isSystemDefinition(attributes),
@@ -102,18 +104,19 @@ export class PlanningDashboardCatalogFacade {
     if (!options.length) {
       return [];
     }
-    const groups = this.typePickerMeta.map((meta) => ({
-      id: meta.id,
-      label: meta.label,
-      icon: meta.icon,
+    const categoryDefs = this.categoryDefinitions?.() ?? [];
+    if (!categoryDefs.length) {
+      return [];
+    }
+    const groups = categoryDefs.map((category) => ({
+      id: category.id,
+      label: category.label,
+      icon: category.icon ?? 'category',
       items: [] as ActivityCatalogOption[],
     }));
     options.forEach((option) => {
-      const targetId = option.category ?? 'other';
-      const target =
-        groups.find((group) => group.id === targetId) ??
-        groups.find((group) => group.id === 'other') ??
-        groups[0];
+      const targetId = option.category ?? null;
+      const target = targetId ? groups.find((group) => group.id === targetId) ?? groups[0] : groups[0];
       target.items.push(option);
     });
     return groups
@@ -143,7 +146,7 @@ export class PlanningDashboardCatalogFacade {
   constructor(
     private readonly activityCatalog: ActivityCatalogService,
     private readonly translationService: TranslationService,
-    private readonly typePickerMeta: Array<{ id: ActivityCategory; label: string; icon: string }>,
+    private readonly categoryDefinitions: () => ActivityCategoryDefinition[],
     private readonly selection?: PlanningDashboardActivitySelectionFacade,
     private readonly activityCreationToolSignal?: () => string,
     private readonly activityTypeMenuSelection?: () => string | null,

@@ -5,13 +5,9 @@ types:
   label: Reserven / Puffer
   description: "Geplanter Puffer zur Abfederung von St\xF6rungen."
   appliesTo:
-  - personnel
-  - vehicle
   - personnel-service
   - vehicle-service
   relevantFor: &id001
-  - personnel
-  - vehicle
   - personnel-service
   - vehicle-service
   category: other
@@ -19,11 +15,15 @@ types:
   fields:
   - start
   - end
+  - from
+  - to
   - remark
   defaultDurationMinutes: 30
   attributes:
     is_within_service: true
     is_reserve: true
+    to_hidden: true
+    to_location_mode: previous
     color: '#546e7a'
 definitions:
 - id: reserve-buffer
@@ -36,7 +36,7 @@ definitions:
   - key: category
     meta:
       datatype: enum
-      options: rest,movement,service,other
+      options: rest,movement,travel-time,train-ride,service,other
       value: other
   - key: time_mode
     meta:
@@ -52,7 +52,7 @@ definitions:
     meta:
       datatype: list
       options: personnel,vehicle,personnel-service,vehicle-service
-      value: personnel,vehicle,personnel-service,vehicle-service
+      value: personnel-service,vehicle-service
   - key: field:start
     meta:
       datatype: timepoint
@@ -61,6 +61,16 @@ definitions:
   - key: field:end
     meta:
       datatype: timepoint
+      oncreate: edit
+      onupdate: edit
+  - key: field:from
+    meta:
+      datatype: string
+      oncreate: edit
+      onupdate: edit
+  - key: field:to
+    meta:
+      datatype: string
       oncreate: edit
       onupdate: edit
   - key: field:remark
@@ -74,6 +84,12 @@ definitions:
   - key: is_reserve
     meta:
       value: 'true'
+  - key: to_hidden
+    meta:
+      value: 'true'
+  - key: to_location_mode
+    meta:
+      value: previous
   - key: color
     meta:
       value: '#546e7a'

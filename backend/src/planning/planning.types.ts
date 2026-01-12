@@ -691,7 +691,7 @@ export interface ActivityAttributeValue {
   meta?: Record<string, unknown>;
 }
 
-export type ActivityCategory = 'rest' | 'movement' | 'service' | 'other';
+export type ActivityCategory = string;
 export type ActivityTimeMode = 'duration' | 'range' | 'point';
 export type ActivityFieldKey = 'start' | 'end' | 'from' | 'to' | 'remark';
 
@@ -719,6 +719,14 @@ export interface LayerGroup {
   id: string;
   label: string;
   order?: number;
+  description?: string | null;
+}
+
+export interface ActivityCategoryDefinition {
+  id: string;
+  label: string;
+  order?: number;
+  icon?: string | null;
   description?: string | null;
 }
 
@@ -760,6 +768,7 @@ export interface ActivityCatalogSnapshot {
   templates: ActivityTemplate[];
   definitions: ActivityDefinition[];
   layerGroups: LayerGroup[];
+  categories: ActivityCategoryDefinition[];
   translations: TranslationState;
   customAttributes: CustomAttributeState;
 }

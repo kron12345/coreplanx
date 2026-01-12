@@ -10,6 +10,11 @@ import { locationFieldDefaults } from './planning-dashboard-location-defaults.ut
 import { ActivityCatalogOption } from './planning-dashboard.types';
 import { fromLocalDateTime, toLocalDateTime } from './planning-dashboard-time.utils';
 import { readAttributeBoolean } from '../../core/utils/activity-definition.utils';
+import { ResourceKind } from '../../models/resource';
+import {
+  extractLinkedServiceParticipantId,
+  resolveLinkedServiceFieldState,
+} from './planning-dashboard-linked-service.utils';
 
 export interface PlanningDashboardFormEffectsDeps {
   destroyRef: DestroyRef;
@@ -39,6 +44,27 @@ export interface PlanningDashboardFormEffectsDeps {
 
 export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
   let syncInProgress = false;
+  const linkedServiceMemory = new Map<ResourceKind, string>();
+  let lastLinkedServiceKind: ResourceKind | null = null;
+  let wasLinkedServiceVisible = false;
+  let lastSelectionActivityId: string | null = null;
+  const resolveLinkState = (typeIdOverride?: string | null) => {
+    const selection = deps.activitySelection.selectedActivityState();
+    const typeId = typeIdOverride ?? deps.activityFormTypeSignal();
+    const definition = deps.findCatalogOptionByTypeId(typeId);
+    const option = deps.selectedCatalogOption();
+    const attrs = selection?.activity.attributes as Record<string, unknown> | undefined;
+    const activityKey = typeof attrs?.['activityKey'] === 'string' ? (attrs['activityKey'] as string) : null;
+    const matchesKey = !!activityKey && option?.id === activityKey;
+    const matchesType = !!typeId && option?.activityTypeId === typeId;
+    const catalogOption = matchesKey || matchesType ? option : null;
+    return resolveLinkedServiceFieldState({
+      anchor: selection?.resource ?? null,
+      definition,
+      catalogOption,
+    });
+  };
+
   const syncDurationAndEnd = () => {
     if (syncInProgress) {
       return;
@@ -131,6 +157,25 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
     deps.updateEditingPreviewFromForm();
   });
 
+  deps.activityForm.controls['linkedServiceId']?.valueChanges
+    .pipe(takeUntilDestroyed(deps.destroyRef))
+    .subscribe((raw) => {
+      const selection = deps.activitySelection.selectedActivityState();
+      if (!selection) {
+        return;
+      }
+      const linkState = resolveLinkState();
+      if (!linkState.kind) {
+        return;
+      }
+      const current = (raw ?? '').toString().trim();
+      if (current) {
+        linkedServiceMemory.set(linkState.kind, current);
+      } else if (linkState.visible) {
+        linkedServiceMemory.delete(linkState.kind);
+      }
+    });
+
   effect(() => {
     const selection = deps.activitySelection.selectedActivityState();
     const defaultCatalog = deps.selectedCatalogOption();
@@ -145,12 +190,31 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
         from: '',
         to: '',
         remark: '',
+        linkedServiceId: '',
       });
       deps.setActivityFormType(defaultTypeId);
       deps.clearEditingPreview();
+      lastSelectionActivityId = null;
+      linkedServiceMemory.clear();
+      wasLinkedServiceVisible = false;
+      lastLinkedServiceKind = null;
       return;
     }
+    const selectionActivityId = selection.activity.id ?? null;
+    if (selectionActivityId !== lastSelectionActivityId) {
+      lastSelectionActivityId = selectionActivityId;
+      linkedServiceMemory.clear();
+      wasLinkedServiceVisible = false;
+      lastLinkedServiceKind = null;
+    }
     deps.setTimeSyncSource(deps.isPendingSelection(selection.activity.id) ? 'duration' : 'end');
+    const linkState = resolveLinkState(selection.activity.type ?? null);
+    const linkedServiceId = linkState.visible
+      ? extractLinkedServiceParticipantId(selection.activity, linkState.kind) ?? ''
+      : '';
+    if (linkState.kind && linkedServiceId) {
+      linkedServiceMemory.set(linkState.kind, linkedServiceId);
+    }
     deps.activityForm.setValue({
       start: toLocalDateTime(selection.activity.start),
       end: selection.activity.end ? toLocalDateTime(selection.activity.end) : '',
@@ -164,6 +228,7 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
       from: selection.activity.from ?? '',
       to: selection.activity.to ?? '',
       remark: selection.activity.remark ?? '',
+      linkedServiceId,
     });
     deps.setActivityFormType(selection.activity.type ?? '');
     deps.clearEditingPreview();
@@ -181,6 +246,41 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
     const typeId = option?.activityTypeId ?? '';
     deps.activityForm.controls['type'].setValue(typeId);
     deps.setActivityFormType(typeId);
+  });
+
+  effect(() => {
+    const selection = deps.activitySelection.selectedActivityState();
+    if (!selection) {
+      wasLinkedServiceVisible = false;
+      lastLinkedServiceKind = null;
+      return;
+    }
+    const linkState = resolveLinkState();
+    const control = deps.activityForm.controls['linkedServiceId'];
+    const current = (control.value ?? '').toString().trim();
+    if (!linkState.kind) {
+      wasLinkedServiceVisible = false;
+      lastLinkedServiceKind = null;
+      return;
+    }
+    if (!linkState.visible) {
+      if (current) {
+        linkedServiceMemory.set(linkState.kind, current);
+        control.setValue('');
+      }
+      wasLinkedServiceVisible = false;
+      lastLinkedServiceKind = linkState.kind;
+      return;
+    }
+    const restore = !wasLinkedServiceVisible || linkState.kind !== lastLinkedServiceKind;
+    if (restore && !current) {
+      const cached = linkedServiceMemory.get(linkState.kind) ?? '';
+      if (cached) {
+        control.setValue(cached);
+      }
+    }
+    wasLinkedServiceVisible = linkState.visible;
+    lastLinkedServiceKind = linkState.kind;
   });
 
   effect(() => {
@@ -304,7 +404,7 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
     const considerLocation = readAttributeBoolean(attrs, 'consider_location_conflicts');
     const selection = deps.activitySelection.selectedActivityState();
     const isPending = selection ? deps.isPendingSelection(selection.activity.id) : false;
-    const requiresRoute = !!definition && (definition.category === 'movement' || considerLocation);
+    const requiresRoute = !!definition && considerLocation;
     const requiresLocation = requiresRoute || (isPending && (isServiceBoundary || isBreak));
 
     const fields = definition?.fields ?? [];
@@ -318,6 +418,20 @@ export function initFormEffects(deps: PlanningDashboardFormEffectsDeps): void {
     fromControl.updateValueAndValidity({ emitEvent: false });
     toControl.setValidators(toRequired ? [Validators.required] : []);
     toControl.updateValueAndValidity({ emitEvent: false });
+  });
+
+  effect(() => {
+    const linkState = resolveLinkState();
+    const control = deps.activityForm.controls['linkedServiceId'];
+    if (!control) {
+      return;
+    }
+    if (linkState.visible && linkState.required) {
+      control.setValidators([Validators.required]);
+    } else {
+      control.setValidators([]);
+    }
+    control.updateValueAndValidity({ emitEvent: false });
   });
 }
 
