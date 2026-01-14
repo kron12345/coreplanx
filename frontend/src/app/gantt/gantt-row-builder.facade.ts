@@ -28,11 +28,20 @@ const ALLOWED_RESOURCE_CATEGORIES = new Set([
   'vehicle-service',
 ]);
 
+type TimelineCacheEntry = {
+  signature: string;
+  bars: GanttBar[];
+  services: GanttServiceRange[];
+};
+
 export class GanttRowBuilderFacade {
   private readonly serviceLabelFormatter = new Intl.DateTimeFormat('de-DE', {
     hour: '2-digit',
     minute: '2-digit',
   });
+  private readonly timelineCache = new Map<string, TimelineCacheEntry>();
+  private lastActivityTypeInfoRef: Record<string, { label: string; showRoute: boolean }> | null = null;
+  private lastActivityTypeSignature = '';
 
   constructor(
     private readonly deps: {
@@ -132,9 +141,34 @@ export class GanttRowBuilderFacade {
     const startMs = options.viewStart.getTime();
     const endMs = options.viewEnd.getTime();
     const timeScale = this.deps.timeScale;
+    const pixelsPerMs = timeScale.pixelsPerMs();
+    const timelineStartMs = timeScale.timelineStartDate().getTime();
+    const timelineEndMs = timeScale.timelineEndDate().getTime();
+    const activityTypeSignature = this.getActivityTypeSignature();
+    const activeResourceIds = new Set<string>();
 
     options.resources.forEach((resource) => {
+      activeResourceIds.add(resource.id);
       const slots = options.slotsByResource.get(resource.id) ?? [];
+      const signature = this.buildResourceSignature({
+        resource,
+        slots,
+        viewStartMs: startMs,
+        viewEndMs: endMs,
+        pixelsPerMs,
+        timelineStartMs,
+        timelineEndMs,
+        activityTypeSignature,
+        pendingId,
+        syncingIds,
+        selectedIds: options.selectedIds,
+        primarySlots: options.primarySlots,
+      });
+      const cached = this.timelineCache.get(resource.id);
+      if (cached && cached.signature === signature) {
+        map.set(resource.id, { bars: cached.bars, services: cached.services });
+        return;
+      }
       const bars: GanttBar[] = [];
       const serviceMap = new Map<string, ServiceRangeAccumulator>();
       for (const slot of slots) {
@@ -301,14 +335,163 @@ export class GanttRowBuilderFacade {
       const services = Array.from(serviceMap.values())
         .map((entry) => this.createServiceRange(entry, resource))
         .filter((range): range is GanttServiceRange => !!range);
-      map.set(resource.id, { bars, services });
+      const result = { bars, services };
+      this.timelineCache.set(resource.id, { signature, ...result });
+      map.set(resource.id, result);
     });
 
+    this.pruneTimelineCache(activeResourceIds);
     return map;
   }
 
   resourceCategoryFromKind(kind: Resource['kind'] | null | undefined): ActivityParticipantCategory {
     return participantCategoryFromKind(kind ?? undefined);
+  }
+
+  private getActivityTypeSignature(): string {
+    const info = this.deps.activityTypeInfo();
+    if (info === this.lastActivityTypeInfoRef) {
+      return this.lastActivityTypeSignature;
+    }
+    const keys = Object.keys(info).sort((a, b) => a.localeCompare(b));
+    let hash = 2166136261;
+    for (const key of keys) {
+      const entry = info[key];
+      hash = this.updateHash(hash, key);
+      hash = this.updateHash(hash, entry?.label ?? '');
+      hash = this.updateHash(hash, entry?.showRoute ? 1 : 0);
+    }
+    const signature = hash.toString(36);
+    this.lastActivityTypeInfoRef = info;
+    this.lastActivityTypeSignature = signature;
+    return signature;
+  }
+
+  private buildResourceSignature(options: {
+    resource: Resource;
+    slots: PreparedActivitySlot[];
+    viewStartMs: number;
+    viewEndMs: number;
+    pixelsPerMs: number;
+    timelineStartMs: number;
+    timelineEndMs: number;
+    activityTypeSignature: string;
+    pendingId: string | null;
+    syncingIds: ReadonlySet<string>;
+    selectedIds: ReadonlySet<string>;
+    primarySlots: ReadonlySet<string>;
+  }): string {
+    let hash = 2166136261;
+    const pxKey = Number.isFinite(options.pixelsPerMs)
+      ? Math.round(options.pixelsPerMs * 1_000_000_000)
+      : 0;
+    hash = this.updateHash(hash, options.viewStartMs);
+    hash = this.updateHash(hash, options.viewEndMs);
+    hash = this.updateHash(hash, options.timelineStartMs);
+    hash = this.updateHash(hash, options.timelineEndMs);
+    hash = this.updateHash(hash, pxKey);
+    hash = this.updateHash(hash, options.activityTypeSignature);
+    hash = this.updateHash(hash, options.resource.id);
+    hash = this.updateHash(hash, options.resource.name);
+
+    const hasSyncing = options.syncingIds.size > 0;
+    const hasSelection = options.selectedIds.size > 0;
+    const hasPrimary = options.primarySlots.size > 0;
+    const pendingId = options.pendingId;
+
+    for (const slot of options.slots) {
+      const activity = slot.activity;
+      hash = this.updateHash(hash, slot.id);
+      hash = this.updateHash(hash, slot.resourceId);
+      hash = this.updateHash(hash, slot.category ?? '');
+      hash = this.updateHash(hash, slot.isOwner ? 1 : 0);
+      hash = this.updateHash(hash, slot.icon ?? '');
+      hash = this.updateHash(hash, slot.iconLabel ?? '');
+      hash = this.updateHash(hash, activity.id);
+      hash = this.updateHash(hash, activity.startMs);
+      hash = this.updateHash(hash, activity.endMs);
+      hash = this.updateHash(hash, activity.type ?? '');
+      hash = this.updateHash(hash, activity.title ?? '');
+      hash = this.updateHash(hash, activity.serviceRole ?? '');
+      hash = this.updateHash(hash, activity.serviceId ?? '');
+      hash = this.updateHash(hash, activity.serviceCategory ?? '');
+      hash = this.updateHash(hash, activity.from ?? '');
+      hash = this.updateHash(hash, activity.to ?? '');
+      hash = this.updateHash(hash, activity.locationId ?? '');
+      hash = this.updateHash(hash, activity.locationLabel ?? '');
+      hash = this.updateHash(hash, activity.scope ?? '');
+      hash = this.updateHash(hash, activity.rowVersion ?? '');
+      hash = this.updateHash(hash, activity.updatedAt ?? '');
+      hash = this.updateHash(hash, activity.isPreview ? 1 : 0);
+
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      if (attrs) {
+        hash = this.updateHash(hash, attrs['draw_as'] ?? '');
+        hash = this.updateHash(hash, attrs['layer_group'] ?? attrs['layer'] ?? '');
+        hash = this.updateHash(hash, attrs['color'] ?? '');
+        hash = this.updateHash(hash, attrs['bar_color'] ?? '');
+        hash = this.updateHash(hash, attrs['display_color'] ?? '');
+        hash = this.updateHash(hash, attrs['main_color'] ?? '');
+        hash = this.updateHash(hash, attrs['is_service_start'] ?? '');
+        hash = this.updateHash(hash, attrs['is_service_end'] ?? '');
+        hash = this.updateHash(hash, attrs['service_conflict_level'] ?? '');
+        const rawCodes = attrs['service_conflict_codes'];
+        if (Array.isArray(rawCodes)) {
+          hash = this.updateHash(hash, rawCodes.join(','));
+        } else {
+          hash = this.updateHash(hash, rawCodes ?? '');
+        }
+        const ownerEntry = this.readOwnerServiceEntry(activity, slot.resourceId);
+        if (ownerEntry) {
+          hash = this.updateHash(hash, ownerEntry.serviceId ?? '');
+          hash = this.updateHash(hash, ownerEntry.conflictLevel);
+          if (ownerEntry.conflictCodes.length) {
+            hash = this.updateHash(hash, ownerEntry.conflictCodes.join(','));
+          }
+        }
+      }
+
+      const meta = activity.meta as Record<string, unknown> | undefined;
+      if (meta) {
+        hash = this.updateHash(hash, meta['service_worktime_ms'] ?? '');
+      }
+
+      if (pendingId && pendingId === activity.id) {
+        hash = this.updateHash(hash, 'pending');
+      }
+      if (hasSyncing && options.syncingIds.has(activity.id)) {
+        hash = this.updateHash(hash, 'syncing');
+      }
+      if (hasSelection && options.selectedIds.has(activity.id)) {
+        hash = this.updateHash(hash, 'selected');
+      }
+      if (
+        hasPrimary &&
+        options.primarySlots.has(encodeSelectionSlot(activity.id, slot.resourceId))
+      ) {
+        hash = this.updateHash(hash, 'primary');
+      }
+    }
+
+    return hash.toString(36);
+  }
+
+  private updateHash(hash: number, value: unknown): number {
+    const text = value === null || value === undefined ? '' : String(value);
+    let next = hash;
+    for (let i = 0; i < text.length; i += 1) {
+      next ^= text.charCodeAt(i);
+      next = Math.imul(next, 16777619);
+    }
+    return next >>> 0;
+  }
+
+  private pruneTimelineCache(activeIds: Set<string>): void {
+    for (const key of this.timelineCache.keys()) {
+      if (!activeIds.has(key)) {
+        this.timelineCache.delete(key);
+      }
+    }
   }
 
   private extractActivityColor(activity: Activity): string | null {
