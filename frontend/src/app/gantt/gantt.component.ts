@@ -532,7 +532,13 @@ export class GanttComponent implements AfterViewInit {
     }
     return this.inclusiveViewEnd(this.viewStart(), this.viewEnd());
   });
-  readonly zoomLabel = computed(() => (this.viewportReady() ? this.describeZoom(this.viewport.rangeMs()) : '—'));
+  readonly zoomLabel = computed(() => {
+    if (!this.viewportReady()) {
+      return '—';
+    }
+    const spanMs = Math.max(0, this.viewEnd().getTime() - this.viewStart().getTime());
+    return this.describeZoom(spanMs);
+  });
   readonly resourceCount = computed(() => this.resourcesSignal().length);
 
   readonly nowMarkerLeft = computed(() => {

@@ -72,11 +72,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
   const viewStart = signal<Date>(initialStart);
   const viewEnd = computed(() => new Date(viewStart().getTime() + rangeSignal()));
   const pixelsPerMs = computed(() => {
-    const widthPx = viewportWidthSignal();
     const range = rangeSignal();
-    if (Number.isFinite(widthPx) && widthPx > 0 && Number.isFinite(range) && range > 0) {
-      return widthPx / range;
-    }
     return interpolatePixelsPerMs(range);
   });
   const scrollX = computed(() => {
