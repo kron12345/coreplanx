@@ -1,6 +1,6 @@
 # CorePlanX (Frontend)
 
-Das CorePlanX-Frontend (Angular 18) liefert einen Ressourcen- und Aktivitäts-Gantt für Bahn-/SEV-Planung. Es richtet sich auf eine NestJS-REST-API aus, damit mehrere Disponenten denselben Datenbestand bearbeiten können und Validierungen (Orts-, Kapazitäts-, Arbeitszeit-, Qualifikationskonflikte) serverseitig laufen.
+Das CorePlanX-Frontend (Angular 21) liefert einen Ressourcen- und Aktivitäts-Gantt für Bahn-/SEV-Planung. Es richtet sich auf eine NestJS-REST-API aus, damit mehrere Disponenten denselben Datenbestand bearbeiten können und Validierungen (Orts-, Kapazitäts-, Arbeitszeit-, Qualifikationskonflikte) serverseitig laufen.
 
 ## Inhalt
 
@@ -17,8 +17,8 @@ Das CorePlanX-Frontend (Angular 18) liefert einen Ressourcen- und Aktivitäts-Ga
 
 ## Technologie-Stack
 
-- Angular 18 (Standalone Components, Signals, CDK Drag&Drop/Virtual Scroll)
-- Angular Material 18
+- Angular 21 (Standalone Components, Signals, CDK Drag&Drop/Virtual Scroll)
+- Angular Material 21
 - RxJS 7.8
 - Node.js 20 LTS (empfohlen) / npm 10+
 - NestJS (geplant) als REST-Backend, angebunden über OpenAPI-Spezifikation

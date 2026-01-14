@@ -1,9 +1,9 @@
 # CorePlanX
 
-Ein gemeinsames Arbeitsverzeichnis für einen Angular-18-Client und ein NestJS-Backend zur Planung von Ressourcen, Aktivitäten und Zeitplänen im Bahn-/SEV-Umfeld. Der Backend-Teil liefert REST- und WebSocket-Endpunkte samt automatischen PostgreSQL-Migrationen; der Frontend-Teil visualisiert Gantt-Timelines, Stammdaten und Auftragsprozesse.
+Ein gemeinsames Arbeitsverzeichnis für einen Angular-21-Client und ein NestJS-Backend zur Planung von Ressourcen, Aktivitäten und Zeitplänen im Bahn-/SEV-Umfeld. Der Backend-Teil liefert REST- und WebSocket-Endpunkte samt automatischen PostgreSQL-Migrationen; der Frontend-Teil visualisiert Gantt-Timelines, Stammdaten und Auftragsprozesse.
 
 ## Repository-Übersicht
-- `frontend`: Angular 18 App (Material, Signals) mit Gantt-UI, Stammdaten-Editoren und Order-/Template-Hubs. API-Basis wird über `API_CONFIG` oder ein Meta/Script-Flag konfiguriert.
+- `frontend`: Angular 21 App (Material, Signals) mit Gantt-UI, Stammdaten-Editoren und Order-/Template-Hubs. API-Basis wird über `API_CONFIG` oder ein Meta/Script-Flag konfiguriert.
 - `backend`: NestJS 11 API mit Fastify, CORS, Socket.IO-Gateway (`/timeline`) und REST-Controller für Planung, Ressourcen, Stammdaten und Validierungen. PostgreSQL-Migrationen liegen unter `backend/sql/migrations` und werden beim Start automatisch angewendet (Checksum-Prüfung).
 - `openapi`: YAML-Spezifikationen für Planung (`planning-activities.yaml`) und Timeline (`timeline-asyncapi.yaml`), im Backend unter `/api/docs` eingebunden.
 - `docs`: Fachliche Notizen und Guides.
