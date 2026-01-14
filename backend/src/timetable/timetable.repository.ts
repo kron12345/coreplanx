@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import type { TrainRun, TrainSegment } from '../planning/planning.types';
@@ -66,7 +70,10 @@ export class TimetableRepository {
     return this.database.enabled;
   }
 
-  async loadSnapshot(variantId: string, stageId: TimetableStageId): Promise<TimetableSnapshot> {
+  async loadSnapshot(
+    variantId: string,
+    stageId: TimetableStageId,
+  ): Promise<TimetableSnapshot> {
     if (!this.isEnabled) {
       return { variantId, stageId, trainRuns: [], trainSegments: [] };
     }
@@ -154,9 +161,13 @@ export class TimetableRepository {
           .map((s) => Date.parse(s.endTime))
           .filter((v) => Number.isFinite(v));
         const timelineStart =
-          segStarts.length > 0 ? new Date(Math.min(...segStarts)).toISOString() : defaultStart;
+          segStarts.length > 0
+            ? new Date(Math.min(...segStarts)).toISOString()
+            : defaultStart;
         const timelineEnd =
-          segEnds.length > 0 ? new Date(Math.max(...segEnds)).toISOString() : defaultEnd;
+          segEnds.length > 0
+            ? new Date(Math.max(...segEnds)).toISOString()
+            : defaultEnd;
         await client.query(
           `
             INSERT INTO planning_stage (stage_id, variant_id, timeline_start, timeline_end)
@@ -167,14 +178,12 @@ export class TimetableRepository {
         );
 
         // Replace segments first (FK to train_run).
-        await client.query(
-          `DELETE FROM train_segment WHERE variant_id = $1`,
-          [variantId],
-        );
-        await client.query(
-          `DELETE FROM train_run WHERE variant_id = $1`,
-          [variantId],
-        );
+        await client.query(`DELETE FROM train_segment WHERE variant_id = $1`, [
+          variantId,
+        ]);
+        await client.query(`DELETE FROM train_run WHERE variant_id = $1`, [
+          variantId,
+        ]);
 
         if (options.trainRuns.length) {
           await client.query(
@@ -274,7 +283,10 @@ export class TimetableRepository {
         }
 
         await client.query('COMMIT');
-        return { trainRuns: options.trainRuns.length, trainSegments: options.trainSegments.length };
+        return {
+          trainRuns: options.trainRuns.length,
+          trainSegments: options.trainSegments.length,
+        };
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -324,14 +336,19 @@ export class TimetableRepository {
       createdAt: row.created_at,
       createdBy: row.created_by,
       message: row.message,
-      trainRunCount: Array.isArray(row.data?.trainRuns) ? row.data.trainRuns.length : snapshot.trainRuns.length,
+      trainRunCount: Array.isArray(row.data?.trainRuns)
+        ? row.data.trainRuns.length
+        : snapshot.trainRuns.length,
       trainSegmentCount: Array.isArray(row.data?.trainSegments)
         ? row.data.trainSegments.length
         : snapshot.trainSegments.length,
     };
   }
 
-  async listRevisions(variantId: string, stageId: TimetableStageId): Promise<TimetableRevisionRecord[]> {
+  async listRevisions(
+    variantId: string,
+    stageId: TimetableStageId,
+  ): Promise<TimetableRevisionRecord[]> {
     if (!this.isEnabled) {
       return [];
     }
@@ -355,8 +372,12 @@ export class TimetableRepository {
       createdAt: row.created_at,
       createdBy: row.created_by,
       message: row.message,
-      trainRunCount: Array.isArray((row.data as any)?.trainRuns) ? (row.data as any).trainRuns.length : 0,
-      trainSegmentCount: Array.isArray((row.data as any)?.trainSegments) ? (row.data as any).trainSegments.length : 0,
+      trainRunCount: Array.isArray(row.data?.trainRuns)
+        ? row.data.trainRuns.length
+        : 0,
+      trainSegmentCount: Array.isArray(row.data?.trainSegments)
+        ? row.data.trainSegments.length
+        : 0,
     }));
   }
 
@@ -385,12 +406,19 @@ export class TimetableRepository {
     return {
       variantId: row.variant_id,
       stageId: row.stage_id as TimetableStageId,
-      trainRuns: Array.isArray((data as any).trainRuns) ? (data as any).trainRuns : [],
-      trainSegments: Array.isArray((data as any).trainSegments) ? (data as any).trainSegments : [],
+      trainRuns: Array.isArray((data as any).trainRuns)
+        ? (data as any).trainRuns
+        : [],
+      trainSegments: Array.isArray((data as any).trainSegments)
+        ? (data as any).trainSegments
+        : [],
     };
   }
 
-  async listTrainServiceParts(variantId: string, stageId: TimetableStageId): Promise<TrainServicePartRecord[]> {
+  async listTrainServiceParts(
+    variantId: string,
+    stageId: TimetableStageId,
+  ): Promise<TrainServicePartRecord[]> {
     if (!this.isEnabled) {
       return [];
     }
@@ -480,15 +508,17 @@ export class TimetableRepository {
     }
     const variantId = options.variantId.trim() || 'default';
     const stageId = (options.stageId?.trim() as TimetableStageId) || 'base';
-    const yearLabel = options.timetableYearLabel?.trim().length ? options.timetableYearLabel?.trim() : null;
+    const yearLabel = options.timetableYearLabel?.trim().length
+      ? options.timetableYearLabel?.trim()
+      : null;
 
     return this.database.withClient(async (client) => {
       await client.query('BEGIN');
       try {
-        await client.query(`DELETE FROM train_service_part WHERE variant_id = $1 AND stage_id = $2`, [
-          variantId,
-          stageId,
-        ]);
+        await client.query(
+          `DELETE FROM train_service_part WHERE variant_id = $1 AND stage_id = $2`,
+          [variantId, stageId],
+        );
 
         const runs = await client.query<{ id: string }>(
           `SELECT id FROM train_run WHERE variant_id = $1 ORDER BY id`,
@@ -507,7 +537,7 @@ export class TimetableRepository {
           end_time: string;
           from_location_id: string;
           to_location_id: string;
-          }>(
+        }>(
           `
             SELECT
               id,
@@ -542,7 +572,11 @@ export class TimetableRepository {
           startTime: string;
           endTime: string;
         }> = [];
-        const segmentPayload: Array<{ partId: string; segmentId: string; orderIndex: number }> = [];
+        const segmentPayload: Array<{
+          partId: string;
+          segmentId: string;
+          orderIndex: number;
+        }> = [];
 
         for (const run of runs.rows) {
           const segs = segmentsByRun.get(run.id) ?? [];
@@ -671,7 +705,8 @@ export class TimetableRepository {
     const variantId = options.variantId.trim() || 'default';
     const fromPartId = options.fromPartId.trim();
     const toPartId = options.toPartId.trim();
-    const kind: TrainServicePartLinkRecord['kind'] = options.kind ?? 'circulation';
+    const kind: TrainServicePartLinkRecord['kind'] =
+      options.kind ?? 'circulation';
     const result = await this.database.query<{
       variant_id: string;
       from_part_id: string;
@@ -732,10 +767,15 @@ export class TimetableRepository {
         );
         const partRow = part.rows[0];
         if (!partRow) {
-          throw new NotFoundException(`TrainServicePart ${partId} existiert nicht.`);
+          throw new NotFoundException(
+            `TrainServicePart ${partId} existiert nicht.`,
+          );
         }
 
-        const segResult = await client.query<{ segment_id: string; order_index: number }>(
+        const segResult = await client.query<{
+          segment_id: string;
+          order_index: number;
+        }>(
           `
             SELECT segment_id, order_index
             FROM train_service_part_segment
@@ -746,68 +786,97 @@ export class TimetableRepository {
           `,
           [variantId, partId],
         );
-        const segments = segResult.rows.map((row) => ({ segmentId: row.segment_id, orderIndex: row.order_index }));
+        const segments = segResult.rows.map((row) => ({
+          segmentId: row.segment_id,
+          orderIndex: row.order_index,
+        }));
         if (segments.length < 2) {
-          throw new BadRequestException('Split erfordert mindestens zwei Segmente im TrainServicePart.');
+          throw new BadRequestException(
+            'Split erfordert mindestens zwei Segmente im TrainServicePart.',
+          );
         }
 
         const splitAfterSegmentId = options.splitAfterSegmentId?.trim() || null;
         const splitAfterOrderIndex =
-          typeof options.splitAfterOrderIndex === 'number' && Number.isFinite(options.splitAfterOrderIndex)
+          typeof options.splitAfterOrderIndex === 'number' &&
+          Number.isFinite(options.splitAfterOrderIndex)
             ? options.splitAfterOrderIndex
             : null;
         if (!splitAfterSegmentId && splitAfterOrderIndex === null) {
-          throw new BadRequestException('splitAfterSegmentId oder splitAfterOrderIndex ist erforderlich.');
+          throw new BadRequestException(
+            'splitAfterSegmentId oder splitAfterOrderIndex ist erforderlich.',
+          );
         }
 
         let splitIndex = -1;
         if (splitAfterSegmentId) {
-          splitIndex = segments.findIndex((seg) => seg.segmentId === splitAfterSegmentId);
+          splitIndex = segments.findIndex(
+            (seg) => seg.segmentId === splitAfterSegmentId,
+          );
         } else if (splitAfterOrderIndex !== null) {
-          splitIndex = segments.findIndex((seg) => seg.orderIndex === splitAfterOrderIndex);
+          splitIndex = segments.findIndex(
+            (seg) => seg.orderIndex === splitAfterOrderIndex,
+          );
         }
         if (splitIndex < 0) {
-          throw new BadRequestException('Split-Position wurde im TrainServicePart nicht gefunden.');
+          throw new BadRequestException(
+            'Split-Position wurde im TrainServicePart nicht gefunden.',
+          );
         }
         if (splitIndex >= segments.length - 1) {
-          throw new BadRequestException('Split-Position muss vor dem letzten Segment liegen.');
+          throw new BadRequestException(
+            'Split-Position muss vor dem letzten Segment liegen.',
+          );
         }
 
         const leftSegments = segments.slice(0, splitIndex + 1);
         const rightSegments = segments.slice(splitIndex + 1);
         const allSegmentIds = Array.from(
-          new Set([...leftSegments.map((s) => s.segmentId), ...rightSegments.map((s) => s.segmentId)]),
+          new Set([
+            ...leftSegments.map((s) => s.segmentId),
+            ...rightSegments.map((s) => s.segmentId),
+          ]),
         );
 
-        const segDetailsResult = await client.query<TrainServicePartSegmentDetailRow>(
-          `
+        const segDetailsResult =
+          await client.query<TrainServicePartSegmentDetailRow>(
+            `
             SELECT id, train_run_id, start_time, end_time, from_location_id, to_location_id
             FROM train_segment
             WHERE variant_id = $1
               AND id = ANY($2::text[])
           `,
-          [variantId, allSegmentIds],
-        );
+            [variantId, allSegmentIds],
+          );
         const segDetails = new Map<string, TrainServicePartSegmentDetailRow>(
           segDetailsResult.rows.map((row) => [row.id, row]),
         );
         if (segDetails.size !== allSegmentIds.length) {
-          throw new BadRequestException('Mindestens ein Segment existiert nicht (TrainSegment).');
+          throw new BadRequestException(
+            'Mindestens ein Segment existiert nicht (TrainSegment).',
+          );
         }
         for (const segId of allSegmentIds) {
           const detail = segDetails.get(segId);
           if (!detail || detail.train_run_id !== partRow.train_run_id) {
-            throw new BadRequestException('Segments müssen zum selben TrainRun gehören.');
+            throw new BadRequestException(
+              'Segments müssen zum selben TrainRun gehören.',
+            );
           }
         }
 
         const leftFirst = segDetails.get(leftSegments[0].segmentId)!;
-        const leftLast = segDetails.get(leftSegments[leftSegments.length - 1].segmentId)!;
+        const leftLast = segDetails.get(
+          leftSegments[leftSegments.length - 1].segmentId,
+        )!;
         const rightFirst = segDetails.get(rightSegments[0].segmentId)!;
-        const rightLast = segDetails.get(rightSegments[rightSegments.length - 1].segmentId)!;
+        const rightLast = segDetails.get(
+          rightSegments[rightSegments.length - 1].segmentId,
+        )!;
 
         const requestedNewPartId = options.newPartId?.trim() || null;
-        const newPartId = requestedNewPartId || `tsp:${partRow.train_run_id}:${randomUUID()}`;
+        const newPartId =
+          requestedNewPartId || `tsp:${partRow.train_run_id}:${randomUUID()}`;
 
         await client.query(
           `
@@ -837,7 +906,10 @@ export class TimetableRepository {
           [variantId, partId],
         );
 
-        const insertSegmentMappings = async (payload: Array<{ segmentId: string; orderIndex: number }>, part: string) => {
+        const insertSegmentMappings = async (
+          payload: Array<{ segmentId: string; orderIndex: number }>,
+          part: string,
+        ) => {
           if (!payload.length) {
             return;
           }
@@ -864,7 +936,10 @@ export class TimetableRepository {
         };
 
         await insertSegmentMappings(
-          leftSegments.map((seg, index) => ({ segmentId: seg.segmentId, orderIndex: index })),
+          leftSegments.map((seg, index) => ({
+            segmentId: seg.segmentId,
+            orderIndex: index,
+          })),
           partId,
         );
 
@@ -873,7 +948,9 @@ export class TimetableRepository {
           [variantId, newPartId],
         );
         if (exists.rows[0]) {
-          throw new BadRequestException(`newPartId ${newPartId} ist bereits vergeben.`);
+          throw new BadRequestException(
+            `newPartId ${newPartId} ist bereits vergeben.`,
+          );
         }
 
         await client.query(
@@ -907,7 +984,10 @@ export class TimetableRepository {
         );
 
         await insertSegmentMappings(
-          rightSegments.map((seg, index) => ({ segmentId: seg.segmentId, orderIndex: index })),
+          rightSegments.map((seg, index) => ({
+            segmentId: seg.segmentId,
+            orderIndex: index,
+          })),
           newPartId,
         );
 
@@ -934,10 +1014,14 @@ export class TimetableRepository {
     const leftPartId = options.leftPartId.trim();
     const rightPartId = options.rightPartId.trim();
     if (!leftPartId || !rightPartId) {
-      throw new BadRequestException('leftPartId und rightPartId sind erforderlich.');
+      throw new BadRequestException(
+        'leftPartId und rightPartId sind erforderlich.',
+      );
     }
     if (leftPartId === rightPartId) {
-      throw new BadRequestException('leftPartId und rightPartId müssen unterschiedlich sein.');
+      throw new BadRequestException(
+        'leftPartId und rightPartId müssen unterschiedlich sein.',
+      );
     }
 
     return this.database.withClient(async (client) => {
@@ -954,20 +1038,32 @@ export class TimetableRepository {
           `,
           [variantId, stageId, [leftPartId, rightPartId]],
         );
-        const byId = new Map<string, TrainServicePartRow>(parts.rows.map((row) => [row.id, row]));
+        const byId = new Map<string, TrainServicePartRow>(
+          parts.rows.map((row) => [row.id, row]),
+        );
         const leftPart = byId.get(leftPartId);
         const rightPart = byId.get(rightPartId);
         if (!leftPart) {
-          throw new NotFoundException(`TrainServicePart ${leftPartId} existiert nicht.`);
+          throw new NotFoundException(
+            `TrainServicePart ${leftPartId} existiert nicht.`,
+          );
         }
         if (!rightPart) {
-          throw new NotFoundException(`TrainServicePart ${rightPartId} existiert nicht.`);
+          throw new NotFoundException(
+            `TrainServicePart ${rightPartId} existiert nicht.`,
+          );
         }
         if (leftPart.train_run_id !== rightPart.train_run_id) {
-          throw new BadRequestException('Merge ist nur für Parts desselben TrainRun möglich.');
+          throw new BadRequestException(
+            'Merge ist nur für Parts desselben TrainRun möglich.',
+          );
         }
 
-        const segRows = await client.query<{ part_id: string; segment_id: string; order_index: number }>(
+        const segRows = await client.query<{
+          part_id: string;
+          segment_id: string;
+          order_index: number;
+        }>(
           `
             SELECT part_id, segment_id, order_index
             FROM train_service_part_segment
@@ -986,13 +1082,19 @@ export class TimetableRepository {
           .filter((row) => row.part_id === rightPartId)
           .map((row) => row.segment_id);
         if (!leftSegmentsRaw.length || !rightSegmentsRaw.length) {
-          throw new BadRequestException('Merge erfordert, dass beide Parts mindestens ein Segment besitzen.');
+          throw new BadRequestException(
+            'Merge erfordert, dass beide Parts mindestens ein Segment besitzen.',
+          );
         }
 
         const rightSet = new Set(rightSegmentsRaw);
-        const overlap = new Set(leftSegmentsRaw.filter((id) => rightSet.has(id)));
+        const overlap = new Set(
+          leftSegmentsRaw.filter((id) => rightSet.has(id)),
+        );
         if (overlap.size) {
-          throw new BadRequestException('Parts dürfen keine gemeinsamen Segmente besitzen.');
+          throw new BadRequestException(
+            'Parts dürfen keine gemeinsamen Segmente besitzen.',
+          );
         }
 
         const runSegments = await client.query<{
@@ -1012,10 +1114,13 @@ export class TimetableRepository {
           `,
           [variantId, leftPart.train_run_id],
         );
-        const posBySegId = new Map<string, number>(runSegments.rows.map((row, index) => [row.id, index]));
-        const detailsBySegId = new Map<string, (typeof runSegments.rows)[number]>(
-          runSegments.rows.map((row) => [row.id, row]),
+        const posBySegId = new Map<string, number>(
+          runSegments.rows.map((row, index) => [row.id, index]),
         );
+        const detailsBySegId = new Map<
+          string,
+          (typeof runSegments.rows)[number]
+        >(runSegments.rows.map((row) => [row.id, row]));
 
         const leftSegments = [...leftSegmentsRaw].sort(
           (a, b) => (posBySegId.get(a) ?? 1e9) - (posBySegId.get(b) ?? 1e9),
@@ -1025,27 +1130,39 @@ export class TimetableRepository {
         );
 
         const leftFirstPos = posBySegId.get(leftSegments[0]);
-        const leftLastPos = posBySegId.get(leftSegments[leftSegments.length - 1]);
+        const leftLastPos = posBySegId.get(
+          leftSegments[leftSegments.length - 1],
+        );
         const rightFirstPos = posBySegId.get(rightSegments[0]);
-        const rightLastPos = posBySegId.get(rightSegments[rightSegments.length - 1]);
+        const rightLastPos = posBySegId.get(
+          rightSegments[rightSegments.length - 1],
+        );
         if (
           leftFirstPos === undefined ||
           leftLastPos === undefined ||
           rightFirstPos === undefined ||
           rightLastPos === undefined
         ) {
-          throw new BadRequestException('Mindestens ein Segment existiert nicht (TrainSegment).');
+          throw new BadRequestException(
+            'Mindestens ein Segment existiert nicht (TrainSegment).',
+          );
         }
         if (leftLastPos >= rightFirstPos) {
-          throw new BadRequestException('leftPart muss vor rightPart liegen (nach Segment-Reihenfolge).');
+          throw new BadRequestException(
+            'leftPart muss vor rightPart liegen (nach Segment-Reihenfolge).',
+          );
         }
         if (leftLastPos + 1 !== rightFirstPos) {
-          throw new BadRequestException('Merge ist nur für direkt benachbarte Parts möglich.');
+          throw new BadRequestException(
+            'Merge ist nur für direkt benachbarte Parts möglich.',
+          );
         }
 
         const mergedSegmentIds = [...leftSegments, ...rightSegments];
         const first = detailsBySegId.get(mergedSegmentIds[0])!;
-        const last = detailsBySegId.get(mergedSegmentIds[mergedSegmentIds.length - 1])!;
+        const last = detailsBySegId.get(
+          mergedSegmentIds[mergedSegmentIds.length - 1],
+        )!;
 
         await client.query(
           `
@@ -1070,10 +1187,10 @@ export class TimetableRepository {
           ],
         );
 
-        await client.query(`DELETE FROM train_service_part_segment WHERE variant_id = $1 AND part_id = $2`, [
-          variantId,
-          leftPartId,
-        ]);
+        await client.query(
+          `DELETE FROM train_service_part_segment WHERE variant_id = $1 AND part_id = $2`,
+          [variantId, leftPartId],
+        );
 
         await client.query(
           `
@@ -1094,17 +1211,21 @@ export class TimetableRepository {
             FROM payload
           `,
           [
-            JSON.stringify(mergedSegmentIds.map((segmentId, index) => ({ segmentId, orderIndex: index }))),
+            JSON.stringify(
+              mergedSegmentIds.map((segmentId, index) => ({
+                segmentId,
+                orderIndex: index,
+              })),
+            ),
             leftPartId,
             variantId,
           ],
         );
 
-        await client.query(`DELETE FROM train_service_part WHERE variant_id = $1 AND stage_id = $2 AND id = $3`, [
-          variantId,
-          stageId,
-          rightPartId,
-        ]);
+        await client.query(
+          `DELETE FROM train_service_part WHERE variant_id = $1 AND stage_id = $2 AND id = $3`,
+          [variantId, stageId, rightPartId],
+        );
 
         await client.query('COMMIT');
         return { mergedPartId: leftPartId };
@@ -1116,6 +1237,8 @@ export class TimetableRepository {
   }
 
   private toIso(value: string | Date): string {
-    return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+    return value instanceof Date
+      ? value.toISOString()
+      : new Date(value).toISOString();
   }
 }

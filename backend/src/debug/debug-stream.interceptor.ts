@@ -1,4 +1,9 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { DebugStreamService } from './debug-stream.service';
@@ -9,7 +14,10 @@ export class DebugStreamInterceptor implements NestInterceptor {
   constructor(private readonly debugStream: DebugStreamService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    if (!this.debugStream.isHttpLoggingEnabled() || context.getType() !== 'http') {
+    if (
+      !this.debugStream.isHttpLoggingEnabled() ||
+      context.getType() !== 'http'
+    ) {
       return next.handle();
     }
     const httpContext = context.switchToHttp();
@@ -36,13 +44,21 @@ export class DebugStreamInterceptor implements NestInterceptor {
     const start = Date.now();
     const userId = this.readParam(request.query, 'userId');
     const connectionId = this.readParam(request.query, 'connectionId');
-    const clientRequestId = this.readParam(request.headers, 'x-client-request-id');
-    const requestId = request.requestId ?? this.readParam(request.headers, 'x-request-id');
+    const clientRequestId = this.readParam(
+      request.headers,
+      'x-client-request-id',
+    );
+    const requestId =
+      request.requestId ?? this.readParam(request.headers, 'x-request-id');
     const stageId = this.readStageId(request);
     const topic = this.resolveTopic(path);
     const activityInfo = this.readActivityInfo(request.body);
 
-    const logRequest = (status: number, level: DebugLogLevel, error?: unknown) => {
+    const logRequest = (
+      status: number,
+      level: DebugLogLevel,
+      error?: unknown,
+    ) => {
       const durationMs = Date.now() - start;
       this.debugStream.log(
         level,
@@ -111,7 +127,9 @@ export class DebugStreamInterceptor implements NestInterceptor {
     return undefined;
   }
 
-  private readActivityInfo(body?: unknown): Record<string, unknown> | undefined {
+  private readActivityInfo(
+    body?: unknown,
+  ): Record<string, unknown> | undefined {
     if (!body || typeof body !== 'object') {
       return undefined;
     }
@@ -121,22 +139,36 @@ export class DebugStreamInterceptor implements NestInterceptor {
       upserts?: Array<{ id?: string }>;
       deleteIds?: unknown;
     };
-    const activityId = typeof payload.activityId === 'string' ? payload.activityId : undefined;
+    const activityId =
+      typeof payload.activityId === 'string' ? payload.activityId : undefined;
     const activityIds = Array.isArray(payload.activityIds)
-      ? payload.activityIds.map((entry) => String(entry)).filter((entry) => entry.length > 0)
+      ? payload.activityIds
+          .map((entry) => String(entry))
+          .filter((entry) => entry.length > 0)
       : [];
     const upsertIds = Array.isArray(payload.upserts)
-      ? payload.upserts.map((entry) => entry.id).filter((id): id is string => typeof id === 'string')
+      ? payload.upserts
+          .map((entry) => entry.id)
+          .filter((id): id is string => typeof id === 'string')
       : [];
     const deleteIds = Array.isArray(payload.deleteIds)
-      ? payload.deleteIds.map((entry) => String(entry)).filter((entry) => entry.length > 0)
+      ? payload.deleteIds
+          .map((entry) => String(entry))
+          .filter((entry) => entry.length > 0)
       : [];
-    if (!activityId && activityIds.length === 0 && upsertIds.length === 0 && deleteIds.length === 0) {
+    if (
+      !activityId &&
+      activityIds.length === 0 &&
+      upsertIds.length === 0 &&
+      deleteIds.length === 0
+    ) {
       return undefined;
     }
     return {
       ...(activityId ? { activityId } : {}),
-      ...(activityIds.length ? { activityIds, activityCount: activityIds.length } : {}),
+      ...(activityIds.length
+        ? { activityIds, activityCount: activityIds.length }
+        : {}),
       ...(upsertIds.length ? { upsertIds, upsertCount: upsertIds.length } : {}),
       ...(deleteIds.length ? { deleteIds, deleteCount: deleteIds.length } : {}),
     };
@@ -191,7 +223,11 @@ export class DebugStreamInterceptor implements NestInterceptor {
       return { name: error.name, message: error.message };
     }
     if (typeof error === 'object') {
-      const err = error as { message?: string; status?: number; statusCode?: number };
+      const err = error as {
+        message?: string;
+        status?: number;
+        statusCode?: number;
+      };
       return {
         message: err.message ?? 'error',
         status: err.status ?? err.statusCode,

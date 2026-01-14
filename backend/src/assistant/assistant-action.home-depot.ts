@@ -5,7 +5,11 @@ import type {
   ActionPayload,
   ClarificationRequest,
 } from './assistant-action.engine.types';
-import type { HomeDepot, PersonnelSite, ResourceSnapshot } from '../planning/planning.types';
+import type {
+  HomeDepot,
+  PersonnelSite,
+  ResourceSnapshot,
+} from '../planning/planning.types';
 import { AssistantActionBase } from './assistant-action.base';
 
 export class AssistantActionHomeDepot extends AssistantActionBase {
@@ -19,7 +23,9 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
       payload.homeDepots ?? payload.homeDepot ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Heimatdepot wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Heimatdepot wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -38,10 +44,14 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
       }
       const normalizedName = this.normalizeKey(name);
       if (seenNames.has(normalizedName)) {
-        return this.buildFeedbackResponse(`Depot "${name}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Depot "${name}" ist doppelt angegeben.`,
+        );
       }
       if (this.hasNameCollision(snapshot.homeDepots, name)) {
-        return this.buildFeedbackResponse(`Heimatdepot "${name}" existiert bereits.`);
+        return this.buildFeedbackResponse(
+          `Heimatdepot "${name}" existiert bereits.`,
+        );
       }
       seenNames.add(normalizedName);
 
@@ -51,7 +61,10 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
         { applyPath: ['homeDepots', index, 'siteIds'] },
       );
       if (siteIdsResult.clarification) {
-        return this.buildClarificationResponse(siteIdsResult.clarification, context);
+        return this.buildClarificationResponse(
+          siteIdsResult.clarification,
+          context,
+        );
       }
       if (siteIdsResult.feedback) {
         return this.buildFeedbackResponse(siteIdsResult.feedback);
@@ -62,7 +75,10 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
         { applyPath: ['homeDepots', index, 'breakSiteIds'] },
       );
       if (breakSiteIdsResult.clarification) {
-        return this.buildClarificationResponse(breakSiteIdsResult.clarification, context);
+        return this.buildClarificationResponse(
+          breakSiteIdsResult.clarification,
+          context,
+        );
       }
       if (breakSiteIdsResult.feedback) {
         return this.buildFeedbackResponse(breakSiteIdsResult.feedback);
@@ -73,7 +89,10 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
         { applyPath: ['homeDepots', index, 'shortBreakSiteIds'] },
       );
       if (shortBreakSiteIdsResult.clarification) {
-        return this.buildClarificationResponse(shortBreakSiteIdsResult.clarification, context);
+        return this.buildClarificationResponse(
+          shortBreakSiteIdsResult.clarification,
+          context,
+        );
       }
       if (shortBreakSiteIdsResult.feedback) {
         return this.buildFeedbackResponse(shortBreakSiteIdsResult.feedback);
@@ -84,7 +103,10 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
         { applyPath: ['homeDepots', index, 'overnightSiteIds'] },
       );
       if (overnightSiteIdsResult.clarification) {
-        return this.buildClarificationResponse(overnightSiteIdsResult.clarification, context);
+        return this.buildClarificationResponse(
+          overnightSiteIdsResult.clarification,
+          context,
+        );
       }
       if (overnightSiteIdsResult.feedback) {
         return this.buildFeedbackResponse(overnightSiteIdsResult.feedback);
@@ -137,16 +159,25 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
       return this.buildFeedbackResponse('Ziel-Heimatdepot fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.homeDepots, targetRecord, {
-      label: 'Heimatdepot',
-      nameKeys: ['name', 'label'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.homeDepots,
+      targetRecord,
+      {
+        label: 'Heimatdepot',
+        nameKeys: ['name', 'label'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Depot nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Depot nicht gefunden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -164,7 +195,9 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
         return this.buildFeedbackResponse('Name darf nicht leer sein.');
       }
       if (this.hasNameCollision(snapshot.homeDepots, name, depot.id)) {
-        return this.buildFeedbackResponse(`Name "${name}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `Name "${name}" ist bereits vergeben.`,
+        );
       }
       updated.name = name;
       changed = true;
@@ -273,25 +306,41 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
       return this.buildFeedbackResponse('Ziel-Heimatdepot fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.homeDepots, targetRecord, {
-      label: 'Heimatdepot',
-      nameKeys: ['name', 'label'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.homeDepots,
+      targetRecord,
+      {
+        label: 'Heimatdepot',
+        nameKeys: ['name', 'label'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Depot nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Depot nicht gefunden.',
+      );
     }
 
     const depot = targetResult.item;
-    const nextDepots = snapshot.homeDepots.filter((entry) => entry.id !== depot.id);
-    const nextPersonnelServicePools = snapshot.personnelServicePools.map((pool) =>
-      pool.homeDepotId === depot.id ? { ...pool, homeDepotId: undefined } : pool,
+    const nextDepots = snapshot.homeDepots.filter(
+      (entry) => entry.id !== depot.id,
+    );
+    const nextPersonnelServicePools = snapshot.personnelServicePools.map(
+      (pool) =>
+        pool.homeDepotId === depot.id
+          ? { ...pool, homeDepotId: undefined }
+          : pool,
     );
     const nextPersonnelPools = snapshot.personnelPools.map((pool) =>
-      pool.homeDepotId === depot.id ? { ...pool, homeDepotId: undefined } : pool,
+      pool.homeDepotId === depot.id
+        ? { ...pool, homeDepotId: undefined }
+        : pool,
     );
 
     const nextSnapshot: ResourceSnapshot = {
@@ -303,13 +352,21 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
     const normalized = this.planning.normalizeResourceSnapshot(nextSnapshot);
 
     const affectedPools =
-      snapshot.personnelServicePools.filter((pool) => pool.homeDepotId === depot.id).length +
-      snapshot.personnelPools.filter((pool) => pool.homeDepotId === depot.id).length;
+      snapshot.personnelServicePools.filter(
+        (pool) => pool.homeDepotId === depot.id,
+      ).length +
+      snapshot.personnelPools.filter((pool) => pool.homeDepotId === depot.id)
+        .length;
     const summary = affectedPools
       ? `Heimatdepot "${depot.name}" gelöscht (${affectedPools} Pools ohne Heimatdepot).`
       : `Heimatdepot "${depot.name}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'homeDepot', id: depot.id, label: depot.name },
+      {
+        kind: 'delete',
+        entityType: 'homeDepot',
+        id: depot.id,
+        label: depot.name,
+      },
     ];
 
     return {
@@ -323,8 +380,15 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
   private resolvePersonnelSiteIds(
     sites: PersonnelSite[],
     siteRefs?: string[],
-    clarification?: { applyPath: Array<string | number>; title?: (name: string) => string },
-  ): { ids?: string[]; feedback?: string; clarification?: ClarificationRequest } {
+    clarification?: {
+      applyPath: Array<string | number>;
+      title?: (name: string) => string;
+    },
+  ): {
+    ids?: string[];
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     if (!siteRefs || !siteRefs.length) {
       return { ids: undefined };
     }
@@ -393,7 +457,9 @@ export class AssistantActionHomeDepot extends AssistantActionBase {
     }
 
     if (missing.length) {
-      return { feedback: `Personnel Site(s) nicht gefunden: ${missing.join(', ')}` };
+      return {
+        feedback: `Personnel Site(s) nicht gefunden: ${missing.join(', ')}`,
+      };
     }
     return { ids };
   }

@@ -34,6 +34,7 @@ import { STAGE_IDS, isStageId } from './planning.types';
 import { PlanningRepository } from './planning.repository';
 import { DutyAutopilotService } from './duty-autopilot.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
+import { PlanningMasterDataService } from './planning-master-data.service';
 import { DebugStreamService } from '../debug/debug-stream.service';
 
 const DEFAULT_VARIANT_ID: PlanningVariantId = 'default';
@@ -69,12 +70,19 @@ export class PlanningStageService implements OnModuleInit {
   private readonly logger = new Logger(PlanningStageService.name);
   private readonly stages = new Map<string, StageState>();
   private validationIssueCounter = 0;
-  private readonly stageEventSubjects = new Map<string, Subject<PlanningStageRealtimeEvent>>();
-  private readonly stageViewportSubscriptions = new Map<string, Map<string, StageViewportSubscription>>();
+  private readonly stageEventSubjects = new Map<
+    string,
+    Subject<PlanningStageRealtimeEvent>
+  >();
+  private readonly stageViewportSubscriptions = new Map<
+    string,
+    Map<string, StageViewportSubscription>
+  >();
   private readonly heartbeatIntervalMs = 30000;
-  private activityTypeRequirements:
-    | Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>
-    | null = null;
+  private activityTypeRequirements: Map<
+    string,
+    { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }
+  > | null = null;
 
   private readonly usingDatabase: boolean;
 
@@ -82,6 +90,9 @@ export class PlanningStageService implements OnModuleInit {
     private readonly repository: PlanningRepository,
     private readonly dutyAutopilot: DutyAutopilotService,
     private readonly activityCatalog: PlanningActivityCatalogService,
+    @Optional()
+    @Inject(PlanningMasterDataService)
+    private readonly masterData?: PlanningMasterDataService,
     @Optional()
     @Inject(DebugStreamService)
     private readonly debugStream?: DebugStreamService,
@@ -108,14 +119,21 @@ export class PlanningStageService implements OnModuleInit {
     timetableYearLabel?: string | null,
   ): Promise<PlanningStageSnapshot> {
     const stage = await this.getStage(stageId, variantId, timetableYearLabel);
-    const worktimeByService = this.computeServiceWorktimeByService(stage.activities);
+    const worktimeByService = this.computeServiceWorktimeByService(
+      stage.activities,
+    );
     return {
       stageId: stage.stageId,
       variantId: stage.variantId,
       timetableYearLabel: stage.timetableYearLabel ?? undefined,
-      resources: stage.resources.map((resource) => this.cloneResource(resource)),
+      resources: stage.resources.map((resource) =>
+        this.cloneResource(resource),
+      ),
       activities: stage.activities.map((activity) =>
-        this.attachServiceWorktime(this.cloneActivity(activity), worktimeByService),
+        this.attachServiceWorktime(
+          this.cloneActivity(activity),
+          worktimeByService,
+        ),
       ),
       trainRuns: stage.trainRuns.map((run) => this.cloneTrainRun(run)),
       trainSegments: stage.trainSegments.map((segment) =>
@@ -133,10 +151,15 @@ export class PlanningStageService implements OnModuleInit {
     timetableYearLabel?: string | null,
   ): Promise<Activity[]> {
     const stage = await this.getStage(stageId, variantId, timetableYearLabel);
-    const worktimeByService = this.computeServiceWorktimeByService(stage.activities);
+    const worktimeByService = this.computeServiceWorktimeByService(
+      stage.activities,
+    );
     const filtered = this.applyActivityFilters(stage.activities, filters);
     return filtered.map((activity) =>
-      this.attachServiceWorktime(this.cloneActivity(activity), worktimeByService),
+      this.attachServiceWorktime(
+        this.cloneActivity(activity),
+        worktimeByService,
+      ),
     );
   }
 
@@ -165,16 +188,26 @@ export class PlanningStageService implements OnModuleInit {
     const appliedUpserts: string[] = [];
     const deletedIds: string[] = [];
     const changedUpsertIds = new Set<string>();
-    const requestedUpsertIds = new Set<string>(upserts.map((activity) => activity.id));
+    const requestedUpsertIds = new Set<string>(
+      upserts.map((activity) => activity.id),
+    );
     const requestedDeleteIds = new Set<string>();
     const complianceUpdatedIds = new Set<string>();
-    const previousById = new Map(previousActivities.map((activity) => [activity.id, activity]));
+    const previousById = new Map(
+      previousActivities.map((activity) => [activity.id, activity]),
+    );
     const sourceContext = this.extractSourceContext(request?.clientRequestId);
 
     try {
       if (upserts.length) {
-        const existingById = new Map(stage.activities.map((activity) => [activity.id, activity]));
-        const conflicts: { id: string; expected: string | null; current: string | null }[] = [];
+        const existingById = new Map(
+          stage.activities.map((activity) => [activity.id, activity]),
+        );
+        const conflicts: {
+          id: string;
+          expected: string | null;
+          current: string | null;
+        }[] = [];
         upserts.forEach((incoming) => {
           const current = existingById.get(incoming.id);
           if (!current) {
@@ -183,7 +216,11 @@ export class PlanningStageService implements OnModuleInit {
           const currentVersion = current.rowVersion ?? null;
           const expectedVersion = incoming.rowVersion ?? null;
           if (currentVersion && expectedVersion !== currentVersion) {
-            conflicts.push({ id: incoming.id, expected: expectedVersion, current: currentVersion });
+            conflicts.push({
+              id: incoming.id,
+              expected: expectedVersion,
+              current: currentVersion,
+            });
           }
         });
         if (conflicts.length) {
@@ -206,7 +243,8 @@ export class PlanningStageService implements OnModuleInit {
             },
           );
           throw new ConflictException({
-            message: 'Aktivität wurde zwischenzeitlich geändert. Bitte neu laden.',
+            message:
+              'Aktivität wurde zwischenzeitlich geändert. Bitte neu laden.',
             conflictIds: conflicts.map((entry) => entry.id),
             conflicts,
             error: 'Conflict',
@@ -250,8 +288,12 @@ export class PlanningStageService implements OnModuleInit {
       );
       if (boundaryCleanup.deletedIds.length) {
         const deleteSet = new Set(boundaryCleanup.deletedIds);
-        stage.activities = stage.activities.filter((activity) => !deleteSet.has(activity.id));
-        const uniqueDeletes = boundaryCleanup.deletedIds.filter((id) => !deletedIds.includes(id));
+        stage.activities = stage.activities.filter(
+          (activity) => !deleteSet.has(activity.id),
+        );
+        const uniqueDeletes = boundaryCleanup.deletedIds.filter(
+          (id) => !deletedIds.includes(id),
+        );
         uniqueDeletes.forEach((id) => {
           deletedIds.push(id);
           requestedDeleteIds.add(id);
@@ -277,15 +319,20 @@ export class PlanningStageService implements OnModuleInit {
         );
       }
 
-      const managedNormalization = await this.dutyAutopilot.normalizeManagedServiceActivities(
-        stage.stageId,
-        stage.variantId,
-        stage.activities,
-      );
+      const managedNormalization =
+        await this.dutyAutopilot.normalizeManagedServiceActivities(
+          stage.stageId,
+          stage.variantId,
+          stage.activities,
+        );
       if (managedNormalization.deletedIds.length) {
         const deleteSet = new Set(managedNormalization.deletedIds);
-        stage.activities = stage.activities.filter((activity) => !deleteSet.has(activity.id));
-        const uniqueDeletes = managedNormalization.deletedIds.filter((id) => !deletedIds.includes(id));
+        stage.activities = stage.activities.filter(
+          (activity) => !deleteSet.has(activity.id),
+        );
+        const uniqueDeletes = managedNormalization.deletedIds.filter(
+          (id) => !deletedIds.includes(id),
+        );
         uniqueDeletes.forEach((id) => {
           deletedIds.push(id);
           requestedDeleteIds.add(id);
@@ -317,13 +364,16 @@ export class PlanningStageService implements OnModuleInit {
         );
       }
 
-      const complianceUpserts = await this.dutyAutopilot.applyWorktimeCompliance(
-        stage.stageId,
-        stage.variantId,
-        stage.activities,
-      );
+      const complianceUpserts =
+        await this.dutyAutopilot.applyWorktimeCompliance(
+          stage.stageId,
+          stage.variantId,
+          stage.activities,
+        );
       if (complianceUpserts.length) {
-        const updatedById = new Map(complianceUpserts.map((activity) => [activity.id, activity]));
+        const updatedById = new Map(
+          complianceUpserts.map((activity) => [activity.id, activity]),
+        );
         stage.activities = stage.activities.map((activity) => {
           const updated = updatedById.get(activity.id);
           if (!updated) {
@@ -335,7 +385,9 @@ export class PlanningStageService implements OnModuleInit {
       }
 
       const changedActivities = requestedUpsertIds.size
-        ? stage.activities.filter((activity) => requestedUpsertIds.has(activity.id))
+        ? stage.activities.filter((activity) =>
+            requestedUpsertIds.has(activity.id),
+          )
         : [];
       this.assertServiceActivityOwners(
         stage.stageId,
@@ -354,14 +406,20 @@ export class PlanningStageService implements OnModuleInit {
         stage.resources,
       );
 
-      const boundaryScopeIds = new Set<string>([...requestedUpsertIds, ...requestedDeleteIds]);
+      const boundaryScopeIds = new Set<string>([
+        ...requestedUpsertIds,
+        ...requestedDeleteIds,
+      ]);
       if (boundaryScopeIds.size > 0) {
-        const nextById = new Map(stage.activities.map((activity) => [activity.id, activity]));
-        const affectedBoundaryGroupKeys = this.collectVehicleServiceBoundaryGroupKeys(
-          previousById,
-          nextById,
-          boundaryScopeIds,
+        const nextById = new Map(
+          stage.activities.map((activity) => [activity.id, activity]),
         );
+        const affectedBoundaryGroupKeys =
+          this.collectVehicleServiceBoundaryGroupKeys(
+            previousById,
+            nextById,
+            boundaryScopeIds,
+          );
         if (affectedBoundaryGroupKeys.size > 0) {
           await this.assertVehicleServiceBoundaries(
             stage.stageId,
@@ -382,23 +440,53 @@ export class PlanningStageService implements OnModuleInit {
     if (changedUpsertIds.size) {
       const rowVersion = stage.version;
       stage.activities = stage.activities.map((activity) =>
-        changedUpsertIds.has(activity.id) ? { ...activity, rowVersion } : activity,
+        changedUpsertIds.has(activity.id)
+          ? { ...activity, rowVersion }
+          : activity,
       );
     }
-    stage.timelineRange = this.computeTimelineRange(stage.activities, stage.timelineRange);
+    stage.timelineRange = this.computeTimelineRange(
+      stage.activities,
+      stage.timelineRange,
+    );
     const timelineChanged =
       previousTimeline.start !== stage.timelineRange.start ||
       previousTimeline.end !== stage.timelineRange.end;
 
-    const activityById = new Map(stage.activities.map((activity) => [activity.id, activity]));
+    const activityById = new Map(
+      stage.activities.map((activity) => [activity.id, activity]),
+    );
     const impactedServiceIds = this.collectImpactedServiceIds(
       activityById,
       changedUpsertIds,
       deletedIds,
       previousById,
     );
-    const storedUpsertIds = new Set<string>([...changedUpsertIds, ...complianceUpdatedIds]);
-    const responseUpsertIds = new Set<string>([...changedUpsertIds, ...complianceUpdatedIds]);
+    const homeDepotServiceIds = new Set<string>(impactedServiceIds);
+    complianceUpdatedIds.forEach((id) => {
+      const activity = activityById.get(id);
+      if (!activity) {
+        return;
+      }
+      this.collectServiceIds(activity).forEach((serviceId) =>
+        homeDepotServiceIds.add(serviceId),
+      );
+    });
+    this.logHomeDepotConflicts({
+      stage,
+      serviceIds: homeDepotServiceIds,
+      requestId,
+      clientRequestId: request?.clientRequestId ?? null,
+      sourceContext,
+    });
+    const storedUpsertIds = new Set<string>([
+      ...changedUpsertIds,
+      ...complianceUpdatedIds,
+    ]);
+    const responseUpsertIds = new Set<string>([
+      ...changedUpsertIds,
+      ...complianceUpdatedIds,
+    ]);
     const dbSnapshots = storedUpsertIds.size
       ? this.collectActivitySnapshots(stage, Array.from(storedUpsertIds))
       : [];
@@ -410,7 +498,11 @@ export class PlanningStageService implements OnModuleInit {
           })
         : [];
 
-    if (changedUpsertIds.size || deletedIds.length || complianceUpdatedIds.size) {
+    if (
+      changedUpsertIds.size ||
+      deletedIds.length ||
+      complianceUpdatedIds.size
+    ) {
       this.emitStageEvent(stage, {
         scope: 'activities',
         clientRequestId: request?.clientRequestId ?? undefined,
@@ -482,8 +574,12 @@ export class PlanningStageService implements OnModuleInit {
     return new Date(ms).toISOString().slice(0, 10);
   }
 
-  private resolveServiceIdForOwner(activity: Activity, ownerId: string): string | null {
-    const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+  private resolveServiceIdForOwner(
+    activity: Activity,
+    ownerId: string,
+  ): string | null {
+    const explicit =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
     if (explicit.startsWith('svc:')) {
       return explicit;
     }
@@ -491,7 +587,8 @@ export class PlanningStageService implements OnModuleInit {
     const map = attrs['service_by_owner'];
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       const entry = (map as Record<string, any>)[ownerId];
-      const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      const candidate =
+        typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
       if (candidate.startsWith('svc:')) {
         return candidate;
       }
@@ -499,8 +596,13 @@ export class PlanningStageService implements OnModuleInit {
     return null;
   }
 
-  private computeServiceWorktimeByService(activities: Activity[]): Map<string, number> {
-    const windows = new Map<string, { startMs: number | null; endMs: number | null }>();
+  private computeServiceWorktimeByService(
+    activities: Activity[],
+  ): Map<string, number> {
+    const windows = new Map<
+      string,
+      { startMs: number | null; endMs: number | null }
+    >();
     activities.forEach((activity) => {
       const serviceIds = this.collectServiceIds(activity);
       if (!serviceIds.length) {
@@ -512,16 +614,24 @@ export class PlanningStageService implements OnModuleInit {
       }
       if (this.isServiceStartActivity(activity)) {
         serviceIds.forEach((serviceId) => {
-          const entry = windows.get(serviceId) ?? { startMs: null, endMs: null };
-          entry.startMs = entry.startMs === null ? startMs : Math.min(entry.startMs, startMs);
+          const entry = windows.get(serviceId) ?? {
+            startMs: null,
+            endMs: null,
+          };
+          entry.startMs =
+            entry.startMs === null ? startMs : Math.min(entry.startMs, startMs);
           windows.set(serviceId, entry);
         });
       }
       if (this.isServiceEndActivity(activity)) {
         const endMs = startMs;
         serviceIds.forEach((serviceId) => {
-          const entry = windows.get(serviceId) ?? { startMs: null, endMs: null };
-          entry.endMs = entry.endMs === null ? endMs : Math.max(entry.endMs, endMs);
+          const entry = windows.get(serviceId) ?? {
+            startMs: null,
+            endMs: null,
+          };
+          entry.endMs =
+            entry.endMs === null ? endMs : Math.max(entry.endMs, endMs);
           windows.set(serviceId, entry);
         });
       }
@@ -571,7 +681,10 @@ export class PlanningStageService implements OnModuleInit {
     return worktimeByService;
   }
 
-  private attachServiceWorktime(activity: Activity, worktimeByService: Map<string, number>): Activity {
+  private attachServiceWorktime(
+    activity: Activity,
+    worktimeByService: Map<string, number>,
+  ): Activity {
     if (!this.isServiceStartActivity(activity)) {
       return activity;
     }
@@ -593,8 +706,11 @@ export class PlanningStageService implements OnModuleInit {
   }
 
   private stripComputedActivityMeta(activity: Activity): Activity {
-    const meta = activity.meta as Record<string, unknown> | undefined;
-    if (!meta || !Object.prototype.hasOwnProperty.call(meta, 'service_worktime_ms')) {
+    const meta = activity.meta;
+    if (
+      !meta ||
+      !Object.prototype.hasOwnProperty.call(meta, 'service_worktime_ms')
+    ) {
       return activity;
     }
     const nextMeta = { ...meta };
@@ -610,7 +726,8 @@ export class PlanningStageService implements OnModuleInit {
       return [];
     }
     const ids = new Set<string>();
-    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
     if (direct) {
       ids.add(direct);
     }
@@ -618,7 +735,8 @@ export class PlanningStageService implements OnModuleInit {
     const map = attrs?.['service_by_owner'];
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       Object.values(map as Record<string, any>).forEach((entry) => {
-        const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+        const candidate =
+          typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
         if (candidate) {
           ids.add(candidate);
         }
@@ -633,11 +751,14 @@ export class PlanningStageService implements OnModuleInit {
     return Array.from(ids);
   }
 
-  private resolvePrimaryServiceId(activity: Activity | null | undefined): string | null {
+  private resolvePrimaryServiceId(
+    activity: Activity | null | undefined,
+  ): string | null {
     if (!activity) {
       return null;
     }
-    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
     if (direct) {
       return direct;
     }
@@ -649,7 +770,9 @@ export class PlanningStageService implements OnModuleInit {
     return ids.length ? ids[0] : null;
   }
 
-  private parseServiceIdFromManagedActivityId(id: string | null | undefined): string | null {
+  private parseServiceIdFromManagedActivityId(
+    id: string | null | undefined,
+  ): string | null {
     const value = (id ?? '').trim();
     if (!value) {
       return null;
@@ -723,7 +846,12 @@ export class PlanningStageService implements OnModuleInit {
     }
     if (typeof raw === 'string') {
       const normalized = raw.trim().toLowerCase();
-      return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+      return (
+        normalized === 'true' ||
+        normalized === 'yes' ||
+        normalized === '1' ||
+        normalized === 'ja'
+      );
     }
     return false;
   }
@@ -734,7 +862,9 @@ export class PlanningStageService implements OnModuleInit {
     }
     if (typeof value === 'string') {
       const normalized = value.trim().toLowerCase();
-      return normalized === 'true' || normalized === 'yes' || normalized === '1';
+      return (
+        normalized === 'true' || normalized === 'yes' || normalized === '1'
+      );
     }
     return false;
   }
@@ -750,7 +880,9 @@ export class PlanningStageService implements OnModuleInit {
     if (!deleteIds.length) {
       return;
     }
-    const managedDeletes = deleteIds.filter((id) => this.isDeletionBlockedServiceActivityId(id));
+    const managedDeletes = deleteIds.filter((id) =>
+      this.isDeletionBlockedServiceActivityId(id),
+    );
     if (!managedDeletes.length) {
       return;
     }
@@ -801,9 +933,15 @@ export class PlanningStageService implements OnModuleInit {
     if (!activities.length) {
       return;
     }
-    type ActivityParticipantEntry = NonNullable<Activity['participants']>[number];
-    const resourceKindMap = resources ? new Map(resources.map((resource) => [resource.id, resource.kind])) : undefined;
-    const resolveKind = (participant: ActivityParticipantEntry | undefined | null): string | null => {
+    type ActivityParticipantEntry = NonNullable<
+      Activity['participants']
+    >[number];
+    const resourceKindMap = resources
+      ? new Map(resources.map((resource) => [resource.id, resource.kind]))
+      : undefined;
+    const resolveKind = (
+      participant: ActivityParticipantEntry | undefined | null,
+    ): string | null => {
       if (!participant) {
         return null;
       }
@@ -828,8 +966,11 @@ export class PlanningStageService implements OnModuleInit {
       if (!id) {
         continue;
       }
-      const isBoundary = this.isServiceStartActivity(activity) || this.isServiceEndActivity(activity);
-      const isPause = this.isBreakActivity(activity) || this.isShortBreakActivity(activity);
+      const isBoundary =
+        this.isServiceStartActivity(activity) ||
+        this.isServiceEndActivity(activity);
+      const isPause =
+        this.isBreakActivity(activity) || this.isShortBreakActivity(activity);
       if (!isBoundary && !isPause) {
         continue;
       }
@@ -844,7 +985,8 @@ export class PlanningStageService implements OnModuleInit {
           activityId: id,
           type: typeId,
           code: 'MISSING_SERVICE_OWNER',
-          message: 'Dienstgrenzen und Pausen benötigen einen Personaldienst oder Fahrzeugdienst.',
+          message:
+            'Dienstgrenzen und Pausen benötigen einen Personaldienst oder Fahrzeugdienst.',
         });
         continue;
       }
@@ -853,7 +995,8 @@ export class PlanningStageService implements OnModuleInit {
           activityId: id,
           type: typeId,
           code: 'MULTIPLE_SERVICE_OWNERS',
-          message: 'Dienstgrenzen und Pausen dürfen nur einem Dienst zugeordnet sein.',
+          message:
+            'Dienstgrenzen und Pausen dürfen nur einem Dienst zugeordnet sein.',
         });
       }
     }
@@ -898,9 +1041,14 @@ export class PlanningStageService implements OnModuleInit {
     return Number.isFinite(ms) ? ms : null;
   }
 
-  private computeVehicleServiceBoundaryGroupKey(activity: Activity, ownerId: string): string {
+  private computeVehicleServiceBoundaryGroupKey(
+    activity: Activity,
+    ownerId: string,
+  ): string {
     const serviceId = this.resolveServiceIdForOwner(activity, ownerId);
-    const dayKey = serviceId ? (serviceId.split(':').pop() ?? null) : this.utcDayKey(activity.start);
+    const dayKey = serviceId
+      ? (serviceId.split(':').pop() ?? null)
+      : this.utcDayKey(activity.start);
     return `${ownerId}|${serviceId ?? dayKey ?? 'unknown'}`;
   }
 
@@ -915,9 +1063,14 @@ export class PlanningStageService implements OnModuleInit {
         return;
       }
       const owners = (activity.participants ?? [])
-        .filter((p) => (p as any)?.resourceId && (p as any)?.kind === 'vehicle-service')
+        .filter(
+          (p) =>
+            (p as any)?.resourceId && (p as any)?.kind === 'vehicle-service',
+        )
         .map((p) => (p as any).resourceId as string);
-      owners.forEach((ownerId) => keys.add(this.computeVehicleServiceBoundaryGroupKey(activity, ownerId)));
+      owners.forEach((ownerId) =>
+        keys.add(this.computeVehicleServiceBoundaryGroupKey(activity, ownerId)),
+      );
     };
 
     for (const id of activityIds) {
@@ -942,10 +1095,16 @@ export class PlanningStageService implements OnModuleInit {
     if (!activities.length) {
       return;
     }
-    type ActivityParticipantEntry = NonNullable<Activity['participants']>[number];
+    type ActivityParticipantEntry = NonNullable<
+      Activity['participants']
+    >[number];
     const requirements = await this.loadActivityTypeRequirements();
-    const resourceKindMap = resources ? new Map(resources.map((resource) => [resource.id, resource.kind])) : undefined;
-    const resolveKind = (participant: ActivityParticipantEntry | undefined | null): string | null => {
+    const resourceKindMap = resources
+      ? new Map(resources.map((resource) => [resource.id, resource.kind]))
+      : undefined;
+    const resolveKind = (
+      participant: ActivityParticipantEntry | undefined | null,
+    ): string | null => {
       if (!participant) {
         return null;
       }
@@ -971,7 +1130,14 @@ export class PlanningStageService implements OnModuleInit {
         continue;
       }
       const previous = previousById?.get(id);
-      if (previous && !this.participantListsChanged(previous.participants, activity.participants, resourceKindMap)) {
+      if (
+        previous &&
+        !this.participantListsChanged(
+          previous.participants,
+          activity.participants,
+          resourceKindMap,
+        )
+      ) {
         continue;
       }
       const typeId = (activity.type ?? '').toString().trim() || null;
@@ -981,7 +1147,9 @@ export class PlanningStageService implements OnModuleInit {
         return kind === 'vehicle-service' || kind === 'vehicle';
       });
 
-      const requiresVehicle = typeId ? requirements.get(typeId)?.requiresVehicle ?? false : false;
+      const requiresVehicle = typeId
+        ? (requirements.get(typeId)?.requiresVehicle ?? false)
+        : false;
       if (requiresVehicle && !hasVehicle) {
         violations.push({
           activityId: id,
@@ -1011,8 +1179,12 @@ export class PlanningStageService implements OnModuleInit {
     next: Activity['participants'] | null | undefined,
     resourceKindMap?: Map<string, Resource['kind']>,
   ): boolean {
-    type ActivityParticipantEntry = NonNullable<Activity['participants']>[number];
-    const resolveKind = (participant: ActivityParticipantEntry | undefined | null): string => {
+    type ActivityParticipantEntry = NonNullable<
+      Activity['participants']
+    >[number];
+    const resolveKind = (
+      participant: ActivityParticipantEntry | undefined | null,
+    ): string => {
       if (!participant) {
         return '';
       }
@@ -1024,13 +1196,21 @@ export class PlanningStageService implements OnModuleInit {
       }
       return resourceKindMap?.get(participant.resourceId) ?? '';
     };
-    const normalize = (list: Activity['participants'] | null | undefined): string[] => {
+    const normalize = (
+      list: Activity['participants'] | null | undefined,
+    ): string[] => {
       if (!list || list.length === 0) {
         return [];
       }
       return list
-        .filter((entry): entry is NonNullable<typeof entry> => !!entry && !!entry.resourceId)
-        .map((entry) => `${resolveKind(entry)}|${entry.resourceId ?? ''}|${entry.role ?? ''}`)
+        .filter(
+          (entry): entry is NonNullable<typeof entry> =>
+            !!entry && !!entry.resourceId,
+        )
+        .map(
+          (entry) =>
+            `${resolveKind(entry)}|${entry.resourceId ?? ''}|${entry.role ?? ''}`,
+        )
         .sort((a, b) => a.localeCompare(b));
     };
     const a = normalize(previous);
@@ -1056,7 +1236,10 @@ export class PlanningStageService implements OnModuleInit {
   }
 
   private async loadActivityTypeRequirements(): Promise<
-    Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>
+    Map<
+      string,
+      { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }
+    >
   > {
     if (this.activityTypeRequirements) {
       return this.activityTypeRequirements;
@@ -1071,7 +1254,9 @@ export class PlanningStageService implements OnModuleInit {
       }
       if (typeof value === 'string') {
         const normalized = value.trim().toLowerCase();
-        return normalized === 'true' || normalized === 'yes' || normalized === '1';
+        return (
+          normalized === 'true' || normalized === 'yes' || normalized === '1'
+        );
       }
       if (typeof value === 'number') {
         return Number.isFinite(value) && value !== 0;
@@ -1079,14 +1264,19 @@ export class PlanningStageService implements OnModuleInit {
       return false;
     };
     const readAttributeValue = (
-      attributes: { key: string; meta?: Record<string, unknown> | null }[] | undefined,
+      attributes:
+        | { key: string; meta?: Record<string, unknown> | null }[]
+        | undefined,
       key: string,
     ): unknown => {
       const entry = (attributes ?? []).find((attr) => attr.key === key);
       const meta = entry?.meta as Record<string, unknown> | undefined;
       return meta?.['value'];
     };
-    const map = new Map<string, { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }>();
+    const map = new Map<
+      string,
+      { requiresVehicle: boolean; isVehicleOn: boolean; isVehicleOff: boolean }
+    >();
     for (const entry of entries) {
       const id = (entry?.activityType ?? '').toString().trim();
       if (!id) {
@@ -1134,7 +1324,15 @@ export class PlanningStageService implements OnModuleInit {
       message: string;
     }> = [];
 
-    const groups = new Map<string, { ownerId: string; serviceId: string | null; dayKey: string | null; items: Activity[] }>();
+    const groups = new Map<
+      string,
+      {
+        ownerId: string;
+        serviceId: string | null;
+        dayKey: string | null;
+        items: Activity[];
+      }
+    >();
 
     for (const activity of activities) {
       const id = (activity.id ?? '').toString();
@@ -1146,13 +1344,20 @@ export class PlanningStageService implements OnModuleInit {
         continue;
       }
       const req = requirements.get(typeId);
-      const relevant = !!(req?.requiresVehicle || req?.isVehicleOn || req?.isVehicleOff);
+      const relevant = !!(
+        req?.requiresVehicle ||
+        req?.isVehicleOn ||
+        req?.isVehicleOff
+      );
       if (!relevant) {
         continue;
       }
 
       const owners = (activity.participants ?? [])
-        .filter((p) => (p as any)?.resourceId && (p as any)?.kind === 'vehicle-service')
+        .filter(
+          (p) =>
+            (p as any)?.resourceId && (p as any)?.kind === 'vehicle-service',
+        )
         .map((p) => (p as any).resourceId as string);
 
       if (!owners.length) {
@@ -1161,7 +1366,9 @@ export class PlanningStageService implements OnModuleInit {
 
       owners.forEach((ownerId) => {
         const serviceId = this.resolveServiceIdForOwner(activity, ownerId);
-        const dayKey = serviceId ? (serviceId.split(':').pop() ?? null) : this.utcDayKey(activity.start);
+        const dayKey = serviceId
+          ? (serviceId.split(':').pop() ?? null)
+          : this.utcDayKey(activity.start);
         const groupKey = `${ownerId}|${serviceId ?? dayKey ?? 'unknown'}`;
         if (scopeGroupKeys && !scopeGroupKeys.has(groupKey)) {
           return;
@@ -1170,7 +1377,12 @@ export class PlanningStageService implements OnModuleInit {
         if (existing) {
           existing.items.push(activity);
         } else {
-          groups.set(groupKey, { ownerId, serviceId, dayKey, items: [activity] });
+          groups.set(groupKey, {
+            ownerId,
+            serviceId,
+            dayKey,
+            items: [activity],
+          });
         }
       });
     }
@@ -1183,16 +1395,24 @@ export class PlanningStageService implements OnModuleInit {
     groups.forEach((group) => {
       const items = group.items
         .map((activity) => ({ activity, startMs: parseStartMs(activity) }))
-        .filter((entry): entry is { activity: Activity; startMs: number } => entry.startMs !== null)
-        .sort((a, b) => a.startMs - b.startMs || a.activity.id.localeCompare(b.activity.id));
+        .filter(
+          (entry): entry is { activity: Activity; startMs: number } =>
+            entry.startMs !== null,
+        )
+        .sort(
+          (a, b) =>
+            a.startMs - b.startMs || a.activity.id.localeCompare(b.activity.id),
+        );
       if (!items.length) {
         return;
       }
 
       const isOn = (activity: Activity) =>
-        !!requirements.get((activity.type ?? '').toString().trim() || '')?.isVehicleOn;
+        !!requirements.get((activity.type ?? '').toString().trim() || '')
+          ?.isVehicleOn;
       const isOff = (activity: Activity) =>
-        !!requirements.get((activity.type ?? '').toString().trim() || '')?.isVehicleOff;
+        !!requirements.get((activity.type ?? '').toString().trim() || '')
+          ?.isVehicleOff;
 
       const onItems = items.filter((entry) => isOn(entry.activity));
       const offItems = items.filter((entry) => isOff(entry.activity));
@@ -1206,7 +1426,8 @@ export class PlanningStageService implements OnModuleInit {
           serviceId: group.serviceId,
           dayKey: group.dayKey,
           code: 'VEHICLE_ON_NOT_FIRST',
-          message: 'Einschalten muss die erste Fahrzeugleistung im Fahrzeugdienst sein.',
+          message:
+            'Einschalten muss die erste Fahrzeugleistung im Fahrzeugdienst sein.',
         });
         return;
       }
@@ -1216,7 +1437,8 @@ export class PlanningStageService implements OnModuleInit {
           serviceId: group.serviceId,
           dayKey: group.dayKey,
           code: 'VEHICLE_OFF_NOT_LAST',
-          message: 'Ausschalten muss die letzte Fahrzeugleistung im Fahrzeugdienst sein.',
+          message:
+            'Ausschalten muss die letzte Fahrzeugleistung im Fahrzeugdienst sein.',
         });
         return;
       }
@@ -1292,10 +1514,14 @@ export class PlanningStageService implements OnModuleInit {
     const from = request?.from?.trim() ?? '';
     const to = request?.to?.trim() ?? '';
     if (!userId || !connectionId) {
-      throw new BadRequestException('Viewport subscription requires userId and connectionId.');
+      throw new BadRequestException(
+        'Viewport subscription requires userId and connectionId.',
+      );
     }
     if (!from || !to) {
-      throw new BadRequestException('Viewport subscription requires from and to timestamps.');
+      throw new BadRequestException(
+        'Viewport subscription requires from and to timestamps.',
+      );
     }
     const fromMs = this.parseIso(from);
     const toMs = this.parseIso(to);
@@ -1306,10 +1532,14 @@ export class PlanningStageService implements OnModuleInit {
       ?.map((entry) => entry.trim())
       .filter(Boolean);
     const normalizedResourceIds =
-      resourceIds && resourceIds.length ? Array.from(new Set(resourceIds)) : undefined;
+      resourceIds && resourceIds.length
+        ? Array.from(new Set(resourceIds))
+        : undefined;
     const key = this.stageKey(stage.stageId, stage.variantId);
     const subscriptionKey = this.viewportSubscriptionKey(userId, connectionId);
-    const registry = this.stageViewportSubscriptions.get(key) ?? new Map<string, StageViewportSubscription>();
+    const registry =
+      this.stageViewportSubscriptions.get(key) ??
+      new Map<string, StageViewportSubscription>();
     registry.set(subscriptionKey, {
       userId,
       connectionId,
@@ -1333,14 +1563,23 @@ export class PlanningStageService implements OnModuleInit {
       let subscription: { unsubscribe: () => void } | null = null;
       let heartbeat: ReturnType<typeof setInterval> | null = null;
       const subscriptionKey =
-        userId && connectionId ? this.viewportSubscriptionKey(userId, connectionId) : null;
+        userId && connectionId
+          ? this.viewportSubscriptionKey(userId, connectionId)
+          : null;
 
       this.getStage(stageId, variantId, timetableYearLabel)
         .then((stage) => {
-          const subject = this.getStageEventSubject(stage.stageId, stage.variantId);
+          const subject = this.getStageEventSubject(
+            stage.stageId,
+            stage.variantId,
+          );
           subscription = subject.subscribe({
             next: (event) => {
-              const filtered = this.filterRealtimeEvent(stage, event, subscriptionKey);
+              const filtered = this.filterRealtimeEvent(
+                stage,
+                event,
+                subscriptionKey,
+              );
               if (filtered) {
                 subscriber.next(filtered);
               }
@@ -1348,14 +1587,18 @@ export class PlanningStageService implements OnModuleInit {
             error: (error) => subscriber.error(error),
             complete: () => subscriber.complete(),
           });
-          subscriber.next(this.createTimelineEvent(stage, { userId, connectionId }));
+          subscriber.next(
+            this.createTimelineEvent(stage, { userId, connectionId }),
+          );
           heartbeat = setInterval(() => {
             const key = this.stageKey(stage.stageId, stage.variantId);
             const currentStage = this.stages.get(key);
             if (!currentStage) {
               return;
             }
-            subscriber.next(this.createTimelineEvent(currentStage, { userId, connectionId }));
+            subscriber.next(
+              this.createTimelineEvent(currentStage, { userId, connectionId }),
+            );
           }, this.heartbeatIntervalMs);
         })
         .catch((error) => subscriber.error(error));
@@ -1411,7 +1654,9 @@ export class PlanningStageService implements OnModuleInit {
         const participants = activity.participants ?? [];
         if (
           participants.length > 0 &&
-          participants.every((participant) => deletedSet.has(participant.resourceId))
+          participants.every((participant) =>
+            deletedSet.has(participant.resourceId),
+          )
         ) {
           orphanedActivityIds.push(activity.id);
           return false;
@@ -1424,7 +1669,10 @@ export class PlanningStageService implements OnModuleInit {
     stage.version = this.nextVersion();
     let timelineChanged = false;
     if (activitiesChanged) {
-      stage.timelineRange = this.computeTimelineRange(stage.activities, stage.timelineRange);
+      stage.timelineRange = this.computeTimelineRange(
+        stage.activities,
+        stage.timelineRange,
+      );
       timelineChanged =
         previousTimeline.start !== stage.timelineRange.start ||
         previousTimeline.end !== stage.timelineRange.end;
@@ -1461,11 +1709,25 @@ export class PlanningStageService implements OnModuleInit {
     }
 
     if (this.usingDatabase) {
-      await this.repository.applyResourceMutations(stage.stageId, stage.variantId, resourceSnapshots, deletedIds);
+      await this.repository.applyResourceMutations(
+        stage.stageId,
+        stage.variantId,
+        resourceSnapshots,
+        deletedIds,
+      );
       if (orphanedActivityIds.length) {
-        await this.repository.deleteActivities(stage.stageId, stage.variantId, orphanedActivityIds);
+        await this.repository.deleteActivities(
+          stage.stageId,
+          stage.variantId,
+          orphanedActivityIds,
+        );
       }
-      await this.repository.updateStageMetadata(stage.stageId, stage.variantId, stage.timelineRange, stage.version);
+      await this.repository.updateStageMetadata(
+        stage.stageId,
+        stage.variantId,
+        stage.timelineRange,
+        stage.version,
+      );
     }
 
     return {
@@ -1489,13 +1751,23 @@ export class PlanningStageService implements OnModuleInit {
     const clearTrainSegments = Boolean(options.clearTrainSegments);
     const resetTimeline = Boolean(options.resetTimeline);
 
-    if (!clearResources && !clearActivities && !clearTrainRuns && !clearTrainSegments && !resetTimeline) {
+    if (
+      !clearResources &&
+      !clearActivities &&
+      !clearTrainRuns &&
+      !clearTrainSegments &&
+      !resetTimeline
+    ) {
       return;
     }
 
     for (const stage of this.stages.values()) {
-      const deletedResourceIds = clearResources ? stage.resources.map((resource) => resource.id) : [];
-      const deletedActivityIds = clearActivities ? stage.activities.map((activity) => activity.id) : [];
+      const deletedResourceIds = clearResources
+        ? stage.resources.map((resource) => resource.id)
+        : [];
+      const deletedActivityIds = clearActivities
+        ? stage.activities.map((activity) => activity.id)
+        : [];
 
       if (clearResources) {
         stage.resources = [];
@@ -1543,7 +1815,10 @@ export class PlanningStageService implements OnModuleInit {
     return `${stageId}::${variantId}`;
   }
 
-  private viewportSubscriptionKey(userId: string, connectionId: string): string {
+  private viewportSubscriptionKey(
+    userId: string,
+    connectionId: string,
+  ): string {
     return `${userId}::${connectionId}`;
   }
 
@@ -1565,7 +1840,7 @@ export class PlanningStageService implements OnModuleInit {
     if (!isStageId(stageIdValue)) {
       return;
     }
-    const stageId = stageIdValue as StageId;
+    const stageId = stageIdValue;
     const variantId = this.normalizeVariantId(variantIdValue);
     const key = this.stageKey(stageId, variantId);
     const registry = this.stageViewportSubscriptions.get(key);
@@ -1586,7 +1861,11 @@ export class PlanningStageService implements OnModuleInit {
     if (event.scope !== 'activities' || !subscriptionKey) {
       return event;
     }
-    const subscription = this.getViewportSubscription(stage.stageId, stage.variantId, subscriptionKey);
+    const subscription = this.getViewportSubscription(
+      stage.stageId,
+      stage.variantId,
+      subscriptionKey,
+    );
     if (!subscription) {
       return event;
     }
@@ -1632,7 +1911,9 @@ export class PlanningStageService implements OnModuleInit {
     return trimmed ? trimmed : DEFAULT_VARIANT_ID;
   }
 
-  private async initializeStagesFromDatabase(variantId: PlanningVariantId): Promise<void> {
+  private async initializeStagesFromDatabase(
+    variantId: PlanningVariantId,
+  ): Promise<void> {
     for (const stageId of STAGE_IDS) {
       await this.loadStageFromDatabase(stageId, variantId);
     }
@@ -1647,7 +1928,11 @@ export class PlanningStageService implements OnModuleInit {
     try {
       const data = await this.repository.loadStageData(stageId, variantId);
       if (!data) {
-        const emptyStage = this.createEmptyStage(stageId, variantId, timetableYearLabel);
+        const emptyStage = this.createEmptyStage(
+          stageId,
+          variantId,
+          timetableYearLabel,
+        );
         this.stages.set(key, emptyStage);
         await this.repository.updateStageMetadata(
           stageId,
@@ -1667,11 +1952,18 @@ export class PlanningStageService implements OnModuleInit {
       const stage: StageState = {
         stageId,
         variantId,
-        timetableYearLabel: data.timetableYearLabel ?? timetableYearLabel ?? null,
-        resources: data.resources.map((resource) => this.cloneResource(resource)),
-        activities: data.activities.map((activity) => this.cloneActivity(activity)),
+        timetableYearLabel:
+          data.timetableYearLabel ?? timetableYearLabel ?? null,
+        resources: data.resources.map((resource) =>
+          this.cloneResource(resource),
+        ),
+        activities: data.activities.map((activity) =>
+          this.cloneActivity(activity),
+        ),
         trainRuns: data.trainRuns.map((run) => this.cloneTrainRun(run)),
-        trainSegments: data.trainSegments.map((segment) => this.cloneTrainSegment(segment)),
+        trainSegments: data.trainSegments.map((segment) =>
+          this.cloneTrainSegment(segment),
+        ),
         timelineRange,
         version,
       };
@@ -1696,7 +1988,10 @@ export class PlanningStageService implements OnModuleInit {
         `Stage ${stageId} (${variantId}) konnte nicht aus der Datenbank geladen werden – verwende eine leere Stage.`,
         (error as Error).stack ?? String(error),
       );
-      this.stages.set(key, this.createEmptyStage(stageId, variantId, timetableYearLabel));
+      this.stages.set(
+        key,
+        this.createEmptyStage(stageId, variantId, timetableYearLabel),
+      );
     }
   }
 
@@ -1734,7 +2029,9 @@ export class PlanningStageService implements OnModuleInit {
       assignedQualifications: activity.assignedQualifications
         ? [...activity.assignedQualifications]
         : undefined,
-      workRuleTags: activity.workRuleTags ? [...activity.workRuleTags] : undefined,
+      workRuleTags: activity.workRuleTags
+        ? [...activity.workRuleTags]
+        : undefined,
       participants: activity.participants
         ? activity.participants.map((participant) => ({ ...participant }))
         : undefined,
@@ -1757,7 +2054,10 @@ export class PlanningStageService implements OnModuleInit {
     };
   }
 
-  private getStageEventSubject(stageId: StageId, variantId: PlanningVariantId): Subject<PlanningStageRealtimeEvent> {
+  private getStageEventSubject(
+    stageId: StageId,
+    variantId: PlanningVariantId,
+  ): Subject<PlanningStageRealtimeEvent> {
     const key = this.stageKey(stageId, variantId);
     const existing = this.stageEventSubjects.get(key);
     if (existing) {
@@ -1815,7 +2115,10 @@ export class PlanningStageService implements OnModuleInit {
     });
   }
 
-  private collectResourceSnapshots(stage: StageState, ids: string[]): Resource[] {
+  private collectResourceSnapshots(
+    stage: StageState,
+    ids: string[],
+  ): Resource[] {
     return ids
       .map((id) => stage.resources.find((resource) => resource.id === id))
       .filter((resource): resource is Resource => Boolean(resource))
@@ -1869,7 +2172,9 @@ export class PlanningStageService implements OnModuleInit {
       if (!activity) {
         return;
       }
-      this.collectServiceIds(activity).forEach((serviceId) => impacted.add(serviceId));
+      this.collectServiceIds(activity).forEach((serviceId) =>
+        impacted.add(serviceId),
+      );
     };
     changedUpsertIds.forEach((id) => {
       addFromActivity(activityById.get(id));
@@ -1901,6 +2206,330 @@ export class PlanningStageService implements OnModuleInit {
     return ids.slice(0, limit);
   }
 
+  private logHomeDepotConflicts(options: {
+    stage: StageState;
+    serviceIds: Set<string>;
+    requestId?: string;
+    clientRequestId?: string | null;
+    sourceContext: SourceContext;
+  }): void {
+    if (!this.debugStream?.isEnabled()) {
+      return;
+    }
+    if (!options.serviceIds.size) {
+      return;
+    }
+
+    const isHomeDepotCode = (code: string) =>
+      code.startsWith('HOME_DEPOT_') || code.startsWith('WALK_TIME_');
+    const normalize = (value: string | null | undefined) =>
+      (value ?? '').trim();
+    const normalizeUpper = (value: string | null | undefined) =>
+      normalize(value).toUpperCase();
+
+    const readCodes = (activity: Activity): string[] => {
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const raw = attrs?.['service_conflict_codes'];
+      if (!Array.isArray(raw)) {
+        return [];
+      }
+      return raw
+        .map((entry) => `${entry ?? ''}`.trim())
+        .filter((entry) => entry.length > 0);
+    };
+
+    const readDetails = (activity: Activity): Record<string, string[]> => {
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const raw = attrs?.['service_conflict_details'];
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {};
+      }
+      const details: Record<string, string[]> = {};
+      Object.entries(raw as Record<string, unknown>).forEach(
+        ([code, entries]) => {
+          if (!Array.isArray(entries)) {
+            return;
+          }
+          const cleaned = entries
+            .map((entry) => `${entry ?? ''}`.trim())
+            .filter((entry) => entry.length > 0);
+          if (cleaned.length) {
+            details[code] = cleaned;
+          }
+        },
+      );
+      return details;
+    };
+
+    const readStartLocation = (activity: Activity): string | null => {
+      const locId = normalize(activity.locationId ?? '');
+      if (locId) {
+        return locId;
+      }
+      const from = normalize(activity.from ?? '');
+      if (from) {
+        return from;
+      }
+      const label = normalize(activity.locationLabel ?? '');
+      if (label) {
+        return label;
+      }
+      const to = normalize(activity.to ?? '');
+      return to || null;
+    };
+
+    const readEndLocation = (activity: Activity): string | null => {
+      const locId = normalize(activity.locationId ?? '');
+      if (locId) {
+        return locId;
+      }
+      const to = normalize(activity.to ?? '');
+      if (to) {
+        return to;
+      }
+      const label = normalize(activity.locationLabel ?? '');
+      if (label) {
+        return label;
+      }
+      const from = normalize(activity.from ?? '');
+      return from || null;
+    };
+
+    const snapshot = this.masterData?.getResourceSnapshot() ?? null;
+    const personnelSites = this.masterData?.listPersonnelSites() ?? [];
+    const personnelSitesById = new Map(
+      personnelSites.map((site) => [site.siteId, site]),
+    );
+    const personnelById = new Map(
+      snapshot?.personnel?.map((entry) => [entry.id, entry]) ?? [],
+    );
+    const personnelServicesById = new Map(
+      snapshot?.personnelServices?.map((entry) => [entry.id, entry]) ?? [],
+    );
+    const personnelPoolsById = new Map(
+      snapshot?.personnelPools?.map((entry) => [entry.id, entry]) ?? [],
+    );
+    const personnelServicePoolsById = new Map(
+      snapshot?.personnelServicePools?.map((entry) => [entry.id, entry]) ?? [],
+    );
+    const homeDepotsById = new Map(
+      snapshot?.homeDepots?.map((entry) => [entry.id, entry]) ?? [],
+    );
+
+    const resolvePersonnelSiteId = (value: string | null): string | null => {
+      const trimmed = normalize(value);
+      if (!trimmed) {
+        return null;
+      }
+      if (personnelSitesById.has(trimmed)) {
+        return trimmed;
+      }
+      const normalized = normalizeUpper(trimmed);
+      const idMatches = Array.from(personnelSitesById.keys()).filter(
+        (siteId) => normalizeUpper(siteId) === normalized,
+      );
+      if (idMatches.length === 1) {
+        return idMatches[0];
+      }
+      const nameMatches = Array.from(personnelSitesById.entries()).filter(
+        ([, site]) =>
+          normalizeUpper(site?.name ?? '') === normalized,
+      );
+      if (nameMatches.length === 1) {
+        return nameMatches[0][0];
+      }
+      return null;
+    };
+
+    const resolveOwnerKind = (
+      ownerId: string | null,
+    ): 'personnel' | 'personnel-service' | null => {
+      if (!ownerId) {
+        return null;
+      }
+      if (personnelServicesById.has(ownerId)) {
+        return 'personnel-service';
+      }
+      if (personnelById.has(ownerId)) {
+        return 'personnel';
+      }
+      return null;
+    };
+
+    const resolveHomeDepotId = (
+      ownerId: string | null,
+      ownerKind: 'personnel' | 'personnel-service' | null,
+    ): string | null => {
+      if (!ownerId) {
+        return null;
+      }
+      const resolveFromPersonnelService = (): string | null => {
+        const service = personnelServicesById.get(ownerId);
+        const poolId = service?.poolId ?? null;
+        const pool = poolId ? personnelServicePoolsById.get(poolId) : null;
+        return typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
+      };
+      const resolveFromPersonnel = (): string | null => {
+        const personnel = personnelById.get(ownerId);
+        const poolId = personnel?.poolId ?? null;
+        const pool = poolId ? personnelPoolsById.get(poolId) : null;
+        return typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
+      };
+
+      let homeDepotId: string | null = null;
+      if (ownerKind === 'personnel-service') {
+        homeDepotId = resolveFromPersonnelService();
+        if (!homeDepotId) {
+          homeDepotId = resolveFromPersonnel();
+        }
+      } else if (ownerKind === 'personnel') {
+        homeDepotId = resolveFromPersonnel();
+        if (!homeDepotId) {
+          homeDepotId = resolveFromPersonnelService();
+        }
+      } else {
+        homeDepotId = resolveFromPersonnelService() ?? resolveFromPersonnel();
+      }
+      const trimmed = normalize(homeDepotId ?? '');
+      return trimmed.length ? trimmed : null;
+    };
+
+    const serviceEntries = new Map<
+      string,
+      Array<{
+        activityId: string;
+        type: string | null;
+        serviceRole: string | null;
+        locations: {
+          locationId: string | null;
+          locationLabel: string | null;
+          from: string | null;
+          to: string | null;
+          start: string | null;
+          end: string | null;
+          startSiteId: string | null;
+          endSiteId: string | null;
+        };
+        conflictCodes: string[];
+        conflictDetails: Record<string, string[]>;
+      }>
+    >();
+
+    for (const activity of options.stage.activities) {
+      const codes = readCodes(activity).filter(isHomeDepotCode);
+      if (!codes.length) {
+        continue;
+      }
+      const serviceIds = this.collectServiceIds(activity).filter((serviceId) =>
+        options.serviceIds.has(serviceId),
+      );
+      if (!serviceIds.length) {
+        continue;
+      }
+      const detailsRaw = readDetails(activity);
+      const conflictDetails: Record<string, string[]> = {};
+      codes.forEach((code) => {
+        const entries = detailsRaw[code] ?? [];
+        if (entries.length) {
+          conflictDetails[code] = entries.slice(0, 6);
+        }
+      });
+      const start = readStartLocation(activity);
+      const end = readEndLocation(activity);
+      const entry = {
+        activityId: activity.id,
+        type: activity.type ?? null,
+        serviceRole: activity.serviceRole ?? null,
+        locations: {
+          locationId: activity.locationId ?? null,
+          locationLabel: activity.locationLabel ?? null,
+          from: activity.from ?? null,
+          to: activity.to ?? null,
+          start,
+          end,
+          startSiteId: resolvePersonnelSiteId(start),
+          endSiteId: resolvePersonnelSiteId(end),
+        },
+        conflictCodes: codes,
+        conflictDetails,
+      };
+      serviceIds.forEach((serviceId) => {
+        const list = serviceEntries.get(serviceId) ?? [];
+        list.push(entry);
+        serviceEntries.set(serviceId, list);
+      });
+    }
+
+    if (!serviceEntries.size) {
+      return;
+    }
+
+    serviceEntries.forEach((entries, serviceId) => {
+      const ownerId = this.parseOwnerIdFromServiceId(serviceId);
+      const ownerKind = resolveOwnerKind(ownerId);
+      const homeDepotId = resolveHomeDepotId(ownerId, ownerKind);
+      const depot = homeDepotId ? homeDepotsById.get(homeDepotId) : null;
+      const siteLabels: Record<string, string> = {};
+      const recordSiteLabels = (ids: string[] | null | undefined) => {
+        (ids ?? []).forEach((siteId) => {
+          const site = personnelSitesById.get(siteId);
+          if (site?.name) {
+            siteLabels[siteId] = site.name;
+          }
+        });
+      };
+      recordSiteLabels(depot?.siteIds ?? []);
+      recordSiteLabels(depot?.breakSiteIds ?? []);
+      recordSiteLabels(depot?.shortBreakSiteIds ?? []);
+
+      this.debugStream?.log(
+        'info',
+        'planning',
+        'Heimdepot-Konflikte',
+        {
+          stageId: options.stage.stageId,
+          variantId: options.stage.variantId,
+          requestId: options.requestId,
+          clientRequestId: options.clientRequestId,
+          serviceId,
+          ownerId,
+          ownerKind,
+          homeDepot: depot
+            ? {
+                depotId: depot.id,
+                name: depot.name ?? null,
+                siteIds: depot.siteIds ?? [],
+                breakSiteIds: depot.breakSiteIds ?? [],
+                shortBreakSiteIds: depot.shortBreakSiteIds ?? [],
+                siteLabels,
+              }
+            : null,
+          activityCount: entries.length,
+          activities: entries.slice(0, 20),
+          truncated: entries.length > 20,
+        },
+        {
+          userId: options.sourceContext.userId,
+          connectionId: options.sourceContext.connectionId,
+          stageId: options.stage.stageId,
+        },
+      );
+    });
+  }
+
+  private parseOwnerIdFromServiceId(serviceId: string | null | undefined): string | null {
+    const raw = (serviceId ?? '').trim();
+    if (!raw) {
+      return null;
+    }
+    const parts = raw.split(':');
+    if (parts.length < 3 || parts[0] !== 'svc') {
+      return null;
+    }
+    const ownerId = (parts[2] ?? '').trim();
+    return ownerId.length ? ownerId : null;
+  }
+
   private async getStage(
     stageIdValue: string,
     variantIdValue: string,
@@ -1909,7 +2538,7 @@ export class PlanningStageService implements OnModuleInit {
     if (!isStageId(stageIdValue)) {
       throw new NotFoundException(`Stage ${stageIdValue} ist unbekannt.`);
     }
-    const stageId = stageIdValue as StageId;
+    const stageId = stageIdValue;
     const variantId = this.normalizeVariantId(variantIdValue);
     const key = this.stageKey(stageId, variantId);
     const existing = this.stages.get(key);
@@ -1922,7 +2551,9 @@ export class PlanningStageService implements OnModuleInit {
       if (loaded) {
         return loaded;
       }
-      throw new NotFoundException(`Stage ${stageId} (${variantId}) ist nicht initialisiert.`);
+      throw new NotFoundException(
+        `Stage ${stageId} (${variantId}) ist nicht initialisiert.`,
+      );
     }
     const stage = this.createEmptyStage(stageId, variantId, timetableYearLabel);
     this.stages.set(key, stage);
@@ -1987,12 +2618,14 @@ export class PlanningStageService implements OnModuleInit {
       const attrs = activity.attributes as Record<string, unknown> | undefined;
       const map = attrs?.['service_by_owner'];
       if (map && typeof map === 'object' && !Array.isArray(map)) {
-        Object.entries(map as Record<string, any>).forEach(([ownerId, entry]) => {
-          if (resourceFilter && !resourceFilter.has(ownerId)) {
-            return;
-          }
-          addServiceId((entry as any)?.serviceId);
-        });
+        Object.entries(map as Record<string, any>).forEach(
+          ([ownerId, entry]) => {
+            if (resourceFilter && !resourceFilter.has(ownerId)) {
+              return;
+            }
+            addServiceId(entry?.serviceId);
+          },
+        );
       }
     });
     if (serviceIds.size === 0) {
@@ -2025,7 +2658,9 @@ export class PlanningStageService implements OnModuleInit {
 
   private upsertActivity(stage: StageState, incoming: Activity): void {
     const clone = this.cloneActivity(incoming);
-    const index = stage.activities.findIndex((activity) => activity.id === incoming.id);
+    const index = stage.activities.findIndex(
+      (activity) => activity.id === incoming.id,
+    );
     if (index >= 0) {
       stage.activities[index] = clone;
     } else {
@@ -2035,7 +2670,9 @@ export class PlanningStageService implements OnModuleInit {
 
   private upsertResource(stage: StageState, incoming: Resource): void {
     const clone = this.cloneResource(incoming);
-    const index = stage.resources.findIndex((resource) => resource.id === incoming.id);
+    const index = stage.resources.findIndex(
+      (resource) => resource.id === incoming.id,
+    );
     if (index >= 0) {
       stage.resources[index] = clone;
     } else {
@@ -2043,7 +2680,9 @@ export class PlanningStageService implements OnModuleInit {
     }
   }
 
-  private detectOverlapIssues(activities: Activity[]): ActivityValidationIssue[] {
+  private detectOverlapIssues(
+    activities: Activity[],
+  ): ActivityValidationIssue[] {
     const byResource = new Map<string, Activity[]>();
     activities.forEach((activity) => {
       const participants = activity.participants ?? [];
@@ -2078,7 +2717,10 @@ export class PlanningStageService implements OnModuleInit {
     return issues;
   }
 
-  private async detectWorktimeIssues(stage: StageState, selected: Activity[]): Promise<ActivityValidationIssue[]> {
+  private async detectWorktimeIssues(
+    stage: StageState,
+    selected: Activity[],
+  ): Promise<ActivityValidationIssue[]> {
     if (!selected.length) {
       return [];
     }
@@ -2088,7 +2730,9 @@ export class PlanningStageService implements OnModuleInit {
       stage.variantId,
       stage.activities,
     );
-    const updatedById = new Map(updates.map((activity) => [activity.id, activity]));
+    const updatedById = new Map(
+      updates.map((activity) => [activity.id, activity]),
+    );
 
     const relevantServiceIds = new Set<string>();
     const selectedIdsByService = new Map<string, Set<string>>();
@@ -2106,8 +2750,14 @@ export class PlanningStageService implements OnModuleInit {
       return [];
     }
 
-    const baseWorktimeCodes = new Set(['MAX_DUTY_SPAN', 'MAX_WORK', 'MAX_CONTINUOUS', 'NO_BREAK_WINDOW']);
-    const isWorktimeCode = (code: string) => code.startsWith('AZG_') || baseWorktimeCodes.has(code);
+    const baseWorktimeCodes = new Set([
+      'MAX_DUTY_SPAN',
+      'MAX_WORK',
+      'MAX_CONTINUOUS',
+      'NO_BREAK_WINDOW',
+    ]);
+    const isWorktimeCode = (code: string) =>
+      code.startsWith('AZG_') || baseWorktimeCodes.has(code);
 
     const serviceCodes = new Map<string, Set<string>>();
     const serviceMaxLevel = new Map<string, number>();
@@ -2131,7 +2781,9 @@ export class PlanningStageService implements OnModuleInit {
       if (!Array.isArray(raw)) {
         return [];
       }
-      return raw.map((entry) => `${entry ?? ''}`.trim()).filter((entry) => entry.length > 0);
+      return raw
+        .map((entry) => `${entry ?? ''}`.trim())
+        .filter((entry) => entry.length > 0);
     };
 
     const updateServiceLevel = (serviceId: string, level: number) => {
@@ -2143,7 +2795,9 @@ export class PlanningStageService implements OnModuleInit {
 
     for (const activity of stage.activities) {
       const effective = updatedById.get(activity.id) ?? activity;
-      const serviceIds = this.collectServiceIds(effective).filter((serviceId) => relevantServiceIds.has(serviceId));
+      const serviceIds = this.collectServiceIds(effective).filter((serviceId) =>
+        relevantServiceIds.has(serviceId),
+      );
       if (!serviceIds.length) {
         continue;
       }
@@ -2169,7 +2823,9 @@ export class PlanningStageService implements OnModuleInit {
       return [];
     }
 
-    const severityForLevel = (level: number): ActivityValidationIssue['severity'] => {
+    const severityForLevel = (
+      level: number,
+    ): ActivityValidationIssue['severity'] => {
       if (level >= 2) {
         return 'error';
       }
@@ -2181,13 +2837,17 @@ export class PlanningStageService implements OnModuleInit {
 
     const issues: ActivityValidationIssue[] = [];
     for (const [serviceId, codesSet] of serviceCodes.entries()) {
-      const activityIds = Array.from(selectedIdsByService.get(serviceId) ?? new Set<string>());
+      const activityIds = Array.from(
+        selectedIdsByService.get(serviceId) ?? new Set<string>(),
+      );
       if (!activityIds.length) {
         continue;
       }
       const maxLevel = serviceMaxLevel.get(serviceId) ?? 0;
       const severity = severityForLevel(maxLevel);
-      const sortedCodes = Array.from(codesSet.values()).sort((a, b) => a.localeCompare(b));
+      const sortedCodes = Array.from(codesSet.values()).sort((a, b) =>
+        a.localeCompare(b),
+      );
       for (const code of sortedCodes) {
         issues.push({
           id: `working-time-${serviceId}-${code}`,
@@ -2209,11 +2869,14 @@ export class PlanningStageService implements OnModuleInit {
       MAX_WORK: 'Maximale Arbeitszeit im Dienst überschritten.',
       MAX_CONTINUOUS: 'Maximale zusammenhängende Arbeitszeit überschritten.',
       NO_BREAK_WINDOW: 'Keine gültige Pause (Mindestdauer) möglich.',
-      AZG_WORK_AVG_7D: 'Durchschnittliche Arbeitszeit (7 Arbeitstage) überschritten.',
+      AZG_WORK_AVG_7D:
+        'Durchschnittliche Arbeitszeit (7 Arbeitstage) überschritten.',
       AZG_WORK_AVG_365D: 'Durchschnittliche Arbeitszeit (Jahr) überschritten.',
-      AZG_DUTY_SPAN_AVG_28D: 'Durchschnittliche Dienstschicht (28 Tage) überschritten.',
+      AZG_DUTY_SPAN_AVG_28D:
+        'Durchschnittliche Dienstschicht (28 Tage) überschritten.',
       AZG_REST_MIN: 'Mindestruheschicht unterschritten.',
-      AZG_REST_AVG_28D: 'Durchschnittliche Ruheschicht (28 Tage) unterschritten.',
+      AZG_REST_AVG_28D:
+        'Durchschnittliche Ruheschicht (28 Tage) unterschritten.',
       AZG_BREAK_REQUIRED: 'Pause oder Arbeitsunterbrechung fehlt.',
       AZG_BREAK_MAX_COUNT: 'Zu viele Pausen in einer Dienstschicht.',
       AZG_BREAK_TOO_SHORT: 'Pause ist zu kurz (Mindestdauer).',
@@ -2240,7 +2903,10 @@ export class PlanningStageService implements OnModuleInit {
     return aStart < bEnd && bStart < aEnd;
   }
 
-  private computeTimelineRange(activities: Activity[], fallback: TimelineRange): TimelineRange {
+  private computeTimelineRange(
+    activities: Activity[],
+    fallback: TimelineRange,
+  ): TimelineRange {
     if (!activities.length) {
       return { ...fallback };
     }

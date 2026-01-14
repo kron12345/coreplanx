@@ -9,4 +9,3 @@ import { TimetableService } from './timetable.service';
   exports: [TimetableService],
 })
 export class TimetableModule {}
-

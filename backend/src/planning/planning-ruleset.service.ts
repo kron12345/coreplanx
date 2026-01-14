@@ -1,10 +1,21 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
 import Ajv, { ValidateFunction } from 'ajv';
-import type { RulesetDocument, RulesetInclude, RulesetIR } from './planning-ruleset.types';
-import { compileRuleset, mergeRulesetDocuments } from './planning-ruleset.compiler';
+import type {
+  RulesetDocument,
+  RulesetInclude,
+  RulesetIR,
+} from './planning-ruleset.types';
+import {
+  compileRuleset,
+  mergeRulesetDocuments,
+} from './planning-ruleset.compiler';
 
 @Injectable()
 export class PlanningRulesetService {
@@ -28,7 +39,12 @@ export class PlanningRulesetService {
   listVersions(rulesetId: string): string[] {
     const dir = this.resolveRulesetDir(rulesetId);
     return readdirSync(dir)
-      .filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'))
+      .filter(
+        (entry) =>
+          entry.endsWith('.yaml') ||
+          entry.endsWith('.yml') ||
+          entry.endsWith('.json'),
+      )
       .map((entry) => entry.replace(/\.(yaml|yml|json)$/i, ''))
       .sort((a, b) => a.localeCompare(b));
   }
@@ -39,7 +55,10 @@ export class PlanningRulesetService {
   }
 
   getCompiledRuleset(rulesetId: string, version: string): RulesetIR {
-    const { document, includes } = this.loadRulesetWithIncludes(rulesetId, version);
+    const { document, includes } = this.loadRulesetWithIncludes(
+      rulesetId,
+      version,
+    );
     return compileRuleset(document, includes);
   }
 
@@ -55,9 +74,15 @@ export class PlanningRulesetService {
     const validation = this.validateRuleset(doc);
     if (!validation.valid) {
       const details = validation.errors.join('; ');
-      throw new BadRequestException(`Ruleset payload ist ungueltig: ${details}`);
+      throw new BadRequestException(
+        `Ruleset payload ist ungueltig: ${details}`,
+      );
     }
-    if (!resolveIncludes || !Array.isArray(doc.includes) || doc.includes.length === 0) {
+    if (
+      !resolveIncludes ||
+      !Array.isArray(doc.includes) ||
+      doc.includes.length === 0
+    ) {
       return compileRuleset({ ...doc, includes: [] }, []);
     }
     const { document, includes } = this.resolveIncludesForPayload(doc);
@@ -68,12 +93,19 @@ export class PlanningRulesetService {
     if (!payload || typeof payload !== 'object') {
       throw new BadRequestException('Ruleset payload ist ungueltig.');
     }
-    const maybeRaw = payload as { raw?: unknown; format?: unknown; document?: unknown };
+    const maybeRaw = payload as {
+      raw?: unknown;
+      format?: unknown;
+      document?: unknown;
+    };
     if (typeof maybeRaw.document === 'object' && maybeRaw.document !== null) {
       return this.coerceRulesetDocument(maybeRaw.document);
     }
     if (typeof maybeRaw.raw === 'string') {
-      const format = typeof maybeRaw.format === 'string' ? maybeRaw.format.trim().toLowerCase() : 'yaml';
+      const format =
+        typeof maybeRaw.format === 'string'
+          ? maybeRaw.format.trim().toLowerCase()
+          : 'yaml';
       const parsed = this.parseRawRuleset(maybeRaw.raw, format);
       return this.coerceRulesetDocument(parsed);
     }
@@ -87,7 +119,9 @@ export class PlanningRulesetService {
   ): { document: RulesetDocument; includes: RulesetInclude[] } {
     const key = `${rulesetId}:${version}`;
     if (chain.includes(key)) {
-      throw new BadRequestException(`Ruleset include cycle detected: ${[...chain, key].join(' -> ')}`);
+      throw new BadRequestException(
+        `Ruleset include cycle detected: ${[...chain, key].join(' -> ')}`,
+      );
     }
     const nextChain = [...chain, key];
     const document = this.loadRulesetDefinition(rulesetId, version);
@@ -101,9 +135,16 @@ export class PlanningRulesetService {
       if (!includeId || !includeVersion) {
         throw new BadRequestException(`Ruleset include is invalid for ${key}`);
       }
-      const included = this.loadRulesetWithIncludes(includeId, includeVersion, nextChain);
+      const included = this.loadRulesetWithIncludes(
+        includeId,
+        includeVersion,
+        nextChain,
+      );
       merged = mergeRulesetDocuments(merged, included.document);
-      resolvedIncludes.push({ id: includeId, version: includeVersion }, ...included.includes);
+      resolvedIncludes.push(
+        { id: includeId, version: includeVersion },
+        ...included.includes,
+      );
     }
 
     return {
@@ -112,12 +153,17 @@ export class PlanningRulesetService {
     };
   }
 
-  private loadRulesetDefinition(rulesetId: string, version: string): RulesetDocument {
+  private loadRulesetDefinition(
+    rulesetId: string,
+    version: string,
+  ): RulesetDocument {
     const path = this.resolveRulesetFile(rulesetId, version);
     const raw = readFileSync(path, 'utf-8');
     const parsed = path.endsWith('.json') ? JSON.parse(raw) : yaml.load(raw);
     if (!parsed || typeof parsed !== 'object') {
-      throw new BadRequestException(`Ruleset ${rulesetId}/${version} ist leer oder ungueltig.`);
+      throw new BadRequestException(
+        `Ruleset ${rulesetId}/${version} ist leer oder ungueltig.`,
+      );
     }
     const doc = parsed as RulesetDocument;
     this.assertValid(doc, path);
@@ -141,13 +187,17 @@ export class PlanningRulesetService {
       try {
         return JSON.parse(raw) as unknown;
       } catch (error) {
-        throw new BadRequestException(`Ruleset JSON ist ungueltig: ${(error as Error).message ?? String(error)}`);
+        throw new BadRequestException(
+          `Ruleset JSON ist ungueltig: ${(error as Error).message ?? String(error)}`,
+        );
       }
     }
     try {
       return yaml.load(raw) as unknown;
     } catch (error) {
-      throw new BadRequestException(`Ruleset YAML ist ungueltig: ${(error as Error).message ?? String(error)}`);
+      throw new BadRequestException(
+        `Ruleset YAML ist ungueltig: ${(error as Error).message ?? String(error)}`,
+      );
     }
   }
 
@@ -164,7 +214,9 @@ export class PlanningRulesetService {
   ): { document: RulesetDocument; includes: RulesetInclude[] } {
     const key = `payload:${doc.id}:${doc.version}`;
     if (chain.includes(key)) {
-      throw new BadRequestException(`Ruleset include cycle detected: ${[...chain, key].join(' -> ')}`);
+      throw new BadRequestException(
+        `Ruleset include cycle detected: ${[...chain, key].join(' -> ')}`,
+      );
     }
     const nextChain = [...chain, key];
     const includes = Array.isArray(doc.includes) ? doc.includes : [];
@@ -177,9 +229,16 @@ export class PlanningRulesetService {
       if (!includeId || !includeVersion) {
         throw new BadRequestException(`Ruleset include is invalid for ${key}`);
       }
-      const included = this.loadRulesetWithIncludes(includeId, includeVersion, nextChain);
+      const included = this.loadRulesetWithIncludes(
+        includeId,
+        includeVersion,
+        nextChain,
+      );
       merged = mergeRulesetDocuments(merged, included.document);
-      resolvedIncludes.push({ id: includeId, version: includeVersion }, ...included.includes);
+      resolvedIncludes.push(
+        { id: includeId, version: includeVersion },
+        ...included.includes,
+      );
     }
 
     return {
@@ -196,7 +255,8 @@ export class PlanningRulesetService {
           : 'dataPath' in entry
             ? entry.dataPath
             : '';
-      const pathLabel = typeof entryPath === 'string' && entryPath.length > 0 ? entryPath : '/';
+      const pathLabel =
+        typeof entryPath === 'string' && entryPath.length > 0 ? entryPath : '/';
       return `${pathLabel} ${entry.message ?? ''}`.trim();
     });
   }
@@ -219,13 +279,39 @@ export class PlanningRulesetService {
   private loadRulesetSchema(): Record<string, unknown> {
     const candidates = [
       join(process.cwd(), 'rulesets', 'schema', 'ruleset.schema.json'),
-      join(process.cwd(), 'backend', 'rulesets', 'schema', 'ruleset.schema.json'),
-      join(__dirname, '..', '..', '..', 'rulesets', 'schema', 'ruleset.schema.json'),
-      join(__dirname, '..', '..', '..', 'backend', 'rulesets', 'schema', 'ruleset.schema.json'),
+      join(
+        process.cwd(),
+        'backend',
+        'rulesets',
+        'schema',
+        'ruleset.schema.json',
+      ),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'rulesets',
+        'schema',
+        'ruleset.schema.json',
+      ),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'backend',
+        'rulesets',
+        'schema',
+        'ruleset.schema.json',
+      ),
     ];
     for (const candidate of candidates) {
       try {
-        return JSON.parse(readFileSync(candidate, 'utf-8')) as Record<string, unknown>;
+        return JSON.parse(readFileSync(candidate, 'utf-8')) as Record<
+          string,
+          unknown
+        >;
       } catch {
         // ignore
       }
@@ -251,7 +337,9 @@ export class PlanningRulesetService {
         return candidate;
       }
     }
-    throw new NotFoundException(`Ruleset ${rulesetId}/${version} nicht gefunden.`);
+    throw new NotFoundException(
+      `Ruleset ${rulesetId}/${version} nicht gefunden.`,
+    );
   }
 
   private assertRulesetRoot(): void {

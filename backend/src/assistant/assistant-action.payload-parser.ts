@@ -38,7 +38,10 @@ import {
 
 export class AssistantActionPayloadParser extends AssistantActionBase {
   parseActionPayload(content: string): ActionPayload | null {
-    const cleaned = content.replace(/```json/gi, '```').replace(/```/g, '').trim();
+    const cleaned = content
+      .replace(/```json/gi, '```')
+      .replace(/```/g, '')
+      .trim();
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
     if (start < 0 || end <= start) {
@@ -64,7 +67,9 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
       }
     }
     if (firstAttempt.error) {
-      this.logger.warn(`Assistant action JSON parse failed: ${firstAttempt.error.message}`);
+      this.logger.warn(
+        `Assistant action JSON parse failed: ${firstAttempt.error.message}`,
+      );
     }
     return null;
   }
@@ -88,13 +93,20 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
     repaired = repaired.replace(/]\s*\[/g, '],[');
     repaired = repaired.replace(/"\s+(?=")/g, '",');
     repaired = repaired.replace(/"\s+(?=[{\[\d-])/g, '",');
-    repaired = repaired.replace(/(\d|\btrue\b|\bfalse\b|\bnull\b)\s+(?=["{\[])/g, '$1,');
+    repaired = repaired.replace(
+      /(\d|\btrue\b|\bfalse\b|\bnull\b)\s+(?=["{\[])/g,
+      '$1,',
+    );
     return repaired;
   }
 
   async requestActionPayload(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  ): Promise<{ payload: ActionPayload | null; error?: string; rawResponse?: string }> {
+  ): Promise<{
+    payload: ActionPayload | null;
+    error?: string;
+    rawResponse?: string;
+  }> {
     let rawResponse: string;
     try {
       rawResponse = await this.ollama.createChatCompletion(messages, {
@@ -111,20 +123,35 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
 
     const parsed = this.parseActionPayload(rawResponse);
     if (!parsed) {
-      return { payload: null, error: 'Antwort ist kein JSON-Objekt.', rawResponse };
+      return {
+        payload: null,
+        error: 'Antwort ist kein JSON-Objekt.',
+        rawResponse,
+      };
     }
     const sanitized = this.sanitizeActionPayload(parsed);
     if (!sanitized) {
-      return { payload: null, error: 'Antwort ist kein JSON-Objekt.', rawResponse };
+      return {
+        payload: null,
+        error: 'Antwort ist kein JSON-Objekt.',
+        rawResponse,
+      };
     }
     const validation = this.validateActionPayload(sanitized);
     if (!validation.payload) {
-      return { payload: null, error: validation.error ?? 'Aktion ungueltig.', rawResponse };
+      return {
+        payload: null,
+        error: validation.error ?? 'Aktion ungueltig.',
+        rawResponse,
+      };
     }
     return { payload: validation.payload, rawResponse };
   }
 
-  validateActionPayload(payload: ActionPayload): { payload?: ActionPayload; error?: string } {
+  validateActionPayload(payload: ActionPayload): {
+    payload?: ActionPayload;
+    error?: string;
+  } {
     const migrated = this.migrateActionPayload(payload);
     if (!migrated.payload) {
       return { error: migrated.error ?? 'Schema-Version ungueltig.' };
@@ -151,15 +178,21 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
           return { error: 'Batch darf keine "none"-Aktionen enthalten.' };
         }
         if (!ALLOWED_ACTIONS.has(record['action'])) {
-          return { error: `Batch-Aktion "${record['action']}" wird nicht unterstuetzt.` };
+          return {
+            error: `Batch-Aktion "${record['action']}" wird nicht unterstuetzt.`,
+          };
         }
       }
     }
     return { payload: { ...payload, action } };
   }
 
-  migrateActionPayload(payload: ActionPayload): { payload?: ActionPayload; error?: string } {
-    const hasVersion = payload.schemaVersion !== undefined && payload.schemaVersion !== null;
+  migrateActionPayload(payload: ActionPayload): {
+    payload?: ActionPayload;
+    error?: string;
+  } {
+    const hasVersion =
+      payload.schemaVersion !== undefined && payload.schemaVersion !== null;
     const parsed = this.parseSchemaVersion(payload.schemaVersion);
     if (hasVersion && parsed === null) {
       return { error: 'Schema-Version ungueltig.' };
@@ -200,7 +233,8 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
           sanitized.reason = this.cleanText(record[key]);
           break;
         case 'schemaVersion':
-          sanitized.schemaVersion = this.parseSchemaVersion(record[key]) ?? Number.NaN;
+          sanitized.schemaVersion =
+            this.parseSchemaVersion(record[key]) ?? Number.NaN;
           break;
         case 'pool':
           sanitized.pool = this.sanitizePool(record[key]);
@@ -224,115 +258,223 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
           sanitized.vehiclePool = this.sanitizePool(record[key]);
           break;
         case 'homeDepot':
-          sanitized.homeDepot = this.sanitizeEntity(record[key], HOME_DEPOT_KEYS);
+          sanitized.homeDepot = this.sanitizeEntity(
+            record[key],
+            HOME_DEPOT_KEYS,
+          );
           break;
         case 'homeDepots':
-          sanitized.homeDepots = this.sanitizeEntity(record[key], HOME_DEPOT_KEYS);
+          sanitized.homeDepots = this.sanitizeEntity(
+            record[key],
+            HOME_DEPOT_KEYS,
+          );
           break;
         case 'vehicleType':
-          sanitized.vehicleType = this.sanitizeEntity(record[key], VEHICLE_TYPE_KEYS);
+          sanitized.vehicleType = this.sanitizeEntity(
+            record[key],
+            VEHICLE_TYPE_KEYS,
+          );
           break;
         case 'vehicleTypes':
-          sanitized.vehicleTypes = this.sanitizeEntity(record[key], VEHICLE_TYPE_KEYS);
+          sanitized.vehicleTypes = this.sanitizeEntity(
+            record[key],
+            VEHICLE_TYPE_KEYS,
+          );
           break;
         case 'vehicleComposition':
-          sanitized.vehicleComposition = this.sanitizeEntity(record[key], VEHICLE_COMPOSITION_KEYS);
+          sanitized.vehicleComposition = this.sanitizeEntity(
+            record[key],
+            VEHICLE_COMPOSITION_KEYS,
+          );
           break;
         case 'vehicleCompositions':
-          sanitized.vehicleCompositions = this.sanitizeEntity(record[key], VEHICLE_COMPOSITION_KEYS);
+          sanitized.vehicleCompositions = this.sanitizeEntity(
+            record[key],
+            VEHICLE_COMPOSITION_KEYS,
+          );
           break;
         case 'timetableYear':
-          sanitized.timetableYear = this.sanitizeEntity(record[key], TIMETABLE_YEAR_KEYS);
+          sanitized.timetableYear = this.sanitizeEntity(
+            record[key],
+            TIMETABLE_YEAR_KEYS,
+          );
           break;
         case 'timetableYears':
-          sanitized.timetableYears = this.sanitizeEntity(record[key], TIMETABLE_YEAR_KEYS);
+          sanitized.timetableYears = this.sanitizeEntity(
+            record[key],
+            TIMETABLE_YEAR_KEYS,
+          );
           break;
         case 'simulation':
-          sanitized.simulation = this.sanitizeEntity(record[key], SIMULATION_KEYS);
+          sanitized.simulation = this.sanitizeEntity(
+            record[key],
+            SIMULATION_KEYS,
+          );
           break;
         case 'simulations':
-          sanitized.simulations = this.sanitizeEntity(record[key], SIMULATION_KEYS);
+          sanitized.simulations = this.sanitizeEntity(
+            record[key],
+            SIMULATION_KEYS,
+          );
           break;
         case 'operationalPoint':
-          sanitized.operationalPoint = this.sanitizeEntity(record[key], OPERATIONAL_POINT_KEYS);
+          sanitized.operationalPoint = this.sanitizeEntity(
+            record[key],
+            OPERATIONAL_POINT_KEYS,
+          );
           break;
         case 'operationalPoints':
-          sanitized.operationalPoints = this.sanitizeEntity(record[key], OPERATIONAL_POINT_KEYS);
+          sanitized.operationalPoints = this.sanitizeEntity(
+            record[key],
+            OPERATIONAL_POINT_KEYS,
+          );
           break;
         case 'sectionOfLine':
-          sanitized.sectionOfLine = this.sanitizeEntity(record[key], SECTION_OF_LINE_KEYS);
+          sanitized.sectionOfLine = this.sanitizeEntity(
+            record[key],
+            SECTION_OF_LINE_KEYS,
+          );
           break;
         case 'sectionsOfLine':
-          sanitized.sectionsOfLine = this.sanitizeEntity(record[key], SECTION_OF_LINE_KEYS);
+          sanitized.sectionsOfLine = this.sanitizeEntity(
+            record[key],
+            SECTION_OF_LINE_KEYS,
+          );
           break;
         case 'personnelSite':
-          sanitized.personnelSite = this.sanitizeEntity(record[key], PERSONNEL_SITE_KEYS);
+          sanitized.personnelSite = this.sanitizeEntity(
+            record[key],
+            PERSONNEL_SITE_KEYS,
+          );
           break;
         case 'personnelSites':
-          sanitized.personnelSites = this.sanitizeEntity(record[key], PERSONNEL_SITE_KEYS);
+          sanitized.personnelSites = this.sanitizeEntity(
+            record[key],
+            PERSONNEL_SITE_KEYS,
+          );
           break;
         case 'replacementStop':
-          sanitized.replacementStop = this.sanitizeEntity(record[key], REPLACEMENT_STOP_KEYS);
+          sanitized.replacementStop = this.sanitizeEntity(
+            record[key],
+            REPLACEMENT_STOP_KEYS,
+          );
           break;
         case 'replacementStops':
-          sanitized.replacementStops = this.sanitizeEntity(record[key], REPLACEMENT_STOP_KEYS);
+          sanitized.replacementStops = this.sanitizeEntity(
+            record[key],
+            REPLACEMENT_STOP_KEYS,
+          );
           break;
         case 'replacementRoute':
-          sanitized.replacementRoute = this.sanitizeEntity(record[key], REPLACEMENT_ROUTE_KEYS);
+          sanitized.replacementRoute = this.sanitizeEntity(
+            record[key],
+            REPLACEMENT_ROUTE_KEYS,
+          );
           break;
         case 'replacementRoutes':
-          sanitized.replacementRoutes = this.sanitizeEntity(record[key], REPLACEMENT_ROUTE_KEYS);
+          sanitized.replacementRoutes = this.sanitizeEntity(
+            record[key],
+            REPLACEMENT_ROUTE_KEYS,
+          );
           break;
         case 'replacementEdge':
-          sanitized.replacementEdge = this.sanitizeEntity(record[key], REPLACEMENT_EDGE_KEYS);
+          sanitized.replacementEdge = this.sanitizeEntity(
+            record[key],
+            REPLACEMENT_EDGE_KEYS,
+          );
           break;
         case 'replacementEdges':
-          sanitized.replacementEdges = this.sanitizeEntity(record[key], REPLACEMENT_EDGE_KEYS);
+          sanitized.replacementEdges = this.sanitizeEntity(
+            record[key],
+            REPLACEMENT_EDGE_KEYS,
+          );
           break;
         case 'opReplacementStopLink':
-          sanitized.opReplacementStopLink = this.sanitizeEntity(record[key], OP_REPLACEMENT_STOP_LINK_KEYS);
+          sanitized.opReplacementStopLink = this.sanitizeEntity(
+            record[key],
+            OP_REPLACEMENT_STOP_LINK_KEYS,
+          );
           break;
         case 'opReplacementStopLinks':
-          sanitized.opReplacementStopLinks = this.sanitizeEntity(record[key], OP_REPLACEMENT_STOP_LINK_KEYS);
+          sanitized.opReplacementStopLinks = this.sanitizeEntity(
+            record[key],
+            OP_REPLACEMENT_STOP_LINK_KEYS,
+          );
           break;
         case 'transferEdge':
-          sanitized.transferEdge = this.sanitizeEntity(record[key], TRANSFER_EDGE_KEYS);
+          sanitized.transferEdge = this.sanitizeEntity(
+            record[key],
+            TRANSFER_EDGE_KEYS,
+          );
           break;
         case 'transferEdges':
-          sanitized.transferEdges = this.sanitizeEntity(record[key], TRANSFER_EDGE_KEYS);
+          sanitized.transferEdges = this.sanitizeEntity(
+            record[key],
+            TRANSFER_EDGE_KEYS,
+          );
           break;
         case 'activityTemplate':
-          sanitized.activityTemplate = this.sanitizeEntity(record[key], ACTIVITY_TEMPLATE_KEYS);
+          sanitized.activityTemplate = this.sanitizeEntity(
+            record[key],
+            ACTIVITY_TEMPLATE_KEYS,
+          );
           break;
         case 'activityTemplates':
-          sanitized.activityTemplates = this.sanitizeEntity(record[key], ACTIVITY_TEMPLATE_KEYS);
+          sanitized.activityTemplates = this.sanitizeEntity(
+            record[key],
+            ACTIVITY_TEMPLATE_KEYS,
+          );
           break;
         case 'activityDefinition':
-          sanitized.activityDefinition = this.sanitizeEntity(record[key], ACTIVITY_DEFINITION_KEYS);
+          sanitized.activityDefinition = this.sanitizeEntity(
+            record[key],
+            ACTIVITY_DEFINITION_KEYS,
+          );
           break;
         case 'activityDefinitions':
-          sanitized.activityDefinitions = this.sanitizeEntity(record[key], ACTIVITY_DEFINITION_KEYS);
+          sanitized.activityDefinitions = this.sanitizeEntity(
+            record[key],
+            ACTIVITY_DEFINITION_KEYS,
+          );
           break;
         case 'layerGroup':
-          sanitized.layerGroup = this.sanitizeEntity(record[key], LAYER_GROUP_KEYS);
+          sanitized.layerGroup = this.sanitizeEntity(
+            record[key],
+            LAYER_GROUP_KEYS,
+          );
           break;
         case 'layerGroups':
-          sanitized.layerGroups = this.sanitizeEntity(record[key], LAYER_GROUP_KEYS);
+          sanitized.layerGroups = this.sanitizeEntity(
+            record[key],
+            LAYER_GROUP_KEYS,
+          );
           break;
         case 'translations':
-          sanitized.translations = this.sanitizeEntity(record[key], TRANSLATION_KEYS);
+          sanitized.translations = this.sanitizeEntity(
+            record[key],
+            TRANSLATION_KEYS,
+          );
           break;
         case 'translation':
-          sanitized.translation = this.sanitizeEntity(record[key], TRANSLATION_KEYS);
+          sanitized.translation = this.sanitizeEntity(
+            record[key],
+            TRANSLATION_KEYS,
+          );
           break;
         case 'locale':
           sanitized.locale = this.cleanText(record[key]);
           break;
         case 'customAttribute':
-          sanitized.customAttribute = this.sanitizeEntity(record[key], CUSTOM_ATTRIBUTE_KEYS);
+          sanitized.customAttribute = this.sanitizeEntity(
+            record[key],
+            CUSTOM_ATTRIBUTE_KEYS,
+          );
           break;
         case 'customAttributes':
-          sanitized.customAttributes = this.sanitizeEntity(record[key], CUSTOM_ATTRIBUTE_KEYS);
+          sanitized.customAttributes = this.sanitizeEntity(
+            record[key],
+            CUSTOM_ATTRIBUTE_KEYS,
+          );
           break;
         case 'service':
           sanitized.service = this.sanitizeServices(record[key]);
@@ -508,7 +650,10 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
     return this.sanitizeRecord(record, PATCH_KEYS);
   }
 
-  sanitizeRecord(record: Record<string, unknown>, allowedKeys: string[]): Record<string, unknown> {
+  sanitizeRecord(
+    record: Record<string, unknown>,
+    allowedKeys: string[],
+  ): Record<string, unknown> {
     const sanitized: Record<string, unknown> = {};
     for (const key of allowedKeys) {
       if (this.hasOwn(record, key)) {
@@ -527,16 +672,22 @@ export class AssistantActionPayloadParser extends AssistantActionBase {
     }
     if (error instanceof OllamaOpenAiHttpError) {
       const message = this.extractOllamaErrorMessage(error.body ?? '');
-      return message ? `Ollama-Fehler: ${message}` : `Ollama-Fehler: ${error.status}`;
+      return message
+        ? `Ollama-Fehler: ${message}`
+        : `Ollama-Fehler: ${error.status}`;
     }
-    return (error as Error)?.message ?? 'Unbekannter Fehler bei der Ollama-Anfrage.';
+    return (
+      (error as Error)?.message ?? 'Unbekannter Fehler bei der Ollama-Anfrage.'
+    );
   }
 
   extractOllamaErrorMessage(body: string): string | null {
     if (!body) {
       return null;
     }
-    const payloadResult = this.tryParseJson<{ error?: { message?: string } }>(body);
+    const payloadResult = this.tryParseJson<{ error?: { message?: string } }>(
+      body,
+    );
     return payloadResult.value?.error?.message ?? null;
   }
 }

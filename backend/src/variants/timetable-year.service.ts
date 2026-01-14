@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { VariantPartitionService } from '../database/variant-partition.service';
 import {
@@ -8,7 +12,10 @@ import {
 } from '../shared/variant-scope';
 import { TemplateService } from '../template/template.service';
 import { DatabaseService } from '../database/database.service';
-import { PlanningVariantRecord, VariantsRepository } from './variants.repository';
+import {
+  PlanningVariantRecord,
+  VariantsRepository,
+} from './variants.repository';
 
 const SIMULATION_PREFIX = 'SIM-';
 
@@ -25,11 +32,15 @@ export class TimetableYearService {
     return this.repository.listTimetableYears();
   }
 
-  async listVariants(timetableYearLabel?: string): Promise<PlanningVariantRecord[]> {
+  async listVariants(
+    timetableYearLabel?: string,
+  ): Promise<PlanningVariantRecord[]> {
     return this.repository.listVariants(timetableYearLabel);
   }
 
-  async createYear(label: string): Promise<{ label: string; variantId: string }> {
+  async createYear(
+    label: string,
+  ): Promise<{ label: string; variantId: string }> {
     const trimmed = label?.trim();
     if (!trimmed) {
       throw new BadRequestException('label ist erforderlich (z. B. 2025/26).');
@@ -56,7 +67,9 @@ export class TimetableYearService {
     const yearLabel = payload.timetableYearLabel?.trim();
     const label = payload.label?.trim();
     if (!yearLabel) {
-      throw new BadRequestException('timetableYearLabel ist erforderlich (z. B. 2025/26).');
+      throw new BadRequestException(
+        'timetableYearLabel ist erforderlich (z. B. 2025/26).',
+      );
     }
     if (!label) {
       throw new BadRequestException('label ist erforderlich.');
@@ -96,7 +109,9 @@ export class TimetableYearService {
       throw new NotFoundException(`Variante ${normalizedId} existiert nicht.`);
     }
     if (existing.kind !== 'simulation') {
-      throw new BadRequestException('Nur Simulationen können hier geändert werden.');
+      throw new BadRequestException(
+        'Nur Simulationen können hier geändert werden.',
+      );
     }
 
     const nextLabel = payload.label?.trim() ?? existing.label;
@@ -156,8 +171,14 @@ export class TimetableYearService {
   private async deleteVariantData(variantId: string): Promise<void> {
     await this.partitions.dropPlanningPartitions(variantId);
     if (this.database.enabled) {
-      await this.database.query(`DELETE FROM activities WHERE variant_id = $1`, [variantId]);
-      await this.database.query(`DELETE FROM timetable_revision WHERE variant_id = $1`, [variantId]);
+      await this.database.query(
+        `DELETE FROM activities WHERE variant_id = $1`,
+        [variantId],
+      );
+      await this.database.query(
+        `DELETE FROM timetable_revision WHERE variant_id = $1`,
+        [variantId],
+      );
     }
     await this.deleteTemplatesForVariant(variantId);
   }
@@ -178,7 +199,10 @@ export class TimetableYearService {
     return derived ?? null;
   }
 
-  private buildSimulationVariantId(timetableYearLabel: string, label: string): string {
+  private buildSimulationVariantId(
+    timetableYearLabel: string,
+    label: string,
+  ): string {
     const yearLabel = timetableYearLabel.trim();
     const slugBase = label
       .trim()
@@ -190,7 +214,10 @@ export class TimetableYearService {
     return `${SIMULATION_PREFIX}${yearLabel}-${slug}-${short}`;
   }
 
-  private async copyTimetableIfEmpty(sourceVariantId: string, targetVariantId: string): Promise<void> {
+  private async copyTimetableIfEmpty(
+    sourceVariantId: string,
+    targetVariantId: string,
+  ): Promise<void> {
     if (!this.database.enabled) {
       return;
     }
@@ -248,7 +275,10 @@ export class TimetableYearService {
     );
 
     for (const stageId of stageIds) {
-      const range = rangesByStage.get(stageId) ?? { start: defaultStart, end: defaultEnd };
+      const range = rangesByStage.get(stageId) ?? {
+        start: defaultStart,
+        end: defaultEnd,
+      };
       await this.database.query(
         `
           INSERT INTO planning_stage (stage_id, variant_id, timeline_start, timeline_end)

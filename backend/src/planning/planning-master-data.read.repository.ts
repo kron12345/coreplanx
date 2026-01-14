@@ -352,8 +352,14 @@ export class PlanningMasterDataReadRepository {
         'topology_operational_point',
         'unique_op_id',
       ),
-      this.loadJsonCollection<SectionOfLine>('topology_section_of_line', 'sol_id'),
-      this.loadJsonCollection<PersonnelSite>('topology_personnel_site', 'site_id'),
+      this.loadJsonCollection<SectionOfLine>(
+        'topology_section_of_line',
+        'sol_id',
+      ),
+      this.loadJsonCollection<PersonnelSite>(
+        'topology_personnel_site',
+        'site_id',
+      ),
       this.loadJsonCollection<ReplacementStop>(
         'topology_replacement_stop',
         'replacement_stop_id',
@@ -370,7 +376,10 @@ export class PlanningMasterDataReadRepository {
         'topology_op_replacement_stop_link',
         'link_id',
       ),
-      this.loadJsonCollection<TransferEdge>('topology_transfer_edge', 'transfer_id'),
+      this.loadJsonCollection<TransferEdge>(
+        'topology_transfer_edge',
+        'transfer_id',
+      ),
     ]);
 
     const personnel = personnelRows.map((row) => this.mapPersonnel(row));
@@ -482,7 +491,7 @@ export class PlanningMasterDataReadRepository {
       const attrs = this.ensureRecord(row.attributes);
       const locationCode =
         typeof attrs['locationCode'] === 'string'
-          ? (attrs['locationCode'] as string)
+          ? attrs['locationCode']
           : typeof row.location_code === 'string'
             ? row.location_code
             : undefined;
@@ -511,9 +520,13 @@ export class PlanningMasterDataReadRepository {
     return poolRows.map((row) => {
       const attrs = this.ensureRecord(row.attributes);
       const shiftCoordinator =
-        typeof attrs['shiftCoordinator'] === 'string' ? (attrs['shiftCoordinator'] as string) : undefined;
+        typeof attrs['shiftCoordinator'] === 'string'
+          ? attrs['shiftCoordinator']
+          : undefined;
       const contactEmail =
-        typeof attrs['contactEmail'] === 'string' ? (attrs['contactEmail'] as string) : undefined;
+        typeof attrs['contactEmail'] === 'string'
+          ? attrs['contactEmail']
+          : undefined;
       return {
         ...attrs,
         id: row.id,
@@ -539,7 +552,10 @@ export class PlanningMasterDataReadRepository {
     });
     return poolRows.map((row) => {
       const attrs = this.ensureRecord(row.attributes);
-      const depotManager = typeof attrs['depotManager'] === 'string' ? (attrs['depotManager'] as string) : undefined;
+      const depotManager =
+        typeof attrs['depotManager'] === 'string'
+          ? attrs['depotManager']
+          : undefined;
       return {
         ...attrs,
         id: row.id,
@@ -564,7 +580,10 @@ export class PlanningMasterDataReadRepository {
     });
     return poolRows.map((row) => {
       const attrs = this.ensureRecord(row.attributes);
-      const dispatcher = typeof attrs['dispatcher'] === 'string' ? (attrs['dispatcher'] as string) : undefined;
+      const dispatcher =
+        typeof attrs['dispatcher'] === 'string'
+          ? attrs['dispatcher']
+          : undefined;
       return {
         ...attrs,
         id: row.id,
@@ -577,7 +596,9 @@ export class PlanningMasterDataReadRepository {
     });
   }
 
-  private ensureRecord(value: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  private ensureRecord(
+    value: Record<string, unknown> | null | undefined,
+  ): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return {};
     }
@@ -600,7 +621,8 @@ export class PlanningMasterDataReadRepository {
       brakeType: row.brake_type ?? undefined,
       brakePercentage: row.brake_percentage ?? undefined,
       tiltingCapability:
-        (row.tilting_capability as VehicleType['tiltingCapability']) ?? undefined,
+        (row.tilting_capability as VehicleType['tiltingCapability']) ??
+        undefined,
       powerSupplySystems: row.power_supply_systems ?? undefined,
       trainProtectionSystems: row.train_protection_systems ?? undefined,
       etcsLevel: row.etcs_level ?? undefined,
@@ -633,14 +655,20 @@ export class PlanningMasterDataReadRepository {
       ),
     ]);
 
-    return this.mapVehicleCompositions(compositionResult.rows, entryResult.rows);
+    return this.mapVehicleCompositions(
+      compositionResult.rows,
+      entryResult.rows,
+    );
   }
 
   private mapVehicleCompositions(
     rows: VehicleCompositionRow[],
     entryRows: VehicleCompositionEntryRow[],
   ): VehicleComposition[] {
-    const entriesByComposition = new Map<string, VehicleCompositionEntryRow[]>();
+    const entriesByComposition = new Map<
+      string,
+      VehicleCompositionEntryRow[]
+    >();
     entryRows.forEach((entry) => {
       const list = entriesByComposition.get(entry.composition_id) ?? [];
       list.push(entry);

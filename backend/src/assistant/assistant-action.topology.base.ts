@@ -47,7 +47,9 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     state: ActionTopologyState,
   ): AssistantActionCommitTask[] {
     const uniqueScopes = Array.from(new Set(scopes));
-    return uniqueScopes.map((scope) => this.buildTopologyCommitTask(scope, state));
+    return uniqueScopes.map((scope) =>
+      this.buildTopologyCommitTask(scope, state),
+    );
   }
 
   protected buildTopologyCommitTask(
@@ -112,7 +114,11 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     operationalPoints: OperationalPoint[],
     target: Record<string, unknown>,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { item?: OperationalPoint; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    item?: OperationalPoint;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const opId = this.cleanText(target['opId']) ?? this.cleanText(target['id']);
     if (opId) {
       const match = operationalPoints.find((entry) => entry.opId === opId);
@@ -124,14 +130,19 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
 
     const uniqueOpId = this.cleanText(target['uniqueOpId']);
     if (uniqueOpId) {
-      const match = operationalPoints.find((entry) => entry.uniqueOpId === uniqueOpId);
+      const match = operationalPoints.find(
+        (entry) => entry.uniqueOpId === uniqueOpId,
+      );
       if (!match) {
-        return { feedback: `Operational Point "${uniqueOpId}" nicht gefunden.` };
+        return {
+          feedback: `Operational Point "${uniqueOpId}" nicht gefunden.`,
+        };
       }
       return { item: match };
     }
 
-    const name = this.cleanText(target['name']) ?? this.cleanText(target['label']);
+    const name =
+      this.cleanText(target['name']) ?? this.cleanText(target['label']);
     if (!name) {
       return { feedback: 'Operational Point fehlt.' };
     }
@@ -169,9 +180,15 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     operationalPoints: OperationalPoint[],
     ref: string,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { uniqueOpId?: string; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    uniqueOpId?: string;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const trimmed = ref.trim();
-    const byUnique = operationalPoints.find((entry) => entry.uniqueOpId === trimmed);
+    const byUnique = operationalPoints.find(
+      (entry) => entry.uniqueOpId === trimmed,
+    );
     if (byUnique) {
       return { uniqueOpId: byUnique.uniqueOpId };
     }
@@ -213,8 +230,13 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     sections: SectionOfLine[],
     target: Record<string, unknown>,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { item?: SectionOfLine; feedback?: string; clarification?: ClarificationRequest } {
-    const solId = this.cleanText(target['solId']) ?? this.cleanText(target['id']);
+  ): {
+    item?: SectionOfLine;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
+    const solId =
+      this.cleanText(target['solId']) ?? this.cleanText(target['id']);
     if (solId) {
       const match = sections.find((entry) => entry.solId === solId);
       if (!match) {
@@ -228,8 +250,7 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
       return { feedback: 'Section of Line ID fehlt.' };
     }
     const matches = sections.filter(
-      (entry) =>
-        entry.startUniqueOpId === start && entry.endUniqueOpId === end,
+      (entry) => entry.startUniqueOpId === start && entry.endUniqueOpId === end,
     );
     if (!matches.length) {
       return { feedback: 'Section of Line nicht gefunden.' };
@@ -257,7 +278,11 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     sites: PersonnelSite[],
     ref: string,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { siteId?: string; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    siteId?: string;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const trimmed = ref.trim();
     const direct = sites.find((site) => site.siteId === trimmed);
     if (direct) {
@@ -297,7 +322,11 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     stops: ReplacementStop[],
     ref: string,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { stopId?: string; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    stopId?: string;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const trimmed = ref.trim();
     const direct = stops.find((stop) => stop.replacementStopId === trimmed);
     if (direct) {
@@ -337,7 +366,11 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     routes: ReplacementRoute[],
     ref: string,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { routeId?: string; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    routeId?: string;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const trimmed = ref.trim();
     const direct = routes.find((route) => route.replacementRouteId === trimmed);
     if (direct) {
@@ -377,9 +410,14 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     edges: ReplacementEdge[],
     target: Record<string, unknown>,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { item?: ReplacementEdge; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    item?: ReplacementEdge;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const edgeId =
-      this.cleanText(target['replacementEdgeId']) ?? this.cleanText(target['id']);
+      this.cleanText(target['replacementEdgeId']) ??
+      this.cleanText(target['id']);
     if (edgeId) {
       const match = edges.find((entry) => entry.replacementEdgeId === edgeId);
       if (!match) {
@@ -418,8 +456,13 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     links: OpReplacementStopLink[],
     target: Record<string, unknown>,
     clarification?: { apply: AssistantActionClarificationApply },
-  ): { item?: OpReplacementStopLink; feedback?: string; clarification?: ClarificationRequest } {
-    const linkId = this.cleanText(target['linkId']) ?? this.cleanText(target['id']);
+  ): {
+    item?: OpReplacementStopLink;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
+    const linkId =
+      this.cleanText(target['linkId']) ?? this.cleanText(target['id']);
     if (linkId) {
       const match = links.find((entry) => entry.linkId === linkId);
       if (!match) {
@@ -475,7 +518,11 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
     value: unknown,
     state: ActionTopologyState,
     clarification?: { applyPath: Array<string | number> },
-  ): { node?: TransferNode; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    node?: TransferNode;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const record = this.asRecord(value);
     if (!record) {
       return { feedback: 'Transfer-Knoten fehlt.' };
@@ -510,7 +557,9 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
           return { clarification: opResult.clarification };
         }
         if (opResult.feedback || !opResult.uniqueOpId) {
-          return { feedback: opResult.feedback ?? 'Operational Point nicht gefunden.' };
+          return {
+            feedback: opResult.feedback ?? 'Operational Point nicht gefunden.',
+          };
         }
         return { node: { kind: 'OP', uniqueOpId: opResult.uniqueOpId } };
       }
@@ -536,7 +585,9 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
           return { clarification: siteResult.clarification };
         }
         if (siteResult.feedback || !siteResult.siteId) {
-          return { feedback: siteResult.feedback ?? 'Personnel Site nicht gefunden.' };
+          return {
+            feedback: siteResult.feedback ?? 'Personnel Site nicht gefunden.',
+          };
         }
         return { node: { kind: 'PERSONNEL_SITE', siteId: siteResult.siteId } };
       }
@@ -563,22 +614,34 @@ export class AssistantActionTopologyBase extends AssistantActionBase {
           return { clarification: stopResult.clarification };
         }
         if (stopResult.feedback || !stopResult.stopId) {
-          return { feedback: stopResult.feedback ?? 'Replacement Stop nicht gefunden.' };
+          return {
+            feedback: stopResult.feedback ?? 'Replacement Stop nicht gefunden.',
+          };
         }
-        return { node: { kind: 'REPLACEMENT_STOP', replacementStopId: stopResult.stopId } };
+        return {
+          node: {
+            kind: 'REPLACEMENT_STOP',
+            replacementStopId: stopResult.stopId,
+          },
+        };
       }
       default:
         return { feedback: `Transfer-Knoten: Unbekannter Typ "${kindRaw}".` };
     }
   }
 
-  protected transferNodeMatches(node: TransferNode, target: TransferNode): boolean {
+  protected transferNodeMatches(
+    node: TransferNode,
+    target: TransferNode,
+  ): boolean {
     if (node.kind !== target.kind) {
       return false;
     }
     switch (node.kind) {
       case 'OP':
-        return node.uniqueOpId === (target as { uniqueOpId: string }).uniqueOpId;
+        return (
+          node.uniqueOpId === (target as { uniqueOpId: string }).uniqueOpId
+        );
       case 'PERSONNEL_SITE':
         return node.siteId === (target as { siteId: string }).siteId;
       case 'REPLACEMENT_STOP':

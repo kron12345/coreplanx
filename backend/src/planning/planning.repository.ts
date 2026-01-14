@@ -33,7 +33,11 @@ import { PlanningActivityCatalogRepository } from './planning-activity-catalog.r
 import { PlanningMasterDataRepository } from './planning-master-data.repository';
 import { PlanningStageRepository } from './planning-stage.repository';
 
-export type { ActivityCatalogData, MasterDataSets, StageData } from './planning.repository.types';
+export type {
+  ActivityCatalogData,
+  MasterDataSets,
+  StageData,
+} from './planning.repository.types';
 
 @Injectable()
 export class PlanningRepository {
@@ -47,7 +51,10 @@ export class PlanningRepository {
     return this.stageRepository.isEnabled;
   }
 
-  loadStageData(stageId: StageId, variantId: string): Promise<StageData | null> {
+  loadStageData(
+    stageId: StageId,
+    variantId: string,
+  ): Promise<StageData | null> {
     return this.stageRepository.loadStageData(stageId, variantId);
   }
 
@@ -58,7 +65,13 @@ export class PlanningRepository {
     version?: string | null,
     timetableYearLabel?: string | null,
   ): Promise<void> {
-    return this.stageRepository.updateStageMetadata(stageId, variantId, timeline, version, timetableYearLabel);
+    return this.stageRepository.updateStageMetadata(
+      stageId,
+      variantId,
+      timeline,
+      version,
+      timetableYearLabel,
+    );
   }
 
   applyResourceMutations(
@@ -67,7 +80,12 @@ export class PlanningRepository {
     upserts: Resource[],
     deleteIds: string[],
   ): Promise<void> {
-    return this.stageRepository.applyResourceMutations(stageId, variantId, upserts, deleteIds);
+    return this.stageRepository.applyResourceMutations(
+      stageId,
+      variantId,
+      upserts,
+      deleteIds,
+    );
   }
 
   applyActivityMutations(
@@ -76,10 +94,19 @@ export class PlanningRepository {
     upserts: Activity[],
     deleteIds: string[],
   ): Promise<void> {
-    return this.stageRepository.applyActivityMutations(stageId, variantId, upserts, deleteIds);
+    return this.stageRepository.applyActivityMutations(
+      stageId,
+      variantId,
+      upserts,
+      deleteIds,
+    );
   }
 
-  deleteActivities(stageId: StageId, variantId: string, deleteIds: string[]): Promise<void> {
+  deleteActivities(
+    stageId: StageId,
+    variantId: string,
+    deleteIds: string[],
+  ): Promise<void> {
     return this.stageRepository.deleteActivities(stageId, variantId, deleteIds);
   }
 

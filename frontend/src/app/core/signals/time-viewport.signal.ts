@@ -19,6 +19,7 @@ export interface TimeViewportOptions {
   initialZoom?: ZoomLevel;
   initialRangeMs?: number;
   initialCenter?: Date;
+  viewportWidthPx?: number | null;
 }
 
 export interface TimeViewport {
@@ -28,6 +29,7 @@ export interface TimeViewport {
   readonly scrollX: () => number;
   readonly rangeMs: () => number;
   readonly pixelsPerMs: () => number;
+  setViewportWidth(widthPx: number): void;
   zoomIn(center?: Date): void;
   zoomOut(center?: Date): void;
   zoomBy(factor: number, center?: Date): void;
@@ -53,6 +55,11 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
   const minRange = Math.min(MIN_RANGE_MS, timelineDuration);
   const maxRange = Math.max(minRange, timelineDuration);
   const rangeSignal = signal(clampRange(requestedRange, minRange, maxRange));
+  const viewportWidthSignal = signal(
+    Number.isFinite(options.viewportWidthPx as number)
+      ? Math.max(0, Number(options.viewportWidthPx))
+      : 0,
+  );
 
   const initialCenter = options.initialCenter ?? new Date();
   const initialStart = clampToTimeline(
@@ -64,7 +71,14 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
 
   const viewStart = signal<Date>(initialStart);
   const viewEnd = computed(() => new Date(viewStart().getTime() + rangeSignal()));
-  const pixelsPerMs = computed(() => interpolatePixelsPerMs(rangeSignal()));
+  const pixelsPerMs = computed(() => {
+    const widthPx = viewportWidthSignal();
+    const range = rangeSignal();
+    if (Number.isFinite(widthPx) && widthPx > 0 && Number.isFinite(range) && range > 0) {
+      return widthPx / range;
+    }
+    return interpolatePixelsPerMs(range);
+  });
   const scrollX = computed(() => {
     const pxPerMs = pixelsPerMs();
     const startTime = viewStart().getTime();
@@ -165,6 +179,16 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     scrollX: () => scrollX(),
     rangeMs,
     pixelsPerMs: () => pixelsPerMs(),
+    setViewportWidth: (widthPx: number) => {
+      if (!Number.isFinite(widthPx)) {
+        return;
+      }
+      const next = Math.max(0, widthPx);
+      if (next === viewportWidthSignal()) {
+        return;
+      }
+      viewportWidthSignal.set(next);
+    },
     zoomIn,
     zoomOut,
     zoomBy,

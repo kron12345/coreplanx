@@ -19,7 +19,10 @@ import type {
   ActionTopologyState,
   ClarificationRequest,
 } from './assistant-action.engine.types';
-import type { AssistantActionPreviewResponseDto, AssistantUiContextDto } from './assistant.dto';
+import type {
+  AssistantActionPreviewResponseDto,
+  AssistantUiContextDto,
+} from './assistant.dto';
 import type {
   HomeDepot,
   OperationalPoint,
@@ -40,7 +43,10 @@ import type {
 import type { PlanningService } from '../planning/planning.service';
 import type { TimetableYearService } from '../variants/timetable-year.service';
 import type { OllamaOpenAiClient } from './ollama-openai.client';
-import { applyMessageBudget, buildUiContextMessage } from './assistant-context-budget';
+import {
+  applyMessageBudget,
+  buildUiContextMessage,
+} from './assistant-context-budget';
 
 export class AssistantActionBase {
   protected readonly logger: Logger;
@@ -144,13 +150,17 @@ export class AssistantActionBase {
       replacementStops: this.cloneList(this.planning.listReplacementStops()),
       replacementRoutes: this.cloneList(this.planning.listReplacementRoutes()),
       replacementEdges: this.cloneList(this.planning.listReplacementEdges()),
-      opReplacementStopLinks: this.cloneList(this.planning.listOpReplacementStopLinks()),
+      opReplacementStopLinks: this.cloneList(
+        this.planning.listOpReplacementStopLinks(),
+      ),
       transferEdges: this.cloneList(this.planning.listTransferEdges()),
     };
   }
 
   protected hashSnapshot(snapshot: ResourceSnapshot): string {
-    return createHash('sha256').update(this.stableStringify(snapshot)).digest('hex');
+    return createHash('sha256')
+      .update(this.stableStringify(snapshot))
+      .digest('hex');
   }
 
   protected stableStringify(value: unknown): string {
@@ -164,7 +174,10 @@ export class AssistantActionBase {
       const entries = Object.entries(value as Record<string, unknown>)
         .filter(([, entry]) => entry !== undefined)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, entry]) => `${JSON.stringify(key)}:${this.stableStringify(entry)}`);
+        .map(
+          ([key, entry]) =>
+            `${JSON.stringify(key)}:${this.stableStringify(entry)}`,
+        );
       return `{${entries.join(',')}}`;
     }
     return JSON.stringify(value);
@@ -184,7 +197,7 @@ export class AssistantActionBase {
           return;
         }
         if (!Array.isArray(cursor) && typeof segment === 'string') {
-          (cursor as Record<string, unknown>)[segment] = value;
+          cursor[segment] = value;
           return;
         }
         return;
@@ -199,7 +212,7 @@ export class AssistantActionBase {
         continue;
       }
       if (!Array.isArray(cursor) && typeof segment === 'string') {
-        const record = cursor as Record<string, unknown>;
+        const record = cursor;
         if (!record[segment]) {
           record[segment] = typeof nextSegment === 'number' ? [] : {};
         }
@@ -225,7 +238,8 @@ export class AssistantActionBase {
     for (const task of incoming) {
       if (task.type === 'topology') {
         const index = next.findIndex(
-          (existing) => existing.type === 'topology' && existing.scope === task.scope,
+          (existing) =>
+            existing.type === 'topology' && existing.scope === task.scope,
         );
         if (index >= 0) {
           next[index] = task;
@@ -250,7 +264,8 @@ export class AssistantActionBase {
       }
       if (task.type === 'translations') {
         const index = next.findIndex(
-          (existing) => existing.type === 'translations' && existing.locale === task.locale,
+          (existing) =>
+            existing.type === 'translations' && existing.locale === task.locale,
         );
         if (index >= 0) {
           next[index] = task;
@@ -354,24 +369,35 @@ export class AssistantActionBase {
       return [];
     }
     const docBudget = Math.min(maxChars, this.config.maxDocChars);
-    return this.docs.buildDocumentationMessages(uiContext, { maxChars: docBudget });
+    return this.docs.buildDocumentationMessages(uiContext, {
+      maxChars: docBudget,
+    });
   }
 
   protected buildUiContextMessages(
     uiContext?: AssistantUiContextDto,
   ): Array<{ role: 'system'; content: string }> {
-    const content = buildUiContextMessage(uiContext, { maxDataChars: this.config.maxUiDataChars });
+    const content = buildUiContextMessage(uiContext, {
+      maxDataChars: this.config.maxUiDataChars,
+    });
     if (!content) {
       return [];
     }
     return [{ role: 'system', content }];
   }
 
-  protected countMessageChars(messages: Array<{ role: 'system'; content: string }>): number {
-    return messages.reduce((total, message) => total + message.content.length, 0);
+  protected countMessageChars(
+    messages: Array<{ role: 'system'; content: string }>,
+  ): number {
+    return messages.reduce(
+      (total, message) => total + message.content.length,
+      0,
+    );
   }
 
-  protected sanitizeUiContext(value?: AssistantUiContextDto): AssistantUiContextDto | undefined {
+  protected sanitizeUiContext(
+    value?: AssistantUiContextDto,
+  ): AssistantUiContextDto | undefined {
     if (!value) {
       return value;
     }
@@ -467,7 +493,9 @@ export class AssistantActionBase {
 
   protected parseStringArray(value: unknown): string[] | undefined {
     if (Array.isArray(value)) {
-      return value.map((entry) => this.cleanText(entry)).filter(Boolean) as string[];
+      return value
+        .map((entry) => this.cleanText(entry))
+        .filter(Boolean) as string[];
     }
     if (typeof value === 'string') {
       const parsed = value
@@ -494,7 +522,10 @@ export class AssistantActionBase {
     return Object.prototype.hasOwnProperty.call(record, key);
   }
 
-  protected hasAnyKey(record: Record<string, unknown>, keys: string[]): boolean {
+  protected hasAnyKey(
+    record: Record<string, unknown>,
+    keys: string[],
+  ): boolean {
     return keys.some((key) => this.hasOwn(record, key));
   }
 
@@ -650,8 +681,15 @@ export class AssistantActionBase {
     pools: Array<{ id: string; name: string }>,
     poolRef: string,
     label: string,
-    options: { allowSystem: boolean; systemId: string; systemFeedback?: string },
-    clarification?: { title?: string; apply: AssistantActionClarificationApply },
+    options: {
+      allowSystem: boolean;
+      systemId: string;
+      systemFeedback?: string;
+    },
+    clarification?: {
+      title?: string;
+      apply: AssistantActionClarificationApply;
+    },
   ): {
     id?: string;
     label?: string;
@@ -662,12 +700,16 @@ export class AssistantActionBase {
     const byId = pools.find((pool) => pool.id === ref);
     if (byId) {
       if (!options.allowSystem && byId.id === options.systemId) {
-        return { feedback: options.systemFeedback ?? 'System-Pool ist nicht erlaubt.' };
+        return {
+          feedback: options.systemFeedback ?? 'System-Pool ist nicht erlaubt.',
+        };
       }
       return { id: byId.id, label: byId.name };
     }
     const normalized = this.normalizeKey(ref);
-    const matches = pools.filter((pool) => this.normalizeKey(pool.name) === normalized);
+    const matches = pools.filter(
+      (pool) => this.normalizeKey(pool.name) === normalized,
+    );
     if (!matches.length) {
       return { feedback: `${label} "${poolRef}" nicht gefunden.` };
     }
@@ -675,7 +717,9 @@ export class AssistantActionBase {
       ? matches
       : matches.filter((pool) => pool.id !== options.systemId);
     if (!filteredMatches.length) {
-      return { feedback: options.systemFeedback ?? 'System-Pool ist nicht erlaubt.' };
+      return {
+        feedback: options.systemFeedback ?? 'System-Pool ist nicht erlaubt.',
+      };
     }
     if (filteredMatches.length > 1) {
       if (clarification) {
@@ -707,7 +751,10 @@ export class AssistantActionBase {
   protected resolveHomeDepotIdByReference(
     depots: HomeDepot[],
     depotRef: string,
-    clarification?: { title?: string; apply: AssistantActionClarificationApply },
+    clarification?: {
+      title?: string;
+      apply: AssistantActionClarificationApply;
+    },
   ): { id?: string; feedback?: string; clarification?: ClarificationRequest } {
     const ref = depotRef.trim();
     const byId = depots.find((depot) => depot.id === ref);
@@ -715,7 +762,9 @@ export class AssistantActionBase {
       return { id: byId.id };
     }
     const normalized = this.normalizeKey(ref);
-    const matches = depots.filter((depot) => this.normalizeKey(depot.name) === normalized);
+    const matches = depots.filter(
+      (depot) => this.normalizeKey(depot.name) === normalized,
+    );
     if (!matches.length) {
       return { feedback: `Heimatdepot "${depotRef}" nicht gefunden.` };
     }
@@ -748,7 +797,10 @@ export class AssistantActionBase {
   protected resolveVehicleTypeIdByReference(
     types: VehicleType[],
     typeRef: string,
-    clarification?: { title?: string; apply: AssistantActionClarificationApply },
+    clarification?: {
+      title?: string;
+      apply: AssistantActionClarificationApply;
+    },
   ): { id?: string; feedback?: string; clarification?: ClarificationRequest } {
     const ref = typeRef.trim();
     const byId = types.find((entry) => entry.id === ref);
@@ -756,7 +808,9 @@ export class AssistantActionBase {
       return { id: byId.id };
     }
     const normalized = this.normalizeKey(ref);
-    const matches = types.filter((entry) => this.normalizeKey(entry.label) === normalized);
+    const matches = types.filter(
+      (entry) => this.normalizeKey(entry.label) === normalized,
+    );
     if (!matches.length) {
       return { feedback: `Fahrzeugtyp "${typeRef}" nicht gefunden.` };
     }
@@ -814,7 +868,9 @@ export class AssistantActionBase {
     state: ActionTopologyState,
   ): AssistantActionCommitTask[] {
     const uniqueScopes = Array.from(new Set(scopes));
-    return uniqueScopes.map((scope) => this.buildTopologyCommitTask(scope, state));
+    return uniqueScopes.map((scope) =>
+      this.buildTopologyCommitTask(scope, state),
+    );
   }
 
   protected buildTopologyCommitTask(

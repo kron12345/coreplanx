@@ -31,7 +31,9 @@ export class TimelineRepository {
     if (!this.isEnabled) {
       return [];
     }
-    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
+    const normalizedVariantId = variantId?.trim().length
+      ? variantId.trim()
+      : 'default';
     const result = await this.database.query<ActivityRow>(
       `
         SELECT

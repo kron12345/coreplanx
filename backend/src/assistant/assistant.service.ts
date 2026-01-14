@@ -16,7 +16,10 @@ import {
   AssistantHelpResponseDto,
 } from './assistant.dto';
 import { AssistantConversationStore } from './assistant.conversation-store';
-import type { StoredAssistantChatMessage, StoredConversationState } from './assistant.conversation-store';
+import type {
+  StoredAssistantChatMessage,
+  StoredConversationState,
+} from './assistant.conversation-store';
 import {
   OllamaOpenAiClient,
   OllamaOpenAiHttpError,
@@ -44,7 +47,9 @@ export class AssistantService {
     private readonly context: AssistantContextService,
   ) {}
 
-  async chat(request: AssistantChatRequestDto): Promise<AssistantChatResponseDto> {
+  async chat(
+    request: AssistantChatRequestDto,
+  ): Promise<AssistantChatResponseDto> {
     const prompt = request.prompt?.trim?.() ?? '';
     if (!prompt) {
       throw new BadRequestException('prompt is required');
@@ -66,7 +71,9 @@ export class AssistantService {
       );
     } catch (error) {
       if ((error as Error)?.message?.includes('belongs to another client')) {
-        throw new ForbiddenException('conversationId is owned by another client');
+        throw new ForbiddenException(
+          'conversationId is owned by another client',
+        );
       }
       throw error;
     }
@@ -76,7 +83,10 @@ export class AssistantService {
     const status: Array<{ stage: string; message: string }> = [];
     const prefetch = await this.context.prefetch(prompt, uiContext);
     if (prefetch) {
-      status.push({ stage: 'prefetch', message: this.context.describeStatus(prefetch) });
+      status.push({
+        stage: 'prefetch',
+        message: this.context.describeStatus(prefetch),
+      });
     }
     const contextMessages = this.buildContextMessages(
       conversationId,
@@ -97,7 +107,8 @@ export class AssistantService {
 
     let assistantContent: string;
     try {
-      assistantContent = await this.ollama.createChatCompletion(messagesForModel);
+      assistantContent =
+        await this.ollama.createChatCompletion(messagesForModel);
     } catch (error) {
       this.logger.error(
         `Assistant chat failed (model=${this.config.ollamaModel})`,
@@ -130,7 +141,8 @@ export class AssistantService {
         })),
       ];
       try {
-        assistantContent = await this.ollama.createChatCompletion(followupMessages);
+        assistantContent =
+          await this.ollama.createChatCompletion(followupMessages);
       } catch (error) {
         this.logger.error(
           `Assistant chat failed (model=${this.config.ollamaModel})`,
@@ -173,7 +185,9 @@ export class AssistantService {
     };
   }
 
-  async help(request: AssistantHelpRequestDto): Promise<AssistantHelpResponseDto> {
+  async help(
+    request: AssistantHelpRequestDto,
+  ): Promise<AssistantHelpResponseDto> {
     const resolved = this.docs.resolveDocumentation(request.uiContext);
     if (!resolved) {
       return { available: false };
@@ -284,14 +298,21 @@ export class AssistantService {
     }
 
     const signature = `${resolved.sourcePath}#${resolved.subtopic ?? ''}`;
-    if (!options?.force && mode === 'on-change' && conversation.lastDocSignature === signature) {
+    if (
+      !options?.force &&
+      mode === 'on-change' &&
+      conversation.lastDocSignature === signature
+    ) {
       return [];
     }
 
     const docBudget = Math.min(maxChars, this.config.maxDocChars);
-    const docMessages = this.docs.buildDocumentationMessagesFromResolved(resolved, {
-      maxChars: docBudget,
-    });
+    const docMessages = this.docs.buildDocumentationMessagesFromResolved(
+      resolved,
+      {
+        maxChars: docBudget,
+      },
+    );
     if (!docMessages.length) {
       return [];
     }
@@ -313,13 +334,15 @@ export class AssistantService {
     }
 
     const batch = conversation.summaryPending.splice(0, batchSize);
-    const summary = await this.summarize(conversation.summary, batch).catch((error) => {
-      this.logger.warn(
-        `Assistant summary update failed (conversationId=${conversationId})`,
-        (error as Error)?.stack ?? String(error),
-      );
-      return null;
-    });
+    const summary = await this.summarize(conversation.summary, batch).catch(
+      (error) => {
+        this.logger.warn(
+          `Assistant summary update failed (conversationId=${conversationId})`,
+          (error as Error)?.stack ?? String(error),
+        );
+        return null;
+      },
+    );
 
     if (!summary) {
       return;
@@ -399,7 +422,10 @@ export class AssistantService {
     }
     if (error instanceof OllamaOpenAiHttpError) {
       const upstreamMessage = this.extractOllamaErrorMessage(error.body);
-      if (error.status === 404 && upstreamMessage?.toLowerCase().includes('model')) {
+      if (
+        error.status === 404 &&
+        upstreamMessage?.toLowerCase().includes('model')
+      ) {
         return `Ollama: Modell '${this.config.ollamaModel}' nicht gefunden. Installiere es z. B. mit: ollama pull ${this.config.ollamaModel}`;
       }
       if (error.status === 401 || error.status === 403) {
@@ -419,7 +445,9 @@ export class AssistantService {
     try {
       const parsed = JSON.parse(text) as { error?: { message?: unknown } };
       const message = parsed?.error?.message;
-      return typeof message === 'string' && message.trim() ? message.trim() : null;
+      return typeof message === 'string' && message.trim()
+        ? message.trim()
+        : null;
     } catch {
       return null;
     }
@@ -437,8 +465,13 @@ export class AssistantService {
     return [{ role: 'system', content }];
   }
 
-  private countMessageChars(messages: Array<{ role: 'system'; content: string }>): number {
-    return messages.reduce((total, message) => total + message.content.length, 0);
+  private countMessageChars(
+    messages: Array<{ role: 'system'; content: string }>,
+  ): number {
+    return messages.reduce(
+      (total, message) => total + message.content.length,
+      0,
+    );
   }
 
   private sanitizeUiContext(

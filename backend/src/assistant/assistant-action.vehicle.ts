@@ -22,10 +22,13 @@ export class AssistantActionVehicle extends AssistantActionBase {
     context: ActionContext,
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
-    const poolSource = payload.pool ?? payloadRecord['vehiclePool'] ?? payloadRecord['pool'];
+    const poolSource =
+      payload.pool ?? payloadRecord['vehiclePool'] ?? payloadRecord['pool'];
     const poolRecord = this.asRecord(poolSource);
     const poolName =
-      this.cleanText(typeof poolSource === 'string' ? poolSource : poolRecord?.['name']) ??
+      this.cleanText(
+        typeof poolSource === 'string' ? poolSource : poolRecord?.['name'],
+      ) ??
       this.cleanText(poolRecord?.['poolName']) ??
       this.cleanText(payloadRecord['poolName']);
     if (!poolName) {
@@ -55,7 +58,12 @@ export class AssistantActionVehicle extends AssistantActionBase {
 
     const summary = `Neuer Fahrzeugpool "${poolName}".`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'create', entityType: 'vehiclePool', id: poolId, label: poolName },
+      {
+        kind: 'create',
+        entityType: 'vehiclePool',
+        id: poolId,
+        label: poolName,
+      },
     ];
 
     return {
@@ -76,7 +84,9 @@ export class AssistantActionVehicle extends AssistantActionBase {
       payload.vehicles ?? payloadRecord['vehicle'] ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Fahrzeug wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Fahrzeug wird benötigt.',
+      );
     }
 
     const defaultPoolRef = this.parsePoolReference(
@@ -97,7 +107,9 @@ export class AssistantActionVehicle extends AssistantActionBase {
         this.cleanText(
           typeof raw === 'string'
             ? raw
-            : record?.['vehicleNumber'] ?? record?.['number'] ?? record?.['name'],
+            : (record?.['vehicleNumber'] ??
+                record?.['number'] ??
+                record?.['name']),
         ) ?? undefined;
       if (!vehicleNumber) {
         return this.buildFeedbackResponse('Fahrzeugnummer fehlt.');
@@ -139,7 +151,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
         { apply: { mode: 'value', path: ['vehicles', index, 'typeId'] } },
       );
       if (typeResult.clarification) {
-        return this.buildClarificationResponse(typeResult.clarification, context);
+        return this.buildClarificationResponse(
+          typeResult.clarification,
+          context,
+        );
       }
       if (typeResult.feedback) {
         return this.buildFeedbackResponse(
@@ -167,7 +182,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
           },
         );
         if (resolvedPool.clarification) {
-          return this.buildClarificationResponse(resolvedPool.clarification, context);
+          return this.buildClarificationResponse(
+            resolvedPool.clarification,
+            context,
+          );
         }
         if (resolvedPool.feedback) {
           return this.buildFeedbackResponse(
@@ -180,7 +198,9 @@ export class AssistantActionVehicle extends AssistantActionBase {
       }
 
       const serviceNames = this.parseStringArray(
-        record?.['services'] ?? record?.['serviceNames'] ?? record?.['serviceIds'],
+        record?.['services'] ??
+          record?.['serviceNames'] ??
+          record?.['serviceIds'],
       );
       const serviceResult = this.resolveVehicleServiceIds(
         snapshot.vehicleServices,
@@ -193,7 +213,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
           : undefined,
       );
       if (serviceResult.clarification) {
-        return this.buildClarificationResponse(serviceResult.clarification, context);
+        return this.buildClarificationResponse(
+          serviceResult.clarification,
+          context,
+        );
       }
       if (serviceResult.feedback) {
         return this.buildFeedbackResponse(
@@ -245,26 +268,40 @@ export class AssistantActionVehicle extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['pool', 'vehiclePool']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'pool',
+      'vehiclePool',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Fahrzeugpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehiclePools, targetRecord, {
-      label: 'Fahrzeugpool',
-      nameKeys: ['name', 'poolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.vehiclePools,
+      targetRecord,
+      {
+        label: 'Fahrzeugpool',
+        nameKeys: ['name', 'poolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.vehiclePool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht geändert werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht geändert werden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -281,7 +318,9 @@ export class AssistantActionVehicle extends AssistantActionBase {
         return this.buildFeedbackResponse('Name darf nicht leer sein.');
       }
       if (this.hasNameCollision(snapshot.vehiclePools, name, pool.id)) {
-        return this.buildFeedbackResponse(`Name "${name}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `Name "${name}" ist bereits vergeben.`,
+        );
       }
       updated.name = name;
       changed = true;
@@ -329,7 +368,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['vehicle', 'vehicles']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'vehicle',
+      'vehicles',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Fahrzeug fehlt.');
     }
@@ -337,12 +379,19 @@ export class AssistantActionVehicle extends AssistantActionBase {
     const poolLabels = new Map(
       snapshot.vehiclePools.map((pool) => [pool.id, pool.name]),
     );
-    const targetResult = this.resolveVehicleTarget(snapshot.vehicles, targetRecord, {
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-      poolLabelById: poolLabels,
-    });
+    const targetResult = this.resolveVehicleTarget(
+      snapshot.vehicles,
+      targetRecord,
+      {
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+        poolLabelById: poolLabels,
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -365,7 +414,9 @@ export class AssistantActionVehicle extends AssistantActionBase {
     if (this.hasOwn(patch, 'vehicleNumber')) {
       const number = this.cleanText(patch['vehicleNumber']);
       if (!number) {
-        return this.buildFeedbackResponse('Fahrzeugnummer darf nicht leer sein.');
+        return this.buildFeedbackResponse(
+          'Fahrzeugnummer darf nicht leer sein.',
+        );
       }
       const normalized = this.normalizeKey(number);
       const existing = snapshot.vehicles.find(
@@ -406,7 +457,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
         { apply: { mode: 'value', path: ['patch', 'typeId'] } },
       );
       if (typeResult.clarification) {
-        return this.buildClarificationResponse(typeResult.clarification, context);
+        return this.buildClarificationResponse(
+          typeResult.clarification,
+          context,
+        );
       }
       if (typeResult.feedback) {
         return this.buildFeedbackResponse(typeResult.feedback);
@@ -417,7 +471,11 @@ export class AssistantActionVehicle extends AssistantActionBase {
 
     const hasPoolPatch = this.hasAnyKey(patch, ['poolId', 'pool', 'poolName']);
     if (hasPoolPatch) {
-      const poolRef = this.extractReference(patch, ['poolId', 'pool', 'poolName']);
+      const poolRef = this.extractReference(patch, [
+        'poolId',
+        'pool',
+        'poolName',
+      ]);
       if (poolRef) {
         const resolved = this.resolvePoolIdByReference(
           snapshot.vehiclePools,
@@ -431,7 +489,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
           { apply: { mode: 'value', path: ['patch', 'pool'] } },
         );
         if (resolved.clarification) {
-          return this.buildClarificationResponse(resolved.clarification, context);
+          return this.buildClarificationResponse(
+            resolved.clarification,
+            context,
+          );
         }
         if (resolved.feedback) {
           return this.buildFeedbackResponse(resolved.feedback);
@@ -461,7 +522,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
         },
       );
       if (serviceResult.clarification) {
-        return this.buildClarificationResponse(serviceResult.clarification, context);
+        return this.buildClarificationResponse(
+          serviceResult.clarification,
+          context,
+        );
       }
       if (serviceResult.feedback) {
         return this.buildFeedbackResponse(serviceResult.feedback);
@@ -512,35 +576,53 @@ export class AssistantActionVehicle extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['pool', 'vehiclePool']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'pool',
+      'vehiclePool',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Fahrzeugpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehiclePools, targetRecord, {
-      label: 'Fahrzeugpool',
-      nameKeys: ['name', 'poolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.vehiclePools,
+      targetRecord,
+      {
+        label: 'Fahrzeugpool',
+        nameKeys: ['name', 'poolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.vehiclePool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht gelöscht werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht gelöscht werden.',
+      );
     }
 
-    const movedVehicles = snapshot.vehicles.filter((vehicle) => vehicle.poolId === pool.id);
+    const movedVehicles = snapshot.vehicles.filter(
+      (vehicle) => vehicle.poolId === pool.id,
+    );
     const nextVehicles = snapshot.vehicles.map((vehicle) =>
       vehicle.poolId === pool.id
         ? { ...vehicle, poolId: SYSTEM_POOL_IDS.vehiclePool }
         : vehicle,
     );
-    const nextPools = snapshot.vehiclePools.filter((entry) => entry.id !== pool.id);
+    const nextPools = snapshot.vehiclePools.filter(
+      (entry) => entry.id !== pool.id,
+    );
 
     const nextSnapshot: ResourceSnapshot = {
       ...snapshot,
@@ -582,7 +664,10 @@ export class AssistantActionVehicle extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['vehicle', 'vehicles']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'vehicle',
+      'vehicles',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Fahrzeug fehlt.');
     }
@@ -590,12 +675,19 @@ export class AssistantActionVehicle extends AssistantActionBase {
     const poolLabels = new Map(
       snapshot.vehiclePools.map((pool) => [pool.id, pool.name]),
     );
-    const targetResult = this.resolveVehicleTarget(snapshot.vehicles, targetRecord, {
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-      poolLabelById: poolLabels,
-    });
+    const targetResult = this.resolveVehicleTarget(
+      snapshot.vehicles,
+      targetRecord,
+      {
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+        poolLabelById: poolLabels,
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -648,7 +740,11 @@ export class AssistantActionVehicle extends AssistantActionBase {
       title?: (name: string) => string;
       poolLabelById?: Map<string, string>;
     },
-  ): { ids?: string[]; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    ids?: string[];
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     if (!serviceNames || !serviceNames.length) {
       return { ids: undefined };
     }
@@ -723,23 +819,36 @@ export class AssistantActionVehicle extends AssistantActionBase {
     }
 
     if (missing.length) {
-      return { feedback: `Fahrzeugdienst(e) nicht gefunden: ${missing.join(', ')}` };
+      return {
+        feedback: `Fahrzeugdienst(e) nicht gefunden: ${missing.join(', ')}`,
+      };
     }
     return { ids };
   }
 
   private formatVehicleLabel(vehicle: Vehicle): string {
-    return this.cleanText(vehicle.vehicleNumber) || this.cleanText(vehicle.name) || vehicle.id;
+    return (
+      this.cleanText(vehicle.vehicleNumber) ||
+      this.cleanText(vehicle.name) ||
+      vehicle.id
+    );
   }
 
   private resolveVehicleTarget(
     vehicles: Vehicle[],
     target: Record<string, unknown>,
     options?: {
-      clarification?: { title?: string; apply: AssistantActionClarificationApply };
+      clarification?: {
+        title?: string;
+        apply: AssistantActionClarificationApply;
+      };
       poolLabelById?: Map<string, string>;
     },
-  ): { item?: Vehicle; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    item?: Vehicle;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const id = this.extractFirstText(target, ['id', 'vehicleId']);
     if (id) {
       const match = vehicles.find((entry) => entry.id === id);
@@ -750,8 +859,12 @@ export class AssistantActionVehicle extends AssistantActionBase {
     }
 
     const number =
-      this.cleanText(target['vehicleNumber']) ?? this.cleanText(target['number']);
-    let name = number ?? this.cleanText(target['name']) ?? this.cleanText(target['label']);
+      this.cleanText(target['vehicleNumber']) ??
+      this.cleanText(target['number']);
+    const name =
+      number ??
+      this.cleanText(target['name']) ??
+      this.cleanText(target['label']);
     if (!name) {
       return { feedback: 'Fahrzeugname fehlt.' };
     }

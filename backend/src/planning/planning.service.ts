@@ -57,7 +57,10 @@ import type {
 } from './planning.types';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { PlanningMasterDataService } from './planning-master-data.service';
-import type { OperationsSnapshotRequest, OperationsSnapshotResponse } from './planning-snapshot.service';
+import type {
+  OperationsSnapshotRequest,
+  OperationsSnapshotResponse,
+} from './planning-snapshot.service';
 import { PlanningSnapshotService } from './planning-snapshot.service';
 import { PlanningStageService } from './planning-stage.service';
 import { PlanningTopologyImportService } from './planning-topology-import.service';
@@ -77,7 +80,11 @@ export class PlanningService {
     variantId: string,
     timetableYearLabel?: string | null,
   ): Promise<PlanningStageSnapshot> {
-    return this.stageService.getStageSnapshot(stageId, variantId, timetableYearLabel);
+    return this.stageService.getStageSnapshot(
+      stageId,
+      variantId,
+      timetableYearLabel,
+    );
   }
 
   listActivities(
@@ -86,7 +93,12 @@ export class PlanningService {
     filters: ActivityFilters = {},
     timetableYearLabel?: string | null,
   ): Promise<Activity[]> {
-    return this.stageService.listActivities(stageId, variantId, filters, timetableYearLabel);
+    return this.stageService.listActivities(
+      stageId,
+      variantId,
+      filters,
+      timetableYearLabel,
+    );
   }
 
   listResources(
@@ -94,7 +106,11 @@ export class PlanningService {
     variantId: string,
     timetableYearLabel?: string | null,
   ): Promise<Resource[]> {
-    return this.stageService.listResources(stageId, variantId, timetableYearLabel);
+    return this.stageService.listResources(
+      stageId,
+      variantId,
+      timetableYearLabel,
+    );
   }
 
   mutateActivities(
@@ -104,7 +120,13 @@ export class PlanningService {
     timetableYearLabel?: string | null,
     requestId?: string,
   ): Promise<ActivityMutationResponse> {
-    return this.stageService.mutateActivities(stageId, variantId, request, timetableYearLabel, requestId);
+    return this.stageService.mutateActivities(
+      stageId,
+      variantId,
+      request,
+      timetableYearLabel,
+      requestId,
+    );
   }
 
   validateActivities(
@@ -113,7 +135,12 @@ export class PlanningService {
     request?: ActivityValidationRequest,
     timetableYearLabel?: string | null,
   ): Promise<ActivityValidationResponse> {
-    return this.stageService.validateActivities(stageId, variantId, request, timetableYearLabel);
+    return this.stageService.validateActivities(
+      stageId,
+      variantId,
+      request,
+      timetableYearLabel,
+    );
   }
 
   updateViewportSubscription(
@@ -122,7 +149,12 @@ export class PlanningService {
     request?: PlanningStageViewportSubscriptionRequest,
     timetableYearLabel?: string | null,
   ): Promise<PlanningStageViewportSubscriptionResponse> {
-    return this.stageService.updateViewportSubscription(stageId, variantId, request, timetableYearLabel);
+    return this.stageService.updateViewportSubscription(
+      stageId,
+      variantId,
+      request,
+      timetableYearLabel,
+    );
   }
 
   streamStageEvents(
@@ -147,10 +179,17 @@ export class PlanningService {
     request?: ResourceMutationRequest,
     timetableYearLabel?: string | null,
   ): Promise<ResourceMutationResponse> {
-    return this.stageService.mutateResources(stageId, variantId, request, timetableYearLabel);
+    return this.stageService.mutateResources(
+      stageId,
+      variantId,
+      request,
+      timetableYearLabel,
+    );
   }
 
-  snapshotBaseToOperations(request: OperationsSnapshotRequest): Promise<OperationsSnapshotResponse> {
+  snapshotBaseToOperations(
+    request: OperationsSnapshotRequest,
+  ): Promise<OperationsSnapshotResponse> {
     return this.snapshotService.snapshotBaseToOperations(request);
   }
 
@@ -298,7 +337,9 @@ export class PlanningService {
     return this.masterDataService.getResourceSnapshot();
   }
 
-  replaceResourceSnapshot(snapshot?: ResourceSnapshot): Promise<ResourceSnapshot> {
+  replaceResourceSnapshot(
+    snapshot?: ResourceSnapshot,
+  ): Promise<ResourceSnapshot> {
     return this.masterDataService.replaceResourceSnapshot(snapshot);
   }
 
@@ -344,7 +385,9 @@ export class PlanningService {
     return this.catalogService.listActivityTemplates();
   }
 
-  replaceActivityTemplates(payload: ActivityTemplate[]): Promise<ActivityTemplate[]> {
+  replaceActivityTemplates(
+    payload: ActivityTemplate[],
+  ): Promise<ActivityTemplate[]> {
     return this.catalogService.replaceActivityTemplates(payload);
   }
 
@@ -381,7 +424,9 @@ export class PlanningService {
     return this.catalogService.getActivityDefinition(definitionId);
   }
 
-  createActivityDefinition(payload: ActivityDefinition): Promise<ActivityDefinition> {
+  createActivityDefinition(
+    payload: ActivityDefinition,
+  ): Promise<ActivityDefinition> {
     return this.catalogService.createActivityDefinition(payload);
   }
 

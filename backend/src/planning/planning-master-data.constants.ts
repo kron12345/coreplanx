@@ -13,8 +13,10 @@ export const SYSTEM_POOL_LABELS = {
 } as const;
 
 export const SYSTEM_POOL_DESCRIPTIONS = {
-  personnelServicePool: 'System-Pool für gelöschte oder nicht zugeordnete Personaldienste.',
+  personnelServicePool:
+    'System-Pool für gelöschte oder nicht zugeordnete Personaldienste.',
   personnelPool: 'System-Pool für gelöschtes oder nicht zugeordnetes Personal.',
-  vehicleServicePool: 'System-Pool für gelöschte oder nicht zugeordnete Fahrzeugdienste.',
+  vehicleServicePool:
+    'System-Pool für gelöschte oder nicht zugeordnete Fahrzeugdienste.',
   vehiclePool: 'System-Pool für gelöschte oder nicht zugeordnete Fahrzeuge.',
 } as const;

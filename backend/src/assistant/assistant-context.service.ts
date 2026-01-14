@@ -10,14 +10,18 @@ import type {
   AssistantContextResource,
   AssistantContextResult,
 } from './assistant-context.types';
-import { RESOURCE_FIELDS, RESOURCE_LABELS } from './assistant-context.resources';
+import {
+  RESOURCE_FIELDS,
+  RESOURCE_LABELS,
+} from './assistant-context.resources';
 import { PlanningService } from '../planning/planning.service';
 import type { ResourceSnapshot } from '../planning/planning.types';
 import { SYSTEM_POOL_IDS } from '../planning/planning-master-data.constants';
 import { TimetableYearService } from '../variants/timetable-year.service';
 import type { PlanningVariantRecord } from '../variants/variants.repository';
 
-const CONTEXT_REQUEST_PATTERN = /<CONTEXT_REQUEST>([\s\S]+?)<\/CONTEXT_REQUEST>/i;
+const CONTEXT_REQUEST_PATTERN =
+  /<CONTEXT_REQUEST>([\s\S]+?)<\/CONTEXT_REQUEST>/i;
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 80;
 
@@ -117,22 +121,48 @@ export class AssistantContextService {
           const services = snapshot.personnelServices.filter(
             (entry) => entry.poolId === pool.id,
           );
-          return this.buildResult(resolvedQuery, pool.name, services, limit, fields);
+          return this.buildResult(
+            resolvedQuery,
+            pool.name,
+            services,
+            limit,
+            fields,
+          );
         }
         if (resolvedQuery.resource === 'vehicleServices') {
           const services = snapshot.vehicleServices.filter(
             (entry) => entry.poolId === pool.id,
           );
-          return this.buildResult(resolvedQuery, pool.name, services, limit, fields);
+          return this.buildResult(
+            resolvedQuery,
+            pool.name,
+            services,
+            limit,
+            fields,
+          );
         }
         if (resolvedQuery.resource === 'personnel') {
           const personnel = snapshot.personnel.filter(
             (entry) => entry.poolId === pool.id,
           );
-          return this.buildResult(resolvedQuery, pool.name, personnel, limit, fields);
+          return this.buildResult(
+            resolvedQuery,
+            pool.name,
+            personnel,
+            limit,
+            fields,
+          );
         }
-        const vehicles = snapshot.vehicles.filter((entry) => entry.poolId === pool.id);
-        return this.buildResult(resolvedQuery, pool.name, vehicles, limit, fields);
+        const vehicles = snapshot.vehicles.filter(
+          (entry) => entry.poolId === pool.id,
+        );
+        return this.buildResult(
+          resolvedQuery,
+          pool.name,
+          vehicles,
+          limit,
+          fields,
+        );
       }
       case 'personnelServicePools': {
         const pools = snapshot.personnelServicePools.filter(
@@ -159,11 +189,29 @@ export class AssistantContextService {
         return this.buildResult(resolvedQuery, undefined, pools, limit, fields);
       }
       case 'homeDepots':
-        return this.buildResult(resolvedQuery, undefined, snapshot.homeDepots, limit, fields);
+        return this.buildResult(
+          resolvedQuery,
+          undefined,
+          snapshot.homeDepots,
+          limit,
+          fields,
+        );
       case 'vehicleTypes':
-        return this.buildResult(resolvedQuery, undefined, snapshot.vehicleTypes, limit, fields);
+        return this.buildResult(
+          resolvedQuery,
+          undefined,
+          snapshot.vehicleTypes,
+          limit,
+          fields,
+        );
       case 'vehicleCompositions':
-        return this.buildResult(resolvedQuery, undefined, snapshot.vehicleCompositions, limit, fields);
+        return this.buildResult(
+          resolvedQuery,
+          undefined,
+          snapshot.vehicleCompositions,
+          limit,
+          fields,
+        );
       case 'operationalPoints':
         return this.buildResult(
           resolvedQuery,
@@ -238,14 +286,22 @@ export class AssistantContextService {
             simulationCount: stats.get(label)?.simulations ?? 0,
             variantCount: stats.get(label)?.total ?? 0,
           }));
-          return this.buildResult(resolvedQuery, undefined, items, limit, fields);
+          return this.buildResult(
+            resolvedQuery,
+            undefined,
+            items,
+            limit,
+            fields,
+          );
         } catch (error) {
           return {
             query: resolvedQuery,
             total: 0,
             items: [],
             truncated: false,
-            error: (error as Error)?.message ?? 'Fahrplanjahre konnten nicht geladen werden.',
+            error:
+              (error as Error)?.message ??
+              'Fahrplanjahre konnten nicht geladen werden.',
           };
         }
       }
@@ -253,15 +309,25 @@ export class AssistantContextService {
         try {
           const yearFilter = this.cleanText(resolvedQuery.timetableYearLabel);
           const variants = await this.timetableYears.listVariants(yearFilter);
-          const simulations = variants.filter((variant) => variant.kind === 'simulation');
-          return this.buildResult(resolvedQuery, undefined, simulations, limit, fields);
+          const simulations = variants.filter(
+            (variant) => variant.kind === 'simulation',
+          );
+          return this.buildResult(
+            resolvedQuery,
+            undefined,
+            simulations,
+            limit,
+            fields,
+          );
         } catch (error) {
           return {
             query: resolvedQuery,
             total: 0,
             items: [],
             truncated: false,
-            error: (error as Error)?.message ?? 'Simulationen konnten nicht geladen werden.',
+            error:
+              (error as Error)?.message ??
+              'Simulationen konnten nicht geladen werden.',
           };
         }
       }
@@ -307,7 +373,9 @@ export class AssistantContextService {
       return `Kontext: ${label} (${result.error})`;
     }
     const shown = result.items.length;
-    const detail = result.truncated ? `${shown}/${result.total}` : `${result.total}`;
+    const detail = result.truncated
+      ? `${shown}/${result.total}`
+      : `${result.total}`;
     return `Kontext: ${label} (${detail})`;
   }
 
@@ -331,7 +399,10 @@ export class AssistantContextService {
     if (text.includes('topologie') || text.includes('operational point')) {
       return 'operationalPoints';
     }
-    if (text.includes('section of line') || text.includes('streckenabschnitt')) {
+    if (
+      text.includes('section of line') ||
+      text.includes('streckenabschnitt')
+    ) {
       return 'sectionsOfLine';
     }
     if (text.includes('personnel site') || text.includes('personalstandort')) {
@@ -525,7 +596,9 @@ export class AssistantContextService {
     return best ? { id: best.id, name: best.name } : null;
   }
 
-  private sanitizeQuery(raw: Record<string, unknown>): AssistantContextQuery | null {
+  private sanitizeQuery(
+    raw: Record<string, unknown>,
+  ): AssistantContextQuery | null {
     const resource = this.cleanText(raw['resource']);
     if (!resource || !(resource in RESOURCE_LABELS)) {
       return null;
@@ -535,7 +608,10 @@ export class AssistantContextService {
     const timetableYearLabel = this.cleanText(raw['timetableYearLabel']);
     const search = this.cleanText(raw['search']);
     const limit = this.parseLimit(raw['limit']);
-    const fields = this.parseFields(raw['fields'], resource as AssistantContextResource);
+    const fields = this.parseFields(
+      raw['fields'],
+      resource as AssistantContextResource,
+    );
     const query: AssistantContextQuery = {
       resource: resource as AssistantContextResource,
     };
@@ -581,7 +657,9 @@ export class AssistantContextService {
         return { pool: exact[0], label: exact[0].name ?? query.poolName };
       }
       if (exact.length > 1) {
-        return { error: `Mehrere Pools mit Name "${query.poolName}" gefunden.` };
+        return {
+          error: `Mehrere Pools mit Name "${query.poolName}" gefunden.`,
+        };
       }
       const partial = pools.filter((entry) => {
         const name = this.normalizeKey(entry.name ?? '');
@@ -591,7 +669,9 @@ export class AssistantContextService {
         return { pool: partial[0], label: partial[0].name ?? query.poolName };
       }
       if (partial.length > 1) {
-        return { error: `Mehrere Pools mit Name "${query.poolName}" gefunden.` };
+        return {
+          error: `Mehrere Pools mit Name "${query.poolName}" gefunden.`,
+        };
       }
       return { error: `Pool "${query.poolName}" nicht gefunden.` };
     }
@@ -645,7 +725,11 @@ export class AssistantContextService {
   ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const field of fields) {
-      if (entry[field] !== undefined && entry[field] !== null && entry[field] !== '') {
+      if (
+        entry[field] !== undefined &&
+        entry[field] !== null &&
+        entry[field] !== ''
+      ) {
         result[field] = entry[field];
       }
     }
@@ -658,7 +742,10 @@ export class AssistantContextService {
     return result;
   }
 
-  private resolveFields(requested: string[] | undefined, allowed: string[]): string[] {
+  private resolveFields(
+    requested: string[] | undefined,
+    allowed: string[],
+  ): string[] {
     if (!requested || !requested.length) {
       return allowed;
     }
@@ -682,7 +769,8 @@ export class AssistantContextService {
   }
 
   private describeQuery(result: AssistantContextResult): string {
-    const label = RESOURCE_LABELS[result.query.resource] ?? result.query.resource;
+    const label =
+      RESOURCE_LABELS[result.query.resource] ?? result.query.resource;
     if (this.isPoolResource(result.query.resource)) {
       const poolLabel =
         result.poolLabel ??
@@ -734,7 +822,9 @@ export class AssistantContextService {
     if (!needle) {
       return entries;
     }
-    return entries.filter((entry) => this.entryMatchesSearch(resource, entry, needle));
+    return entries.filter((entry) =>
+      this.entryMatchesSearch(resource, entry, needle),
+    );
   }
 
   private entryMatchesSearch(
@@ -770,7 +860,10 @@ export class AssistantContextService {
     );
   }
 
-  private isSystemPool(resource: AssistantContextResource, poolId: string): boolean {
+  private isSystemPool(
+    resource: AssistantContextResource,
+    poolId: string,
+  ): boolean {
     if (!poolId) {
       return false;
     }
@@ -793,7 +886,10 @@ export class AssistantContextService {
   ): Map<string, { total: number; simulations: number }> {
     const map = new Map<string, { total: number; simulations: number }>();
     for (const variant of variants) {
-      const entry = map.get(variant.timetableYearLabel) ?? { total: 0, simulations: 0 };
+      const entry = map.get(variant.timetableYearLabel) ?? {
+        total: 0,
+        simulations: 0,
+      };
       entry.total += 1;
       if (variant.kind === 'simulation') {
         entry.simulations += 1;

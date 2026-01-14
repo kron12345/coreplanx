@@ -28,7 +28,10 @@ async function bootstrap() {
       request.raw.url = collapsed;
     }
     const headerValue = request.headers['x-request-id'];
-    const requestId = typeof headerValue === 'string' && headerValue.trim().length > 0 ? headerValue : randomUUID();
+    const requestId =
+      typeof headerValue === 'string' && headerValue.trim().length > 0
+        ? headerValue
+        : randomUUID();
     (request as { requestId?: string }).requestId = requestId;
     reply.header('x-request-id', requestId);
     done();

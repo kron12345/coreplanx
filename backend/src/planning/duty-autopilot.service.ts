@@ -55,8 +55,12 @@ type AzgDutySnapshot = {
   dayStartMs: number;
   dutySpanMinutes: number;
   workMinutes: number;
+  startActivityId: string | null;
+  endActivityId: string | null;
   breakIntervals: Array<{ startMs: number; endMs: number }>;
+  breakActivities: Array<{ id: string; startMs: number; endMs: number }>;
   shortBreakIntervals: Array<{ startMs: number; endMs: number }>;
+  shortBreakActivities: Array<{ id: string; startMs: number; endMs: number }>;
   workHalfMs: number | null;
   activityIds: string[];
   hasNightWork: boolean;
@@ -79,7 +83,10 @@ type ManagedActivityNormalizationEntry = {
   toId: string;
 };
 
-type TransferNodeKey = `OP:${string}` | `PERSONNEL_SITE:${string}` | `REPLACEMENT_STOP:${string}`;
+type TransferNodeKey =
+  | `OP:${string}`
+  | `PERSONNEL_SITE:${string}`
+  | `REPLACEMENT_STOP:${string}`;
 
 type MasterDataContext = {
   homeDepotsById: Map<string, HomeDepot>;
@@ -149,7 +156,11 @@ export class DutyAutopilotService {
     private readonly rulesets: PlanningRulesetService,
   ) {}
 
-  async apply(stageId: StageId, variantId: string, activities: Activity[]): Promise<DutyAutopilotResult> {
+  async apply(
+    stageId: StageId,
+    variantId: string,
+    activities: Activity[],
+  ): Promise<DutyAutopilotResult> {
     const config = await this.rules.getDutyAutopilotConfig(stageId, variantId);
     if (!config) {
       return { upserts: [], deletedIds: [], touchedIds: [] };
@@ -180,14 +191,25 @@ export class DutyAutopilotService {
       touched.add(normalized.id);
     }
 
-    const groups = this.groupActivities(stageId, Array.from(byId.values()), resolvedConfig);
+    const groups = this.groupActivities(
+      stageId,
+      Array.from(byId.values()),
+      resolvedConfig,
+    );
 
     for (const group of groups) {
       const hydratedGroup: DutyActivityGroup = {
         ...group,
-        activities: group.activities.map((activity) => byId.get(activity.id) ?? activity),
+        activities: group.activities.map(
+          (activity) => byId.get(activity.id) ?? activity,
+        ),
       };
-      const result = this.autoframeDuty(stageId, hydratedGroup, resolvedConfig, masterDataContext);
+      const result = this.autoframeDuty(
+        stageId,
+        hydratedGroup,
+        resolvedConfig,
+        masterDataContext,
+      );
       result.upserts.forEach((activity) => {
         byId.set(activity.id, activity);
         upserts.set(activity.id, activity);
@@ -216,8 +238,15 @@ export class DutyAutopilotService {
     }
 
     const deletedSet = new Set(deletedIds);
-    const activeActivities = Array.from(byId.values()).filter((activity) => !deletedSet.has(activity.id));
-    const complianceUpserts = this.applyAzgCompliance(stageId, variantId, activeActivities, resolvedConfig);
+    const activeActivities = Array.from(byId.values()).filter(
+      (activity) => !deletedSet.has(activity.id),
+    );
+    const complianceUpserts = this.applyAzgCompliance(
+      stageId,
+      variantId,
+      activeActivities,
+      resolvedConfig,
+    );
     for (const activity of complianceUpserts) {
       if (deletedSet.has(activity.id)) {
         continue;
@@ -227,7 +256,11 @@ export class DutyAutopilotService {
       touched.add(activity.id);
     }
 
-    return { upserts: Array.from(upserts.values()), deletedIds, touchedIds: Array.from(touched) };
+    return {
+      upserts: Array.from(upserts.values()),
+      deletedIds,
+      touchedIds: Array.from(touched),
+    };
   }
 
   async applyWorktimeCompliance(
@@ -238,15 +271,23 @@ export class DutyAutopilotService {
     if (!activities.length) {
       return [];
     }
-    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, {
+      includeDisabled: true,
+    });
     if (!config) {
       return [];
     }
     const resolvedConfig = this.resolveAutopilotConfig(config);
-    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const byId = new Map<string, Activity>(
+      activities.map((activity) => [activity.id, activity]),
+    );
     const updated = new Map<string, Activity>();
 
-    const localUpserts = this.applyLocalConflictCompliance(stageId, activities, resolvedConfig);
+    const localUpserts = this.applyLocalConflictCompliance(
+      stageId,
+      activities,
+      resolvedConfig,
+    );
     for (const activity of localUpserts) {
       byId.set(activity.id, activity);
       updated.set(activity.id, activity);
@@ -283,7 +324,9 @@ export class DutyAutopilotService {
     if (!activities.length) {
       return { deletedIds: [], entries: [] };
     }
-    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, {
+      includeDisabled: true,
+    });
     if (!config || !config.enforceOneDutyPerDay) {
       return { deletedIds: [], entries: [] };
     }
@@ -322,8 +365,11 @@ export class DutyAutopilotService {
       }
       const endMs = Math.max(startMs, this.resolveEndMs(activity, startMs));
       const dayKey =
-        this.parseDayKeyFromServiceId(this.parseServiceIdFromManagedId(activity.id) ?? activity.serviceId ?? '') ??
-        this.utcDayKey(activity.start);
+        this.parseDayKeyFromServiceId(
+          this.parseServiceIdFromManagedId(activity.id) ??
+            activity.serviceId ??
+            '',
+        ) ?? this.utcDayKey(activity.start);
       const owners = this.resolveDutyOwners(activity);
       if (!owners.length) {
         return;
@@ -351,7 +397,9 @@ export class DutyAutopilotService {
     const deletedIds = new Set<string>();
     const entries: BoundaryCleanupEntry[] = [];
 
-    const pickStart = (candidates: BoundaryCandidate[]): BoundaryCandidate | null => {
+    const pickStart = (
+      candidates: BoundaryCandidate[],
+    ): BoundaryCandidate | null => {
       if (!candidates.length) {
         return null;
       }
@@ -375,7 +423,9 @@ export class DutyAutopilotService {
       }, candidates[0]);
     };
 
-    const pickEnd = (candidates: BoundaryCandidate[]): BoundaryCandidate | null => {
+    const pickEnd = (
+      candidates: BoundaryCandidate[],
+    ): BoundaryCandidate | null => {
       if (!candidates.length) {
         return null;
       }
@@ -409,7 +459,8 @@ export class DutyAutopilotService {
         const deletedEndIds = entry.ends
           .filter((candidate) => candidate.id !== keptEnd?.id)
           .map((candidate) => candidate.id);
-        const hasDeletions = deletedStartIds.length > 0 || deletedEndIds.length > 0;
+        const hasDeletions =
+          deletedStartIds.length > 0 || deletedEndIds.length > 0;
         if (!hasDeletions) {
           return;
         }
@@ -433,11 +484,17 @@ export class DutyAutopilotService {
     stageId: StageId,
     variantId: string,
     activities: Activity[],
-  ): Promise<{ upserts: Activity[]; deletedIds: string[]; entries: ManagedActivityNormalizationEntry[] }> {
+  ): Promise<{
+    upserts: Activity[];
+    deletedIds: string[];
+    entries: ManagedActivityNormalizationEntry[];
+  }> {
     if (!activities.length) {
       return { upserts: [], deletedIds: [], entries: [] };
     }
-    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, {
+      includeDisabled: true,
+    });
     if (!config) {
       return { upserts: [], deletedIds: [], entries: [] };
     }
@@ -451,9 +508,16 @@ export class DutyAutopilotService {
     const isBoundary = (activity: Activity): boolean => {
       const role = this.resolveServiceRole(activity);
       const type = (activity.type ?? '').trim();
-      return role === 'start' || role === 'end' || startTypeIds.has(type) || endTypeIds.has(type);
+      return (
+        role === 'start' ||
+        role === 'end' ||
+        startTypeIds.has(type) ||
+        endTypeIds.has(type)
+      );
     };
-    const resolveBoundaryRole = (activity: Activity): 'start' | 'end' | null => {
+    const resolveBoundaryRole = (
+      activity: Activity,
+    ): 'start' | 'end' | null => {
       const role = this.resolveServiceRole(activity);
       if (role === 'start' || role === 'end') {
         return role;
@@ -467,15 +531,18 @@ export class DutyAutopilotService {
       }
       return null;
     };
-    const isShortBreak = (activity: Activity) => this.isShortBreakActivity(activity, shortBreakTypeId);
-    const isBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds);
+    const isShortBreak = (activity: Activity) =>
+      this.isShortBreakActivity(activity, shortBreakTypeId);
+    const isBreak = (activity: Activity) =>
+      this.isBreakActivity(activity, breakTypeIds);
 
     const usedIds = new Set<string>(activities.map((activity) => activity.id));
     const upserts = new Map<string, Activity>();
     const deletedIds = new Set<string>();
     const entries: ManagedActivityNormalizationEntry[] = [];
 
-    const sanitizeSuffix = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizeSuffix = (value: string) =>
+      value.replace(/[^a-zA-Z0-9_-]/g, '_');
     const claimId = (baseId: string): string => {
       let candidate = baseId;
       let counter = 1;
@@ -488,14 +555,18 @@ export class DutyAutopilotService {
     };
 
     const resolveServiceId = (activity: Activity, ownerId: string): string => {
-      const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+      const explicit =
+        typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
       const managed = this.parseServiceIdFromManagedId(activity.id) ?? '';
       const candidate = explicit || managed;
       let dayKey = this.utcDayKey(activity.start);
       if (candidate) {
         const candidateOwner = this.parseOwnerIdFromServiceId(candidate);
         const candidateStage = this.parseStageIdFromServiceId(candidate);
-        if (candidateOwner === ownerId && (!candidateStage || candidateStage === stageId)) {
+        if (
+          candidateOwner === ownerId &&
+          (!candidateStage || candidateStage === stageId)
+        ) {
           const candidateDay = this.parseDayKeyFromServiceId(candidate);
           if (candidateDay) {
             dayKey = candidateDay;
@@ -505,10 +576,15 @@ export class DutyAutopilotService {
       return this.computeServiceId(stageId, ownerId, dayKey);
     };
 
-    const ensureOwnerParticipant = (activity: Activity, owner: ActivityParticipant): ActivityParticipant[] => {
+    const ensureOwnerParticipant = (
+      activity: Activity,
+      owner: ActivityParticipant,
+    ): ActivityParticipant[] => {
       const participants = activity.participants ?? [];
       const hasOwner = participants.some(
-        (participant) => participant.resourceId === owner.resourceId && participant.kind === owner.kind,
+        (participant) =>
+          participant.resourceId === owner.resourceId &&
+          participant.kind === owner.kind,
       );
       if (hasOwner) {
         return participants;
@@ -522,7 +598,9 @@ export class DutyAutopilotService {
         return attributes ?? undefined;
       }
       const serviceByOwnerKey = this.serviceByOwnerKey();
-      if (!Object.prototype.hasOwnProperty.call(attributes, serviceByOwnerKey)) {
+      if (
+        !Object.prototype.hasOwnProperty.call(attributes, serviceByOwnerKey)
+      ) {
         return attributes;
       }
       const next = { ...attributes } as ActivityAttributes;
@@ -531,7 +609,11 @@ export class DutyAutopilotService {
     };
 
     for (const activity of activities) {
-      if (!isBoundary(activity) && !isBreak(activity) && !isShortBreak(activity)) {
+      if (
+        !isBoundary(activity) &&
+        !isBreak(activity) &&
+        !isShortBreak(activity)
+      ) {
         continue;
       }
 
@@ -547,7 +629,8 @@ export class DutyAutopilotService {
         if (!role) {
           continue;
         }
-        const targetId = role === 'start' ? `svcstart:${serviceId}` : `svcend:${serviceId}`;
+        const targetId =
+          role === 'start' ? `svcstart:${serviceId}` : `svcend:${serviceId}`;
         if (targetId !== activity.id && usedIds.has(targetId)) {
           deletedIds.add(activity.id);
           continue;
@@ -629,10 +712,16 @@ export class DutyAutopilotService {
       }
     }
 
-    return { upserts: Array.from(upserts.values()), deletedIds: Array.from(deletedIds.values()), entries };
+    return {
+      upserts: Array.from(upserts.values()),
+      deletedIds: Array.from(deletedIds.values()),
+      entries,
+    };
   }
 
-  private resolveAutopilotConfig(config: DutyAutopilotConfig): ResolvedDutyAutopilotConfig {
+  private resolveAutopilotConfig(
+    config: DutyAutopilotConfig,
+  ): ResolvedDutyAutopilotConfig {
     const resolvedTypeIds = this.resolveAutopilotTypeIndex(config);
     const resolvedRuleset = this.resolveRulesetSelection(config);
     return {
@@ -656,7 +745,9 @@ export class DutyAutopilotService {
       return {};
     }
     if (!rawId) {
-      this.logger.warn('Ruleset version provided without rulesetId. Skipping ruleset selection.');
+      this.logger.warn(
+        'Ruleset version provided without rulesetId. Skipping ruleset selection.',
+      );
       return {};
     }
     let version = rawVersion;
@@ -672,7 +763,9 @@ export class DutyAutopilotService {
       }
     }
     if (!version) {
-      this.logger.warn(`Ruleset ${rawId} has no usable version. Skipping ruleset selection.`);
+      this.logger.warn(
+        `Ruleset ${rawId} has no usable version. Skipping ruleset selection.`,
+      );
       return { resolvedRulesetId: rawId };
     }
     try {
@@ -694,7 +787,9 @@ export class DutyAutopilotService {
     }
   }
 
-  private resolveAutopilotTypeIndex(config: DutyAutopilotConfig): ResolvedAutopilotTypeIndex {
+  private resolveAutopilotTypeIndex(
+    config: DutyAutopilotConfig,
+  ): ResolvedAutopilotTypeIndex {
     const definitions = this.activityCatalog.listActivityDefinitions();
     if (!definitions.length) {
       throw new Error('Activity-Katalog enthaelt keine Activity-Definitionen.');
@@ -721,7 +816,12 @@ export class DutyAutopilotService {
       }
       if (typeof value === 'string') {
         const normalized = value.trim().toLowerCase();
-        return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+        return (
+          normalized === 'true' ||
+          normalized === 'yes' ||
+          normalized === '1' ||
+          normalized === 'ja'
+        );
       }
       if (typeof value === 'number') {
         return Number.isFinite(value) && value !== 0;
@@ -729,13 +829,21 @@ export class DutyAutopilotService {
       return false;
     };
 
-    const readAttributeValue = (attrs: ActivityAttributeValue[] | undefined, key: string): unknown => {
+    const readAttributeValue = (
+      attrs: ActivityAttributeValue[] | undefined,
+      key: string,
+    ): unknown => {
       const entry = (attrs ?? []).find((attr) => attr.key === key);
-      const meta = entry?.meta as Record<string, unknown> | undefined;
+      const meta = entry?.meta;
       return meta?.['value'];
     };
 
-    const recordFlag = (list: string[], id: string, attrs: ActivityAttributeValue[] | undefined, key: string) => {
+    const recordFlag = (
+      list: string[],
+      id: string,
+      attrs: ActivityAttributeValue[] | undefined,
+      key: string,
+    ) => {
       const value = readAttributeValue(attrs, key);
       if (toBool(value)) {
         list.push(id);
@@ -765,7 +873,9 @@ export class DutyAutopilotService {
       return typeIds.has(trimmed) ? trimmed : null;
     };
 
-    const pickExistingList = (values: string[] | null | undefined): string[] => {
+    const pickExistingList = (
+      values: string[] | null | undefined,
+    ): string[] => {
       const normalized = (values ?? [])
         .map((entry) => `${entry ?? ''}`.trim())
         .filter((entry) => entry.length > 0);
@@ -774,21 +884,37 @@ export class DutyAutopilotService {
 
     const vehicleOnIds = new Set(flags.vehicleOn);
     const vehicleOffIds = new Set(flags.vehicleOff);
-    const serviceStartCandidates = flags.serviceStart.filter((id) => !vehicleOnIds.has(id));
-    const serviceEndCandidates = flags.serviceEnd.filter((id) => !vehicleOffIds.has(id));
+    const serviceStartCandidates = flags.serviceStart.filter(
+      (id) => !vehicleOnIds.has(id),
+    );
+    const serviceEndCandidates = flags.serviceEnd.filter(
+      (id) => !vehicleOffIds.has(id),
+    );
 
-    const requireType = (value: string | null, label: string, attributeHint: string): string => {
+    const requireType = (
+      value: string | null,
+      label: string,
+      attributeHint: string,
+    ): string => {
       const trimmed = `${value ?? ''}`.trim();
       if (trimmed) {
         return trimmed;
       }
-      throw new Error(`Activity-Katalog fehlt ${label} (Attribute ${attributeHint} setzen).`);
+      throw new Error(
+        `Activity-Katalog fehlt ${label} (Attribute ${attributeHint} setzen).`,
+      );
     };
 
     const fallbackStart =
-      pickExisting(config.serviceStartTypeId) ?? serviceStartCandidates[0] ?? flags.serviceStart[0] ?? null;
+      pickExisting(config.serviceStartTypeId) ??
+      serviceStartCandidates[0] ??
+      flags.serviceStart[0] ??
+      null;
     const fallbackEnd =
-      pickExisting(config.serviceEndTypeId) ?? serviceEndCandidates[0] ?? flags.serviceEnd[0] ?? null;
+      pickExisting(config.serviceEndTypeId) ??
+      serviceEndCandidates[0] ??
+      flags.serviceEnd[0] ??
+      null;
 
     const personnelStart =
       pickExisting(config.personnelStartTypeId) ??
@@ -813,13 +939,17 @@ export class DutyAutopilotService {
       fallbackEnd;
 
     const shortBreakTypeId =
-      pickExisting(config.shortBreakTypeId) ??
-      flags.shortBreak[0] ??
-      null;
-    const resolvedShortBreakTypeId = requireType(shortBreakTypeId, 'Kurzpause-Definition', 'is_short_break');
+      pickExisting(config.shortBreakTypeId) ?? flags.shortBreak[0] ?? null;
+    const resolvedShortBreakTypeId = requireType(
+      shortBreakTypeId,
+      'Kurzpause-Definition',
+      'is_short_break',
+    );
 
     const breakTypeIdsRaw = pickExistingList(config.breakTypeIds);
-    const breakCandidates = flags.break.filter((id) => id !== resolvedShortBreakTypeId);
+    const breakCandidates = flags.break.filter(
+      (id) => id !== resolvedShortBreakTypeId,
+    );
     const breakTypeIds =
       breakTypeIdsRaw.length > 0
         ? breakTypeIdsRaw
@@ -828,13 +958,23 @@ export class DutyAutopilotService {
           : [resolvedShortBreakTypeId];
 
     const commuteTypeId =
-      pickExisting(config.commuteTypeId) ??
-      flags.commute[0] ??
-      null;
-    const resolvedCommuteTypeId = requireType(commuteTypeId, 'Wegzeit-Definition', 'is_commute');
+      pickExisting(config.commuteTypeId) ?? flags.commute[0] ?? null;
+    const resolvedCommuteTypeId = requireType(
+      commuteTypeId,
+      'Wegzeit-Definition',
+      'is_commute',
+    );
 
-    const resolvedPersonnelStart = requireType(personnelStart, 'Dienststart-Definition', 'is_service_start');
-    const resolvedPersonnelEnd = requireType(personnelEnd, 'Dienstende-Definition', 'is_service_end');
+    const resolvedPersonnelStart = requireType(
+      personnelStart,
+      'Dienststart-Definition',
+      'is_service_start',
+    );
+    const resolvedPersonnelEnd = requireType(
+      personnelEnd,
+      'Dienstende-Definition',
+      'is_service_end',
+    );
     const resolvedVehicleStart = requireType(
       vehicleStart,
       'Fahrzeugstart-Definition',
@@ -846,13 +986,22 @@ export class DutyAutopilotService {
       'is_vehicle_off oder is_service_end',
     );
 
-    const startTypeIds = new Set([resolvedPersonnelStart, resolvedVehicleStart]);
+    const startTypeIds = new Set([
+      resolvedPersonnelStart,
+      resolvedVehicleStart,
+    ]);
     const endTypeIds = new Set([resolvedPersonnelEnd, resolvedVehicleEnd]);
     const boundaryTypeIds = new Set([...startTypeIds, ...endTypeIds]);
 
     return {
-      startTypeIdByOwnerGroup: { personnel: resolvedPersonnelStart, vehicle: resolvedVehicleStart },
-      endTypeIdByOwnerGroup: { personnel: resolvedPersonnelEnd, vehicle: resolvedVehicleEnd },
+      startTypeIdByOwnerGroup: {
+        personnel: resolvedPersonnelStart,
+        vehicle: resolvedVehicleStart,
+      },
+      endTypeIdByOwnerGroup: {
+        personnel: resolvedPersonnelEnd,
+        vehicle: resolvedVehicleEnd,
+      },
       startTypeIds,
       endTypeIds,
       boundaryTypeIds,
@@ -862,7 +1011,9 @@ export class DutyAutopilotService {
     };
   }
 
-  private resolveOwnerGroup(kind: ActivityParticipant['kind'] | null | undefined): DutyOwnerGroup {
+  private resolveOwnerGroup(
+    kind: ActivityParticipant['kind'] | null | undefined,
+  ): DutyOwnerGroup {
     if (kind === 'vehicle' || kind === 'vehicle-service') {
       return 'vehicle';
     }
@@ -876,7 +1027,10 @@ export class DutyAutopilotService {
   ): DutyActivityGroup[] {
     const breakTypeIds = config.breakTypeIds;
     const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
-    const byOwner = new Map<string, { owner: ActivityParticipant; activities: Activity[] }>();
+    const byOwner = new Map<
+      string,
+      { owner: ActivityParticipant; activities: Activity[] }
+    >();
 
     const isBoundary = (activity: Activity) => {
       const role = this.resolveServiceRole(activity);
@@ -895,7 +1049,12 @@ export class DutyAutopilotService {
       }
       const withinPref = this.resolveWithinPreference(activity);
       const isBreak = this.isBreakActivity(activity, breakTypeIds);
-      if (withinPref === 'outside' && !isBoundary(activity) && !isBreak && !this.isManagedId(activity.id)) {
+      if (
+        withinPref === 'outside' &&
+        !isBoundary(activity) &&
+        !isBreak &&
+        !this.isManagedId(activity.id)
+      ) {
         continue;
       }
 
@@ -913,7 +1072,10 @@ export class DutyAutopilotService {
     const groups = new Map<string, DutyActivityGroup>();
     const maxDutySpanMs = Math.max(0, config.maxDutySpanMinutes * 60_000);
 
-    const resolveServiceIdForBoundary = (ownerId: string, activity: Activity): string | null => {
+    const resolveServiceIdForBoundary = (
+      ownerId: string,
+      activity: Activity,
+    ): string | null => {
       const parsed = this.parseServiceIdFromManagedId(activity.id);
       if (parsed) {
         const parsedOwner = this.parseOwnerIdFromServiceId(parsed);
@@ -926,7 +1088,8 @@ export class DutyAutopilotService {
         }
         return parsed;
       }
-      const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+      const explicit =
+        typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
       if (explicit.startsWith('svc:')) {
         const explicitOwner = this.parseOwnerIdFromServiceId(explicit);
         const explicitStage = this.parseStageIdFromServiceId(explicit);
@@ -952,8 +1115,14 @@ export class DutyAutopilotService {
         .filter((activity) => !isBoundary(activity));
 
       const intervals = payloadActivities
-        .map((activity) => ({ activity, startMs: this.parseMs(activity.start) }))
-        .filter((entry): entry is { activity: Activity; startMs: number } => entry.startMs !== null)
+        .map((activity) => ({
+          activity,
+          startMs: this.parseMs(activity.start),
+        }))
+        .filter(
+          (entry): entry is { activity: Activity; startMs: number } =>
+            entry.startMs !== null,
+        )
         .sort((a, b) => a.startMs - b.startMs);
 
       const assignment = new Map<string, string>();
@@ -982,7 +1151,11 @@ export class DutyAutopilotService {
 
       for (const activity of ownerActivities) {
         let groupServiceId: string | null = null;
-        if (isBoundary(activity) || this.isBreakActivity(activity, breakTypeIds) || this.isManagedId(activity.id)) {
+        if (
+          isBoundary(activity) ||
+          this.isBreakActivity(activity, breakTypeIds) ||
+          this.isManagedId(activity.id)
+        ) {
           groupServiceId = resolveServiceIdForBoundary(ownerId, activity);
         } else {
           groupServiceId = assignment.get(activity.id) ?? null;
@@ -991,7 +1164,9 @@ export class DutyAutopilotService {
           continue;
         }
 
-        const dayKey = this.parseDayKeyFromServiceId(groupServiceId) ?? this.utcDayKey(activity.start);
+        const dayKey =
+          this.parseDayKeyFromServiceId(groupServiceId) ??
+          this.utcDayKey(activity.start);
         const existing = groups.get(groupServiceId);
         if (existing) {
           existing.activities.push(activity);
@@ -1029,8 +1204,10 @@ export class DutyAutopilotService {
     const conflictKey = config.conflictAttributeKey;
     const conflictCodesKey = config.conflictCodesAttributeKey;
 
-    const isShortBreak = (a: Activity) => this.isShortBreakActivity(a, shortBreakTypeId);
-    const isRegularBreak = (a: Activity) => this.isBreakActivity(a, breakTypeIds) && !isShortBreak(a);
+    const isShortBreak = (a: Activity) =>
+      this.isShortBreakActivity(a, shortBreakTypeId);
+    const isRegularBreak = (a: Activity) =>
+      this.isBreakActivity(a, breakTypeIds) && !isShortBreak(a);
     const isAnyPause = (a: Activity) => isRegularBreak(a) || isShortBreak(a);
     const isBoundary = (a: Activity) => {
       const role = this.resolveServiceRole(a);
@@ -1050,7 +1227,9 @@ export class DutyAutopilotService {
     if (!basePayloadActivities.length) {
       const deleted = group.activities
         .map((a) => a.id)
-        .filter((id) => this.isManagedId(id) && this.belongsToService(id, serviceId));
+        .filter(
+          (id) => this.isManagedId(id) && this.belongsToService(id, serviceId),
+        );
       return { upserts: [], deletedIds: deleted, managedIds: [] };
     }
 
@@ -1079,8 +1258,12 @@ export class DutyAutopilotService {
       ]),
     );
 
-    const existingStart = startCandidates.find((a) => a.id === startId) ?? startCandidates[0] ?? null;
-    const existingEnd = endCandidates.find((a) => a.id === endId) ?? endCandidates[0] ?? null;
+    const existingStart =
+      startCandidates.find((a) => a.id === startId) ??
+      startCandidates[0] ??
+      null;
+    const existingEnd =
+      endCandidates.find((a) => a.id === endId) ?? endCandidates[0] ?? null;
 
     const manualBoundaryKey = this.manualBoundaryKey();
     const manualStartMs =
@@ -1088,15 +1271,86 @@ export class DutyAutopilotService {
         ? this.parseMs(existingStart.start)
         : null;
     const manualEndMs =
-      existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey) ? this.parseMs(existingEnd.start) : null;
+      existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey)
+        ? this.parseMs(existingEnd.start)
+        : null;
 
-    const homeDepotCodes: string[] = [];
-    const homeDepotDetails: ConflictDetails = {};
-    const homeDepotSelection = this.resolveHomeDepotSelection(owner, basePayloadActivities, context);
-    if (homeDepotSelection.conflictCodes.length) {
-      homeDepotCodes.push(...homeDepotSelection.conflictCodes);
-    }
-    this.mergeConflictDetails(homeDepotDetails, homeDepotSelection.conflictDetails);
+    const activityCodes = new Map<string, Set<string>>();
+    const activityDetails = new Map<string, ConflictDetails>();
+    const addActivityCodes = (
+      activityId: string | null | undefined,
+      codes: string[],
+    ) => {
+      if (!activityId || !codes.length) {
+        return;
+      }
+      let set = activityCodes.get(activityId);
+      if (!set) {
+        set = new Set<string>();
+        activityCodes.set(activityId, set);
+      }
+      codes.forEach((code) => set!.add(code));
+    };
+    const addActivityDetail = (
+      activityId: string | null | undefined,
+      code: string,
+      detail: string,
+    ) => {
+      if (!activityId) {
+        return;
+      }
+      const details = activityDetails.get(activityId) ?? {};
+      this.appendConflictDetail(details, code, detail);
+      activityDetails.set(activityId, details);
+    };
+    const mergeActivityDetails = (
+      activityId: string | null | undefined,
+      details: ConflictDetails,
+    ) => {
+      if (!activityId || !Object.keys(details).length) {
+        return;
+      }
+      const existing = activityDetails.get(activityId) ?? {};
+      this.mergeConflictDetails(existing, details);
+      activityDetails.set(activityId, existing);
+    };
+    const homeDepotSelection = this.resolveHomeDepotSelection(
+      owner,
+      basePayloadActivities,
+      context,
+    );
+    const selectionCodes = homeDepotSelection.conflictCodes;
+    const startSpecific = new Set([
+      'HOME_DEPOT_START_LOCATION_MISSING',
+      'WALK_TIME_MISSING_START',
+    ]);
+    const endSpecific = new Set([
+      'HOME_DEPOT_END_LOCATION_MISSING',
+      'WALK_TIME_MISSING_END',
+    ]);
+    const startCodes = selectionCodes.filter((code) =>
+      startSpecific.has(code),
+    );
+    const endCodes = selectionCodes.filter((code) => endSpecific.has(code));
+    const generalCodes = selectionCodes.filter(
+      (code) => !startSpecific.has(code) && !endSpecific.has(code),
+    );
+    const selectionDetails = homeDepotSelection.conflictDetails;
+    const addSelectionCodes = (
+      activityId: string | null,
+      codes: string[],
+    ) => {
+      if (!activityId || !codes.length) {
+        return;
+      }
+      addActivityCodes(activityId, codes);
+      const details = this.detailsForCodes(selectionDetails, codes);
+      mergeActivityDetails(activityId, details);
+    };
+    addSelectionCodes(startId, [...generalCodes, ...startCodes]);
+    addSelectionCodes(endId, endCodes);
+    const depot =
+      homeDepotSelection.selection?.depot ?? this.resolveHomeDepot(owner, context);
     if (homeDepotSelection.selection) {
       const allowed = new Set(
         (homeDepotSelection.selection.depot.overnightSiteIds ?? [])
@@ -1110,18 +1364,20 @@ export class DutyAutopilotService {
           }
           const locationId = `${activity.locationId ?? ''}`.trim();
           if (!locationId) {
-            homeDepotCodes.push('HOME_DEPOT_OVERNIGHT_LOCATION_MISSING');
-            this.appendConflictDetail(
-              homeDepotDetails,
+            addActivityCodes(activity.id, [
+              'HOME_DEPOT_OVERNIGHT_LOCATION_MISSING',
+            ]);
+            addActivityDetail(
+              activity.id,
               'HOME_DEPOT_OVERNIGHT_LOCATION_MISSING',
               `Aktivität: ${activity.id} (locationId fehlt)`,
             );
             continue;
           }
           if (!allowed.has(locationId)) {
-            homeDepotCodes.push('HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN');
-            this.appendConflictDetail(
-              homeDepotDetails,
+            addActivityCodes(activity.id, ['HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN']);
+            addActivityDetail(
+              activity.id,
               'HOME_DEPOT_OVERNIGHT_SITE_FORBIDDEN',
               `Aktivität: ${activity.id} (locationId=${locationId})`,
             );
@@ -1130,20 +1386,24 @@ export class DutyAutopilotService {
       }
     }
 
-    const homeDepotOutsideCode = 'HOME_DEPOT_NOT_IN_DEPOT';
+    const recordOutside = (
+      label: string,
+      location: string | null,
+      activityId?: string,
+    ) => {
+      const targetId = activityId ?? startId;
+      addActivityCodes(targetId, ['HOME_DEPOT_NOT_IN_DEPOT']);
+      const detail = activityId
+        ? `${label}: ${activityId} (${location ?? '—'})`
+        : `${label}: ${location ?? '—'}`;
+      addActivityDetail(targetId, 'HOME_DEPOT_NOT_IN_DEPOT', detail);
+    };
     if (homeDepotSelection.selection) {
       const selection = homeDepotSelection.selection;
-      const allowedStartEnd = this.buildAllowedSiteLookup(selection.depot.siteIds ?? [], context);
-      const allowedBreaks = this.buildAllowedSiteLookup(selection.depot.breakSiteIds ?? [], context);
-      const allowedShortBreaks = this.buildAllowedSiteLookup(selection.depot.shortBreakSiteIds ?? [], context);
-
-      const recordOutside = (label: string, location: string | null, activityId?: string) => {
-        homeDepotCodes.push(homeDepotOutsideCode);
-        const detail = activityId
-          ? `${label}: ${activityId} (${location ?? '—'})`
-          : `${label}: ${location ?? '—'}`;
-        this.appendConflictDetail(homeDepotDetails, homeDepotOutsideCode, detail);
-      };
+      const allowedStartEnd = this.buildAllowedSiteLookup(
+        selection.depot.siteIds ?? [],
+        context,
+      );
 
       const first = this.findFirstActivity(basePayloadActivities);
       const last = this.findLastActivity(basePayloadActivities);
@@ -1151,13 +1411,37 @@ export class DutyAutopilotService {
       const endCandidate = last ? this.readEndLocation(last) : null;
 
       if (allowedStartEnd.siteIds.size > 0) {
-        if (startCandidate && !this.isLocationInAllowedSites(startCandidate, allowedStartEnd, context)) {
-          recordOutside('Dienstanfang', startCandidate);
+        if (
+          startCandidate &&
+          !this.isLocationInAllowedSiteIds(
+            startCandidate,
+            allowedStartEnd.siteIds,
+            context,
+          )
+        ) {
+          recordOutside('Dienstanfang', startCandidate, startId);
         }
-        if (endCandidate && !this.isLocationInAllowedSites(endCandidate, allowedStartEnd, context)) {
-          recordOutside('Dienstende', endCandidate);
+        if (
+          endCandidate &&
+          !this.isLocationInAllowedSiteIds(
+            endCandidate,
+            allowedStartEnd.siteIds,
+            context,
+          )
+        ) {
+          recordOutside('Dienstende', endCandidate, endId);
         }
       }
+    }
+    if (depot) {
+      const allowedBreaks = this.buildAllowedSiteLookup(
+        depot.breakSiteIds ?? [],
+        context,
+      );
+      const allowedShortBreaks = this.buildAllowedSiteLookup(
+        depot.shortBreakSiteIds ?? [],
+        context,
+      );
 
       if (allowedBreaks.siteIds.size > 0) {
         for (const activity of group.activities) {
@@ -1165,7 +1449,13 @@ export class DutyAutopilotService {
             continue;
           }
           const location = this.readStartLocation(activity);
-          if (!this.isLocationInAllowedSites(location, allowedBreaks, context)) {
+          if (
+            !this.isLocationInAllowedSiteIds(
+              location,
+              allowedBreaks.siteIds,
+              context,
+            )
+          ) {
             recordOutside('Pause', location, activity.id);
           }
         }
@@ -1177,7 +1467,13 @@ export class DutyAutopilotService {
             continue;
           }
           const location = this.readStartLocation(activity);
-          if (!this.isLocationInAllowedSites(location, allowedShortBreaks, context)) {
+          if (
+            !this.isLocationInAllowedSiteIds(
+              location,
+              allowedShortBreaks.siteIds,
+              context,
+            )
+          ) {
             recordOutside('Kurzpause', location, activity.id);
           }
         }
@@ -1193,10 +1489,18 @@ export class DutyAutopilotService {
       const lastEndMs = last ? this.parseMs(last.end ?? last.start) : null;
       const startCandidate = first ? this.readStartLocation(first) : null;
       const endCandidate = last ? this.readEndLocation(last) : null;
-      const startOpId = startCandidate ? this.resolveOperationalPointId(startCandidate, context) : null;
-      const endOpId = endCandidate ? this.resolveOperationalPointId(endCandidate, context) : null;
+      const startOpId = startCandidate
+        ? this.resolveOperationalPointId(startCandidate, context)
+        : null;
+      const endOpId = endCandidate
+        ? this.resolveOperationalPointId(endCandidate, context)
+        : null;
 
-      if (firstStartMs !== null && startOpId && selection.walkStartMs !== null) {
+      if (
+        firstStartMs !== null &&
+        startOpId &&
+        selection.walkStartMs !== null
+      ) {
         const startCommuteId = `svccommute:${serviceId}:start`;
         managedIds.push(startCommuteId);
         generatedCommutes.push(
@@ -1244,15 +1548,28 @@ export class DutyAutopilotService {
     }
 
     const effectiveDutyStartMs = generatedCommutes.length
-      ? Math.min(dutyStartMs, ...generatedCommutes.map((c) => this.parseMs(c.start) ?? dutyStartMs))
+      ? Math.min(
+          dutyStartMs,
+          ...generatedCommutes.map((c) => this.parseMs(c.start) ?? dutyStartMs),
+        )
       : dutyStartMs;
     const effectiveDutyEndMs = generatedCommutes.length
-      ? Math.max(dutyEndMs, ...generatedCommutes.map((c) => this.parseMs(c.end ?? c.start) ?? dutyEndMs))
+      ? Math.max(
+          dutyEndMs,
+          ...generatedCommutes.map(
+            (c) => this.parseMs(c.end ?? c.start) ?? dutyEndMs,
+          ),
+        )
       : dutyEndMs;
 
     const boundaryStartMs =
-      manualStartMs !== null && manualStartMs < effectiveDutyStartMs ? manualStartMs : effectiveDutyStartMs;
-    const boundaryEndMs = manualEndMs !== null && manualEndMs > effectiveDutyEndMs ? manualEndMs : effectiveDutyEndMs;
+      manualStartMs !== null && manualStartMs < effectiveDutyStartMs
+        ? manualStartMs
+        : effectiveDutyStartMs;
+    const boundaryEndMs =
+      manualEndMs !== null && manualEndMs > effectiveDutyEndMs
+        ? manualEndMs
+        : effectiveDutyEndMs;
     const framedStartMs = boundaryStartMs;
     const framedEndMs = boundaryEndMs;
 
@@ -1271,7 +1588,10 @@ export class DutyAutopilotService {
       conflictKey,
       conflictCodesKey,
       manualBoundaryKey,
-      manual: Boolean(existingStart && this.isManualBoundary(existingStart, manualBoundaryKey)),
+      manual: Boolean(
+        existingStart &&
+          this.isManualBoundary(existingStart, manualBoundaryKey),
+      ),
     });
     let serviceEnd: Activity = this.buildBoundaryActivity({
       id: endId,
@@ -1284,30 +1604,61 @@ export class DutyAutopilotService {
       conflictKey,
       conflictCodesKey,
       manualBoundaryKey,
-      manual: Boolean(existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey)),
+      manual: Boolean(
+        existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey),
+      ),
     });
 
     if (homeDepotSelection.selection) {
       const site = homeDepotSelection.selection.selectedSite;
-      serviceStart = { ...serviceStart, locationId: site.siteId, locationLabel: site.name };
-      serviceEnd = { ...serviceEnd, locationId: site.siteId, locationLabel: site.name };
+      serviceStart = {
+        ...serviceStart,
+        locationId: site.siteId,
+        locationLabel: site.name,
+      };
+      serviceEnd = {
+        ...serviceEnd,
+        locationId: site.siteId,
+        locationLabel: site.name,
+      };
     }
 
-    const workEntries = this.buildWorkEntries([serviceStart, ...basePayloadActivities, ...generatedCommutes, serviceEnd]);
-    const gaps = this.computeGaps(workEntries.map((entry) => ({ startMs: entry.startMs, endMs: entry.endMs }))).filter(
-      (gap) => gap.durationMs > 0,
-    );
+    const workEntries = this.buildWorkEntries([
+      serviceStart,
+      ...basePayloadActivities,
+      ...generatedCommutes,
+      serviceEnd,
+    ]);
+    const gaps = this.computeGaps(
+      workEntries.map((entry) => ({
+        startMs: entry.startMs,
+        endMs: entry.endMs,
+      })),
+    ).filter((gap) => gap.durationMs > 0);
 
     const breakMinMs = config.minBreakMinutes * 60_000;
     const shortBreakMinMs = Math.max(0, config.minShortBreakMinutes) * 60_000;
     const maxContinuousMs = config.maxContinuousWorkMinutes * 60_000;
     const maxWorkMs = config.maxWorkMinutes * 60_000;
-    const supportsBreaks = owner.kind === 'personnel' || owner.kind === 'personnel-service';
+    const supportsBreaks =
+      owner.kind === 'personnel' || owner.kind === 'personnel-service';
+    const hasBreakSites =
+      Array.isArray(depot?.breakSiteIds) && depot.breakSiteIds.length > 0;
+    const hasShortBreakSites =
+      Array.isArray(depot?.shortBreakSiteIds) &&
+      depot.shortBreakSiteIds.length > 0;
 
     const selectedGapIds = new Set<string>();
     const selectedPauses: PlannedPause[] = [];
     const blockedContinuous: boolean[] = [];
-    const gapLocations = new Map<string, { fromLocation: string | null; toLocation: string | null }>();
+    const gapLocations = new Map<
+      string,
+      { fromLocation: string | null; toLocation: string | null }
+    >();
+    const gapActivityIds = new Map<
+      string,
+      { fromId: string; toId: string }
+    >();
 
     if (supportsBreaks) {
       let segmentWorkMs = 0;
@@ -1331,32 +1682,23 @@ export class DutyAutopilotService {
         const fromLocation = this.readEndLocation(current.activity);
         const toLocation = this.readStartLocation(next.activity);
         gapLocations.set(gapId, { fromLocation, toLocation });
+        gapActivityIds.set(gapId, {
+          fromId: current.activity.id,
+          toId: next.activity.id,
+        });
 
         if (segmentWorkMs + gapDurationMs + nextDurationMs > maxContinuousMs) {
           let planned: PlannedPause | null = null;
           let pauseConflictCodes: string[] = [];
+          let pauseConflictDetails: ConflictDetails = {};
+          let breakConflictCodes: string[] = [];
+          let shortConflictCodes: string[] = [];
 
-          if (homeDepotSelection.selection) {
-            const breakAttempt = this.planPause({
-              kind: 'break',
-              depot: homeDepotSelection.selection.depot,
-              gapId,
-              gapStartMs,
-              gapEndMs,
-              fromLocation,
-              toLocation,
-              minBreakMs: breakMinMs,
-              minShortBreakMs: shortBreakMinMs,
-              context,
-            });
-            this.mergeConflictDetails(homeDepotDetails, breakAttempt.conflictDetails);
-            if (breakAttempt.pause) {
-              planned = breakAttempt.pause;
-              pauseConflictCodes = breakAttempt.conflictCodes;
-            } else {
-              const shortAttempt = this.planPause({
-                kind: 'short-break',
-                depot: homeDepotSelection.selection.depot,
+          if (depot && (hasBreakSites || hasShortBreakSites)) {
+            if (hasBreakSites) {
+              const breakAttempt = this.planPause({
+                kind: 'break',
+                depot,
                 gapId,
                 gapStartMs,
                 gapEndMs,
@@ -1366,16 +1708,60 @@ export class DutyAutopilotService {
                 minShortBreakMs: shortBreakMinMs,
                 context,
               });
-              this.mergeConflictDetails(homeDepotDetails, shortAttempt.conflictDetails);
+              this.mergeConflictDetails(
+                pauseConflictDetails,
+                breakAttempt.conflictDetails,
+              );
+              breakConflictCodes = breakAttempt.conflictCodes;
+              if (breakAttempt.pause) {
+                planned = breakAttempt.pause;
+              }
+            }
+            if (!planned && hasShortBreakSites) {
+              const shortAttempt = this.planPause({
+                kind: 'short-break',
+                depot,
+                gapId,
+                gapStartMs,
+                gapEndMs,
+                fromLocation,
+                toLocation,
+                minBreakMs: breakMinMs,
+                minShortBreakMs: shortBreakMinMs,
+                context,
+              });
+              this.mergeConflictDetails(
+                pauseConflictDetails,
+                shortAttempt.conflictDetails,
+              );
+              shortConflictCodes = shortAttempt.conflictCodes;
               planned = shortAttempt.pause;
-              pauseConflictCodes = shortAttempt.pause
-                ? shortAttempt.conflictCodes
-                : this.normalizeConflictCodes([...breakAttempt.conflictCodes, ...shortAttempt.conflictCodes]);
+            }
+            if (planned) {
+              pauseConflictCodes =
+                planned.kind === 'break'
+                  ? breakConflictCodes
+                  : shortConflictCodes;
+            } else {
+              pauseConflictCodes = this.normalizeConflictCodes([
+                ...breakConflictCodes,
+                ...shortConflictCodes,
+              ]);
             }
           }
 
           if (pauseConflictCodes.length) {
-            homeDepotCodes.push(...pauseConflictCodes);
+            const gapTargets = gapActivityIds.get(gapId);
+            if (gapTargets) {
+              const filteredDetails = this.detailsForCodes(
+                this.normalizeConflictDetails(pauseConflictDetails),
+                pauseConflictCodes,
+              );
+              [gapTargets.fromId, gapTargets.toId].forEach((targetId) => {
+                addActivityCodes(targetId, pauseConflictCodes);
+                mergeActivityDetails(targetId, filteredDetails);
+              });
+            }
           }
 
           if (planned) {
@@ -1383,7 +1769,11 @@ export class DutyAutopilotService {
             selectedPauses.push(planned);
             segmentWorkMs = 0;
             cursorMs = planned.breakEndMs;
-          } else if (!homeDepotSelection.selection && gapDurationMs >= breakMinMs) {
+          } else if (
+            !hasBreakSites &&
+            !hasShortBreakSites &&
+            gapDurationMs >= breakMinMs
+          ) {
             selectedGapIds.add(gapId);
             selectedPauses.push({
               kind: 'break',
@@ -1411,7 +1801,11 @@ export class DutyAutopilotService {
     if (supportsBreaks) {
       breakMs = selectedPauses
         .filter((pause) => pause.kind === 'break')
-        .reduce((sum, entry) => sum + Math.max(0, entry.breakEndMs - entry.breakStartMs), 0);
+        .reduce(
+          (sum, entry) =>
+            sum + Math.max(0, entry.breakEndMs - entry.breakStartMs),
+          0,
+        );
       workMs = Math.max(0, dutySpanMs - breakMs);
 
       if (workMs > maxWorkMs) {
@@ -1420,13 +1814,20 @@ export class DutyAutopilotService {
         const candidates = gaps
           .filter((gap) => !selectedGapIds.has(gap.id))
           .map((gap) => {
-            if (!homeDepotSelection.selection) {
-              return { gap, planned: null as PlannedPause | null, breakDurationMs: gap.durationMs };
+            if (!hasBreakSites) {
+              return {
+                gap,
+                planned: null as PlannedPause | null,
+                breakDurationMs: gap.durationMs,
+              };
             }
-            const meta = gapLocations.get(gap.id) ?? { fromLocation: null, toLocation: null };
+            const meta = gapLocations.get(gap.id) ?? {
+              fromLocation: null,
+              toLocation: null,
+            };
             const attempt = this.planPause({
               kind: 'break',
-              depot: homeDepotSelection.selection.depot,
+              depot: depot!,
               gapId: gap.id,
               gapStartMs: gap.startMs,
               gapEndMs: gap.endMs,
@@ -1436,12 +1837,23 @@ export class DutyAutopilotService {
               minShortBreakMs: shortBreakMinMs,
               context,
             });
-            this.mergeConflictDetails(homeDepotDetails, attempt.conflictDetails);
             if (attempt.conflictCodes.length) {
-              homeDepotCodes.push(...attempt.conflictCodes);
+              const gapTargets = gapActivityIds.get(gap.id);
+              if (gapTargets) {
+                const filteredDetails = this.detailsForCodes(
+                  this.normalizeConflictDetails(attempt.conflictDetails),
+                  attempt.conflictCodes,
+                );
+                [gapTargets.fromId, gapTargets.toId].forEach((targetId) => {
+                  addActivityCodes(targetId, attempt.conflictCodes);
+                  mergeActivityDetails(targetId, filteredDetails);
+                });
+              }
             }
             const planned = attempt.pause;
-            const breakDurationMs = planned ? Math.max(0, planned.breakEndMs - planned.breakStartMs) : 0;
+            const breakDurationMs = planned
+              ? Math.max(0, planned.breakEndMs - planned.breakStartMs)
+              : 0;
             return { gap, planned, breakDurationMs };
           })
           .filter((entry) => entry.breakDurationMs >= breakMinMs)
@@ -1475,27 +1887,38 @@ export class DutyAutopilotService {
       }
     }
 
-    const pausesSorted = selectedPauses.sort((a, b) => a.breakStartMs - b.breakStartMs);
-    const breakIntervals = pausesSorted.map((pause) => ({ startMs: pause.breakStartMs, endMs: pause.breakEndMs }));
+    const pausesSorted = selectedPauses.sort(
+      (a, b) => a.breakStartMs - b.breakStartMs,
+    );
+    const breakIntervals = pausesSorted.map((pause) => ({
+      startMs: pause.breakStartMs,
+      endMs: pause.breakEndMs,
+    }));
     const maxContinuousObservedMs = supportsBreaks
       ? this.computeMaxContinuousMs(framedStartMs, framedEndMs, breakIntervals)
       : 0;
 
     const worktimeConflictCodes: string[] = [];
     if (supportsBreaks) {
-      worktimeConflictCodes.push(...homeDepotCodes);
       if (dutySpanMs > config.maxDutySpanMinutes * 60_000) {
         worktimeConflictCodes.push('MAX_DUTY_SPAN');
       }
       if (workMs > maxWorkMs) {
         worktimeConflictCodes.push('MAX_WORK');
       }
-      if (maxContinuousObservedMs > maxContinuousMs || blockedContinuous.length) {
+      if (
+        maxContinuousObservedMs > maxContinuousMs ||
+        blockedContinuous.length
+      ) {
         worktimeConflictCodes.push('MAX_CONTINUOUS');
       }
       if (blockedContinuous.length) {
         worktimeConflictCodes.push('NO_BREAK_WINDOW');
       }
+    }
+    if (worktimeConflictCodes.length) {
+      addActivityCodes(startId, worktimeConflictCodes);
+      addActivityCodes(endId, worktimeConflictCodes);
     }
 
     const pauseCommutes: Activity[] = [];
@@ -1551,7 +1974,10 @@ export class DutyAutopilotService {
           ? `svcshortbreak:${serviceId}:${ordinal}`
           : `svcbreak:${serviceId}:${ordinal}`;
       managedIds.push(breakId);
-      const type = pause.kind === 'short-break' ? shortBreakTypeId : (breakTypeIds[0] ?? shortBreakTypeId);
+      const type =
+        pause.kind === 'short-break'
+          ? shortBreakTypeId
+          : (breakTypeIds[0] ?? shortBreakTypeId);
       const title = pause.kind === 'short-break' ? 'Kurzpause' : 'Pause';
       const breakActivity = this.buildBreakActivity({
         id: breakId,
@@ -1576,72 +2002,91 @@ export class DutyAutopilotService {
       ...generatedCommutes,
       ...pauseCommutes,
     ]);
-    const localUnion = Array.from(
-      new Set(
-        Array.from(localConflictCodes.values()).flatMap((codes) => Array.from(codes)),
-      ),
-    );
-    const existingAzgCodes = this.normalizeConflictCodes(
-      group.activities
-        .flatMap((activity) => this.readConflictCodesForActivity(activity, ownerId, conflictCodesKey))
-        .filter((code) => code.startsWith('AZG_')),
-    );
-    const markerCodes = this.normalizeConflictCodes([...worktimeConflictCodes, ...localUnion, ...existingAzgCodes]);
-    const normalizedWorktimeDetails = this.normalizeConflictDetails(homeDepotDetails);
-    const markerDetails = this.detailsForCodes(normalizedWorktimeDetails, markerCodes);
-    const markerConflictLevel = this.conflictLevelForCodes(markerCodes, config.maxConflictLevel);
+    localConflictCodes.forEach((codes, activityId) => {
+      addActivityCodes(activityId, Array.from(codes));
+    });
 
     const updatedPayload = basePayloadActivities.map((activity) => {
-      const codes = this.normalizeConflictCodes([
-        ...worktimeConflictCodes,
-        ...(localConflictCodes.get(activity.id) ? Array.from(localConflictCodes.get(activity.id)!) : []),
-        ...existingAzgCodes,
-      ]);
-      const details = this.detailsForCodes(normalizedWorktimeDetails, codes);
+      const codes = this.normalizeConflictCodes(
+        Array.from(activityCodes.get(activity.id) ?? []),
+      );
+      const details = this.detailsForCodes(
+        this.normalizeConflictDetails(activityDetails.get(activity.id) ?? {}),
+        codes,
+      );
       const level = this.conflictLevelForCodes(codes, config.maxConflictLevel);
       return this.applyDutyAssignment(
         activity,
         ownerId,
-        { serviceId, conflictLevel: level, conflictCodes: codes, conflictDetails: details },
+        {
+          serviceId,
+          conflictLevel: level,
+          conflictCodes: codes,
+          conflictDetails: details,
+        },
         conflictKey,
         conflictCodesKey,
       );
     });
 
     const updatedBoundaries = [
-      this.applyDutyMeta(
-        serviceStart,
+      serviceStart,
+      serviceEnd,
+    ].map((boundary) => {
+      const codes = this.normalizeConflictCodes(
+        Array.from(activityCodes.get(boundary.id) ?? []),
+      );
+      const details = this.detailsForCodes(
+        this.normalizeConflictDetails(activityDetails.get(boundary.id) ?? {}),
+        codes,
+      );
+      const level = this.conflictLevelForCodes(
+        codes,
+        config.maxConflictLevel,
+      );
+      return this.applyDutyMeta(
+        boundary,
         serviceId,
-        markerConflictLevel,
-        markerCodes,
+        level,
+        codes,
         conflictKey,
         conflictCodesKey,
-        markerDetails,
-      ),
-      this.applyDutyMeta(
-        serviceEnd,
+        details,
+      );
+    });
+
+    const updatedManaged = [
+      ...generatedCommutes,
+      ...pauseCommutes,
+      ...pauseActivities,
+    ].map((managed) => {
+      const codes = this.normalizeConflictCodes(
+        Array.from(activityCodes.get(managed.id) ?? []),
+      );
+      const details = this.detailsForCodes(
+        this.normalizeConflictDetails(activityDetails.get(managed.id) ?? {}),
+        codes,
+      );
+      const level = this.conflictLevelForCodes(
+        codes,
+        config.maxConflictLevel,
+      );
+      return this.applyDutyMeta(
+        managed,
         serviceId,
-        markerConflictLevel,
-        markerCodes,
+        level,
+        codes,
         conflictKey,
         conflictCodesKey,
-        markerDetails,
-      ),
+        details,
+      );
+    });
+
+    const upserts = [
+      ...updatedPayload,
+      ...updatedBoundaries,
+      ...updatedManaged,
     ];
-
-    const updatedManaged = [...generatedCommutes, ...pauseCommutes, ...pauseActivities].map((b) =>
-      this.applyDutyMeta(
-        b,
-        serviceId,
-        markerConflictLevel,
-        markerCodes,
-        conflictKey,
-        conflictCodesKey,
-        markerDetails,
-      ),
-    );
-
-    const upserts = [...updatedPayload, ...updatedBoundaries, ...updatedManaged];
 
     const desiredManaged = new Set(managedIds);
     const deletedIds = Array.from(
@@ -1649,7 +2094,12 @@ export class DutyAutopilotService {
         ...boundaryDeletedIds,
         ...group.activities
           .map((a) => a.id)
-          .filter((id) => this.isManagedId(id) && this.belongsToService(id, serviceId) && !desiredManaged.has(id)),
+          .filter(
+            (id) =>
+              this.isManagedId(id) &&
+              this.belongsToService(id, serviceId) &&
+              !desiredManaged.has(id),
+          ),
       ]),
     );
 
@@ -1735,13 +2185,26 @@ export class DutyAutopilotService {
     const attrs: ActivityAttributes = { ...(activity.attributes ?? {}) };
     const detailsKey = this.conflictDetailsKey();
     const normalizedCodes = this.normalizeConflictCodes(conflictCodes);
-    const normalizedDetails = conflictDetails === undefined ? null : this.normalizeConflictDetails(conflictDetails);
+    const normalizedDetails =
+      conflictDetails === undefined
+        ? null
+        : this.normalizeConflictDetails(conflictDetails);
     const levelUnchanged = attrs[conflictKey] === conflictLevel;
-    const codesUnchanged = this.sameStringArray(attrs[conflictCodesKey], normalizedCodes);
+    const codesUnchanged = this.sameStringArray(
+      attrs[conflictCodesKey],
+      normalizedCodes,
+    );
     const serviceUnchanged = (activity.serviceId ?? null) === serviceId;
     const detailsUnchanged =
-      normalizedDetails === null ? true : this.sameConflictDetails(attrs[detailsKey], normalizedDetails);
-    if (levelUnchanged && codesUnchanged && serviceUnchanged && detailsUnchanged) {
+      normalizedDetails === null
+        ? true
+        : this.sameConflictDetails(attrs[detailsKey], normalizedDetails);
+    if (
+      levelUnchanged &&
+      codesUnchanged &&
+      serviceUnchanged &&
+      detailsUnchanged
+    ) {
       return activity;
     }
 
@@ -1769,36 +2232,55 @@ export class DutyAutopilotService {
     const detailsKey = this.conflictDetailsKey();
     const existing = attrs[serviceByOwnerKey];
     const map = this.cloneOwnerAssignmentMap(existing);
-    const normalizedCodes = this.normalizeConflictCodes(assignment.conflictCodes);
+    const normalizedCodes = this.normalizeConflictCodes(
+      assignment.conflictCodes,
+    );
     const normalizedDetails =
-      assignment.conflictDetails === undefined ? null : this.normalizeConflictDetails(assignment.conflictDetails);
+      assignment.conflictDetails === undefined
+        ? null
+        : this.normalizeConflictDetails(assignment.conflictDetails);
     const currentEntry = map[ownerId];
     const retainedDetails =
-      normalizedDetails === null ? this.normalizeConflictDetails(currentEntry?.conflictDetails ?? {}) : normalizedDetails;
+      normalizedDetails === null
+        ? this.normalizeConflictDetails(currentEntry?.conflictDetails ?? {})
+        : normalizedDetails;
     const entryUnchanged =
       (currentEntry?.serviceId ?? null) === assignment.serviceId &&
       (currentEntry?.conflictLevel ?? 0) === assignment.conflictLevel &&
-      this.sameStringArray(currentEntry?.conflictCodes ?? [], normalizedCodes) &&
+      this.sameStringArray(
+        currentEntry?.conflictCodes ?? [],
+        normalizedCodes,
+      ) &&
       this.sameConflictDetails(currentEntry?.conflictDetails, retainedDetails);
 
     map[ownerId] = {
       serviceId: assignment.serviceId,
       conflictLevel: assignment.conflictLevel,
       conflictCodes: normalizedCodes,
-      ...(Object.keys(retainedDetails).length ? { conflictDetails: retainedDetails } : {}),
+      ...(Object.keys(retainedDetails).length
+        ? { conflictDetails: retainedDetails }
+        : {}),
     };
 
     attrs[serviceByOwnerKey] = map;
 
     // Keep a global union for non-slot aware consumers.
     const entries = Object.values(map);
-    const maxLevel = entries.reduce((max, entry) => Math.max(max, entry?.conflictLevel ?? 0), 0);
+    const maxLevel = entries.reduce(
+      (max, entry) => Math.max(max, entry?.conflictLevel ?? 0),
+      0,
+    );
     const unionCodes = this.normalizeConflictCodes(
-      entries.flatMap((entry) => (Array.isArray(entry?.conflictCodes) ? entry.conflictCodes : [])),
+      entries.flatMap((entry) =>
+        Array.isArray(entry?.conflictCodes) ? entry.conflictCodes : [],
+      ),
     );
     const unionDetails: ConflictDetails = {};
     entries.forEach((entry) => {
-      this.mergeConflictDetails(unionDetails, entry?.conflictDetails ?? undefined);
+      this.mergeConflictDetails(
+        unionDetails,
+        entry?.conflictDetails ?? undefined,
+      );
     });
     const normalizedUnionDetails = this.normalizeConflictDetails(unionDetails);
     attrs[conflictKey] = maxLevel;
@@ -1810,11 +2292,24 @@ export class DutyAutopilotService {
     }
 
     const serviceUnchanged = activity.serviceId === null;
-    const globalLevelUnchanged = (activity.attributes as any)?.[conflictKey] === maxLevel;
-    const globalCodesUnchanged = this.sameStringArray((activity.attributes as any)?.[conflictCodesKey], unionCodes);
-    const globalDetailsUnchanged = this.sameConflictDetails((activity.attributes as any)?.[detailsKey], normalizedUnionDetails);
+    const globalLevelUnchanged =
+      (activity.attributes as any)?.[conflictKey] === maxLevel;
+    const globalCodesUnchanged = this.sameStringArray(
+      (activity.attributes as any)?.[conflictCodesKey],
+      unionCodes,
+    );
+    const globalDetailsUnchanged = this.sameConflictDetails(
+      (activity.attributes as any)?.[detailsKey],
+      normalizedUnionDetails,
+    );
 
-    if (entryUnchanged && serviceUnchanged && globalLevelUnchanged && globalCodesUnchanged && globalDetailsUnchanged) {
+    if (
+      entryUnchanged &&
+      serviceUnchanged &&
+      globalLevelUnchanged &&
+      globalCodesUnchanged &&
+      globalDetailsUnchanged
+    ) {
       return activity;
     }
 
@@ -1832,7 +2327,11 @@ export class DutyAutopilotService {
     return 'service_conflict_details';
   }
 
-  private appendConflictDetail(details: ConflictDetails, code: string, message: string): void {
+  private appendConflictDetail(
+    details: ConflictDetails,
+    code: string,
+    message: string,
+  ): void {
     const key = `${code ?? ''}`.trim();
     const trimmed = `${message ?? ''}`.trim();
     if (!key || !trimmed) {
@@ -1847,12 +2346,16 @@ export class DutyAutopilotService {
     if (!source || typeof source !== 'object' || Array.isArray(source)) {
       return;
     }
-    Object.entries(source as Record<string, unknown>).forEach(([code, value]) => {
-      if (!Array.isArray(value)) {
-        return;
-      }
-      value.forEach((entry) => this.appendConflictDetail(target, code, `${entry ?? ''}`));
-    });
+    Object.entries(source as Record<string, unknown>).forEach(
+      ([code, value]) => {
+        if (!Array.isArray(value)) {
+          return;
+        }
+        value.forEach((entry) =>
+          this.appendConflictDetail(target, code, `${entry ?? ''}`),
+        );
+      },
+    );
   }
 
   private normalizeConflictDetails(details: unknown): ConflictDetails {
@@ -1860,28 +2363,37 @@ export class DutyAutopilotService {
     if (!details || typeof details !== 'object' || Array.isArray(details)) {
       return result;
     }
-    Object.entries(details as Record<string, unknown>).forEach(([code, value]) => {
-      if (!Array.isArray(value)) {
-        return;
-      }
-      const normalizedCode = `${code ?? ''}`.trim();
-      if (!normalizedCode) {
-        return;
-      }
-      const entries = value
-        .map((entry) => `${entry ?? ''}`.trim())
-        .filter((entry) => entry.length > 0);
-      if (!entries.length) {
-        return;
-      }
-      const unique = Array.from(new Set(entries)).sort((a, b) => a.localeCompare(b));
-      result[normalizedCode] = unique;
-    });
+    Object.entries(details as Record<string, unknown>).forEach(
+      ([code, value]) => {
+        if (!Array.isArray(value)) {
+          return;
+        }
+        const normalizedCode = `${code ?? ''}`.trim();
+        if (!normalizedCode) {
+          return;
+        }
+        const entries = value
+          .map((entry) => `${entry ?? ''}`.trim())
+          .filter((entry) => entry.length > 0);
+        if (!entries.length) {
+          return;
+        }
+        const unique = Array.from(new Set(entries)).sort((a, b) =>
+          a.localeCompare(b),
+        );
+        result[normalizedCode] = unique;
+      },
+    );
     return result;
   }
 
-  private sameConflictDetails(current: unknown, expected: ConflictDetails): boolean {
-    const expectedKeys = Object.keys(expected).sort((a, b) => a.localeCompare(b));
+  private sameConflictDetails(
+    current: unknown,
+    expected: ConflictDetails,
+  ): boolean {
+    const expectedKeys = Object.keys(expected).sort((a, b) =>
+      a.localeCompare(b),
+    );
     if (!current || typeof current !== 'object' || Array.isArray(current)) {
       return expectedKeys.length === 0;
     }
@@ -1916,22 +2428,37 @@ export class DutyAutopilotService {
     return true;
   }
 
-  private detailsForCodes(details: ConflictDetails, codes: string[]): ConflictDetails {
-    const set = new Set(codes.map((code) => `${code ?? ''}`.trim()).filter(Boolean));
+  private detailsForCodes(
+    details: ConflictDetails,
+    codes: string[],
+  ): ConflictDetails {
+    const set = new Set(
+      codes.map((code) => `${code ?? ''}`.trim()).filter(Boolean),
+    );
     const filtered: ConflictDetails = {};
     Object.entries(details).forEach(([code, entries]) => {
       if (!set.has(code)) {
         return;
       }
-      entries.forEach((entry) => this.appendConflictDetail(filtered, code, entry));
+      entries.forEach((entry) =>
+        this.appendConflictDetail(filtered, code, entry),
+      );
     });
     return this.normalizeConflictDetails(filtered);
   }
 
-  private formatWalkLink(site: PersonnelSite, uniqueOpId: string, context: MasterDataContext): string {
+  private formatWalkLink(
+    site: PersonnelSite,
+    uniqueOpId: string,
+    context: MasterDataContext,
+  ): string {
     const normalizedOpId = `${uniqueOpId ?? ''}`.trim().toUpperCase();
-    const op = normalizedOpId ? context.operationalPointsById.get(normalizedOpId) ?? null : null;
-    const opLabel = op?.name ? `${op.name} (${normalizedOpId})` : normalizedOpId || '—';
+    const op = normalizedOpId
+      ? (context.operationalPointsById.get(normalizedOpId) ?? null)
+      : null;
+    const opLabel = op?.name
+      ? `${op.name} (${normalizedOpId})`
+      : normalizedOpId || '—';
     const siteLabel = `${site.name ?? site.siteId}`.trim() || site.siteId;
     return `Wegzeit fehlt: ${siteLabel} (${site.siteId}) ↔ ${opLabel}`;
   }
@@ -1969,13 +2496,20 @@ export class DutyAutopilotService {
     return Math.max(max, last);
   }
 
-  private computeGaps(intervals: Array<{ startMs: number; endMs: number }>): Array<{
+  private computeGaps(
+    intervals: Array<{ startMs: number; endMs: number }>,
+  ): Array<{
     id: string;
     startMs: number;
     endMs: number;
     durationMs: number;
   }> {
-    const gaps: Array<{ id: string; startMs: number; endMs: number; durationMs: number }> = [];
+    const gaps: Array<{
+      id: string;
+      startMs: number;
+      endMs: number;
+      durationMs: number;
+    }> = [];
     for (let i = 0; i < intervals.length - 1; i += 1) {
       const endMs = intervals[i].endMs;
       const nextStartMs = intervals[i + 1].startMs;
@@ -1985,7 +2519,12 @@ export class DutyAutopilotService {
       if (durationMs <= 0) {
         continue;
       }
-      gaps.push({ id: `${startMs}-${gapEndMs}`, startMs, endMs: gapEndMs, durationMs });
+      gaps.push({
+        id: `${startMs}-${gapEndMs}`,
+        startMs,
+        endMs: gapEndMs,
+        durationMs,
+      });
     }
     return gaps;
   }
@@ -2005,11 +2544,17 @@ export class DutyAutopilotService {
         const normalizedEnd = Math.max(startMs, endMs);
         return { startMs, endMs: normalizedEnd };
       })
-      .filter((interval): interval is { startMs: number; endMs: number } => interval !== null)
+      .filter(
+        (interval): interval is { startMs: number; endMs: number } =>
+          interval !== null,
+      )
       .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 
     const minStartMs = intervals.length ? intervals[0].startMs : 0;
-    const maxEndMs = intervals.reduce((max, entry) => Math.max(max, entry.endMs), minStartMs);
+    const maxEndMs = intervals.reduce(
+      (max, entry) => Math.max(max, entry.endMs),
+      minStartMs,
+    );
     return { intervals, minStartMs, maxEndMs };
   }
 
@@ -2130,7 +2675,10 @@ export class DutyAutopilotService {
     activities: Activity[],
     config: ResolvedDutyAutopilotConfig,
   ): {
-    ownerBuckets: Map<string, { owner: ActivityParticipant; activities: Activity[] }>;
+    ownerBuckets: Map<
+      string,
+      { owner: ActivityParticipant; activities: Activity[] }
+    >;
     assignmentByOwnerId: Map<string, Map<string, string | null>>;
     groups: DutyActivityGroup[];
   } {
@@ -2155,7 +2703,10 @@ export class DutyAutopilotService {
       return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
     };
 
-    const ownerBuckets = new Map<string, { owner: ActivityParticipant; activities: Activity[] }>();
+    const ownerBuckets = new Map<
+      string,
+      { owner: ActivityParticipant; activities: Activity[] }
+    >();
 
     for (const activity of activities) {
       const owners = this.resolveDutyOwners(activity);
@@ -2173,7 +2724,10 @@ export class DutyAutopilotService {
       }
     }
 
-    const resolveServiceIdForBoundary = (ownerId: string, activity: Activity): string | null => {
+    const resolveServiceIdForBoundary = (
+      ownerId: string,
+      activity: Activity,
+    ): string | null => {
       const parsed = this.parseServiceIdFromManagedId(activity.id);
       if (parsed) {
         const parsedOwner = this.parseOwnerIdFromServiceId(parsed);
@@ -2186,7 +2740,8 @@ export class DutyAutopilotService {
         }
         return parsed;
       }
-      const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+      const explicit =
+        typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
       if (explicit.startsWith('svc:')) {
         const explicitOwner = this.parseOwnerIdFromServiceId(explicit);
         const explicitStage = this.parseStageIdFromServiceId(explicit);
@@ -2221,8 +2776,14 @@ export class DutyAutopilotService {
           }
           return { serviceId, startMs };
         })
-        .filter((entry): entry is { serviceId: string; startMs: number } => entry !== null)
-        .sort((a, b) => a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId));
+        .filter(
+          (entry): entry is { serviceId: string; startMs: number } =>
+            entry !== null,
+        )
+        .sort(
+          (a, b) =>
+            a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId),
+        );
 
       const ends = ownerActivities
         .filter((activity) => isEndBoundary(activity))
@@ -2238,9 +2799,18 @@ export class DutyAutopilotService {
           const endMs = Math.max(startMs, this.resolveEndMs(activity, startMs));
           return { serviceId, startMs, endMs };
         })
-        .filter((entry): entry is { serviceId: string; startMs: number; endMs: number } => entry !== null);
+        .filter(
+          (
+            entry,
+          ): entry is { serviceId: string; startMs: number; endMs: number } =>
+            entry !== null,
+        );
 
-      let windows: Array<{ serviceId: string; startMs: number; endMs: number }> = [];
+      let windows: Array<{
+        serviceId: string;
+        startMs: number;
+        endMs: number;
+      }> = [];
       if (config.enforceOneDutyPerDay) {
         const startsByService = new Map<string, number>();
         starts.forEach((entry) => {
@@ -2256,24 +2826,34 @@ export class DutyAutopilotService {
             endsByService.set(entry.serviceId, entry.endMs);
           }
         });
-        windows = Array.from(startsByService.entries()).map(([serviceId, startMs]) => {
-          const endCandidate = endsByService.get(serviceId);
-          const endMs =
-            endCandidate !== undefined && endCandidate >= startMs
-              ? endCandidate
-              : startMs + fallbackServiceWindowMs;
-          return { serviceId, startMs, endMs };
-        });
+        windows = Array.from(startsByService.entries()).map(
+          ([serviceId, startMs]) => {
+            const endCandidate = endsByService.get(serviceId);
+            const endMs =
+              endCandidate !== undefined && endCandidate >= startMs
+                ? endCandidate
+                : startMs + fallbackServiceWindowMs;
+            return { serviceId, startMs, endMs };
+          },
+        );
       } else {
         windows = starts.map((start) => {
           const endMs =
             ends
-              .filter((candidate) => candidate.serviceId === start.serviceId && candidate.startMs >= start.startMs)
-              .sort((a, b) => a.startMs - b.startMs)[0]?.endMs ?? start.startMs + fallbackServiceWindowMs;
+              .filter(
+                (candidate) =>
+                  candidate.serviceId === start.serviceId &&
+                  candidate.startMs >= start.startMs,
+              )
+              .sort((a, b) => a.startMs - b.startMs)[0]?.endMs ??
+            start.startMs + fallbackServiceWindowMs;
           return { serviceId: start.serviceId, startMs: start.startMs, endMs };
         });
       }
-      windows.sort((a, b) => a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId));
+      windows.sort(
+        (a, b) =>
+          a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId),
+      );
 
       const findWindowServiceId = (startMs: number): string | null => {
         for (let i = windows.length - 1; i >= 0; i -= 1) {
@@ -2300,7 +2880,9 @@ export class DutyAutopilotService {
         if (!serviceId) {
           continue;
         }
-        const dayKey = this.parseDayKeyFromServiceId(serviceId) ?? this.utcDayKey(activity.start);
+        const dayKey =
+          this.parseDayKeyFromServiceId(serviceId) ??
+          this.utcDayKey(activity.start);
         const existing = groups.get(serviceId);
         if (existing) {
           existing.activities.push(activity);
@@ -2315,7 +2897,11 @@ export class DutyAutopilotService {
       }
     });
 
-    return { ownerBuckets, assignmentByOwnerId, groups: Array.from(groups.values()) };
+    return {
+      ownerBuckets,
+      assignmentByOwnerId,
+      groups: Array.from(groups.values()),
+    };
   }
 
   private applyLocalConflictCompliance(
@@ -2352,10 +2938,12 @@ export class DutyAutopilotService {
         boundaryTypeIds.has((activity.type ?? '').trim())
       );
     };
-    const isBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds);
+    const isBreak = (activity: Activity) =>
+      this.isBreakActivity(activity, breakTypeIds);
     const isShortBreak = (activity: Activity) =>
       this.isShortBreakActivity(activity, shortBreakTypeId);
-    const isBreakLike = (activity: Activity) => isBreak(activity) || isShortBreak(activity);
+    const isBreakLike = (activity: Activity) =>
+      isBreak(activity) || isShortBreak(activity);
     const isManagedForConflicts = (activity: Activity) => {
       if (!this.isManagedId(activity.id)) {
         return false;
@@ -2376,27 +2964,34 @@ export class DutyAutopilotService {
       return false;
     };
 
-    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const byId = new Map<string, Activity>(
+      activities.map((activity) => [activity.id, activity]),
+    );
     const updated = new Map<string, Activity>();
 
     const grouping = this.buildComplianceGrouping(stageId, activities, config);
     const groups = grouping.groups;
     const isTimelineOwner = (owner: ActivityParticipant) =>
       owner.kind === 'personnel' || owner.kind === 'vehicle';
-    const globalLocationConflictsByOwner = new Map<string, Map<string, Set<string>>>();
-    grouping.ownerBuckets.forEach(({ owner, activities: ownerActivities }, ownerId) => {
-      if (!isTimelineOwner(owner)) {
-        return;
-      }
-      const conflicts = this.detectLocalConflicts(ownerActivities, {
-        includeCapacity: false,
-        includeLocation: true,
-        skipMissingLocations: true,
-      });
-      if (conflicts.size) {
-        globalLocationConflictsByOwner.set(ownerId, conflicts);
-      }
-    });
+    const globalLocationConflictsByOwner = new Map<
+      string,
+      Map<string, Set<string>>
+    >();
+    grouping.ownerBuckets.forEach(
+      ({ owner, activities: ownerActivities }, ownerId) => {
+        if (!isTimelineOwner(owner)) {
+          return;
+        }
+        const conflicts = this.detectLocalConflicts(ownerActivities, {
+          includeCapacity: false,
+          includeLocation: true,
+          skipMissingLocations: true,
+        });
+        if (conflicts.size) {
+          globalLocationConflictsByOwner.set(ownerId, conflicts);
+        }
+      },
+    );
     for (const group of groups) {
       const serviceId = group.serviceId;
       const ownerId = group.owner.resourceId;
@@ -2419,36 +3014,53 @@ export class DutyAutopilotService {
       const localConflicts = new Map<string, Set<string>>();
       this.mergeConflictMaps(localConflicts, capacityConflicts);
       this.mergeConflictMaps(localConflicts, locationConflicts);
-      const unionCodes = this.normalizeConflictCodes(
-        Array.from(new Set(Array.from(localConflicts.values()).flatMap((set) => Array.from(set)))),
-      );
       const globalLocationConflicts = isTimelineOwner(group.owner)
         ? globalLocationConflictsByOwner.get(ownerId)
         : undefined;
 
       for (const groupActivity of group.activities) {
         const current = byId.get(groupActivity.id) ?? groupActivity;
-        const scopeCodes = this.withinServiceConflictCodes(this.resolveWithinPreference(current), true);
-        const desiredLocalCodes =
-          isManagedForConflicts(current) || isBoundary(current) || isBreak(current)
-            ? unionCodes
-            : (() => {
-                const localCodes = new Set(localConflicts.get(current.id) ?? []);
-                const globalCodes = globalLocationConflicts?.get(current.id);
-                if (globalCodes) {
-                  globalCodes.forEach((code) => localCodes.add(code));
-                }
-                return this.normalizeConflictCodes(Array.from(localCodes));
-              })();
+        const scopeCodes = this.withinServiceConflictCodes(
+          this.resolveWithinPreference(current),
+          true,
+        );
+        const localCodes = new Set(localConflicts.get(current.id) ?? []);
+        const globalCodes = globalLocationConflicts?.get(current.id);
+        if (globalCodes) {
+          globalCodes.forEach((code) => localCodes.add(code));
+        }
+        const desiredLocalCodes = this.normalizeConflictCodes(
+          Array.from(localCodes),
+        );
 
-        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
-        const preserved = baseCodes.filter((code) => !managedLocalCodes.has(code));
-        const merged = this.normalizeConflictCodes([...preserved, ...desiredLocalCodes, ...scopeCodes]);
-        const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
+        const baseCodes = this.readConflictCodesForActivity(
+          current,
+          ownerId,
+          conflictCodesKey,
+        );
+        const preserved = baseCodes.filter(
+          (code) => !managedLocalCodes.has(code),
+        );
+        const merged = this.normalizeConflictCodes([
+          ...preserved,
+          ...desiredLocalCodes,
+          ...scopeCodes,
+        ]);
+        const level = this.conflictLevelForCodes(
+          merged,
+          config.maxConflictLevel,
+        );
 
         const next =
           isManagedForConflicts(current) || isBoundary(current)
-            ? this.applyDutyMeta(current, serviceId, level, merged, conflictKey, conflictCodesKey)
+            ? this.applyDutyMeta(
+                current,
+                serviceId,
+                level,
+                merged,
+                conflictKey,
+                conflictCodesKey,
+              )
             : this.applyDutyAssignment(
                 current,
                 ownerId,
@@ -2464,85 +3076,108 @@ export class DutyAutopilotService {
       }
     }
 
-    const unassignedLocalConflictsByOwner = new Map<string, Map<string, Set<string>>>();
-    grouping.ownerBuckets.forEach(({ activities: ownerActivities }, ownerId) => {
-      const assignments = grouping.assignmentByOwnerId.get(ownerId);
-      const unassignedPayload = ownerActivities
-        .filter((activity) => !(assignments?.get(activity.id) ?? null))
-        .filter((activity) => !isBoundary(activity))
-        .filter((activity) => !isBreak(activity))
-        .filter((activity) => !isManagedForConflicts(activity));
-      if (!unassignedPayload.length) {
-        return;
-      }
-      const byDay = new Map<string, Activity[]>();
-      unassignedPayload.forEach((activity) => {
-        const dayKey = this.utcDayKey(activity.start);
-        const list = byDay.get(dayKey);
-        if (list) {
-          list.push(activity);
-        } else {
-          byDay.set(dayKey, [activity]);
+    const unassignedLocalConflictsByOwner = new Map<
+      string,
+      Map<string, Set<string>>
+    >();
+    grouping.ownerBuckets.forEach(
+      ({ activities: ownerActivities }, ownerId) => {
+        const assignments = grouping.assignmentByOwnerId.get(ownerId);
+        const unassignedPayload = ownerActivities
+          .filter((activity) => !(assignments?.get(activity.id) ?? null))
+          .filter((activity) => !isBoundary(activity))
+          .filter((activity) => !isBreak(activity))
+          .filter((activity) => !isManagedForConflicts(activity));
+        if (!unassignedPayload.length) {
+          return;
         }
-      });
-      const merged = new Map<string, Set<string>>();
-      byDay.forEach((list) => {
-        const conflicts = this.detectLocalConflicts(list);
-        conflicts.forEach((codes, activityId) => {
-          let set = merged.get(activityId);
-          if (!set) {
-            set = new Set<string>();
-            merged.set(activityId, set);
+        const byDay = new Map<string, Activity[]>();
+        unassignedPayload.forEach((activity) => {
+          const dayKey = this.utcDayKey(activity.start);
+          const list = byDay.get(dayKey);
+          if (list) {
+            list.push(activity);
+          } else {
+            byDay.set(dayKey, [activity]);
           }
-          codes.forEach((code) => set.add(code));
         });
-      });
-      const ownerEntry = grouping.ownerBuckets.get(ownerId);
-      const globalLocationConflicts =
-        ownerEntry && isTimelineOwner(ownerEntry.owner)
-          ? globalLocationConflictsByOwner.get(ownerId)
-          : undefined;
-      if (globalLocationConflicts) {
-        this.mergeConflictMaps(merged, globalLocationConflicts);
-      }
-      if (merged.size) {
-        unassignedLocalConflictsByOwner.set(ownerId, merged);
-      }
-    });
+        const merged = new Map<string, Set<string>>();
+        byDay.forEach((list) => {
+          const conflicts = this.detectLocalConflicts(list);
+          conflicts.forEach((codes, activityId) => {
+            let set = merged.get(activityId);
+            if (!set) {
+              set = new Set<string>();
+              merged.set(activityId, set);
+            }
+            codes.forEach((code) => set.add(code));
+          });
+        });
+        const ownerEntry = grouping.ownerBuckets.get(ownerId);
+        const globalLocationConflicts =
+          ownerEntry && isTimelineOwner(ownerEntry.owner)
+            ? globalLocationConflictsByOwner.get(ownerId)
+            : undefined;
+        if (globalLocationConflicts) {
+          this.mergeConflictMaps(merged, globalLocationConflicts);
+        }
+        if (merged.size) {
+          unassignedLocalConflictsByOwner.set(ownerId, merged);
+        }
+      },
+    );
 
-    grouping.ownerBuckets.forEach(({ activities: ownerActivities }, ownerId) => {
-      const assignments = grouping.assignmentByOwnerId.get(ownerId);
-      for (const entry of ownerActivities) {
-        const assignedServiceId = assignments?.get(entry.id) ?? null;
-        if (assignedServiceId) {
-          continue;
+    grouping.ownerBuckets.forEach(
+      ({ activities: ownerActivities }, ownerId) => {
+        const assignments = grouping.assignmentByOwnerId.get(ownerId);
+        for (const entry of ownerActivities) {
+          const assignedServiceId = assignments?.get(entry.id) ?? null;
+          if (assignedServiceId) {
+            continue;
+          }
+          const current = byId.get(entry.id) ?? entry;
+          if (isManagedForConflicts(current) || isBoundary(current)) {
+            continue;
+          }
+          const localConflicts = unassignedLocalConflictsByOwner.get(ownerId);
+          const desiredLocalCodes = this.normalizeConflictCodes(
+            Array.from(localConflicts?.get(current.id) ?? []),
+          );
+          const scopeCodes = this.withinServiceConflictCodes(
+            this.resolveWithinPreference(current),
+            false,
+          );
+          const baseCodes = this.readConflictCodesForActivity(
+            current,
+            ownerId,
+            conflictCodesKey,
+          );
+          const preserved = baseCodes.filter(
+            (code) => !managedLocalCodes.has(code),
+          );
+          const merged = this.normalizeConflictCodes([
+            ...preserved,
+            ...desiredLocalCodes,
+            ...scopeCodes,
+          ]);
+          const level = this.conflictLevelForCodes(
+            merged,
+            config.maxConflictLevel,
+          );
+          const next = this.applyDutyAssignment(
+            current,
+            ownerId,
+            { serviceId: null, conflictLevel: level, conflictCodes: merged },
+            conflictKey,
+            conflictCodesKey,
+          );
+          if (next !== current) {
+            byId.set(next.id, next);
+            updated.set(next.id, next);
+          }
         }
-        const current = byId.get(entry.id) ?? entry;
-        if (isManagedForConflicts(current) || isBoundary(current)) {
-          continue;
-        }
-        const localConflicts = unassignedLocalConflictsByOwner.get(ownerId);
-        const desiredLocalCodes = this.normalizeConflictCodes(
-          Array.from(localConflicts?.get(current.id) ?? []),
-        );
-        const scopeCodes = this.withinServiceConflictCodes(this.resolveWithinPreference(current), false);
-        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
-        const preserved = baseCodes.filter((code) => !managedLocalCodes.has(code));
-        const merged = this.normalizeConflictCodes([...preserved, ...desiredLocalCodes, ...scopeCodes]);
-        const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
-        const next = this.applyDutyAssignment(
-          current,
-          ownerId,
-          { serviceId: null, conflictLevel: level, conflictCodes: merged },
-          conflictKey,
-          conflictCodesKey,
-        );
-        if (next !== current) {
-          byId.set(next.id, next);
-          updated.set(next.id, next);
-        }
-      }
-    });
+      },
+    );
 
     return Array.from(updated.values());
   }
@@ -2558,7 +3193,9 @@ export class DutyAutopilotService {
 
     const grouping = this.buildComplianceGrouping(stageId, activities, config);
     const groups = grouping.groups.filter(
-      (group) => group.owner.kind === 'personnel' || group.owner.kind === 'personnel-service',
+      (group) =>
+        group.owner.kind === 'personnel' ||
+        group.owner.kind === 'personnel-service',
     );
     if (!groups.length) {
       return [];
@@ -2592,18 +3229,23 @@ export class DutyAutopilotService {
       this.isShortBreakActivity(activity, shortBreakTypeId);
     const isRegularBreak = (activity: Activity) =>
       this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
-    const isAnyPause = (activity: Activity) => isRegularBreak(activity) || isShortBreak(activity);
+    const isAnyPause = (activity: Activity) =>
+      isRegularBreak(activity) || isShortBreak(activity);
     const isHomeDepotCode = (code: string) =>
       code.startsWith('HOME_DEPOT_') || code.startsWith('WALK_TIME_');
 
     const context = this.buildMasterDataContext();
-    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const byId = new Map<string, Activity>(
+      activities.map((activity) => [activity.id, activity]),
+    );
     const updated = new Map<string, Activity>();
 
     for (const group of groups) {
       const ownerId = group.owner.resourceId;
       const serviceId = group.serviceId;
-      const groupActivities = group.activities.map((activity) => byId.get(activity.id) ?? activity);
+      const groupActivities = group.activities.map(
+        (activity) => byId.get(activity.id) ?? activity,
+      );
 
       const basePayloadActivities = groupActivities
         .filter((activity) => !isBoundary(activity))
@@ -2611,11 +3253,15 @@ export class DutyAutopilotService {
         .filter((activity) => !this.isManagedId(activity.id));
 
       const startBoundary =
-        groupActivities.find((activity) => activity.id === `svcstart:${serviceId}`) ??
+        groupActivities.find(
+          (activity) => activity.id === `svcstart:${serviceId}`,
+        ) ??
         groupActivities.find((activity) => isStartBoundary(activity)) ??
         null;
       const endBoundary =
-        groupActivities.find((activity) => activity.id === `svcend:${serviceId}`) ??
+        groupActivities.find(
+          (activity) => activity.id === `svcend:${serviceId}`,
+        ) ??
         groupActivities.find((activity) => isEndBoundary(activity)) ??
         null;
 
@@ -2630,75 +3276,165 @@ export class DutyAutopilotService {
         }
       }
       if (!selectionActivities.length) {
-        selectionActivities = groupActivities.filter((activity) => !isAnyPause(activity));
+        selectionActivities = groupActivities.filter(
+          (activity) => !isAnyPause(activity),
+        );
       }
       if (!selectionActivities.length) {
         selectionActivities = groupActivities;
       }
 
-      const homeDepotSelection = this.resolveHomeDepotSelection(group.owner, selectionActivities, context);
-      const homeDepotCodes: string[] = [...homeDepotSelection.conflictCodes];
-      const homeDepotDetails: ConflictDetails = {};
-      this.mergeConflictDetails(homeDepotDetails, homeDepotSelection.conflictDetails);
+      const homeDepotSelection = this.resolveHomeDepotSelection(
+        group.owner,
+        selectionActivities,
+        context,
+      );
+      const activityCodes = new Map<string, Set<string>>();
+      const activityDetails = new Map<string, ConflictDetails>();
+      const addActivityCodes = (
+        activityId: string | null | undefined,
+        codes: string[],
+      ) => {
+        if (!activityId || !codes.length) {
+          return;
+        }
+        let set = activityCodes.get(activityId);
+        if (!set) {
+          set = new Set<string>();
+          activityCodes.set(activityId, set);
+        }
+        codes.forEach((code) => set!.add(code));
+      };
+      const addActivityDetail = (
+        activityId: string | null | undefined,
+        code: string,
+        detail: string,
+      ) => {
+        if (!activityId) {
+          return;
+        }
+        const details = activityDetails.get(activityId) ?? {};
+        this.appendConflictDetail(details, code, detail);
+        activityDetails.set(activityId, details);
+      };
+      const mergeActivityDetails = (
+        activityId: string | null | undefined,
+        details: ConflictDetails,
+      ) => {
+        if (!activityId || !Object.keys(details).length) {
+          return;
+        }
+        const existing = activityDetails.get(activityId) ?? {};
+        this.mergeConflictDetails(existing, details);
+        activityDetails.set(activityId, existing);
+      };
+
+      const selectionFirst = this.findFirstActivity(selectionActivities);
+      const selectionLast = this.findLastActivity(selectionActivities);
+      const selectionCodes = homeDepotSelection.conflictCodes;
+      const startSpecific = new Set([
+        'HOME_DEPOT_START_LOCATION_MISSING',
+        'WALK_TIME_MISSING_START',
+      ]);
+      const endSpecific = new Set([
+        'HOME_DEPOT_END_LOCATION_MISSING',
+        'WALK_TIME_MISSING_END',
+      ]);
+      const startCodes = selectionCodes.filter((code) =>
+        startSpecific.has(code),
+      );
+      const endCodes = selectionCodes.filter((code) => endSpecific.has(code));
+      const generalCodes = selectionCodes.filter(
+        (code) => !startSpecific.has(code) && !endSpecific.has(code),
+      );
+      const selectionDetails = homeDepotSelection.conflictDetails;
+      const addSelectionCodes = (
+        activityId: string | null,
+        codes: string[],
+      ) => {
+        if (!activityId || !codes.length) {
+          return;
+        }
+        addActivityCodes(activityId, codes);
+        const details = this.detailsForCodes(selectionDetails, codes);
+        mergeActivityDetails(activityId, details);
+      };
+      const startTargetId =
+        startBoundary?.id ??
+        selectionFirst?.id ??
+        selectionLast?.id ??
+        endBoundary?.id ??
+        null;
+      const endTargetId =
+        endBoundary?.id ??
+        selectionLast?.id ??
+        selectionFirst?.id ??
+        startBoundary?.id ??
+        null;
+      const generalTargetId = startTargetId ?? endTargetId;
+      addSelectionCodes(generalTargetId, generalCodes);
+      addSelectionCodes(startTargetId, startCodes);
+      addSelectionCodes(endTargetId, endCodes);
+
+      const depot =
+        homeDepotSelection.selection?.depot ??
+        this.resolveHomeDepot(group.owner, context);
+
+      const recordOutside = (
+        label: string,
+        location: string | null,
+        activityId?: string,
+      ) => {
+        const normalized = `${location ?? ''}`.trim();
+        if (!normalized) {
+          return;
+        }
+        const targetId = activityId ?? startTargetId ?? endTargetId ?? null;
+        addActivityCodes(targetId, ['HOME_DEPOT_NOT_IN_DEPOT']);
+        const detail = activityId
+          ? `${label}: ${activityId} (${normalized})`
+          : `${label}: ${normalized}`;
+        addActivityDetail(targetId, 'HOME_DEPOT_NOT_IN_DEPOT', detail);
+      };
 
       if (homeDepotSelection.selection) {
         const selection = homeDepotSelection.selection;
-        const allowedStartEnd = this.buildAllowedSiteLookup(selection.depot.siteIds ?? [], context);
-        const allowedBreaks = this.buildAllowedSiteLookup(selection.depot.breakSiteIds ?? [], context);
-        const allowedShortBreaks = this.buildAllowedSiteLookup(selection.depot.shortBreakSiteIds ?? [], context);
-
-        const recordOutside = (label: string, location: string | null, activityId?: string) => {
-          const normalized = `${location ?? ''}`.trim();
-          if (!normalized) {
-            return;
-          }
-          homeDepotCodes.push('HOME_DEPOT_NOT_IN_DEPOT');
-          const detail = activityId ? `${label}: ${activityId} (${normalized})` : `${label}: ${normalized}`;
-          this.appendConflictDetail(homeDepotDetails, 'HOME_DEPOT_NOT_IN_DEPOT', detail);
-        };
+        const allowedStartEnd = this.buildAllowedSiteLookup(
+          selection.depot.siteIds ?? [],
+          context,
+        );
 
         if (allowedStartEnd.siteIds.size > 0) {
-          const firstPayload = this.findFirstActivity(basePayloadActivities);
-          const lastPayload = this.findLastActivity(basePayloadActivities);
-          const firstFallback =
-            firstPayload ?? startBoundary ?? this.findFirstActivity(selectionActivities) ?? null;
-          const lastFallback =
-            lastPayload ?? endBoundary ?? this.findLastActivity(selectionActivities) ?? null;
+          const startCandidates = startBoundary
+            ? [
+                {
+                  activity: startBoundary,
+                  location: this.readStartLocation(startBoundary),
+                },
+              ]
+            : [];
 
-          const startCandidates = [
-            firstPayload
-              ? { activity: firstPayload, location: this.readStartLocation(firstPayload) }
-              : null,
-            startBoundary
-              ? { activity: startBoundary, location: this.readStartLocation(startBoundary) }
-              : null,
-            !firstPayload && !startBoundary && firstFallback
-              ? { activity: firstFallback, location: this.readStartLocation(firstFallback) }
-              : null,
-          ].filter(
-            (entry): entry is { activity: Activity; location: string | null } => entry !== null,
-          );
-
-          const endCandidates = [
-            lastPayload
-              ? { activity: lastPayload, location: this.readEndLocation(lastPayload) }
-              : null,
-            endBoundary
-              ? { activity: endBoundary, location: this.readEndLocation(endBoundary) }
-              : null,
-            !lastPayload && !endBoundary && lastFallback
-              ? { activity: lastFallback, location: this.readEndLocation(lastFallback) }
-              : null,
-          ].filter(
-            (entry): entry is { activity: Activity; location: string | null } => entry !== null,
-          );
+          const endCandidates = endBoundary
+            ? [
+                {
+                  activity: endBoundary,
+                  location: this.readEndLocation(endBoundary),
+                },
+              ]
+            : [];
 
           for (const candidate of startCandidates) {
             const location = candidate.location;
             if (!location) {
               continue;
             }
-            if (!this.isLocationInAllowedSites(location, allowedStartEnd, context)) {
+            if (
+              !this.isLocationInAllowedSiteIds(
+                location,
+                allowedStartEnd.siteIds,
+                context,
+              )
+            ) {
               recordOutside('Dienstanfang', location, candidate.activity.id);
             }
           }
@@ -2708,11 +3444,28 @@ export class DutyAutopilotService {
             if (!location) {
               continue;
             }
-            if (!this.isLocationInAllowedSites(location, allowedStartEnd, context)) {
+            if (
+              !this.isLocationInAllowedSiteIds(
+                location,
+                allowedStartEnd.siteIds,
+                context,
+              )
+            ) {
               recordOutside('Dienstende', location, candidate.activity.id);
             }
           }
         }
+      }
+
+      if (depot) {
+        const allowedBreaks = this.buildAllowedSiteLookup(
+          depot.breakSiteIds ?? [],
+          context,
+        );
+        const allowedShortBreaks = this.buildAllowedSiteLookup(
+          depot.shortBreakSiteIds ?? [],
+          context,
+        );
 
         if (allowedBreaks.siteIds.size > 0) {
           for (const activity of groupActivities) {
@@ -2720,7 +3473,13 @@ export class DutyAutopilotService {
               continue;
             }
             const location = this.readStartLocation(activity);
-            if (!this.isLocationInAllowedSites(location, allowedBreaks, context)) {
+            if (
+              !this.isLocationInAllowedSiteIds(
+                location,
+                allowedBreaks.siteIds,
+                context,
+              )
+            ) {
               recordOutside('Pause', location, activity.id);
             }
           }
@@ -2732,27 +3491,41 @@ export class DutyAutopilotService {
               continue;
             }
             const location = this.readStartLocation(activity);
-            if (!this.isLocationInAllowedSites(location, allowedShortBreaks, context)) {
+            if (
+              !this.isLocationInAllowedSiteIds(
+                location,
+                allowedShortBreaks.siteIds,
+                context,
+              )
+            ) {
               recordOutside('Kurzpause', location, activity.id);
             }
           }
         }
       }
 
-      const normalizedHomeDepotCodes = this.normalizeConflictCodes(homeDepotCodes);
-      const normalizedHomeDepotDetails = this.normalizeConflictDetails(homeDepotDetails);
-      const filteredHomeDepotDetails = this.detailsForCodes(
-        normalizedHomeDepotDetails,
-        normalizedHomeDepotCodes,
-      );
-
       for (const activity of groupActivities) {
         const current = byId.get(activity.id) ?? activity;
-        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
-        const preservedCodes = baseCodes.filter((code) => !isHomeDepotCode(code));
-        const mergedCodes = this.normalizeConflictCodes([...preservedCodes, ...normalizedHomeDepotCodes]);
+        const activityHomeDepotCodes = this.normalizeConflictCodes(
+          Array.from(activityCodes.get(current.id) ?? []),
+        );
+        const baseCodes = this.readConflictCodesForActivity(
+          current,
+          ownerId,
+          conflictCodesKey,
+        );
+        const preservedCodes = baseCodes.filter(
+          (code) => !isHomeDepotCode(code),
+        );
+        const mergedCodes = this.normalizeConflictCodes([
+          ...preservedCodes,
+          ...activityHomeDepotCodes,
+        ]);
 
-        const baseDetails = this.readConflictDetailsForActivity(current, ownerId);
+        const baseDetails = this.readConflictDetailsForActivity(
+          current,
+          ownerId,
+        );
         const preservedDetails: ConflictDetails = {};
         Object.entries(baseDetails).forEach(([code, entries]) => {
           if (!isHomeDepotCode(code)) {
@@ -2762,13 +3535,19 @@ export class DutyAutopilotService {
 
         const mergedDetails: ConflictDetails = {};
         this.mergeConflictDetails(mergedDetails, preservedDetails);
-        this.mergeConflictDetails(mergedDetails, filteredHomeDepotDetails);
+        const homeDepotDetails = this.normalizeConflictDetails(
+          activityDetails.get(current.id) ?? {},
+        );
+        this.mergeConflictDetails(mergedDetails, homeDepotDetails);
         const normalizedDetails = this.detailsForCodes(
           this.normalizeConflictDetails(mergedDetails),
           mergedCodes,
         );
 
-        const level = this.conflictLevelForCodes(mergedCodes, config.maxConflictLevel);
+        const level = this.conflictLevelForCodes(
+          mergedCodes,
+          config.maxConflictLevel,
+        );
         const next =
           this.isManagedId(current.id) || isBoundary(current)
             ? this.applyDutyMeta(
@@ -2847,7 +3626,9 @@ export class DutyAutopilotService {
       .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 
     if (includeCapacity) {
-      const capacityCandidates = normalized.filter((entry) => entry.considerCapacity);
+      const capacityCandidates = normalized.filter(
+        (entry) => entry.considerCapacity,
+      );
       let cluster: typeof capacityCandidates = [];
       let clusterEndMs = Number.NEGATIVE_INFINITY;
       for (const entry of capacityCandidates) {
@@ -2905,7 +3686,7 @@ export class DutyAutopilotService {
         set = new Set<string>();
         target.set(activityId, set);
       }
-      codes.forEach((code) => set!.add(code));
+      codes.forEach((code) => set.add(code));
     });
   }
 
@@ -2941,7 +3722,10 @@ export class DutyAutopilotService {
     return normalized.toUpperCase();
   }
 
-  private resolveOperationalPointId(value: string | null | undefined, context: MasterDataContext): string | null {
+  private resolveOperationalPointId(
+    value: string | null | undefined,
+    context: MasterDataContext,
+  ): string | null {
     const trimmed = (value ?? '').trim();
     if (!trimmed) {
       return null;
@@ -2961,20 +3745,25 @@ export class DutyAutopilotService {
         return opId;
       }
     }
-    const siteMatches = Array.from(context.personnelSitesById.entries()).filter(([, candidate]) => {
-      const siteName = typeof candidate?.name === 'string' ? candidate.name : '';
-      return this.normalizeLocation(siteName) === normalized;
-    });
+    const siteMatches = Array.from(context.personnelSitesById.entries()).filter(
+      ([, candidate]) => {
+        const siteName =
+          typeof candidate?.name === 'string' ? candidate.name : '';
+        return this.normalizeLocation(siteName) === normalized;
+      },
+    );
     if (siteMatches.length === 1) {
       const opId = this.normalizeLocation(siteMatches[0][1]?.uniqueOpId);
       if (opId) {
         return opId;
       }
     }
-    const matches = Array.from(context.operationalPointsById.entries()).filter(([, op]) => {
-      const opName = typeof op?.name === 'string' ? op.name : '';
-      return this.normalizeLocation(opName) === normalized;
-    });
+    const matches = Array.from(context.operationalPointsById.entries()).filter(
+      ([, op]) => {
+        const opName = typeof op?.name === 'string' ? op.name : '';
+        return this.normalizeLocation(opName) === normalized;
+      },
+    );
     if (matches.length === 1) {
       return matches[0][0];
     }
@@ -2986,7 +3775,9 @@ export class DutyAutopilotService {
     context: MasterDataContext,
   ): { siteIds: Set<string>; opIds: Set<string> } {
     const normalizedSiteIds = new Set(
-      (Array.isArray(siteIds) ? siteIds : []).map((id) => `${id ?? ''}`.trim()).filter((id) => id.length > 0),
+      (Array.isArray(siteIds) ? siteIds : [])
+        .map((id) => `${id ?? ''}`.trim())
+        .filter((id) => id.length > 0),
     );
     const opIds = new Set<string>();
     normalizedSiteIds.forEach((siteId) => {
@@ -3002,24 +3793,47 @@ export class DutyAutopilotService {
     return { siteIds: normalizedSiteIds, opIds };
   }
 
-  private isLocationInAllowedSites(
+  private resolvePersonnelSiteId(
+    value: string | null | undefined,
+    context: MasterDataContext,
+  ): string | null {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (context.personnelSitesById.has(trimmed)) {
+      return trimmed;
+    }
+    const normalized = this.normalizeLocation(trimmed);
+    if (!normalized) {
+      return null;
+    }
+    const idMatches = Array.from(context.personnelSitesById.keys()).filter(
+      (siteId) => this.normalizeLocation(siteId) === normalized,
+    );
+    if (idMatches.length === 1) {
+      return idMatches[0];
+    }
+    const nameMatches = Array.from(context.personnelSitesById.entries()).filter(
+      ([, candidate]) => {
+        const siteName =
+          typeof candidate?.name === 'string' ? candidate.name : '';
+        return this.normalizeLocation(siteName) === normalized;
+      },
+    );
+    if (nameMatches.length === 1) {
+      return nameMatches[0][0];
+    }
+    return null;
+  }
+
+  private isLocationInAllowedSiteIds(
     location: string | null,
-    allowed: { siteIds: Set<string>; opIds: Set<string> },
+    allowedSiteIds: Set<string>,
     context: MasterDataContext,
   ): boolean {
-    const raw = `${location ?? ''}`.trim();
-    if (!raw) {
-      return false;
-    }
-    if (allowed.siteIds.has(raw)) {
-      return true;
-    }
-    const opId = this.resolveOperationalPointId(raw, context);
-    const normalizedOpId = opId ? this.normalizeLocation(opId) : null;
-    if (normalizedOpId && allowed.opIds.has(normalizedOpId)) {
-      return true;
-    }
-    return false;
+    const resolved = this.resolvePersonnelSiteId(location, context);
+    return !!resolved && allowedSiteIds.has(resolved);
   }
 
   private resolveDutyOwner(activity: Activity): ActivityParticipant | null {
@@ -3034,7 +3848,9 @@ export class DutyAutopilotService {
     if (serviceOwners.length) {
       return serviceOwners;
     }
-    const directOwners = participants.filter((p) => p.kind === 'personnel' || p.kind === 'vehicle');
+    const directOwners = participants.filter(
+      (p) => p.kind === 'personnel' || p.kind === 'vehicle',
+    );
     if (directOwners.length) {
       return directOwners;
     }
@@ -3061,7 +3877,9 @@ export class DutyAutopilotService {
     ];
   }
 
-  private resolveOwnerKindFromSnapshot(ownerId: string): ActivityParticipant['kind'] | null {
+  private resolveOwnerKindFromSnapshot(
+    ownerId: string,
+  ): ActivityParticipant['kind'] | null {
     const snapshot = this.masterData.getResourceSnapshot();
     if (snapshot.personnelServices?.some((svc) => svc.id === ownerId)) {
       return 'personnel-service';
@@ -3078,7 +3896,9 @@ export class DutyAutopilotService {
     return null;
   }
 
-  private resolveServiceRole(activity: Activity): 'start' | 'end' | 'segment' | null {
+  private resolveServiceRole(
+    activity: Activity,
+  ): 'start' | 'end' | 'segment' | null {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const toBool = (val: unknown) =>
       typeof val === 'boolean'
@@ -3086,7 +3906,8 @@ export class DutyAutopilotService {
         : typeof val === 'string'
           ? val.toLowerCase() === 'true'
           : false;
-    const isBreak = toBool(attrs?.['is_break']) || toBool(attrs?.['is_short_break']);
+    const isBreak =
+      toBool(attrs?.['is_break']) || toBool(attrs?.['is_short_break']);
     if (isBreak) {
       return null;
     }
@@ -3104,9 +3925,11 @@ export class DutyAutopilotService {
     return null;
   }
 
-  private resolveWithinPreference(activity: Activity): 'within' | 'outside' | 'both' {
+  private resolveWithinPreference(
+    activity: Activity,
+  ): 'within' | 'outside' | 'both' {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const meta = activity.meta as Record<string, unknown> | undefined;
+    const meta = activity.meta;
     const raw =
       attrs && attrs['is_within_service'] !== undefined
         ? attrs['is_within_service']
@@ -3119,7 +3942,12 @@ export class DutyAutopilotService {
       if (val === 'yes' || val === 'true' || val === 'inside' || val === 'in') {
         return 'within';
       }
-      if (val === 'no' || val === 'false' || val === 'outside' || val === 'out') {
+      if (
+        val === 'no' ||
+        val === 'false' ||
+        val === 'outside' ||
+        val === 'out'
+      ) {
         return 'outside';
       }
       if (val === 'both') {
@@ -3153,7 +3981,11 @@ export class DutyAutopilotService {
     return `${y}-${m}-${d}`;
   }
 
-  private computeServiceId(stageId: StageId, ownerId: string, dayKey: string): string {
+  private computeServiceId(
+    stageId: StageId,
+    ownerId: string,
+    dayKey: string,
+  ): string {
     return `svc:${stageId}:${ownerId}:${dayKey}`;
   }
 
@@ -3193,14 +4025,24 @@ export class DutyAutopilotService {
       return null;
     }
     const candidate = parts[1] ?? '';
-    return candidate === 'base' || candidate === 'operations' || candidate === 'dispatch' ? (candidate as StageId) : null;
+    return candidate === 'base' ||
+      candidate === 'operations' ||
+      candidate === 'dispatch'
+      ? (candidate as StageId)
+      : null;
   }
 
-  private buildOwnerParticipant(owner: ActivityParticipant): ActivityParticipant {
+  private buildOwnerParticipant(
+    owner: ActivityParticipant,
+  ): ActivityParticipant {
     return {
       resourceId: owner.resourceId,
       kind: owner.kind,
-      role: owner.role ?? (owner.kind === 'vehicle' || owner.kind === 'vehicle-service' ? 'primary-vehicle' : 'primary-personnel'),
+      role:
+        owner.role ??
+        (owner.kind === 'vehicle' || owner.kind === 'vehicle-service'
+          ? 'primary-vehicle'
+          : 'primary-personnel'),
     };
   }
 
@@ -3288,7 +4130,9 @@ export class DutyAutopilotService {
     const homeDepotsById = new Map<string, HomeDepot>(
       (snapshot.homeDepots ?? []).map((depot) => [depot.id, depot]),
     );
-    const personnelById = new Map<string, Personnel>((snapshot.personnel ?? []).map((p) => [p.id, p]));
+    const personnelById = new Map<string, Personnel>(
+      (snapshot.personnel ?? []).map((p) => [p.id, p]),
+    );
     const personnelServicesById = new Map<string, PersonnelService>(
       (snapshot.personnelServices ?? []).map((svc) => [svc.id, svc]),
     );
@@ -3300,11 +4144,16 @@ export class DutyAutopilotService {
     );
 
     const personnelSites = this.masterData.listPersonnelSites();
-    const personnelSitesById = new Map<string, PersonnelSite>(personnelSites.map((site) => [site.siteId, site]));
+    const personnelSitesById = new Map<string, PersonnelSite>(
+      personnelSites.map((site) => [site.siteId, site]),
+    );
 
     const operationalPoints = this.masterData.listOperationalPoints();
     const operationalPointsById = new Map<string, OperationalPoint>(
-      operationalPoints.map((point) => [`${point.uniqueOpId ?? ''}`.trim().toUpperCase(), point]),
+      operationalPoints.map((point) => [
+        `${point.uniqueOpId ?? ''}`.trim().toUpperCase(),
+        point,
+      ]),
     );
 
     const transferEdges = this.masterData.listTransferEdges();
@@ -3315,7 +4164,11 @@ export class DutyAutopilotService {
         continue;
       }
       const durationSec = edge.avgDurationSec ?? null;
-      if (durationSec === null || !Number.isFinite(durationSec) || durationSec <= 0) {
+      if (
+        durationSec === null ||
+        !Number.isFinite(durationSec) ||
+        durationSec <= 0
+      ) {
         continue;
       }
       const fromKey = this.transferNodeKey(edge.from);
@@ -3343,48 +4196,96 @@ export class DutyAutopilotService {
     };
   }
 
+  private resolveHomeDepotId(
+    owner: ActivityParticipant,
+    context: MasterDataContext,
+  ): string | null {
+    if (owner.kind !== 'personnel' && owner.kind !== 'personnel-service') {
+      return null;
+    }
+    const resolveFromPersonnelService = (): string | null => {
+      const service = context.personnelServicesById.get(owner.resourceId);
+      const poolId = service?.poolId ?? null;
+      const pool = poolId
+        ? context.personnelServicePoolsById.get(poolId)
+        : null;
+      return typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
+    };
+    const resolveFromPersonnel = (): string | null => {
+      const personnel = context.personnelById.get(owner.resourceId);
+      const poolId = personnel?.poolId ?? null;
+      const pool = poolId ? context.personnelPoolsById.get(poolId) : null;
+      return typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
+    };
+
+    let homeDepotId: string | null = null;
+    if (owner.kind === 'personnel-service') {
+      homeDepotId = resolveFromPersonnelService();
+      if (!homeDepotId) {
+        homeDepotId = resolveFromPersonnel();
+      }
+    } else {
+      homeDepotId = resolveFromPersonnel();
+      if (!homeDepotId) {
+        homeDepotId = resolveFromPersonnelService();
+      }
+    }
+
+    const trimmedDepotId = `${homeDepotId ?? ''}`.trim();
+    return trimmedDepotId.length > 0 ? trimmedDepotId : null;
+  }
+
+  private resolveHomeDepot(
+    owner: ActivityParticipant,
+    context: MasterDataContext,
+  ): HomeDepot | null {
+    const depotId = this.resolveHomeDepotId(owner, context);
+    if (!depotId) {
+      return null;
+    }
+    return context.homeDepotsById.get(depotId) ?? null;
+  }
+
   private resolveHomeDepotSelection(
     owner: ActivityParticipant,
     payloadActivities: Activity[],
     context: MasterDataContext,
-  ): { selection: HomeDepotSelection | null; conflictCodes: string[]; conflictDetails: ConflictDetails } {
+  ): {
+    selection: HomeDepotSelection | null;
+    conflictCodes: string[];
+    conflictDetails: ConflictDetails;
+  } {
     const conflictCodes: string[] = [];
     const conflictDetails: ConflictDetails = {};
-    const ownerId = owner.resourceId;
 
-    if (owner.kind !== 'personnel' && owner.kind !== 'personnel-service') {
+    const depotId = this.resolveHomeDepotId(owner, context);
+    if (!depotId) {
       return { selection: null, conflictCodes, conflictDetails };
     }
 
-    let homeDepotId: string | null = null;
-    if (owner.kind === 'personnel-service') {
-      const service = context.personnelServicesById.get(ownerId);
-      const poolId = service?.poolId ?? null;
-      const pool = poolId ? context.personnelServicePoolsById.get(poolId) : null;
-      homeDepotId = typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
-    } else {
-      const personnel = context.personnelById.get(ownerId);
-      const poolId = personnel?.poolId ?? null;
-      const pool = poolId ? context.personnelPoolsById.get(poolId) : null;
-      homeDepotId = typeof pool?.homeDepotId === 'string' ? pool.homeDepotId : null;
-    }
-
-    const trimmedDepotId = (homeDepotId ?? '').trim();
-    if (!trimmedDepotId) {
-      return { selection: null, conflictCodes, conflictDetails };
-    }
-
-    const depot = context.homeDepotsById.get(trimmedDepotId);
+    const depot = context.homeDepotsById.get(depotId);
     if (!depot) {
-      this.appendConflictDetail(conflictDetails, 'HOME_DEPOT_NOT_FOUND', `Heimdepot-ID: ${trimmedDepotId}`);
-      return { selection: null, conflictCodes: ['HOME_DEPOT_NOT_FOUND'], conflictDetails };
+      this.appendConflictDetail(
+        conflictDetails,
+        'HOME_DEPOT_NOT_FOUND',
+        `Heimdepot-ID: ${depotId}`,
+      );
+      return {
+        selection: null,
+        conflictCodes: ['HOME_DEPOT_NOT_FOUND'],
+        conflictDetails,
+      };
     }
 
     const siteIds = Array.from(
-      new Set((Array.isArray(depot.siteIds) ? depot.siteIds : []).map((id) => `${id ?? ''}`.trim()).filter(Boolean)),
+      new Set(
+        (Array.isArray(depot.siteIds) ? depot.siteIds : [])
+          .map((id) => `${id ?? ''}`.trim())
+          .filter(Boolean),
+      ),
     );
     if (!siteIds.length) {
-      return { selection: null, conflictCodes: ['HOME_DEPOT_NO_SITES'], conflictDetails };
+      return { selection: null, conflictCodes, conflictDetails };
     }
 
     const candidateSites = siteIds
@@ -3392,11 +4293,21 @@ export class DutyAutopilotService {
       .filter((site): site is PersonnelSite => site !== null);
 
     if (!candidateSites.length) {
-      const missing = siteIds.filter((id) => !context.personnelSitesById.has(id));
+      const missing = siteIds.filter(
+        (id) => !context.personnelSitesById.has(id),
+      );
       if (missing.length) {
-        this.appendConflictDetail(conflictDetails, 'HOME_DEPOT_SITE_NOT_FOUND', `Unbekannte Personnel Sites: ${missing.join(', ')}`);
+        this.appendConflictDetail(
+          conflictDetails,
+          'HOME_DEPOT_SITE_NOT_FOUND',
+          `Unbekannte Personnel Sites: ${missing.join(', ')}`,
+        );
       }
-      return { selection: null, conflictCodes: ['HOME_DEPOT_SITE_NOT_FOUND'], conflictDetails };
+      return {
+        selection: null,
+        conflictCodes: ['HOME_DEPOT_SITE_NOT_FOUND'],
+        conflictDetails,
+      };
     }
 
     const first = this.findFirstActivity(payloadActivities);
@@ -3404,8 +4315,12 @@ export class DutyAutopilotService {
     const startCandidate = first ? this.readStartLocation(first) : null;
     const endCandidate = last ? this.readEndLocation(last) : null;
 
-    const startOpId = startCandidate ? this.resolveOperationalPointId(startCandidate, context) : null;
-    const endOpId = endCandidate ? this.resolveOperationalPointId(endCandidate, context) : null;
+    const startOpId = startCandidate
+      ? this.resolveOperationalPointId(startCandidate, context)
+      : null;
+    const endOpId = endCandidate
+      ? this.resolveOperationalPointId(endCandidate, context)
+      : null;
 
     const startOpKey = startOpId ? (`OP:${startOpId}` as const) : null;
     const endOpKey = endOpId ? (`OP:${endOpId}` as const) : null;
@@ -3427,15 +4342,23 @@ export class DutyAutopilotService {
       );
     }
 
-    let best: { site: PersonnelSite; walkStartMs: number | null; walkEndMs: number | null; score: number } | null =
-      null;
+    let best: {
+      site: PersonnelSite;
+      walkStartMs: number | null;
+      walkEndMs: number | null;
+      score: number;
+    } | null = null;
 
     const missingPenalty = 1_000_000_000_000;
 
     for (const site of candidateSites) {
       const siteKey = `PERSONNEL_SITE:${site.siteId}` as const;
-      const walkStartMs = startOpKey ? this.lookupWalkTimeMs(context, siteKey, startOpKey) : null;
-      const walkEndMs = endOpKey ? this.lookupWalkTimeMs(context, endOpKey, siteKey) : null;
+      const walkStartMs = startOpKey
+        ? this.lookupWalkTimeMs(context, siteKey, startOpKey)
+        : null;
+      const walkEndMs = endOpKey
+        ? this.lookupWalkTimeMs(context, endOpKey, siteKey)
+        : null;
       const score =
         (walkStartMs ?? missingPenalty) + (walkEndMs ?? missingPenalty);
       if (!best || score < best.score) {
@@ -3445,8 +4368,12 @@ export class DutyAutopilotService {
 
     const selected = best?.site ?? candidateSites[0];
     const selectedSiteKey = `PERSONNEL_SITE:${selected.siteId}` as const;
-    const walkStartMs = startOpKey ? this.lookupWalkTimeMs(context, selectedSiteKey, startOpKey) : null;
-    const walkEndMs = endOpKey ? this.lookupWalkTimeMs(context, endOpKey, selectedSiteKey) : null;
+    const walkStartMs = startOpKey
+      ? this.lookupWalkTimeMs(context, selectedSiteKey, startOpKey)
+      : null;
+    const walkEndMs = endOpKey
+      ? this.lookupWalkTimeMs(context, endOpKey, selectedSiteKey)
+      : null;
 
     if (startOpKey && walkStartMs === null) {
       conflictCodes.push('WALK_TIME_MISSING_START');
@@ -3467,7 +4394,7 @@ export class DutyAutopilotService {
 
     return {
       selection: {
-        depotId: trimmedDepotId,
+        depotId,
         depot,
         selectedSite: selected,
         walkStartMs,
@@ -3524,7 +4451,9 @@ export class DutyAutopilotService {
         best === null ||
         bestStartMs === null ||
         startMs < bestStartMs ||
-        (startMs === bestStartMs && bestEndMs !== null && normalizedEndMs < bestEndMs)
+        (startMs === bestStartMs &&
+          bestEndMs !== null &&
+          normalizedEndMs < bestEndMs)
       ) {
         best = activity;
         bestStartMs = startMs;
@@ -3551,7 +4480,9 @@ export class DutyAutopilotService {
         best === null ||
         bestEndMs === null ||
         normalizedEndMs > bestEndMs ||
-        (normalizedEndMs === bestEndMs && bestStartMs !== null && startMs > bestStartMs)
+        (normalizedEndMs === bestEndMs &&
+          bestStartMs !== null &&
+          startMs > bestStartMs)
       ) {
         best = activity;
         bestEndMs = normalizedEndMs;
@@ -3608,7 +4539,12 @@ export class DutyAutopilotService {
         const endMs = this.resolveEndMs(activity, startMs);
         return { activity, startMs, endMs: Math.max(startMs, endMs) };
       })
-      .filter((entry): entry is { activity: Activity; startMs: number; endMs: number } => entry !== null)
+      .filter(
+        (
+          entry,
+        ): entry is { activity: Activity; startMs: number; endMs: number } =>
+          entry !== null,
+      )
       .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
   }
 
@@ -3623,18 +4559,32 @@ export class DutyAutopilotService {
     minBreakMs: number;
     minShortBreakMs: number;
     context: MasterDataContext;
-  }): { pause: PlannedPause | null; conflictCodes: string[]; conflictDetails: ConflictDetails } {
+  }): {
+    pause: PlannedPause | null;
+    conflictCodes: string[];
+    conflictDetails: ConflictDetails;
+  } {
     const conflictCodes: string[] = [];
     const conflictDetails: ConflictDetails = {};
     const depot = options.depot;
     const allowedSiteIds =
-      options.kind === 'short-break' ? depot.shortBreakSiteIds ?? [] : depot.breakSiteIds ?? [];
+      options.kind === 'short-break'
+        ? (depot.shortBreakSiteIds ?? [])
+        : (depot.breakSiteIds ?? []);
 
     const normalizedIds = Array.from(
-      new Set((Array.isArray(allowedSiteIds) ? allowedSiteIds : []).map((id) => `${id ?? ''}`.trim()).filter(Boolean)),
+      new Set(
+        (Array.isArray(allowedSiteIds) ? allowedSiteIds : [])
+          .map((id) => `${id ?? ''}`.trim())
+          .filter(Boolean),
+      ),
     );
     if (!normalizedIds.length) {
-      conflictCodes.push(options.kind === 'short-break' ? 'HOME_DEPOT_NO_SHORT_BREAK_SITES' : 'HOME_DEPOT_NO_BREAK_SITES');
+      conflictCodes.push(
+        options.kind === 'short-break'
+          ? 'HOME_DEPOT_NO_SHORT_BREAK_SITES'
+          : 'HOME_DEPOT_NO_BREAK_SITES',
+      );
       return { pause: null, conflictCodes, conflictDetails };
     }
 
@@ -3651,18 +4601,30 @@ export class DutyAutopilotService {
         'HOME_DEPOT_PAUSE_LOCATION_MISSING',
         `Von: ${fromRaw || '—'} · Nach: ${toRaw || '—'}`,
       );
-      return { pause: null, conflictCodes, conflictDetails: this.normalizeConflictDetails(conflictDetails) };
+      return {
+        pause: null,
+        conflictCodes,
+        conflictDetails: this.normalizeConflictDetails(conflictDetails),
+      };
     }
 
-    const minPauseMs = options.kind === 'short-break' ? options.minShortBreakMs : options.minBreakMs;
+    const minPauseMs =
+      options.kind === 'short-break'
+        ? options.minShortBreakMs
+        : options.minBreakMs;
     const gapDurationMs = Math.max(0, options.gapEndMs - options.gapStartMs);
     if (gapDurationMs <= 0) {
       return { pause: null, conflictCodes, conflictDetails };
     }
 
-    let best:
-      | { site: PersonnelSite; commuteInMs: number; commuteOutMs: number; breakStartMs: number; breakEndMs: number; score: number }
-      | null = null;
+    let best: {
+      site: PersonnelSite;
+      commuteInMs: number;
+      commuteOutMs: number;
+      breakStartMs: number;
+      breakEndMs: number;
+      score: number;
+    } | null = null;
 
     let sawWalkCandidate = false;
     const missingLinks: string[] = [];
@@ -3673,13 +4635,29 @@ export class DutyAutopilotService {
         continue;
       }
       const siteKey = `PERSONNEL_SITE:${site.siteId}` as const;
-      const commuteInMs = this.lookupWalkTimeMs(options.context, fromKey, siteKey);
-      const commuteOutMs = this.lookupWalkTimeMs(options.context, siteKey, toKey);
+      const commuteInMs = this.lookupWalkTimeMs(
+        options.context,
+        fromKey,
+        siteKey,
+      );
+      const commuteOutMs = this.lookupWalkTimeMs(
+        options.context,
+        siteKey,
+        toKey,
+      );
       if (commuteInMs === null) {
-        missingLinks.push(this.formatWalkLink(site, fromOpId ?? fromKey.slice(3), options.context));
+        missingLinks.push(
+          this.formatWalkLink(
+            site,
+            fromOpId ?? fromKey.slice(3),
+            options.context,
+          ),
+        );
       }
       if (commuteOutMs === null) {
-        missingLinks.push(this.formatWalkLink(site, toOpId ?? toKey.slice(3), options.context));
+        missingLinks.push(
+          this.formatWalkLink(site, toOpId ?? toKey.slice(3), options.context),
+        );
       }
       if (commuteInMs === null || commuteOutMs === null) {
         continue;
@@ -3693,17 +4671,33 @@ export class DutyAutopilotService {
       }
       const score = commuteInMs + commuteOutMs;
       if (!best || score < best.score) {
-        best = { site, commuteInMs, commuteOutMs, breakStartMs, breakEndMs, score };
+        best = {
+          site,
+          commuteInMs,
+          commuteOutMs,
+          breakStartMs,
+          breakEndMs,
+          score,
+        };
       }
     }
 
     if (!best) {
       if (!sawWalkCandidate) {
-        const code = options.kind === 'short-break' ? 'WALK_TIME_MISSING_SHORT_BREAK' : 'WALK_TIME_MISSING_BREAK';
+        const code =
+          options.kind === 'short-break'
+            ? 'WALK_TIME_MISSING_SHORT_BREAK'
+            : 'WALK_TIME_MISSING_BREAK';
         conflictCodes.push(code);
-        missingLinks.forEach((detail) => this.appendConflictDetail(conflictDetails, code, detail));
+        missingLinks.forEach((detail) =>
+          this.appendConflictDetail(conflictDetails, code, detail),
+        );
       }
-      return { pause: null, conflictCodes, conflictDetails: this.normalizeConflictDetails(conflictDetails) };
+      return {
+        pause: null,
+        conflictCodes,
+        conflictDetails: this.normalizeConflictDetails(conflictDetails),
+      };
     }
 
     return {
@@ -3723,7 +4717,10 @@ export class DutyAutopilotService {
     };
   }
 
-  private isShortBreakActivity(activity: Activity, shortBreakTypeId: string): boolean {
+  private isShortBreakActivity(
+    activity: Activity,
+    shortBreakTypeId: string,
+  ): boolean {
     const type = `${activity.type ?? ''}`.trim();
     if (type) {
       return type === shortBreakTypeId;
@@ -3739,7 +4736,12 @@ export class DutyAutopilotService {
     }
     if (typeof raw === 'string') {
       const normalized = raw.trim().toLowerCase();
-      return normalized === 'true' || normalized === 'yes' || normalized === '1' || normalized === 'ja';
+      return (
+        normalized === 'true' ||
+        normalized === 'yes' ||
+        normalized === '1' ||
+        normalized === 'ja'
+      );
     }
     return false;
   }
@@ -3795,16 +4797,23 @@ export class DutyAutopilotService {
     const conflictCodesKey = config.conflictCodesAttributeKey;
     const breakTypeIds = config.breakTypeIds;
     const shortBreakTypeId = config.shortBreakTypeId;
-    const isShortBreak = (activity: Activity) => this.isShortBreakActivity(activity, shortBreakTypeId);
-    const isRegularBreak = (activity: Activity) => this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
+    const isShortBreak = (activity: Activity) =>
+      this.isShortBreakActivity(activity, shortBreakTypeId);
+    const isRegularBreak = (activity: Activity) =>
+      this.isBreakActivity(activity, breakTypeIds) && !isShortBreak(activity);
     const dayMs = 86_400_000;
     const intervalMinutes = (interval: { startMs: number; endMs: number }) =>
       Math.round(Math.max(0, interval.endMs - interval.startMs) / 60_000);
-    const resolveWorkHalfMs = (segments: Array<{ startMs: number; endMs: number }>): number | null => {
+    const resolveWorkHalfMs = (
+      segments: Array<{ startMs: number; endMs: number }>,
+    ): number | null => {
       if (!segments.length) {
         return null;
       }
-      const totalMs = segments.reduce((sum, seg) => sum + Math.max(0, seg.endMs - seg.startMs), 0);
+      const totalMs = segments.reduce(
+        (sum, seg) => sum + Math.max(0, seg.endMs - seg.startMs),
+        0,
+      );
       if (totalMs <= 0) {
         return null;
       }
@@ -3819,7 +4828,9 @@ export class DutyAutopilotService {
       return segments[segments.length - 1]?.endMs ?? null;
     };
 
-    const byId = new Map<string, Activity>(activities.map((activity) => [activity.id, activity]));
+    const byId = new Map<string, Activity>(
+      activities.map((activity) => [activity.id, activity]),
+    );
     const updated = new Map<string, Activity>();
 
     const boundaryTypeIds = config.resolvedTypeIds.boundaryTypeIds;
@@ -3842,8 +4853,14 @@ export class DutyAutopilotService {
       return role === 'end' || endTypeIds.has((activity.type ?? '').trim());
     };
 
-    const groups = this.buildComplianceGrouping(stageId, activities, config).groups.filter((group) =>
-      group.owner.kind === 'personnel' || group.owner.kind === 'personnel-service',
+    const groups = this.buildComplianceGrouping(
+      stageId,
+      activities,
+      config,
+    ).groups.filter(
+      (group) =>
+        group.owner.kind === 'personnel' ||
+        group.owner.kind === 'personnel-service',
     );
     if (!groups.length) {
       return [];
@@ -3860,7 +4877,9 @@ export class DutyAutopilotService {
         continue;
       }
 
-      const groupActivities = group.activities.map((activity) => byId.get(activity.id) ?? activity);
+      const groupActivities = group.activities.map(
+        (activity) => byId.get(activity.id) ?? activity,
+      );
       const startBoundary =
         groupActivities.find((a) => a.id === `svcstart:${serviceId}`) ??
         groupActivities.find((a) => isStartBoundary(a)) ??
@@ -3871,20 +4890,38 @@ export class DutyAutopilotService {
         null;
 
       const fallbackIntervals = this.sortedIntervals(
-        groupActivities.filter((activity) => !isRegularBreak(activity) && !isBoundary(activity)),
+        groupActivities.filter(
+          (activity) => !isRegularBreak(activity) && !isBoundary(activity),
+        ),
       );
-      const dutyStartMs = this.parseMs(startBoundary?.start ?? null) ?? fallbackIntervals.minStartMs;
-      const boundaryEndStartMs = endBoundary ? this.parseMs(endBoundary.start ?? null) : null;
+      const dutyStartMs =
+        this.parseMs(startBoundary?.start ?? null) ??
+        fallbackIntervals.minStartMs;
+      const boundaryEndStartMs = endBoundary
+        ? this.parseMs(endBoundary.start ?? null)
+        : null;
       const dutyEndMs =
         boundaryEndStartMs !== null && endBoundary
-          ? Math.max(boundaryEndStartMs, this.resolveEndMs(endBoundary, boundaryEndStartMs))
+          ? Math.max(
+              boundaryEndStartMs,
+              this.resolveEndMs(endBoundary, boundaryEndStartMs),
+            )
           : fallbackIntervals.maxEndMs;
 
-      if (!Number.isFinite(dutyStartMs) || !Number.isFinite(dutyEndMs) || dutyEndMs <= dutyStartMs) {
+      if (
+        !Number.isFinite(dutyStartMs) ||
+        !Number.isFinite(dutyEndMs) ||
+        dutyEndMs <= dutyStartMs
+      ) {
         continue;
       }
 
-      const breaks = groupActivities
+      const startActivityId =
+        startBoundary?.id ?? this.findFirstActivity(groupActivities)?.id ?? null;
+      const endActivityId =
+        endBoundary?.id ?? this.findLastActivity(groupActivities)?.id ?? null;
+
+      const breakActivities = groupActivities
         .filter((activity) => isRegularBreak(activity))
         .map((activity) => {
           const start = this.parseMs(activity.start);
@@ -3897,12 +4934,17 @@ export class DutyAutopilotService {
           if (clampedEndMs <= clampedStartMs) {
             return null;
           }
-          return { startMs: clampedStartMs, endMs: clampedEndMs };
+          return { id: activity.id, startMs: clampedStartMs, endMs: clampedEndMs };
         })
-        .filter((interval): interval is { startMs: number; endMs: number } => interval !== null)
+        .filter(
+          (
+            interval,
+          ): interval is { id: string; startMs: number; endMs: number } =>
+            interval !== null,
+        )
         .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
 
-      const shortBreaks = groupActivities
+      const shortBreakActivities = groupActivities
         .filter((activity) => isShortBreak(activity))
         .map((activity) => {
           const start = this.parseMs(activity.start);
@@ -3915,16 +4957,36 @@ export class DutyAutopilotService {
           if (clampedEndMs <= clampedStartMs) {
             return null;
           }
-          return { startMs: clampedStartMs, endMs: clampedEndMs };
+          return { id: activity.id, startMs: clampedStartMs, endMs: clampedEndMs };
         })
-        .filter((interval): interval is { startMs: number; endMs: number } => interval !== null)
+        .filter(
+          (
+            interval,
+          ): interval is { id: string; startMs: number; endMs: number } =>
+            interval !== null,
+        )
         .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+
+      const breaks = breakActivities.map(({ startMs, endMs }) => ({
+        startMs,
+        endMs,
+      }));
+      const shortBreaks = shortBreakActivities.map(({ startMs, endMs }) => ({
+        startMs,
+        endMs,
+      }));
 
       const normalizedBreaks = this.mergeIntervals(breaks);
       const normalizedShortBreaks = this.mergeIntervals(shortBreaks);
-      const workSegments = this.subtractIntervals({ startMs: dutyStartMs, endMs: dutyEndMs }, normalizedBreaks);
+      const workSegments = this.subtractIntervals(
+        { startMs: dutyStartMs, endMs: dutyEndMs },
+        normalizedBreaks,
+      );
       const workMinutes = Math.round(
-        workSegments.reduce((sum, seg) => sum + Math.max(0, seg.endMs - seg.startMs), 0) / 60_000,
+        workSegments.reduce(
+          (sum, seg) => sum + Math.max(0, seg.endMs - seg.startMs),
+          0,
+        ) / 60_000,
       );
       const workHalfMs = resolveWorkHalfMs(workSegments);
 
@@ -3938,8 +5000,12 @@ export class DutyAutopilotService {
         dayStartMs,
         dutySpanMinutes: Math.round((dutyEndMs - dutyStartMs) / 60_000),
         workMinutes,
+        startActivityId,
+        endActivityId,
         breakIntervals: normalizedBreaks,
+        breakActivities,
         shortBreakIntervals: normalizedShortBreaks,
+        shortBreakActivities,
         workHalfMs,
         activityIds: groupActivities.map((activity) => activity.id),
         hasNightWork: this.intervalsOverlapDailyWindow(workSegments, 0, 4),
@@ -3960,16 +5026,31 @@ export class DutyAutopilotService {
       }
     }
 
-    const serviceCodes = new Map<string, Set<string>>();
-    const addCode = (serviceId: string, code: string) => {
-      let set = serviceCodes.get(serviceId);
+    const azgCodesByActivity = new Map<string, Set<string>>();
+    const addActivityCode = (
+      activityId: string | null | undefined,
+      code: string,
+    ) => {
+      if (!activityId) {
+        return;
+      }
+      let set = azgCodesByActivity.get(activityId);
       if (!set) {
         set = new Set<string>();
-        serviceCodes.set(serviceId, set);
+        azgCodesByActivity.set(activityId, set);
       }
       set.add(code);
     };
-    const addDutyCode = (duty: AzgDutySnapshot, code: string) => addCode(duty.serviceId, code);
+    const addBoundaryCode = (duty: AzgDutySnapshot, code: string) => {
+      addActivityCode(duty.startActivityId, code);
+      addActivityCode(duty.endActivityId, code);
+    };
+    const addBreakCodes = (
+      activities: Array<{ id: string }>,
+      code: string,
+    ) => {
+      activities.forEach((activity) => addActivityCode(activity.id, code));
+    };
     const filterDutiesByKinds = (
       duties: AzgDutySnapshot[],
       kinds: ActivityParticipant['kind'][] | null | undefined,
@@ -3990,13 +5071,22 @@ export class DutyAutopilotService {
           return { prev: duty, next, nextStartMs: next.startMs, minutes };
         })
         .filter(
-          (entry): entry is { prev: AzgDutySnapshot; next: AzgDutySnapshot; nextStartMs: number; minutes: number } =>
-            entry !== null,
+          (
+            entry,
+          ): entry is {
+            prev: AzgDutySnapshot;
+            next: AzgDutySnapshot;
+            nextStartMs: number;
+            minutes: number;
+          } => entry !== null,
         );
 
     const breakMinMinutes = Math.max(0, config.minBreakMinutes);
     const standardBreakMinMinutes = config.azg.breakStandard.enabled
-      ? Math.max(breakMinMinutes, Math.max(0, config.azg.breakStandard.minMinutes))
+      ? Math.max(
+          breakMinMinutes,
+          Math.max(0, config.azg.breakStandard.minMinutes),
+        )
       : breakMinMinutes;
     const interruptionMinMinutes = config.azg.breakInterruption.enabled
       ? Math.max(
@@ -4004,9 +5094,18 @@ export class DutyAutopilotService {
           Math.max(0, config.azg.breakInterruption.minMinutes),
         )
       : Math.max(0, config.minShortBreakMinutes);
-    const interruptionMaxDutyMinutes = Math.max(0, config.azg.breakInterruption.maxDutyMinutes);
-    const interruptionMaxWorkMinutes = Math.max(0, config.azg.breakInterruption.maxWorkMinutes);
-    const midpointToleranceMinutes = Math.max(0, config.azg.breakMidpoint.toleranceMinutes);
+    const interruptionMaxDutyMinutes = Math.max(
+      0,
+      config.azg.breakInterruption.maxDutyMinutes,
+    );
+    const interruptionMaxWorkMinutes = Math.max(
+      0,
+      config.azg.breakInterruption.maxWorkMinutes,
+    );
+    const midpointToleranceMinutes = Math.max(
+      0,
+      config.azg.breakMidpoint.toleranceMinutes,
+    );
     const maxWorkMinutes = Math.max(0, config.maxWorkMinutes);
     const maxDutySpanMinutes = Math.max(0, config.maxDutySpanMinutes);
     const maxContinuousMinutes = Math.max(0, config.maxContinuousWorkMinutes);
@@ -4023,20 +5122,25 @@ export class DutyAutopilotService {
         config.azg.breakInterruption.enabled &&
         interruptionMaxDutyMinutes > 0 &&
         duty.dutySpanMinutes <= interruptionMaxDutyMinutes &&
-        (interruptionMaxWorkMinutes <= 0 || duty.workMinutes <= interruptionMaxWorkMinutes);
+        (interruptionMaxWorkMinutes <= 0 ||
+          duty.workMinutes <= interruptionMaxWorkMinutes);
       const standardBreakRequired =
         config.azg.breakStandard.enabled &&
-        (interruptionMaxWorkMinutes <= 0 || duty.workMinutes > interruptionMaxWorkMinutes);
+        (interruptionMaxWorkMinutes <= 0 ||
+          duty.workMinutes > interruptionMaxWorkMinutes);
       const validInterruptionBreaks = interruptionAllowed
-        ? duty.shortBreakIntervals.filter((brk) => intervalMinutes(brk) >= interruptionMinMinutes)
+        ? duty.shortBreakIntervals.filter(
+            (brk) => intervalMinutes(brk) >= interruptionMinMinutes,
+          )
         : [];
-      const breakRequired = maxContinuousMinutes > 0 && duty.workMinutes > maxContinuousMinutes;
+      const breakRequired =
+        maxContinuousMinutes > 0 && duty.workMinutes > maxContinuousMinutes;
 
       if (maxDutySpanMinutes > 0 && duty.dutySpanMinutes > maxDutySpanMinutes) {
-        addDutyCode(duty, 'MAX_DUTY_SPAN');
+        addBoundaryCode(duty, 'MAX_DUTY_SPAN');
       }
       if (maxWorkMinutes > 0 && duty.workMinutes > maxWorkMinutes) {
-        addDutyCode(duty, 'MAX_WORK');
+        addBoundaryCode(duty, 'MAX_WORK');
       }
       if (maxContinuousMinutes > 0) {
         const validShortBreaksForContinuous = duty.shortBreakIntervals.filter(
@@ -4051,31 +5155,61 @@ export class DutyAutopilotService {
           duty.endMs,
           continuousInterruptions,
         );
-        const maxContinuousObservedMinutes = Math.round(maxContinuousObservedMs / 60_000);
+        const maxContinuousObservedMinutes = Math.round(
+          maxContinuousObservedMs / 60_000,
+        );
         if (maxContinuousObservedMinutes > maxContinuousMinutes) {
-          addDutyCode(duty, 'MAX_CONTINUOUS');
+          addBoundaryCode(duty, 'MAX_CONTINUOUS');
         }
-        if (!continuousInterruptions.length && duty.workMinutes > maxContinuousMinutes) {
-          addDutyCode(duty, 'NO_BREAK_WINDOW');
+        if (
+          !continuousInterruptions.length &&
+          duty.workMinutes > maxContinuousMinutes
+        ) {
+          addBoundaryCode(duty, 'NO_BREAK_WINDOW');
         }
       }
-      if (config.azg.breakMaxCount.enabled && duty.breakIntervals.length > config.azg.breakMaxCount.maxCount) {
-        addDutyCode(duty, 'AZG_BREAK_MAX_COUNT');
+      if (
+        config.azg.breakMaxCount.enabled &&
+        duty.breakIntervals.length > config.azg.breakMaxCount.maxCount
+      ) {
+        const extras = duty.breakActivities.slice(
+          config.azg.breakMaxCount.maxCount,
+        );
+        addBreakCodes(extras, 'AZG_BREAK_MAX_COUNT');
       }
-      if (duty.breakIntervals.some((brk) => intervalMinutes(brk) < breakMinMinutes)) {
-        addDutyCode(duty, 'AZG_BREAK_TOO_SHORT');
+      if (
+        duty.breakIntervals.some(
+          (brk) => intervalMinutes(brk) < breakMinMinutes,
+        )
+      ) {
+        const tooShort = duty.breakActivities.filter(
+          (brk) => intervalMinutes(brk) < breakMinMinutes,
+        );
+        addBreakCodes(tooShort, 'AZG_BREAK_TOO_SHORT');
       }
       if (breakRequired) {
         if (!hasRegularBreak && !interruptionAllowed) {
-          addDutyCode(duty, 'AZG_BREAK_REQUIRED');
-        } else if (!hasRegularBreak && interruptionAllowed && validInterruptionBreaks.length === 0) {
-          addDutyCode(duty, 'AZG_BREAK_REQUIRED');
-        } else if (standardBreakRequired && hasRegularBreak && validStandardBreaks.length === 0) {
-          addDutyCode(duty, 'AZG_BREAK_STANDARD_MIN');
+          addBoundaryCode(duty, 'AZG_BREAK_REQUIRED');
+        } else if (
+          !hasRegularBreak &&
+          interruptionAllowed &&
+          validInterruptionBreaks.length === 0
+        ) {
+          addBoundaryCode(duty, 'AZG_BREAK_REQUIRED');
+        } else if (
+          standardBreakRequired &&
+          hasRegularBreak &&
+          validStandardBreaks.length === 0
+        ) {
+          const tooShort = duty.breakActivities.filter(
+            (brk) => intervalMinutes(brk) < standardBreakMinMinutes,
+          );
+          addBreakCodes(tooShort, 'AZG_BREAK_STANDARD_MIN');
         }
         if (config.azg.breakMidpoint.enabled && duty.workHalfMs !== null) {
           const isLongDuty =
-            interruptionMaxDutyMinutes > 0 && duty.dutySpanMinutes > interruptionMaxDutyMinutes;
+            interruptionMaxDutyMinutes > 0 &&
+            duty.dutySpanMinutes > interruptionMaxDutyMinutes;
           if (isLongDuty) {
             let midpointBreaks: Array<{ startMs: number; endMs: number }> = [];
             if (hasRegularBreak) {
@@ -4084,13 +5218,15 @@ export class DutyAutopilotService {
               midpointBreaks = validInterruptionBreaks;
             }
             if (midpointBreaks.length) {
-              const windowStart = duty.workHalfMs - midpointToleranceMinutes * 60_000;
-              const windowEnd = duty.workHalfMs + midpointToleranceMinutes * 60_000;
+              const windowStart =
+                duty.workHalfMs - midpointToleranceMinutes * 60_000;
+              const windowEnd =
+                duty.workHalfMs + midpointToleranceMinutes * 60_000;
               const hitsMidpoint = midpointBreaks.some(
                 (brk) => brk.endMs > windowStart && brk.startMs < windowEnd,
               );
               if (!hitsMidpoint) {
-                addDutyCode(duty, 'AZG_BREAK_MIDPOINT');
+                addBoundaryCode(duty, 'AZG_BREAK_MIDPOINT');
               }
             }
           }
@@ -4098,18 +5234,29 @@ export class DutyAutopilotService {
       }
       if (
         config.azg.breakForbiddenNight.enabled &&
-        this.intervalsOverlapDailyWindow(duty.breakIntervals, config.azg.breakForbiddenNight.startHour, config.azg.breakForbiddenNight.endHour)
+        this.intervalsOverlapDailyWindow(
+          duty.breakIntervals,
+          config.azg.breakForbiddenNight.startHour,
+          config.azg.breakForbiddenNight.endHour,
+        )
       ) {
-        addDutyCode(duty, 'AZG_BREAK_FORBIDDEN_NIGHT');
+        const forbidden = duty.breakActivities.filter((brk) =>
+          this.intervalsOverlapDailyWindow(
+            [{ startMs: brk.startMs, endMs: brk.endMs }],
+            config.azg.breakForbiddenNight.startHour,
+            config.azg.breakForbiddenNight.endHour,
+          ),
+        );
+        addBreakCodes(forbidden, 'AZG_BREAK_FORBIDDEN_NIGHT');
       }
 
       const bufferMinutes = Math.max(0, config.azg.exceedBufferMinutes);
       if (bufferMinutes > 0) {
         if (duty.workMinutes > config.maxWorkMinutes + bufferMinutes) {
-          addDutyCode(duty, 'AZG_WORK_EXCEED_BUFFER');
+          addBoundaryCode(duty, 'AZG_WORK_EXCEED_BUFFER');
         }
         if (duty.dutySpanMinutes > config.maxDutySpanMinutes + bufferMinutes) {
-          addDutyCode(duty, 'AZG_DUTY_SPAN_EXCEED_BUFFER');
+          addBoundaryCode(duty, 'AZG_DUTY_SPAN_EXCEED_BUFFER');
         }
       }
     }
@@ -4118,10 +5265,15 @@ export class DutyAutopilotService {
       const sortedByDay = duties
         .slice()
         .sort((a, b) => a.dayStartMs - b.dayStartMs || a.startMs - b.startMs);
-      const sortedByStart = duties.slice().sort((a, b) => a.startMs - b.startMs);
+      const sortedByStart = duties
+        .slice()
+        .sort((a, b) => a.startMs - b.startMs);
 
       if (config.azg.workAvg7d.enabled) {
-        const candidates = filterDutiesByKinds(sortedByDay, config.azg.workAvg7d.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByDay,
+          config.azg.workAvg7d.resourceKinds,
+        );
         if (candidates.length) {
           const window = Math.max(1, config.azg.workAvg7d.windowWorkdays);
           const maxAvg = config.azg.workAvg7d.maxAverageMinutes;
@@ -4141,7 +5293,7 @@ export class DutyAutopilotService {
                 const avg = sum / window;
                 if (avg > maxAvg) {
                   for (let j = i - window + 1; j <= i; j += 1) {
-                    addDutyCode(streak[j], 'AZG_WORK_AVG_7D');
+                    addBoundaryCode(streak[j], 'AZG_WORK_AVG_7D');
                   }
                 }
               }
@@ -4167,27 +5319,43 @@ export class DutyAutopilotService {
       }
 
       if (config.azg.workAvg365d.enabled) {
-        const candidates = filterDutiesByKinds(sortedByDay, config.azg.workAvg365d.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByDay,
+          config.azg.workAvg365d.resourceKinds,
+        );
         if (candidates.length) {
-          const workdayCount = new Set(candidates.map((d) => d.dayStartMs)).size;
-          const totalWork = candidates.reduce((sum, d) => sum + d.workMinutes, 0);
+          const workdayCount = new Set(candidates.map((d) => d.dayStartMs))
+            .size;
+          const totalWork = candidates.reduce(
+            (sum, d) => sum + d.workMinutes,
+            0,
+          );
           const avg = workdayCount > 0 ? totalWork / workdayCount : 0;
           if (avg > config.azg.workAvg365d.maxAverageMinutes) {
-            candidates.forEach((duty) => addDutyCode(duty, 'AZG_WORK_AVG_365D'));
+            candidates.forEach((duty) =>
+              addBoundaryCode(duty, 'AZG_WORK_AVG_365D'),
+            );
           }
         }
       }
 
       if (config.azg.dutySpanAvg28d.enabled) {
-        const candidates = filterDutiesByKinds(sortedByDay, config.azg.dutySpanAvg28d.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByDay,
+          config.azg.dutySpanAvg28d.resourceKinds,
+        );
         if (candidates.length) {
-          const windowMs = Math.max(1, config.azg.dutySpanAvg28d.windowDays) * dayMs;
+          const windowMs =
+            Math.max(1, config.azg.dutySpanAvg28d.windowDays) * dayMs;
           const maxAvg = config.azg.dutySpanAvg28d.maxAverageMinutes;
           let start = 0;
           let sum = 0;
           for (let end = 0; end < candidates.length; end += 1) {
             sum += candidates[end].dutySpanMinutes;
-            while (candidates[end].dayStartMs - candidates[start].dayStartMs >= windowMs) {
+            while (
+              candidates[end].dayStartMs - candidates[start].dayStartMs >=
+              windowMs
+            ) {
               sum -= candidates[start].dutySpanMinutes;
               start += 1;
             }
@@ -4198,7 +5366,7 @@ export class DutyAutopilotService {
             const avg = sum / count;
             if (avg > maxAvg) {
               for (let i = start; i <= end; i += 1) {
-                addDutyCode(candidates[i], 'AZG_DUTY_SPAN_AVG_28D');
+                addBoundaryCode(candidates[i], 'AZG_DUTY_SPAN_AVG_28D');
               }
             }
           }
@@ -4206,30 +5374,40 @@ export class DutyAutopilotService {
       }
 
       if (config.azg.restMin.enabled) {
-        const candidates = filterDutiesByKinds(sortedByStart, config.azg.restMin.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByStart,
+          config.azg.restMin.resourceKinds,
+        );
         const restGaps = buildRestGaps(candidates);
         if (restGaps.length) {
           const minMinutes = config.azg.restMin.minMinutes;
           for (const gap of restGaps) {
             if (gap.minutes < minMinutes) {
-              addDutyCode(gap.prev, 'AZG_REST_MIN');
-              addDutyCode(gap.next, 'AZG_REST_MIN');
+              addBoundaryCode(gap.prev, 'AZG_REST_MIN');
+              addBoundaryCode(gap.next, 'AZG_REST_MIN');
             }
           }
         }
       }
 
       if (config.azg.restAvg28d.enabled) {
-        const candidates = filterDutiesByKinds(sortedByStart, config.azg.restAvg28d.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByStart,
+          config.azg.restAvg28d.resourceKinds,
+        );
         const restGaps = buildRestGaps(candidates);
         if (restGaps.length) {
-          const windowMs = Math.max(1, config.azg.restAvg28d.windowDays) * dayMs;
+          const windowMs =
+            Math.max(1, config.azg.restAvg28d.windowDays) * dayMs;
           const minAvg = config.azg.restAvg28d.minAverageMinutes;
           let start = 0;
           let sum = 0;
           for (let end = 0; end < restGaps.length; end += 1) {
             sum += restGaps[end].minutes;
-            while (restGaps[end].nextStartMs - restGaps[start].nextStartMs >= windowMs) {
+            while (
+              restGaps[end].nextStartMs - restGaps[start].nextStartMs >=
+              windowMs
+            ) {
               sum -= restGaps[start].minutes;
               start += 1;
             }
@@ -4240,8 +5418,8 @@ export class DutyAutopilotService {
             const avg = sum / count;
             if (avg < minAvg) {
               for (let i = start; i <= end; i += 1) {
-                addDutyCode(restGaps[i].prev, 'AZG_REST_AVG_28D');
-                addDutyCode(restGaps[i].next, 'AZG_REST_AVG_28D');
+                addBoundaryCode(restGaps[i].prev, 'AZG_REST_AVG_28D');
+                addBoundaryCode(restGaps[i].next, 'AZG_REST_AVG_28D');
               }
             }
           }
@@ -4249,13 +5427,18 @@ export class DutyAutopilotService {
       }
 
       if (config.azg.nightMaxStreak.enabled) {
-        const candidates = filterDutiesByKinds(sortedByDay, config.azg.nightMaxStreak.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByDay,
+          config.azg.nightMaxStreak.resourceKinds,
+        );
         if (candidates.length) {
           const maxConsecutive = config.azg.nightMaxStreak.maxConsecutive;
           let streak: AzgDutySnapshot[] = [];
           const flush = () => {
             if (streak.length > maxConsecutive) {
-              streak.forEach((duty) => addDutyCode(duty, 'AZG_NIGHT_STREAK_MAX'));
+              streak.forEach((duty) =>
+                addBoundaryCode(duty, 'AZG_NIGHT_STREAK_MAX'),
+              );
             }
             streak = [];
           };
@@ -4282,9 +5465,13 @@ export class DutyAutopilotService {
       }
 
       if (config.azg.nightMax28d.enabled) {
-        const candidates = filterDutiesByKinds(sortedByDay, config.azg.nightMax28d.resourceKinds);
+        const candidates = filterDutiesByKinds(
+          sortedByDay,
+          config.azg.nightMax28d.resourceKinds,
+        );
         if (candidates.length) {
-          const windowMs = Math.max(1, config.azg.nightMax28d.windowDays) * dayMs;
+          const windowMs =
+            Math.max(1, config.azg.nightMax28d.windowDays) * dayMs;
           const maxCount = config.azg.nightMax28d.maxCount;
           let start = 0;
           let nightCount = 0;
@@ -4292,7 +5479,10 @@ export class DutyAutopilotService {
             if (candidates[end].hasNightWork) {
               nightCount += 1;
             }
-            while (candidates[end].dayStartMs - candidates[start].dayStartMs >= windowMs) {
+            while (
+              candidates[end].dayStartMs - candidates[start].dayStartMs >=
+              windowMs
+            ) {
               if (candidates[start].hasNightWork) {
                 nightCount -= 1;
               }
@@ -4301,37 +5491,57 @@ export class DutyAutopilotService {
             if (nightCount > maxCount) {
               for (let i = start; i <= end; i += 1) {
                 if (candidates[i].hasNightWork) {
-                  addDutyCode(candidates[i], 'AZG_NIGHT_28D_MAX');
+                  addBoundaryCode(candidates[i], 'AZG_NIGHT_28D_MAX');
                 }
               }
             }
           }
         }
       }
-
     }
 
     if (config.azg.restDaysYear.enabled) {
       const bounds = this.computeTimetableYearBoundsFromVariantId(variantId);
       if (bounds) {
         const absencesByOwner = this.collectAbsenceIntervals(activities);
-        const sundayLikeDates = this.computeSundayLikeDates(bounds.startMs, bounds.endMs, config.azg.restDaysYear.additionalSundayLikeHolidays);
+        const sundayLikeDates = this.computeSundayLikeDates(
+          bounds.startMs,
+          bounds.endMs,
+          config.azg.restDaysYear.additionalSundayLikeHolidays,
+        );
 
         for (const [ownerId, duties] of byOwner.entries()) {
-          const candidates = filterDutiesByKinds(duties, config.azg.restDaysYear.resourceKinds);
+          const candidates = filterDutiesByKinds(
+            duties,
+            config.azg.restDaysYear.resourceKinds,
+          );
           if (!candidates.length) {
             continue;
           }
-          const dayCount = Math.ceil((bounds.endMs - bounds.startMs + 1) / dayMs);
+          const dayCount = Math.ceil(
+            (bounds.endMs - bounds.startMs + 1) / dayMs,
+          );
           const workDays = new Array<boolean>(dayCount).fill(false);
           const absenceDays = new Array<boolean>(dayCount).fill(false);
 
           candidates.forEach((duty) => {
-            this.markDaysOverlap(workDays, bounds.startMs, bounds.endMs, duty.startMs, duty.endMs);
+            this.markDaysOverlap(
+              workDays,
+              bounds.startMs,
+              bounds.endMs,
+              duty.startMs,
+              duty.endMs,
+            );
           });
 
           (absencesByOwner.get(ownerId) ?? []).forEach((interval) => {
-            this.markDaysOverlap(absenceDays, bounds.startMs, bounds.endMs, interval.startMs, interval.endMs);
+            this.markDaysOverlap(
+              absenceDays,
+              bounds.startMs,
+              bounds.endMs,
+              interval.startMs,
+              interval.endMs,
+            );
           });
 
           let restDays = 0;
@@ -4350,34 +5560,62 @@ export class DutyAutopilotService {
           }
 
           if (restDays < config.azg.restDaysYear.minRestDays) {
-            candidates.forEach((duty) => addDutyCode(duty, 'AZG_REST_DAYS_YEAR_MIN'));
+            candidates.forEach((duty) =>
+              addBoundaryCode(duty, 'AZG_REST_DAYS_YEAR_MIN'),
+            );
           }
           if (sundayRestDays < config.azg.restDaysYear.minSundayRestDays) {
-            candidates.forEach((duty) => addDutyCode(duty, 'AZG_REST_SUNDAYS_YEAR_MIN'));
+            candidates.forEach((duty) =>
+              addBoundaryCode(duty, 'AZG_REST_SUNDAYS_YEAR_MIN'),
+            );
           }
         }
       }
     }
 
-    const baseWorktimeCodes = new Set(['MAX_DUTY_SPAN', 'MAX_WORK', 'MAX_CONTINUOUS', 'NO_BREAK_WINDOW']);
+    const baseWorktimeCodes = new Set([
+      'MAX_DUTY_SPAN',
+      'MAX_WORK',
+      'MAX_CONTINUOUS',
+      'NO_BREAK_WINDOW',
+    ]);
 
     for (const group of groups) {
       const ownerId = group.owner.resourceId;
       const serviceId = group.serviceId;
-      const desiredWorktimeCodes = this.normalizeConflictCodes(Array.from(serviceCodes.get(serviceId) ?? []));
 
       for (const groupActivity of group.activities) {
         const current = byId.get(groupActivity.id) ?? groupActivity;
-        const baseCodes = this.readConflictCodesForActivity(current, ownerId, conflictCodesKey);
+        const desiredWorktimeCodes = this.normalizeConflictCodes(
+          Array.from(azgCodesByActivity.get(current.id) ?? []),
+        );
+        const baseCodes = this.readConflictCodesForActivity(
+          current,
+          ownerId,
+          conflictCodesKey,
+        );
         const filtered = baseCodes.filter(
           (code) => !code.startsWith('AZG_') && !baseWorktimeCodes.has(code),
         );
-        const merged = this.normalizeConflictCodes([...filtered, ...desiredWorktimeCodes]);
-        const level = this.conflictLevelForCodes(merged, config.maxConflictLevel);
+        const merged = this.normalizeConflictCodes([
+          ...filtered,
+          ...desiredWorktimeCodes,
+        ]);
+        const level = this.conflictLevelForCodes(
+          merged,
+          config.maxConflictLevel,
+        );
 
         const next =
           this.isManagedId(current.id) || isBoundary(current)
-            ? this.applyDutyMeta(current, serviceId, level, merged, conflictKey, conflictCodesKey)
+            ? this.applyDutyMeta(
+                current,
+                serviceId,
+                level,
+                merged,
+                conflictKey,
+                conflictCodesKey,
+              )
             : this.applyDutyAssignment(
                 current,
                 ownerId,
@@ -4406,15 +5644,19 @@ export class DutyAutopilotService {
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       const entry = (map as Record<string, any>)[ownerId];
       if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-        const raw = (entry as any).conflictCodes;
+        const raw = entry.conflictCodes;
         if (Array.isArray(raw)) {
-          return raw.map((code) => `${code ?? ''}`.trim()).filter((code) => code.length > 0);
+          return raw
+            .map((code) => `${code ?? ''}`.trim())
+            .filter((code) => code.length > 0);
         }
       }
     }
     const raw = attrs[conflictCodesKey];
     if (Array.isArray(raw)) {
-      return raw.map((code) => `${code ?? ''}`.trim()).filter((code) => code.length > 0);
+      return raw
+        .map((code) => `${code ?? ''}`.trim())
+        .filter((code) => code.length > 0);
     }
     return [];
   }
@@ -4450,7 +5692,9 @@ export class DutyAutopilotService {
     return Number.isFinite(ms) ? ms : null;
   }
 
-  private mergeIntervals(intervals: Array<{ startMs: number; endMs: number }>): Array<{ startMs: number; endMs: number }> {
+  private mergeIntervals(
+    intervals: Array<{ startMs: number; endMs: number }>,
+  ): Array<{ startMs: number; endMs: number }> {
     if (intervals.length <= 1) {
       return intervals.slice();
     }
@@ -4502,7 +5746,14 @@ export class DutyAutopilotService {
     startHour: number,
     endHour: number,
   ): boolean {
-    return intervals.some((interval) => this.intervalOverlapsDailyWindow(interval.startMs, interval.endMs, startHour, endHour));
+    return intervals.some((interval) =>
+      this.intervalOverlapsDailyWindow(
+        interval.startMs,
+        interval.endMs,
+        startHour,
+        endHour,
+      ),
+    );
   }
 
   private intervalOverlapsDailyWindow(
@@ -4516,7 +5767,11 @@ export class DutyAutopilotService {
     const normalizedEndHour = ((endHour % 24) + 24) % 24;
     const dayStartBase = this.utcDayStartMs(startMs);
     const lastDayStart = this.utcDayStartMs(endMs);
-    for (let dayStart = dayStartBase - dayMs; dayStart <= lastDayStart; dayStart += dayMs) {
+    for (
+      let dayStart = dayStartBase - dayMs;
+      dayStart <= lastDayStart;
+      dayStart += dayMs
+    ) {
       if (normalizedStartHour <= normalizedEndHour) {
         const windowStart = dayStart + normalizedStartHour * 3_600_000;
         const windowEnd = dayStart + normalizedEndHour * 3_600_000;
@@ -4539,7 +5794,12 @@ export class DutyAutopilotService {
     return false;
   }
 
-  private intervalsOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
+  private intervalsOverlap(
+    startA: number,
+    endA: number,
+    startB: number,
+    endB: number,
+  ): boolean {
     const start = Math.max(startA, startB);
     const end = Math.min(endA, endB);
     return start < end;
@@ -4547,10 +5807,20 @@ export class DutyAutopilotService {
 
   private utcDayStartMs(ms: number): number {
     const date = new Date(ms);
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0);
+    return Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      0,
+      0,
+      0,
+      0,
+    );
   }
 
-  private computeTimetableYearBoundsFromVariantId(variantId: string): { startMs: number; endMs: number } | null {
+  private computeTimetableYearBoundsFromVariantId(
+    variantId: string,
+  ): { startMs: number; endMs: number } | null {
     const label = deriveTimetableYearLabelFromVariantId(variantId);
     if (!label) {
       return null;
@@ -4558,7 +5828,9 @@ export class DutyAutopilotService {
     return this.computeTimetableYearBounds(label);
   }
 
-  private computeTimetableYearBounds(label: string): { startMs: number; endMs: number } | null {
+  private computeTimetableYearBounds(
+    label: string,
+  ): { startMs: number; endMs: number } | null {
     const trimmed = label.trim();
     const match = /^(\\d{4})(?:[/-](\\d{2}))?$/.exec(trimmed);
     if (!match) {
@@ -4581,7 +5853,9 @@ export class DutyAutopilotService {
     return date.getTime();
   }
 
-  private collectAbsenceIntervals(activities: Activity[]): Map<string, Array<{ startMs: number; endMs: number }>> {
+  private collectAbsenceIntervals(
+    activities: Activity[],
+  ): Map<string, Array<{ startMs: number; endMs: number }>> {
     const result = new Map<string, Array<{ startMs: number; endMs: number }>>();
     for (const activity of activities) {
       if (!this.isAbsenceActivity(activity)) {
@@ -4594,7 +5868,10 @@ export class DutyAutopilotService {
       }
       const normalizedEndMs = Math.max(startMs, endMs);
       const owners = this.resolveDutyOwners(activity)
-        .filter((owner) => owner.kind === 'personnel' || owner.kind === 'personnel-service')
+        .filter(
+          (owner) =>
+            owner.kind === 'personnel' || owner.kind === 'personnel-service',
+        )
         .map((owner) => owner.resourceId);
       if (!owners.length) {
         continue;
@@ -4616,13 +5893,16 @@ export class DutyAutopilotService {
 
   private isAbsenceActivity(activity: Activity): boolean {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const meta = activity.meta as Record<string, unknown> | undefined;
+    const meta = activity.meta;
     const raw = attrs?.['is_absence'] ?? meta?.['is_absence'];
     if (typeof raw === 'boolean') {
       return raw;
     }
     if (typeof raw === 'string') {
-      return raw.trim().toLowerCase() === 'true' || raw.trim().toLowerCase() === 'yes';
+      return (
+        raw.trim().toLowerCase() === 'true' ||
+        raw.trim().toLowerCase() === 'yes'
+      );
     }
     return false;
   }
@@ -4640,10 +5920,18 @@ export class DutyAutopilotService {
     if (clampedEnd <= clampedStart) {
       return;
     }
-    const startIndex = Math.floor((this.utcDayStartMs(clampedStart) - rangeStartMs) / dayMs);
+    const startIndex = Math.floor(
+      (this.utcDayStartMs(clampedStart) - rangeStartMs) / dayMs,
+    );
     const effectiveEnd = Math.max(clampedStart, clampedEnd - 1);
-    const endIndex = Math.floor((this.utcDayStartMs(effectiveEnd) - rangeStartMs) / dayMs);
-    for (let i = Math.max(0, startIndex); i <= Math.min(target.length - 1, endIndex); i += 1) {
+    const endIndex = Math.floor(
+      (this.utcDayStartMs(effectiveEnd) - rangeStartMs) / dayMs,
+    );
+    for (
+      let i = Math.max(0, startIndex);
+      i <= Math.min(target.length - 1, endIndex);
+      i += 1
+    ) {
       target[i] = true;
     }
   }
@@ -4659,7 +5947,10 @@ export class DutyAutopilotService {
     for (let year = startYear; year <= endYear; year += 1) {
       const newYear = Date.UTC(year, 0, 1, 0, 0, 0, 0);
       const christmas = Date.UTC(year, 11, 25, 0, 0, 0, 0);
-      const ascension = this.addDaysMs(this.easterSundayUtc(year).getTime(), 39);
+      const ascension = this.addDaysMs(
+        this.easterSundayUtc(year).getTime(),
+        39,
+      );
       [newYear, christmas, ascension].forEach((ms) => {
         if (ms >= rangeStartMs && ms <= rangeEndMs) {
           set.add(this.utcDayKeyFromMs(ms));
@@ -4681,7 +5972,9 @@ export class DutyAutopilotService {
       }
       const md = /^\\d{2}-\\d{2}$/.exec(trimmed);
       if (md) {
-        const [month, day] = trimmed.split('-').map((part) => Number.parseInt(part, 10));
+        const [month, day] = trimmed
+          .split('-')
+          .map((part) => Number.parseInt(part, 10));
         if (!Number.isFinite(month) || !Number.isFinite(day)) {
           return;
         }
@@ -4743,21 +6036,30 @@ export class DutyAutopilotService {
     }
 
     const nextAttrs: ActivityAttributes = { ...attrs };
-    if (!map || typeof map !== 'object' || Array.isArray(map) || withinPref === 'outside') {
+    if (
+      !map ||
+      typeof map !== 'object' ||
+      Array.isArray(map) ||
+      withinPref === 'outside'
+    ) {
       if (map) {
         delete (nextAttrs as any)[serviceByOwnerKey];
         changed = true;
       }
     } else {
-      const owners = new Set(this.resolveDutyOwners(activity).map((owner) => owner.resourceId));
+      const owners = new Set(
+        this.resolveDutyOwners(activity).map((owner) => owner.resourceId),
+      );
       const cleaned: Record<string, any> = {};
-      Object.entries(map as Record<string, any>).forEach(([ownerId, assignment]) => {
-        if (owners.has(ownerId)) {
-          cleaned[ownerId] = assignment;
-        } else {
-          changed = true;
-        }
-      });
+      Object.entries(map as Record<string, any>).forEach(
+        ([ownerId, assignment]) => {
+          if (owners.has(ownerId)) {
+            cleaned[ownerId] = assignment;
+          } else {
+            changed = true;
+          }
+        },
+      );
       if (Object.keys(cleaned).length) {
         // Only mark as changed when the mapping actually differs.
         if (Object.keys(cleaned).length !== Object.keys(map as any).length) {

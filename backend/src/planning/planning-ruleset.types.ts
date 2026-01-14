@@ -12,7 +12,14 @@ export type RulesetExpressionOperator =
 
 export type RulesetOperand =
   | { var: string }
-  | { value: string | number | boolean | null | Array<string | number | boolean> };
+  | {
+      value:
+        | string
+        | number
+        | boolean
+        | null
+        | Array<string | number | boolean>;
+    };
 
 export type RulesetExpression =
   | { op: 'and' | 'or'; args: RulesetExpression[] }

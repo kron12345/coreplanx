@@ -103,7 +103,9 @@ export class PlanningMasterDataService implements OnModuleInit {
   private defaultsLoaded = false;
   private loadedFromDatabase = false;
   private defaultResources: ResourceSnapshot | null = null;
-  private defaultTopology: NonNullable<MasterDataDefaultsFile['topology']> | null = null;
+  private defaultTopology: NonNullable<
+    MasterDataDefaultsFile['topology']
+  > | null = null;
 
   constructor(private readonly repository: PlanningRepository) {
     this.usingDatabase = this.repository.isEnabled;
@@ -118,7 +120,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     }
     this.loadedFromDatabase = await this.initializeMasterDataFromDatabase();
     if (!this.loadedFromDatabase) {
-      this.logger.warn('Skipping default seeding because master data could not be loaded.');
+      this.logger.warn(
+        'Skipping default seeding because master data could not be loaded.',
+      );
       return;
     }
     await this.seedDefaultsIfEmpty();
@@ -221,20 +225,26 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.cloneVehicleComposition(composition),
     );
     if (this.usingDatabase) {
-      await this.repository.replaceVehicleCompositions(this.vehicleCompositions);
+      await this.repository.replaceVehicleCompositions(
+        this.vehicleCompositions,
+      );
     }
     return this.listVehicleCompositions();
   }
 
   listOperationalPoints(): OperationalPointListResponse {
-    return this.operationalPoints.map((point) => this.cloneOperationalPoint(point));
+    return this.operationalPoints.map((point) =>
+      this.cloneOperationalPoint(point),
+    );
   }
 
   async saveOperationalPoints(
     request?: OperationalPointListRequest,
   ): Promise<OperationalPointListResponse> {
     const incoming = request?.items ?? [];
-    this.operationalPoints = incoming.map((point) => this.cloneOperationalPoint(point));
+    this.operationalPoints = incoming.map((point) =>
+      this.cloneOperationalPoint(point),
+    );
     if (this.usingDatabase) {
       await this.repository.replaceOperationalPoints(this.operationalPoints);
     }
@@ -242,14 +252,18 @@ export class PlanningMasterDataService implements OnModuleInit {
   }
 
   listSectionsOfLine(): SectionOfLineListResponse {
-    return this.sectionsOfLine.map((section) => this.cloneSectionOfLine(section));
+    return this.sectionsOfLine.map((section) =>
+      this.cloneSectionOfLine(section),
+    );
   }
 
   async saveSectionsOfLine(
     request?: SectionOfLineListRequest,
   ): Promise<SectionOfLineListResponse> {
     const incoming = request?.items ?? [];
-    this.sectionsOfLine = incoming.map((section) => this.cloneSectionOfLine(section));
+    this.sectionsOfLine = incoming.map((section) =>
+      this.cloneSectionOfLine(section),
+    );
     if (this.usingDatabase) {
       await this.repository.replaceSectionsOfLine(this.sectionsOfLine);
     }
@@ -279,7 +293,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     request?: ReplacementStopListRequest,
   ): Promise<ReplacementStopListResponse> {
     const incoming = request?.items ?? [];
-    this.replacementStops = incoming.map((stop) => this.cloneReplacementStop(stop));
+    this.replacementStops = incoming.map((stop) =>
+      this.cloneReplacementStop(stop),
+    );
     if (this.usingDatabase) {
       await this.repository.replaceReplacementStops(this.replacementStops);
     }
@@ -287,14 +303,18 @@ export class PlanningMasterDataService implements OnModuleInit {
   }
 
   listReplacementRoutes(): ReplacementRouteListResponse {
-    return this.replacementRoutes.map((route) => this.cloneReplacementRoute(route));
+    return this.replacementRoutes.map((route) =>
+      this.cloneReplacementRoute(route),
+    );
   }
 
   async saveReplacementRoutes(
     request?: ReplacementRouteListRequest,
   ): Promise<ReplacementRouteListResponse> {
     const incoming = request?.items ?? [];
-    this.replacementRoutes = incoming.map((route) => this.cloneReplacementRoute(route));
+    this.replacementRoutes = incoming.map((route) =>
+      this.cloneReplacementRoute(route),
+    );
     if (this.usingDatabase) {
       await this.repository.replaceReplacementRoutes(this.replacementRoutes);
     }
@@ -309,7 +329,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     request?: ReplacementEdgeListRequest,
   ): Promise<ReplacementEdgeListResponse> {
     const incoming = request?.items ?? [];
-    this.replacementEdges = incoming.map((edge) => this.cloneReplacementEdge(edge));
+    this.replacementEdges = incoming.map((edge) =>
+      this.cloneReplacementEdge(edge),
+    );
     if (this.usingDatabase) {
       await this.repository.replaceReplacementEdges(this.replacementEdges);
     }
@@ -330,7 +352,9 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.cloneOpReplacementStopLink(link),
     );
     if (this.usingDatabase) {
-      await this.repository.replaceOpReplacementStopLinks(this.opReplacementStopLinks);
+      await this.repository.replaceOpReplacementStopLinks(
+        this.opReplacementStopLinks,
+      );
     }
     return this.listOpReplacementStopLinks();
   }
@@ -479,13 +503,18 @@ export class PlanningMasterDataService implements OnModuleInit {
         this.repository.replaceReplacementStops(this.replacementStops),
         this.repository.replaceReplacementRoutes(this.replacementRoutes),
         this.repository.replaceReplacementEdges(this.replacementEdges),
-        this.repository.replaceOpReplacementStopLinks(this.opReplacementStopLinks),
+        this.repository.replaceOpReplacementStopLinks(
+          this.opReplacementStopLinks,
+        ),
         this.repository.replaceTransferEdges(this.transferEdges),
       ]);
     }
   }
 
-  private getDefaults(): { resources: ResourceSnapshot; topology: NonNullable<MasterDataDefaultsFile['topology']> } | null {
+  private getDefaults(): {
+    resources: ResourceSnapshot;
+    topology: NonNullable<MasterDataDefaultsFile['topology']>;
+  } | null {
     this.loadDefaultsOnce();
     if (!this.defaultResources || !this.defaultTopology) {
       return null;
@@ -509,32 +538,34 @@ export class PlanningMasterDataService implements OnModuleInit {
       return;
     }
     this.defaultResources = {
-      personnel: (doc.resources?.personnel ?? []) as Personnel[],
-      personnelServices: (doc.resources?.personnelServices ?? []) as PersonnelService[],
-      personnelServicePools: (doc.resources?.personnelServicePools ?? []) as PersonnelServicePool[],
-      personnelPools: (doc.resources?.personnelPools ?? []) as PersonnelPool[],
-      homeDepots: (doc.resources?.homeDepots ?? []) as HomeDepot[],
-      vehicles: (doc.resources?.vehicles ?? []) as Vehicle[],
-      vehicleServices: (doc.resources?.vehicleServices ?? []) as VehicleService[],
-      vehicleServicePools: (doc.resources?.vehicleServicePools ?? []) as VehicleServicePool[],
-      vehiclePools: (doc.resources?.vehiclePools ?? []) as VehiclePool[],
-      vehicleTypes: (doc.resources?.vehicleTypes ?? []) as VehicleType[],
-      vehicleCompositions: (doc.resources?.vehicleCompositions ?? []) as VehicleComposition[],
+      personnel: doc.resources?.personnel ?? [],
+      personnelServices: doc.resources?.personnelServices ?? [],
+      personnelServicePools: doc.resources?.personnelServicePools ?? [],
+      personnelPools: doc.resources?.personnelPools ?? [],
+      homeDepots: doc.resources?.homeDepots ?? [],
+      vehicles: doc.resources?.vehicles ?? [],
+      vehicleServices: doc.resources?.vehicleServices ?? [],
+      vehicleServicePools: doc.resources?.vehicleServicePools ?? [],
+      vehiclePools: doc.resources?.vehiclePools ?? [],
+      vehicleTypes: doc.resources?.vehicleTypes ?? [],
+      vehicleCompositions: doc.resources?.vehicleCompositions ?? [],
     };
 
     this.defaultTopology = {
-      operationalPoints: (doc.topology?.operationalPoints ?? []) as OperationalPoint[],
-      sectionsOfLine: (doc.topology?.sectionsOfLine ?? []) as SectionOfLine[],
-      personnelSites: (doc.topology?.personnelSites ?? []) as PersonnelSite[],
-      replacementStops: (doc.topology?.replacementStops ?? []) as ReplacementStop[],
-      replacementRoutes: (doc.topology?.replacementRoutes ?? []) as ReplacementRoute[],
-      replacementEdges: (doc.topology?.replacementEdges ?? []) as ReplacementEdge[],
-      opReplacementStopLinks: (doc.topology?.opReplacementStopLinks ?? []) as OpReplacementStopLink[],
-      transferEdges: (doc.topology?.transferEdges ?? []) as TransferEdge[],
+      operationalPoints: doc.topology?.operationalPoints ?? [],
+      sectionsOfLine: doc.topology?.sectionsOfLine ?? [],
+      personnelSites: doc.topology?.personnelSites ?? [],
+      replacementStops: doc.topology?.replacementStops ?? [],
+      replacementRoutes: doc.topology?.replacementRoutes ?? [],
+      replacementEdges: doc.topology?.replacementEdges ?? [],
+      opReplacementStopLinks: doc.topology?.opReplacementStopLinks ?? [],
+      transferEdges: doc.topology?.transferEdges ?? [],
     };
   }
 
-  private loadDefaultsDocument(location: string): MasterDataDefaultsFile | null {
+  private loadDefaultsDocument(
+    location: string,
+  ): MasterDataDefaultsFile | null {
     let stat: ReturnType<typeof statSync> | null = null;
     try {
       stat = statSync(location);
@@ -560,11 +591,18 @@ export class PlanningMasterDataService implements OnModuleInit {
     }
   }
 
-  private loadDefaultsFromDirectory(dir: string): MasterDataDefaultsFile | null {
+  private loadDefaultsFromDirectory(
+    dir: string,
+  ): MasterDataDefaultsFile | null {
     let files: string[] = [];
     try {
       files = readdirSync(dir)
-        .filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'))
+        .filter(
+          (entry) =>
+            entry.endsWith('.yaml') ||
+            entry.endsWith('.yml') ||
+            entry.endsWith('.json'),
+        )
         .sort((a, b) => a.localeCompare(b));
     } catch (error) {
       this.logger.error(
@@ -643,17 +681,48 @@ export class PlanningMasterDataService implements OnModuleInit {
       join(process.cwd(), 'catalog', 'master-data', 'defaults'),
       join(process.cwd(), 'backend', 'catalog', 'master-data', 'defaults'),
       join(__dirname, '..', '..', '..', 'catalog', 'master-data', 'defaults'),
-      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'master-data', 'defaults'),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'backend',
+        'catalog',
+        'master-data',
+        'defaults',
+      ),
       join(process.cwd(), 'catalog', 'master-data', 'defaults.yaml'),
       join(process.cwd(), 'backend', 'catalog', 'master-data', 'defaults.yaml'),
-      join(__dirname, '..', '..', '..', 'catalog', 'master-data', 'defaults.yaml'),
-      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'master-data', 'defaults.yaml'),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'catalog',
+        'master-data',
+        'defaults.yaml',
+      ),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'backend',
+        'catalog',
+        'master-data',
+        'defaults.yaml',
+      ),
     ];
     for (const candidate of candidates) {
       try {
         const stat = statSync(candidate);
         if (stat.isDirectory()) {
-          const entries = readdirSync(candidate).filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'));
+          const entries = readdirSync(candidate).filter(
+            (entry) =>
+              entry.endsWith('.yaml') ||
+              entry.endsWith('.yml') ||
+              entry.endsWith('.json'),
+          );
           if (entries.length) {
             return candidate;
           }
@@ -715,13 +784,17 @@ export class PlanningMasterDataService implements OnModuleInit {
   }
 
   private normalizeState(): ResourceSnapshot {
-    const normalized = this.normalizeResourceSnapshot(this.getResourceSnapshot());
+    const normalized = this.normalizeResourceSnapshot(
+      this.getResourceSnapshot(),
+    );
     this.applySnapshotToState(normalized);
     return normalized;
   }
 
   private applySnapshotToState(snapshot: ResourceSnapshot): void {
-    this.personnels = snapshot.personnel.map((entry) => this.clonePersonnel(entry));
+    this.personnels = snapshot.personnel.map((entry) =>
+      this.clonePersonnel(entry),
+    );
     this.personnelServices = snapshot.personnelServices.map((entry) =>
       this.clonePersonnelService(entry),
     );
@@ -731,7 +804,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     this.personnelPools = snapshot.personnelPools.map((pool) =>
       this.clonePersonnelPool(pool),
     );
-    this.homeDepots = snapshot.homeDepots.map((item) => this.cloneHomeDepot(item));
+    this.homeDepots = snapshot.homeDepots.map((item) =>
+      this.cloneHomeDepot(item),
+    );
     this.vehicles = snapshot.vehicles.map((entry) => this.cloneVehicle(entry));
     this.vehicleServices = snapshot.vehicleServices.map((entry) =>
       this.cloneVehicleService(entry),
@@ -739,8 +814,12 @@ export class PlanningMasterDataService implements OnModuleInit {
     this.vehicleServicePools = snapshot.vehicleServicePools.map((pool) =>
       this.cloneVehicleServicePool(pool),
     );
-    this.vehiclePools = snapshot.vehiclePools.map((pool) => this.cloneVehiclePool(pool));
-    this.vehicleTypes = snapshot.vehicleTypes.map((type) => this.cloneVehicleType(type));
+    this.vehiclePools = snapshot.vehiclePools.map((pool) =>
+      this.cloneVehiclePool(pool),
+    );
+    this.vehicleTypes = snapshot.vehicleTypes.map((type) =>
+      this.cloneVehicleType(type),
+    );
     this.vehicleCompositions = snapshot.vehicleCompositions.map((composition) =>
       this.cloneVehicleComposition(composition),
     );
@@ -748,38 +827,54 @@ export class PlanningMasterDataService implements OnModuleInit {
 
   private cloneResourceSnapshot(snapshot: ResourceSnapshot): ResourceSnapshot {
     return {
-      personnel: (snapshot.personnel ?? []).map((entry) => this.clonePersonnel(entry)),
+      personnel: (snapshot.personnel ?? []).map((entry) =>
+        this.clonePersonnel(entry),
+      ),
       personnelServices: (snapshot.personnelServices ?? []).map((entry) =>
         this.clonePersonnelService(entry),
       ),
-      personnelServicePools: (snapshot.personnelServicePools ?? []).map((pool) =>
-        this.clonePersonnelServicePool(pool),
+      personnelServicePools: (snapshot.personnelServicePools ?? []).map(
+        (pool) => this.clonePersonnelServicePool(pool),
       ),
       personnelPools: (snapshot.personnelPools ?? []).map((pool) =>
         this.clonePersonnelPool(pool),
       ),
-      homeDepots: (snapshot.homeDepots ?? []).map((item) => this.cloneHomeDepot(item)),
-      vehicles: (snapshot.vehicles ?? []).map((entry) => this.cloneVehicle(entry)),
+      homeDepots: (snapshot.homeDepots ?? []).map((item) =>
+        this.cloneHomeDepot(item),
+      ),
+      vehicles: (snapshot.vehicles ?? []).map((entry) =>
+        this.cloneVehicle(entry),
+      ),
       vehicleServices: (snapshot.vehicleServices ?? []).map((entry) =>
         this.cloneVehicleService(entry),
       ),
       vehicleServicePools: (snapshot.vehicleServicePools ?? []).map((pool) =>
         this.cloneVehicleServicePool(pool),
       ),
-      vehiclePools: (snapshot.vehiclePools ?? []).map((pool) => this.cloneVehiclePool(pool)),
-      vehicleTypes: (snapshot.vehicleTypes ?? []).map((type) => this.cloneVehicleType(type)),
-      vehicleCompositions: (snapshot.vehicleCompositions ?? []).map((composition) =>
-        this.cloneVehicleComposition(composition),
+      vehiclePools: (snapshot.vehiclePools ?? []).map((pool) =>
+        this.cloneVehiclePool(pool),
+      ),
+      vehicleTypes: (snapshot.vehicleTypes ?? []).map((type) =>
+        this.cloneVehicleType(type),
+      ),
+      vehicleCompositions: (snapshot.vehicleCompositions ?? []).map(
+        (composition) => this.cloneVehicleComposition(composition),
       ),
     };
   }
 
-  private ensureSystemPoolsInSnapshot(snapshot: ResourceSnapshot): ResourceSnapshot {
+  private ensureSystemPoolsInSnapshot(
+    snapshot: ResourceSnapshot,
+  ): ResourceSnapshot {
     return {
       ...snapshot,
-      personnelServicePools: this.ensureSystemPersonnelServicePools(snapshot.personnelServicePools),
+      personnelServicePools: this.ensureSystemPersonnelServicePools(
+        snapshot.personnelServicePools,
+      ),
       personnelPools: this.ensureSystemPersonnelPools(snapshot.personnelPools),
-      vehicleServicePools: this.ensureSystemVehicleServicePools(snapshot.vehicleServicePools),
+      vehicleServicePools: this.ensureSystemVehicleServicePools(
+        snapshot.vehicleServicePools,
+      ),
       vehiclePools: this.ensureSystemVehiclePools(snapshot.vehiclePools),
     };
   }
@@ -823,7 +918,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     return [...pools, systemPool];
   }
 
-  private ensureSystemVehicleServicePools(pools: VehicleServicePool[]): VehicleServicePool[] {
+  private ensureSystemVehicleServicePools(
+    pools: VehicleServicePool[],
+  ): VehicleServicePool[] {
     const systemId = SYSTEM_POOL_IDS.vehicleServicePool;
     const existing = pools.find((pool) => pool.id === systemId);
     const systemPool: VehicleServicePool = {
@@ -864,12 +961,18 @@ export class PlanningMasterDataService implements OnModuleInit {
   }
 
   private assignMissingPoolIds(snapshot: ResourceSnapshot): ResourceSnapshot {
-    const servicePoolIds = new Set(snapshot.personnelServicePools.map((pool) => pool.id));
-    const personnelPoolIds = new Set(snapshot.personnelPools.map((pool) => pool.id));
+    const servicePoolIds = new Set(
+      snapshot.personnelServicePools.map((pool) => pool.id),
+    );
+    const personnelPoolIds = new Set(
+      snapshot.personnelPools.map((pool) => pool.id),
+    );
     const vehicleServicePoolIds = new Set(
       snapshot.vehicleServicePools.map((pool) => pool.id),
     );
-    const vehiclePoolIds = new Set(snapshot.vehiclePools.map((pool) => pool.id));
+    const vehiclePoolIds = new Set(
+      snapshot.vehiclePools.map((pool) => pool.id),
+    );
     const personnelServicePoolByService = new Map<string, string>();
     snapshot.personnelServicePools.forEach((pool) => {
       (pool.serviceIds ?? []).forEach((serviceId) => {
@@ -911,7 +1014,7 @@ export class PlanningMasterDataService implements OnModuleInit {
           ? poolId
           : mapped && servicePoolIds.has(mapped)
             ? mapped
-          : SYSTEM_POOL_IDS.personnelServicePool;
+            : SYSTEM_POOL_IDS.personnelServicePool;
       return { ...service, poolId: resolved };
     });
 
@@ -938,7 +1041,7 @@ export class PlanningMasterDataService implements OnModuleInit {
           ? poolId
           : mapped && vehicleServicePoolIds.has(mapped)
             ? mapped
-          : SYSTEM_POOL_IDS.vehicleServicePool;
+            : SYSTEM_POOL_IDS.vehicleServicePool;
       return { ...service, poolId: resolved };
     });
 
@@ -1044,25 +1147,49 @@ export class PlanningMasterDataService implements OnModuleInit {
     };
   }
 
-  private prepareSnapshotForPersistence(snapshot: ResourceSnapshot): ResourceSnapshot {
+  private prepareSnapshotForPersistence(
+    snapshot: ResourceSnapshot,
+  ): ResourceSnapshot {
     const reconciled = this.rebuildPoolMembership(snapshot);
     return {
       ...reconciled,
-      personnel: reconciled.personnel.map((p) => this.preparePersonnelForPersistence(p)),
-      vehicles: reconciled.vehicles.map((v) => this.prepareVehicleForPersistence(v)),
-      personnelServices: reconciled.personnelServices.map((s) => this.prepareServiceForPersistence(s)),
-      vehicleServices: reconciled.vehicleServices.map((s) => this.prepareServiceForPersistence(s)),
-      personnelServicePools: reconciled.personnelServicePools.map((p) => this.preparePoolForPersistence(p)),
-      personnelPools: reconciled.personnelPools.map((p) => this.preparePoolForPersistence(p)),
+      personnel: reconciled.personnel.map((p) =>
+        this.preparePersonnelForPersistence(p),
+      ),
+      vehicles: reconciled.vehicles.map((v) =>
+        this.prepareVehicleForPersistence(v),
+      ),
+      personnelServices: reconciled.personnelServices.map((s) =>
+        this.prepareServiceForPersistence(s),
+      ),
+      vehicleServices: reconciled.vehicleServices.map((s) =>
+        this.prepareServiceForPersistence(s),
+      ),
+      personnelServicePools: reconciled.personnelServicePools.map((p) =>
+        this.preparePoolForPersistence(p),
+      ),
+      personnelPools: reconciled.personnelPools.map((p) =>
+        this.preparePoolForPersistence(p),
+      ),
       homeDepots: reconciled.homeDepots.map((d) => this.cloneHomeDepot(d)),
-      vehicleServicePools: reconciled.vehicleServicePools.map((p) => this.preparePoolForPersistence(p)),
-      vehiclePools: reconciled.vehiclePools.map((p) => this.preparePoolForPersistence(p)),
-      vehicleTypes: reconciled.vehicleTypes.map((t) => this.cloneVehicleType(t)),
-      vehicleCompositions: reconciled.vehicleCompositions.map((c) => this.cloneVehicleComposition(c)),
+      vehicleServicePools: reconciled.vehicleServicePools.map((p) =>
+        this.preparePoolForPersistence(p),
+      ),
+      vehiclePools: reconciled.vehiclePools.map((p) =>
+        this.preparePoolForPersistence(p),
+      ),
+      vehicleTypes: reconciled.vehicleTypes.map((t) =>
+        this.cloneVehicleType(t),
+      ),
+      vehicleCompositions: reconciled.vehicleCompositions.map((c) =>
+        this.cloneVehicleComposition(c),
+      ),
     };
   }
 
-  private async persistResourceSnapshot(snapshot: ResourceSnapshot): Promise<void> {
+  private async persistResourceSnapshot(
+    snapshot: ResourceSnapshot,
+  ): Promise<void> {
     if (!this.usingDatabase) {
       return;
     }
@@ -1070,7 +1197,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     await Promise.all([
       this.repository.replacePersonnel(persisted.personnel),
       this.repository.replacePersonnelServices(persisted.personnelServices),
-      this.repository.replacePersonnelServicePools(persisted.personnelServicePools),
+      this.repository.replacePersonnelServicePools(
+        persisted.personnelServicePools,
+      ),
       this.repository.replacePersonnelPools(persisted.personnelPools),
       this.repository.replaceHomeDepots(persisted.homeDepots),
       this.repository.replaceVehicles(persisted.vehicles),
@@ -1085,11 +1214,21 @@ export class PlanningMasterDataService implements OnModuleInit {
   private preparePersonnelForPersistence(person: Personnel): Personnel {
     const record = person as unknown as Record<string, unknown>;
     const id = String(record['id'] ?? '').trim();
-    const nameRaw = typeof record['name'] === 'string' ? (record['name'] as string).trim() : '';
+    const nameRaw =
+      typeof record['name'] === 'string' ? record['name'].trim() : '';
     const derived = nameRaw || this.derivePersonnelName(record) || id;
-    const externalRef = typeof record['externalRef'] === 'string' ? (record['externalRef'] as string) : undefined;
-    const homeBase = typeof record['homeBase'] === 'string' ? (record['homeBase'] as string) : undefined;
-    const attributes = this.mergeAttributes(record, ['id', 'name', 'externalRef', 'homeBase']);
+    const externalRef =
+      typeof record['externalRef'] === 'string'
+        ? record['externalRef']
+        : undefined;
+    const homeBase =
+      typeof record['homeBase'] === 'string' ? record['homeBase'] : undefined;
+    const attributes = this.mergeAttributes(record, [
+      'id',
+      'name',
+      'externalRef',
+      'homeBase',
+    ]);
     return {
       ...(person as any),
       id,
@@ -1097,25 +1236,38 @@ export class PlanningMasterDataService implements OnModuleInit {
       externalRef,
       homeBase,
       attributes,
-    } as any;
+    };
   }
 
   private prepareVehicleForPersistence(vehicle: Vehicle): Vehicle {
     const record = vehicle as unknown as Record<string, unknown>;
     const id = String(record['id'] ?? '').trim();
-    const nameRaw = typeof record['name'] === 'string' ? (record['name'] as string).trim() : '';
+    const nameRaw =
+      typeof record['name'] === 'string' ? record['name'].trim() : '';
     const vehicleNumber =
-      typeof record['vehicleNumber'] === 'string' ? (record['vehicleNumber'] as string).trim() : '';
+      typeof record['vehicleNumber'] === 'string'
+        ? record['vehicleNumber'].trim()
+        : '';
     const derived = nameRaw || vehicleNumber || id;
-    const externalRef = typeof record['externalRef'] === 'string' ? (record['externalRef'] as string) : undefined;
+    const externalRef =
+      typeof record['externalRef'] === 'string'
+        ? record['externalRef']
+        : undefined;
     const homeDepot =
       typeof record['homeDepot'] === 'string'
-        ? (record['homeDepot'] as string)
+        ? record['homeDepot']
         : typeof record['depot'] === 'string'
-          ? (record['depot'] as string)
+          ? record['depot']
           : undefined;
-    const typeId = typeof record['typeId'] === 'string' ? (record['typeId'] as string) : undefined;
-    const attributes = this.mergeAttributes(record, ['id', 'name', 'typeId', 'externalRef', 'homeDepot']);
+    const typeId =
+      typeof record['typeId'] === 'string' ? record['typeId'] : undefined;
+    const attributes = this.mergeAttributes(record, [
+      'id',
+      'name',
+      'typeId',
+      'externalRef',
+      'homeDepot',
+    ]);
     return {
       ...(vehicle as any),
       id,
@@ -1124,14 +1276,18 @@ export class PlanningMasterDataService implements OnModuleInit {
       externalRef,
       homeDepot,
       attributes,
-    } as any;
+    };
   }
 
-  private prepareServiceForPersistence(service: PersonnelService | VehicleService): any {
+  private prepareServiceForPersistence(
+    service: PersonnelService | VehicleService,
+  ): any {
     const record = service as unknown as Record<string, unknown>;
     const id = String(record['id'] ?? '').trim();
-    const name = typeof record['name'] === 'string' ? (record['name'] as string).trim() : id;
-    const poolId = typeof record['poolId'] === 'string' ? (record['poolId'] as string) : undefined;
+    const name =
+      typeof record['name'] === 'string' ? record['name'].trim() : id;
+    const poolId =
+      typeof record['poolId'] === 'string' ? record['poolId'] : undefined;
     const attributes = this.mergeAttributes(record, ['id', 'name', 'poolId']);
     return {
       ...(service as any),
@@ -1145,11 +1301,19 @@ export class PlanningMasterDataService implements OnModuleInit {
   private preparePoolForPersistence(pool: any): any {
     const record = pool as unknown as Record<string, unknown>;
     const id = String(record['id'] ?? '').trim();
-    const name = typeof record['name'] === 'string' ? (record['name'] as string).trim() : id;
-    const description = typeof record['description'] === 'string' ? (record['description'] as string) : undefined;
-    const attributes = this.mergeAttributes(record, ['id', 'name', 'description']);
+    const name =
+      typeof record['name'] === 'string' ? record['name'].trim() : id;
+    const description =
+      typeof record['description'] === 'string'
+        ? record['description']
+        : undefined;
+    const attributes = this.mergeAttributes(record, [
+      'id',
+      'name',
+      'description',
+    ]);
     return {
-      ...(pool as any),
+      ...pool,
       id,
       name,
       description,
@@ -1157,7 +1321,10 @@ export class PlanningMasterDataService implements OnModuleInit {
     };
   }
 
-  private mergeAttributes(record: Record<string, unknown>, excludeKeys: string[]): Record<string, unknown> {
+  private mergeAttributes(
+    record: Record<string, unknown>,
+    excludeKeys: string[],
+  ): Record<string, unknown> {
     const existing = record['attributes'];
     const base =
       existing && typeof existing === 'object' && !Array.isArray(existing)
@@ -1177,7 +1344,8 @@ export class PlanningMasterDataService implements OnModuleInit {
 
   private derivePersonnelName(record: Record<string, unknown>): string {
     const first = this.resolveTemporalText(record['firstName']);
-    const last = typeof record['lastName'] === 'string' ? (record['lastName'] as string).trim() : '';
+    const last =
+      typeof record['lastName'] === 'string' ? record['lastName'].trim() : '';
     const preferred = this.resolveTemporalText(record['preferredName']);
     const candidate = [first, last].filter(Boolean).join(' ').trim();
     if (preferred && candidate) {
@@ -1191,7 +1359,7 @@ export class PlanningMasterDataService implements OnModuleInit {
       return value.trim();
     }
     if (Array.isArray(value) && value.length) {
-      const first = value[0] as any;
+      const first = value[0];
       const candidate = typeof first?.value === 'string' ? first.value : '';
       return candidate.trim();
     }
@@ -1201,13 +1369,15 @@ export class PlanningMasterDataService implements OnModuleInit {
   private async initializeMasterDataFromDatabase(): Promise<boolean> {
     try {
       const masterData = await this.repository.loadMasterData();
-      this.personnelServicePools = masterData.personnelServicePools.map((pool) =>
-        this.clonePersonnelServicePool(pool),
+      this.personnelServicePools = masterData.personnelServicePools.map(
+        (pool) => this.clonePersonnelServicePool(pool),
       );
       this.personnelPools = masterData.personnelPools.map((pool) =>
         this.clonePersonnelPool(pool),
       );
-      this.homeDepots = masterData.homeDepots.map((item) => this.cloneHomeDepot(item));
+      this.homeDepots = masterData.homeDepots.map((item) =>
+        this.cloneHomeDepot(item),
+      );
       this.vehicleServicePools = masterData.vehicleServicePools.map((pool) =>
         this.cloneVehicleServicePool(pool),
       );
@@ -1217,8 +1387,8 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.vehicleTypes = masterData.vehicleTypes.map((type) =>
         this.cloneVehicleType(type),
       );
-      this.vehicleCompositions = masterData.vehicleCompositions.map((composition) =>
-        this.cloneVehicleComposition(composition),
+      this.vehicleCompositions = masterData.vehicleCompositions.map(
+        (composition) => this.cloneVehicleComposition(composition),
       );
       this.operationalPoints = masterData.operationalPoints.map((point) =>
         this.cloneOperationalPoint(point),
@@ -1238,17 +1408,21 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.replacementEdges = masterData.replacementEdges.map((edge) =>
         this.cloneReplacementEdge(edge),
       );
-      this.opReplacementStopLinks = masterData.opReplacementStopLinks.map((link) =>
-        this.cloneOpReplacementStopLink(link),
+      this.opReplacementStopLinks = masterData.opReplacementStopLinks.map(
+        (link) => this.cloneOpReplacementStopLink(link),
       );
       this.transferEdges = masterData.transferEdges.map((edge) =>
         this.cloneTransferEdge(edge),
       );
-      this.personnels = masterData.personnel.map((item) => this.clonePersonnel(item));
+      this.personnels = masterData.personnel.map((item) =>
+        this.clonePersonnel(item),
+      );
       this.personnelServices = masterData.personnelServices.map((item) =>
         this.clonePersonnelService(item),
       );
-      this.vehicles = masterData.vehicles.map((item) => this.cloneVehicle(item));
+      this.vehicles = masterData.vehicles.map((item) =>
+        this.cloneVehicle(item),
+      );
       this.vehicleServices = masterData.vehicleServices.map((item) =>
         this.cloneVehicleService(item),
       );
@@ -1283,7 +1457,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     }
   }
 
-  private clonePersonnelServicePool(pool: PersonnelServicePool): PersonnelServicePool {
+  private clonePersonnelServicePool(
+    pool: PersonnelServicePool,
+  ): PersonnelServicePool {
     return {
       ...pool,
       serviceIds: [...(pool.serviceIds ?? [])],
@@ -1324,7 +1500,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     };
   }
 
-  private cloneVehicleServicePool(pool: VehicleServicePool): VehicleServicePool {
+  private cloneVehicleServicePool(
+    pool: VehicleServicePool,
+  ): VehicleServicePool {
     return {
       ...pool,
       serviceIds: [...(pool.serviceIds ?? [])],
@@ -1367,11 +1545,15 @@ export class PlanningMasterDataService implements OnModuleInit {
     };
   }
 
-  private cloneVehicleComposition(composition: VehicleComposition): VehicleComposition {
+  private cloneVehicleComposition(
+    composition: VehicleComposition,
+  ): VehicleComposition {
     return {
       ...composition,
       entries: (composition.entries ?? []).map((entry) => ({ ...entry })),
-      attributes: composition.attributes ? { ...composition.attributes } : undefined,
+      attributes: composition.attributes
+        ? { ...composition.attributes }
+        : undefined,
     };
   }
 
@@ -1422,7 +1604,9 @@ export class PlanningMasterDataService implements OnModuleInit {
     };
   }
 
-  private cloneOpReplacementStopLink(link: OpReplacementStopLink): OpReplacementStopLink {
+  private cloneOpReplacementStopLink(
+    link: OpReplacementStopLink,
+  ): OpReplacementStopLink {
     return {
       ...link,
       attributes: this.cloneTopologyAttributes(link.attributes),
@@ -1445,7 +1629,10 @@ export class PlanningMasterDataService implements OnModuleInit {
       case 'PERSONNEL_SITE':
         return { kind: 'PERSONNEL_SITE', siteId: node.siteId };
       case 'REPLACEMENT_STOP':
-        return { kind: 'REPLACEMENT_STOP', replacementStopId: node.replacementStopId };
+        return {
+          kind: 'REPLACEMENT_STOP',
+          replacementStopId: node.replacementStopId,
+        };
       default: {
         const exhaustive: never = node;
         return exhaustive;

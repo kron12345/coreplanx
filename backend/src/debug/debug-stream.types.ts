@@ -1,5 +1,11 @@
 export type DebugLogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type DebugLogTopic = 'planning' | 'solver' | 'assistant' | 'db' | 'rules' | 'system';
+export type DebugLogTopic =
+  | 'planning'
+  | 'solver'
+  | 'assistant'
+  | 'db'
+  | 'rules'
+  | 'system';
 
 export interface DebugLogEntry {
   id: string;

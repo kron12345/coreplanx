@@ -14,6 +14,43 @@ type TemplatePattern = {
   endTimeMs?: number | null;
 };
 
+function rewriteServiceByOwner(
+  attributes: Record<string, unknown> | undefined,
+  iso: string,
+): Record<string, unknown> | undefined {
+  if (!attributes) {
+    return attributes;
+  }
+  const rawMap = attributes['service_by_owner'];
+  if (!rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) {
+    return attributes;
+  }
+  let changed = false;
+  const nextMap: Record<string, unknown> = { ...(rawMap as Record<string, unknown>) };
+  Object.entries(nextMap).forEach(([ownerId, entry]) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return;
+    }
+    const serviceId = (entry as Record<string, unknown>)['serviceId'];
+    if (typeof serviceId !== 'string') {
+      return;
+    }
+    const rewritten = rewriteServiceIdForIso(serviceId, iso);
+    if (rewritten === serviceId) {
+      return;
+    }
+    nextMap[ownerId] = { ...(entry as Record<string, unknown>), serviceId: rewritten };
+    changed = true;
+  });
+  if (!changed) {
+    return attributes;
+  }
+  return {
+    ...attributes,
+    service_by_owner: nextMap,
+  };
+}
+
 function rewriteServiceIdForIso(serviceId: string | null | undefined, iso: string): string | null {
   const trimmed = typeof serviceId === 'string' ? serviceId.trim() : '';
   if (!trimmed) {
@@ -149,13 +186,14 @@ export function reflectBaseActivities(options: {
             : null;
         const groupMeta = readActivityGroupMetaFromAttributes(activity.attributes ?? undefined);
         const attachedTo = stripDayScope(groupMeta?.attachedToActivityId ?? null);
-        const updatedAttributes =
+        const groupAttributes =
           attachedTo && groupMeta
             ? writeActivityGroupMetaToAttributes(activity.attributes ?? undefined, {
                 ...groupMeta,
                 attachedToActivityId: `${attachedTo}@${iso}`,
               })
             : activity.attributes;
+        const updatedAttributes = rewriteServiceByOwner(groupAttributes ?? undefined, iso);
 
         reflected.push({
           ...activity,

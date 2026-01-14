@@ -30,8 +30,13 @@ export class PlanningRulesController {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
     }
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -51,13 +56,22 @@ export class PlanningRulesController {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
     }
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
     }
-    return this.rules.mutateRules(stageId, normalizedVariantId, request ?? undefined);
+    return this.rules.mutateRules(
+      stageId,
+      normalizedVariantId,
+      request ?? undefined,
+    );
   }
 
   @Post(':stageId/rules/reset')
@@ -70,13 +84,21 @@ export class PlanningRulesController {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
     }
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
     }
-    const items = await this.rules.resetRulesToDefaults(stageId, normalizedVariantId);
+    const items = await this.rules.resetRulesToDefaults(
+      stageId,
+      normalizedVariantId,
+    );
     return { items };
   }
 }

@@ -19,7 +19,9 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
       payload.timetableYears ?? payload.timetableYear ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Fahrplanjahr wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Fahrplanjahr wird benötigt.',
+      );
     }
 
     const labels: string[] = [];
@@ -113,7 +115,9 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
       payload.simulations ?? payload.simulation ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Simulation wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Simulation wird benötigt.',
+      );
     }
 
     const tasks: AssistantActionCommitTask[] = [];
@@ -132,7 +136,9 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
       }
       const normalized = this.normalizeKey(label);
       if (seenLabels.has(normalized)) {
-        return this.buildFeedbackResponse(`Simulation "${label}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Simulation "${label}" ist doppelt angegeben.`,
+        );
       }
       seenLabels.add(normalized);
 
@@ -140,7 +146,9 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
         this.extractTimetableYearLabel(
           record?.['timetableYearLabel'] ?? record?.['timetableYear'],
         ) ??
-        this.extractTimetableYearLabel(payload.timetableYear ?? payloadRecord['timetableYear']);
+        this.extractTimetableYearLabel(
+          payload.timetableYear ?? payloadRecord['timetableYear'],
+        );
       if (!yearLabel) {
         return this.buildFeedbackResponse(
           `Simulation "${label}": Fahrplanjahr fehlt.`,
@@ -206,7 +214,9 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
     }
 
     const newLabel =
-      this.cleanText(patch['label']) ?? this.cleanText(patch['name']) ?? undefined;
+      this.cleanText(patch['label']) ??
+      this.cleanText(patch['name']) ??
+      undefined;
     const description = this.cleanText(patch['description']);
     if (!newLabel && !description) {
       return this.buildFeedbackResponse('Keine Änderungen erkannt.');
@@ -223,7 +233,12 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
     };
     const label = newLabel ?? targetLabel ?? variantId ?? 'Simulation';
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'simulation', id: variantId ?? label, label },
+      {
+        kind: 'update',
+        entityType: 'simulation',
+        id: variantId ?? label,
+        label,
+      },
     ];
     const summary = `Simulation "${label}" aktualisieren.`;
 
@@ -285,5 +300,4 @@ export class AssistantActionTimetableSimulation extends AssistantActionBase {
       commitTasks: [task],
     };
   }
-
 }

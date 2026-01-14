@@ -1,9 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { VariantPartitionService } from '../database/variant-partition.service';
-import { normalizeVariantId, isProductiveVariantId, deriveTimetableYearLabelFromVariantId } from '../shared/variant-scope';
+import {
+  normalizeVariantId,
+  isProductiveVariantId,
+  deriveTimetableYearLabelFromVariantId,
+} from '../shared/variant-scope';
 import type { TrainRun, TrainSegment } from '../planning/planning.types';
 import { TimetableRepository } from './timetable.repository';
-import type { TimetableRevisionRecord, TimetableStageId, TrainServicePartLinkRecord, TrainServicePartRecord } from './timetable.types';
+import type {
+  TimetableRevisionRecord,
+  TimetableStageId,
+  TrainServicePartLinkRecord,
+  TrainServicePartRecord,
+} from './timetable.types';
 
 @Injectable()
 export class TimetableService {
@@ -24,11 +37,19 @@ export class TimetableService {
     trainSegments: TrainSegment[];
     revisionMessage?: string | null;
     createdBy?: string | null;
-  }): Promise<{ revision?: TimetableRevisionRecord; applied: { trainRuns: number; trainSegments: number } }> {
+  }): Promise<{
+    revision?: TimetableRevisionRecord;
+    applied: { trainRuns: number; trainSegments: number };
+  }> {
     const normalizedVariantId = normalizeVariantId(options.variantId);
     const stageId = options.stageId ?? 'base';
-    if (!Array.isArray(options.trainRuns) || !Array.isArray(options.trainSegments)) {
-      throw new BadRequestException('trainRuns/trainSegments müssen Arrays sein.');
+    if (
+      !Array.isArray(options.trainRuns) ||
+      !Array.isArray(options.trainSegments)
+    ) {
+      throw new BadRequestException(
+        'trainRuns/trainSegments müssen Arrays sein.',
+      );
     }
 
     await this.partitions.ensurePlanningPartitions(normalizedVariantId);
@@ -43,7 +64,9 @@ export class TimetableService {
         variantId: normalizedVariantId,
         stageId,
         createdBy: options.createdBy ?? null,
-        message: options.revisionMessage ?? (isProductiveVariantId(normalizedVariantId) ? 'update' : null),
+        message:
+          options.revisionMessage ??
+          (isProductiveVariantId(normalizedVariantId) ? 'update' : null),
       });
     }
 
@@ -57,7 +80,10 @@ export class TimetableService {
     return { revision, applied };
   }
 
-  async listRevisions(variantId?: string, stageId: TimetableStageId = 'base'): Promise<TimetableRevisionRecord[]> {
+  async listRevisions(
+    variantId?: string,
+    stageId: TimetableStageId = 'base',
+  ): Promise<TimetableRevisionRecord[]> {
     const normalizedVariantId = normalizeVariantId(variantId);
     return this.repository.listRevisions(normalizedVariantId, stageId);
   }
@@ -78,7 +104,10 @@ export class TimetableService {
     });
   }
 
-  async restoreRevision(revisionId: string, message?: string | null): Promise<{ revision: TimetableRevisionRecord | null }> {
+  async restoreRevision(
+    revisionId: string,
+    message?: string | null,
+  ): Promise<{ revision: TimetableRevisionRecord | null }> {
     const trimmed = revisionId?.trim();
     if (!trimmed) {
       throw new BadRequestException('revisionId ist erforderlich.');
@@ -112,7 +141,8 @@ export class TimetableService {
   ): Promise<{ parts: number }> {
     const normalizedVariantId = normalizeVariantId(variantId);
     await this.partitions.ensurePlanningPartitions(normalizedVariantId);
-    const yearLabel = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    const yearLabel =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
     return this.repository.rebuildTrainServiceParts({
       variantId: normalizedVariantId,
       stageId,
@@ -130,7 +160,9 @@ export class TimetableService {
     const from = options.fromPartId?.trim();
     const to = options.toPartId?.trim();
     if (!from || !to) {
-      throw new BadRequestException('fromPartId und toPartId sind erforderlich.');
+      throw new BadRequestException(
+        'fromPartId und toPartId sind erforderlich.',
+      );
     }
     await this.partitions.ensurePlanningPartitions(normalizedVariantId);
     return this.repository.upsertTrainServicePartLink({

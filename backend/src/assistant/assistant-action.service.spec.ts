@@ -54,13 +54,18 @@ function createConfig(overrides?: Partial<AssistantConfig>): AssistantConfig {
   };
 }
 
-function createService(responses: string[], overrides?: Partial<AssistantConfig>) {
+function createService(
+  responses: string[],
+  overrides?: Partial<AssistantConfig>,
+) {
   const config = createConfig(overrides);
   let currentSnapshot = { ...baseSnapshot };
 
   const planning = {
     getResourceSnapshot: jest.fn(() => currentSnapshot),
-    normalizeResourceSnapshot: jest.fn((snapshot: ResourceSnapshot) => snapshot),
+    normalizeResourceSnapshot: jest.fn(
+      (snapshot: ResourceSnapshot) => snapshot,
+    ),
     replaceResourceSnapshot: jest.fn(async (snapshot: ResourceSnapshot) => {
       currentSnapshot = snapshot;
       return snapshot;
@@ -122,7 +127,9 @@ describe('AssistantActionService', () => {
       '{"action":"create_personnel_pool","pool":{"name":"Alpha"}}',
     ]);
 
-    const response = await service.preview({ prompt: 'Lege Personalpool Alpha an' });
+    const response = await service.preview({
+      prompt: 'Lege Personalpool Alpha an',
+    });
 
     expect(response.actionable).toBe(true);
     expect(response.previewId).toBeTruthy();
@@ -135,7 +142,9 @@ describe('AssistantActionService', () => {
       '{"action":"create_personnel_pool","pool":{"name":"Beta"}}',
     ]);
 
-    const response = await service.preview({ prompt: 'Lege Personalpool Beta an' });
+    const response = await service.preview({
+      prompt: 'Lege Personalpool Beta an',
+    });
 
     expect(response.actionable).toBe(true);
     expect(response.summary).toContain('Beta');
@@ -146,7 +155,9 @@ describe('AssistantActionService', () => {
       '{"action":"create_personnel_pool","pool":{"name":"Gamma"}}',
     ]);
 
-    const response = await service.preview({ prompt: 'Lege Personalpool Gamma an' });
+    const response = await service.preview({
+      prompt: 'Lege Personalpool Gamma an',
+    });
     const previewId = response.previewId ?? '';
 
     (planning.getResourceSnapshot as jest.Mock).mockReturnValue({

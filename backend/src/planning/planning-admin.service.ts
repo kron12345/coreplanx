@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service';
 import { PlanningStageService } from './planning-stage.service';
@@ -215,8 +220,12 @@ export class PlanningAdminService {
       this.database.query<{ stage_id: string; count: string }>(
         `SELECT stage_id, COUNT(*)::int AS count FROM planning_activity GROUP BY stage_id`,
       ),
-      this.database.query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM train_run`),
-      this.database.query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM train_segment`),
+      this.database.query<{ count: string }>(
+        `SELECT COUNT(*)::int AS count FROM train_run`,
+      ),
+      this.database.query<{ count: string }>(
+        `SELECT COUNT(*)::int AS count FROM train_segment`,
+      ),
       this.database.query<PlanningStageSampleRow>(
         `
           SELECT stage_id, variant_id, timetable_year_label, version, timeline_start, timeline_end
@@ -244,7 +253,9 @@ export class PlanningAdminService {
         `,
         [sampleLimit],
       ),
-      this.database.query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM activity_template_set`),
+      this.database.query<{ count: string }>(
+        `SELECT COUNT(*)::int AS count FROM activity_template_set`,
+      ),
       this.database.query<PlanningTemplateSetSampleRow>(
         `
           SELECT id, name, table_name, variant_id, timetable_year_label, is_archived, created_at, updated_at
@@ -360,11 +371,16 @@ export class PlanningAdminService {
     };
   }
 
-  async clearPlanningData(confirmation: string, scope?: string): Promise<PlanningAdminClearResponse> {
+  async clearPlanningData(
+    confirmation: string,
+    scope?: string,
+  ): Promise<PlanningAdminClearResponse> {
     this.ensureAccess();
     const trimmed = (confirmation ?? '').trim();
     if (trimmed !== 'DELETE') {
-      throw new BadRequestException('Bestaetigung fehlt. Bitte DELETE eingeben.');
+      throw new BadRequestException(
+        'Bestaetigung fehlt. Bitte DELETE eingeben.',
+      );
     }
 
     const resolvedScope = this.resolveScope(scope);
@@ -381,7 +397,10 @@ export class PlanningAdminService {
     });
 
     this.applyStageCacheReset(resolvedScope);
-    this.logger.warn(`Planning data cleared via admin endpoint (${resolvedScope}).`, deleted);
+    this.logger.warn(
+      `Planning data cleared via admin endpoint (${resolvedScope}).`,
+      deleted,
+    );
 
     return {
       clearedAt: new Date().toISOString(),
@@ -403,7 +422,9 @@ export class PlanningAdminService {
     if (env === 'production') {
       return false;
     }
-    const flag = (process.env.PLANNING_ADMIN_ENABLED ?? '').trim().toLowerCase();
+    const flag = (process.env.PLANNING_ADMIN_ENABLED ?? '')
+      .trim()
+      .toLowerCase();
     if (!flag) {
       return true;
     }
@@ -427,7 +448,9 @@ export class PlanningAdminService {
     return rows.reduce((sum, row) => sum + this.parseCount(row.count), 0);
   }
 
-  private countByStage(rows: Array<{ stage_id: string; count: string }>): Map<string, number> {
+  private countByStage(
+    rows: Array<{ stage_id: string; count: string }>,
+  ): Map<string, number> {
     const map = new Map<string, number>();
     rows.forEach((row) => {
       map.set(row.stage_id, this.parseCount(row.count));
@@ -458,7 +481,11 @@ export class PlanningAdminService {
     if (raw === 'train-runs' || raw === 'train_runs' || raw === 'trainruns') {
       return 'train-runs';
     }
-    if (raw === 'train-segments' || raw === 'train_segments' || raw === 'trainsegments') {
+    if (
+      raw === 'train-segments' ||
+      raw === 'train_segments' ||
+      raw === 'trainsegments'
+    ) {
       return 'train-segments';
     }
     throw new BadRequestException('Ungueltiger Scope fuer das Loeschen.');
@@ -510,7 +537,10 @@ export class PlanningAdminService {
       case 'train-runs': {
         const deleted = this.emptyDeletedCounts();
         deleted.trainRuns = await this.countTableRows(client, 'train_run');
-        deleted.trainSegments = await this.countTableRows(client, 'train_segment');
+        deleted.trainSegments = await this.countTableRows(
+          client,
+          'train_segment',
+        );
         await client.query(`DELETE FROM train_run`);
         return deleted;
       }
@@ -534,14 +564,17 @@ export class PlanningAdminService {
     };
   }
 
-  private async getCurrentCounts(client: PoolClient): Promise<PlanningAdminClearResponse['deleted']> {
-    const [stages, resources, activities, trainRuns, trainSegments] = await Promise.all([
-      this.countTableRows(client, 'planning_stage'),
-      this.countTableRows(client, 'planning_resource'),
-      this.countTableRows(client, 'planning_activity'),
-      this.countTableRows(client, 'train_run'),
-      this.countTableRows(client, 'train_segment'),
-    ]);
+  private async getCurrentCounts(
+    client: PoolClient,
+  ): Promise<PlanningAdminClearResponse['deleted']> {
+    const [stages, resources, activities, trainRuns, trainSegments] =
+      await Promise.all([
+        this.countTableRows(client, 'planning_stage'),
+        this.countTableRows(client, 'planning_resource'),
+        this.countTableRows(client, 'planning_activity'),
+        this.countTableRows(client, 'train_run'),
+        this.countTableRows(client, 'train_segment'),
+      ]);
     return {
       stages,
       resources,
@@ -554,9 +587,16 @@ export class PlanningAdminService {
 
   private async countTableRows(
     client: PoolClient,
-    tableName: 'planning_stage' | 'planning_resource' | 'planning_activity' | 'train_run' | 'train_segment',
+    tableName:
+      | 'planning_stage'
+      | 'planning_resource'
+      | 'planning_activity'
+      | 'train_run'
+      | 'train_segment',
   ): Promise<number> {
-    const result = await client.query<{ count: string }>(`SELECT COUNT(*)::int AS count FROM ${tableName}`);
+    const result = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+    );
     return this.parseCount(result.rows[0]?.count);
   }
 
@@ -576,7 +616,10 @@ export class PlanningAdminService {
       }
       const safeName = this.sanitizeTemplateTableName(set.table_name);
       if (!safeName) {
-        this.logger.warn('Template table name is invalid; skipping sample load.', set.table_name);
+        this.logger.warn(
+          'Template table name is invalid; skipping sample load.',
+          set.table_name,
+        );
         continue;
       }
       const remaining = sampleLimit - samples.length;
@@ -635,7 +678,10 @@ export class PlanningAdminService {
     for (const row of templateSets.rows) {
       const safeName = this.sanitizeTemplateTableName(row.table_name);
       if (!safeName) {
-        this.logger.warn('Template table name is invalid; skipping drop.', row.table_name);
+        this.logger.warn(
+          'Template table name is invalid; skipping drop.',
+          row.table_name,
+        );
         continue;
       }
       await client.query(`DROP TABLE IF EXISTS ${safeName}`);
@@ -644,7 +690,9 @@ export class PlanningAdminService {
     return deleted.rowCount ?? 0;
   }
 
-  private sanitizeTemplateTableName(value: string | null | undefined): string | null {
+  private sanitizeTemplateTableName(
+    value: string | null | undefined,
+  ): string | null {
     const raw = typeof value === 'string' ? value : '';
     const safe = raw.replace(/[^a-zA-Z0-9_]/g, '_');
     if (!safe) {
@@ -654,14 +702,26 @@ export class PlanningAdminService {
   }
 
   private applyStageCacheReset(scope: PlanningAdminClearScope): void {
-    const clearResources = scope === 'all' || scope === 'stages' || scope === 'resources';
-    const clearActivities = scope === 'all' || scope === 'stages' || scope === 'activities';
-    const clearTrainRuns = scope === 'all' || scope === 'stages' || scope === 'train-runs';
+    const clearResources =
+      scope === 'all' || scope === 'stages' || scope === 'resources';
+    const clearActivities =
+      scope === 'all' || scope === 'stages' || scope === 'activities';
+    const clearTrainRuns =
+      scope === 'all' || scope === 'stages' || scope === 'train-runs';
     const clearTrainSegments =
-      scope === 'all' || scope === 'stages' || scope === 'train-segments' || scope === 'train-runs';
+      scope === 'all' ||
+      scope === 'stages' ||
+      scope === 'train-segments' ||
+      scope === 'train-runs';
     const resetTimeline = scope === 'all' || scope === 'stages';
 
-    if (!clearResources && !clearActivities && !clearTrainRuns && !clearTrainSegments && !resetTimeline) {
+    if (
+      !clearResources &&
+      !clearActivities &&
+      !clearTrainRuns &&
+      !clearTrainSegments &&
+      !resetTimeline
+    ) {
       return;
     }
 

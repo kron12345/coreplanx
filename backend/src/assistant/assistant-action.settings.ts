@@ -32,15 +32,20 @@ const DRAW_AS_OPTIONS = [
 ];
 
 export class AssistantActionSettings extends AssistantActionSettingsBase {
-
   buildCreateActivityTemplatePreview(
     payload: ActionPayload,
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const entries = this.extractEntries(payload, ['activityTemplates', 'activityTemplate', 'items']);
+    const entries = this.extractEntries(payload, [
+      'activityTemplates',
+      'activityTemplate',
+      'items',
+    ]);
     if (!entries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Activity Template fehlt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Activity Template fehlt.',
+      );
     }
 
     const existing = this.planning.listActivityTemplates();
@@ -51,16 +56,30 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     const newIds = new Set<string>();
 
     for (const entry of entries) {
-      const normalized = this.normalizeTemplateInput(entry, definitions, context);
+      const normalized = this.normalizeTemplateInput(
+        entry,
+        definitions,
+        context,
+      );
       if (normalized.clarification) {
-        return this.buildClarificationResponse(normalized.clarification, context);
+        return this.buildClarificationResponse(
+          normalized.clarification,
+          context,
+        );
       }
       if (normalized.error || !normalized.value) {
-        return this.buildFeedbackResponse(normalized.error ?? 'Activity Template ist ungueltig.');
+        return this.buildFeedbackResponse(
+          normalized.error ?? 'Activity Template ist ungueltig.',
+        );
       }
       const candidate = normalized.value;
-      if (existing.some((item) => item.id === candidate.id) || newIds.has(candidate.id)) {
-        return this.buildFeedbackResponse(`Activity Template ID "${candidate.id}" existiert bereits.`);
+      if (
+        existing.some((item) => item.id === candidate.id) ||
+        newIds.has(candidate.id)
+      ) {
+        return this.buildFeedbackResponse(
+          `Activity Template ID "${candidate.id}" existiert bereits.`,
+        );
       }
       newIds.add(candidate.id);
       next.push(candidate);
@@ -97,18 +116,29 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Activity Template nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Activity Template nicht gefunden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch) ?? {};
-    const updated = this.applyTemplatePatch(resolved.item, patch, definitions, context);
+    const updated = this.applyTemplatePatch(
+      resolved.item,
+      patch,
+      definitions,
+      context,
+    );
     if (updated.clarification) {
       return this.buildClarificationResponse(updated.clarification, context);
     }
     if (!updated.value) {
-      return this.buildFeedbackResponse(updated.error ?? 'Activity Template Patch ungueltig.');
+      return this.buildFeedbackResponse(
+        updated.error ?? 'Activity Template Patch ungueltig.',
+      );
     }
-    const next = existing.map((item) => (item.id === resolved.item!.id ? updated.value! : item));
+    const next = existing.map((item) =>
+      item.id === resolved.item!.id ? updated.value! : item,
+    );
     const changes: AssistantActionChangeDto[] = [
       {
         kind: 'update',
@@ -141,7 +171,9 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Activity Template nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Activity Template nicht gefunden.',
+      );
     }
 
     const next = existing.filter((item) => item.id !== resolved.item!.id);
@@ -164,9 +196,15 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const entries = this.extractEntries(payload, ['activityDefinitions', 'activityDefinition', 'items']);
+    const entries = this.extractEntries(payload, [
+      'activityDefinitions',
+      'activityDefinition',
+      'items',
+    ]);
     if (!entries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Activity Definition fehlt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Activity Definition fehlt.',
+      );
     }
 
     const existing = this.planning.listActivityDefinitions();
@@ -179,18 +217,37 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
 
     for (const [index, entry] of entries.entries()) {
       const entryPath = entryPaths[index] ?? [];
-      const normalized = this.normalizeDefinitionInput(entry, existing, templates, context);
+      const normalized = this.normalizeDefinitionInput(
+        entry,
+        existing,
+        templates,
+        context,
+      );
       if (normalized.clarification) {
-        return this.buildClarificationResponse(normalized.clarification, context);
+        return this.buildClarificationResponse(
+          normalized.clarification,
+          context,
+        );
       }
       if (normalized.error || !normalized.value) {
-        return this.buildFeedbackResponse(normalized.error ?? 'Activity Definition ist ungueltig.');
+        return this.buildFeedbackResponse(
+          normalized.error ?? 'Activity Definition ist ungueltig.',
+        );
       }
       const candidate = normalized.value;
-      if (existing.some((item) => item.id === candidate.id) || newIds.has(candidate.id)) {
-        return this.buildFeedbackResponse(`Activity Definition ID "${candidate.id}" existiert bereits.`);
+      if (
+        existing.some((item) => item.id === candidate.id) ||
+        newIds.has(candidate.id)
+      ) {
+        return this.buildFeedbackResponse(
+          `Activity Definition ID "${candidate.id}" existiert bereits.`,
+        );
       }
-      const interview = this.ensureDefinitionInterview(candidate, context, entryPath);
+      const interview = this.ensureDefinitionInterview(
+        candidate,
+        context,
+        entryPath,
+      );
       if (interview) {
         return interview;
       }
@@ -229,18 +286,30 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Activity Definition nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Activity Definition nicht gefunden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch) ?? {};
-    const updated = this.applyDefinitionPatch(resolved.item, patch, existing, templates, context);
+    const updated = this.applyDefinitionPatch(
+      resolved.item,
+      patch,
+      existing,
+      templates,
+      context,
+    );
     if (updated.clarification) {
       return this.buildClarificationResponse(updated.clarification, context);
     }
     if (!updated.value) {
-      return this.buildFeedbackResponse(updated.error ?? 'Activity Definition Patch ungueltig.');
+      return this.buildFeedbackResponse(
+        updated.error ?? 'Activity Definition Patch ungueltig.',
+      );
     }
-    const next = existing.map((item) => (item.id === resolved.item!.id ? updated.value! : item));
+    const next = existing.map((item) =>
+      item.id === resolved.item!.id ? updated.value! : item,
+    );
     const changes: AssistantActionChangeDto[] = [
       {
         kind: 'update',
@@ -273,7 +342,9 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Activity Definition nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Activity Definition nicht gefunden.',
+      );
     }
 
     const next = existing.filter((item) => item.id !== resolved.item!.id);
@@ -296,7 +367,11 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const entries = this.extractEntries(payload, ['layerGroups', 'layerGroup', 'items']);
+    const entries = this.extractEntries(payload, [
+      'layerGroups',
+      'layerGroup',
+      'items',
+    ]);
     if (!entries.length) {
       return this.buildFeedbackResponse('Mindestens eine Layer-Gruppe fehlt.');
     }
@@ -310,11 +385,18 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     for (const entry of entries) {
       const normalized = this.normalizeLayerGroupInput(entry, next);
       if (normalized.error || !normalized.value) {
-        return this.buildFeedbackResponse(normalized.error ?? 'Layer-Gruppe ist ungueltig.');
+        return this.buildFeedbackResponse(
+          normalized.error ?? 'Layer-Gruppe ist ungueltig.',
+        );
       }
       const candidate = normalized.value;
-      if (existing.some((item) => item.id === candidate.id) || newIds.has(candidate.id)) {
-        return this.buildFeedbackResponse(`Layer-Gruppe ID "${candidate.id}" existiert bereits.`);
+      if (
+        existing.some((item) => item.id === candidate.id) ||
+        newIds.has(candidate.id)
+      ) {
+        return this.buildFeedbackResponse(
+          `Layer-Gruppe ID "${candidate.id}" existiert bereits.`,
+        );
       }
       newIds.add(candidate.id);
       next.push(candidate);
@@ -350,12 +432,16 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Layer-Gruppe nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Layer-Gruppe nicht gefunden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch) ?? {};
     const updated = this.applyLayerGroupPatch(resolved.item, patch);
-    const next = existing.map((item) => (item.id === resolved.item!.id ? updated : item));
+    const next = existing.map((item) =>
+      item.id === resolved.item!.id ? updated : item,
+    );
     const changes: AssistantActionChangeDto[] = [
       {
         kind: 'update',
@@ -388,7 +474,9 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.item) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Layer-Gruppe nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Layer-Gruppe nicht gefunden.',
+      );
     }
 
     const next = existing.filter((item) => item.id !== resolved.item!.id);
@@ -509,12 +597,18 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     payload: ActionPayload,
     snapshot: ResourceSnapshot,
   ): ActionApplyOutcome {
-    const entries = this.extractEntries(payload, ['customAttributes', 'customAttribute', 'items']);
+    const entries = this.extractEntries(payload, [
+      'customAttributes',
+      'customAttribute',
+      'items',
+    ]);
     if (!entries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Custom Attribute fehlt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Custom Attribute fehlt.',
+      );
     }
 
-    const state = this.clonePayload(this.planning.getCustomAttributes()) as CustomAttributeState;
+    const state = this.clonePayload(this.planning.getCustomAttributes());
     const changes: AssistantActionChangeDto[] = [];
     const summaries: string[] = [];
     const now = new Date().toISOString();
@@ -522,7 +616,9 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     for (const entry of entries) {
       const record = this.asRecord(entry);
       const label = this.cleanText(record?.['label'] ?? record?.['name']);
-      const entityId = this.cleanText(record?.['entityId'] ?? record?.['entity_id']);
+      const entityId = this.cleanText(
+        record?.['entityId'] ?? record?.['entity_id'],
+      );
       if (!entityId) {
         return this.buildFeedbackResponse('Custom Attribute: entityId fehlt.');
       }
@@ -535,7 +631,9 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       }
       const type = this.cleanText(record?.['type']) ?? 'string';
       if (!this.isCustomAttributeType(type)) {
-        return this.buildFeedbackResponse(`Custom Attribute Typ "${type}" ist ungueltig.`);
+        return this.buildFeedbackResponse(
+          `Custom Attribute Typ "${type}" ist ungueltig.`,
+        );
       }
 
       const list = state[entityId] ? [...state[entityId]] : [];
@@ -548,7 +646,7 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
         id: this.cleanText(record?.['id']) ?? this.generateId('CA'),
         key,
         label,
-        type: type as CustomAttributeDefinition['type'],
+        type: type,
         description: this.cleanText(record?.['description']),
         entityId,
         createdAt: this.cleanText(record?.['createdAt']) ?? now,
@@ -586,15 +684,21 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     const id = this.cleanText(target['id']);
     const key = this.cleanText(target['key']);
     if (!entityId) {
-      return this.buildFeedbackResponse('Custom Attribute target.entityId fehlt.');
+      return this.buildFeedbackResponse(
+        'Custom Attribute target.entityId fehlt.',
+      );
     }
     if (!id && !key) {
-      return this.buildFeedbackResponse('Custom Attribute target.id oder target.key fehlt.');
+      return this.buildFeedbackResponse(
+        'Custom Attribute target.id oder target.key fehlt.',
+      );
     }
 
-    const state = this.clonePayload(this.planning.getCustomAttributes()) as CustomAttributeState;
+    const state = this.clonePayload(this.planning.getCustomAttributes());
     const list = state[entityId] ? [...state[entityId]] : [];
-    const match = list.find((entry) => (id ? entry.id === id : entry.key === key));
+    const match = list.find((entry) =>
+      id ? entry.id === id : entry.key === key,
+    );
     if (!match) {
       return this.buildFeedbackResponse('Custom Attribute nicht gefunden.');
     }
@@ -613,18 +717,33 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     const updated: CustomAttributeDefinition = {
       ...match,
       label: this.cleanText(patch['label'] ?? match.label) ?? match.label,
-      description: this.cleanText(patch['description'] ?? match.description) ?? match.description,
+      description:
+        this.cleanText(patch['description'] ?? match.description) ??
+        match.description,
       key: this.cleanText(patch['key'] ?? match.key) ?? match.key,
       type: patchType ?? match.type,
-      temporal: this.parseBoolean(patch['temporal'] ?? match.temporal) ?? match.temporal ?? false,
-      required: this.parseBoolean(patch['required'] ?? match.required) ?? match.required ?? false,
+      temporal:
+        this.parseBoolean(patch['temporal'] ?? match.temporal) ??
+        match.temporal ??
+        false,
+      required:
+        this.parseBoolean(patch['required'] ?? match.required) ??
+        match.required ??
+        false,
       updatedAt: new Date().toISOString(),
     };
-    if (updated.key !== match.key && list.some((entry) => entry.key === updated.key)) {
-      return this.buildFeedbackResponse(`Custom Attribute key "${updated.key}" existiert bereits.`);
+    if (
+      updated.key !== match.key &&
+      list.some((entry) => entry.key === updated.key)
+    ) {
+      return this.buildFeedbackResponse(
+        `Custom Attribute key "${updated.key}" existiert bereits.`,
+      );
     }
 
-    const nextList = list.map((entry) => (entry.id === match.id ? updated : entry));
+    const nextList = list.map((entry) =>
+      entry.id === match.id ? updated : entry,
+    );
     state[entityId] = nextList;
     const changes: AssistantActionChangeDto[] = [
       {
@@ -653,15 +772,21 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     const id = this.cleanText(target['id']);
     const key = this.cleanText(target['key']);
     if (!entityId) {
-      return this.buildFeedbackResponse('Custom Attribute target.entityId fehlt.');
+      return this.buildFeedbackResponse(
+        'Custom Attribute target.entityId fehlt.',
+      );
     }
     if (!id && !key) {
-      return this.buildFeedbackResponse('Custom Attribute target.id oder target.key fehlt.');
+      return this.buildFeedbackResponse(
+        'Custom Attribute target.id oder target.key fehlt.',
+      );
     }
 
-    const state = this.clonePayload(this.planning.getCustomAttributes()) as CustomAttributeState;
+    const state = this.clonePayload(this.planning.getCustomAttributes());
     const list = state[entityId] ? [...state[entityId]] : [];
-    const matchIndex = list.findIndex((entry) => (id ? entry.id === id : entry.key === key));
+    const matchIndex = list.findIndex((entry) =>
+      id ? entry.id === id : entry.key === key,
+    );
     if (matchIndex < 0) {
       return this.buildFeedbackResponse('Custom Attribute nicht gefunden.');
     }
@@ -716,7 +841,11 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     entryPath: Array<string | number>,
   ): ActionApplyOutcome | null {
     const attributes = definition.attributes ?? [];
-    if (!this.hasAttributeValue(this.readAttributeValue(attributes, 'is_within_service'))) {
+    if (
+      !this.hasAttributeValue(
+        this.readAttributeValue(attributes, 'is_within_service'),
+      )
+    ) {
       return this.buildClarificationResponse(
         {
           title: 'Soll die Activity innerhalb eines Dienstes liegen?',
@@ -725,7 +854,10 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
             { id: 'no', label: 'Nein, ausserhalb' },
             { id: 'both', label: 'Beides' },
           ],
-          apply: { mode: 'value', path: [...entryPath, 'presets', 'withinService'] },
+          apply: {
+            mode: 'value',
+            path: [...entryPath, 'presets', 'withinService'],
+          },
         },
         context,
       );
@@ -737,11 +869,17 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
           title: 'Wie soll der Ort behandelt werden?',
           options: [
             { id: 'manuell', label: 'Manuell (Start und Ziel bearbeiten)' },
-            { id: 'ortsunveraenderlich', label: 'Ortsunveraenderlich (Ziel verborgen, Ort vom vorherigen)' },
+            {
+              id: 'ortsunveraenderlich',
+              label: 'Ortsunveraenderlich (Ziel verborgen, Ort vom vorherigen)',
+            },
             { id: 'vorher', label: 'Start vom vorherigen Ort, Ziel manuell' },
             { id: 'nachher', label: 'Ziel vom naechsten Ort, Start manuell' },
           ],
-          apply: { mode: 'value', path: [...entryPath, 'presets', 'locationBehavior'] },
+          apply: {
+            mode: 'value',
+            path: [...entryPath, 'presets', 'locationBehavior'],
+          },
         },
         context,
       );
@@ -764,18 +902,27 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
       );
     }
 
-    if (!this.hasAttributeValue(this.readAttributeValue(attributes, 'draw_as'))) {
+    if (
+      !this.hasAttributeValue(this.readAttributeValue(attributes, 'draw_as'))
+    ) {
       return this.buildClarificationResponse(
         {
           title: 'Wie soll die Activity im Gantt gezeichnet werden?',
-          options: DRAW_AS_OPTIONS.map((value) => ({ id: value, label: value })),
+          options: DRAW_AS_OPTIONS.map((value) => ({
+            id: value,
+            label: value,
+          })),
           apply: { mode: 'value', path: [...entryPath, 'presets', 'drawAs'] },
         },
         context,
       );
     }
 
-    if (!this.hasAttributeValue(this.readAttributeValue(attributes, 'layer_group'))) {
+    if (
+      !this.hasAttributeValue(
+        this.readAttributeValue(attributes, 'layer_group'),
+      )
+    ) {
       const layerOptions = this.buildLayerGroupOptions();
       if (!layerOptions.length) {
         return this.buildFeedbackResponse(
@@ -786,7 +933,10 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
         {
           title: 'In welche Layer-Gruppe soll die Activity?',
           options: layerOptions,
-          apply: { mode: 'value', path: [...entryPath, 'presets', 'layerGroup'] },
+          apply: {
+            mode: 'value',
+            path: [...entryPath, 'presets', 'layerGroup'],
+          },
         },
         context,
       );
@@ -795,7 +945,11 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     return null;
   }
 
-  private buildLayerGroupOptions(): Array<{ id: string; label: string; details?: string }> {
+  private buildLayerGroupOptions(): Array<{
+    id: string;
+    label: string;
+    details?: string;
+  }> {
     return this.planning.listLayerGroups().map((group: LayerGroup) => ({
       id: group.id,
       label: group.label,
@@ -811,7 +965,7 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     if (!entry?.meta || typeof entry.meta !== 'object') {
       return undefined;
     }
-    const meta = entry.meta as Record<string, unknown>;
+    const meta = entry.meta;
     if (!this.hasOwn(meta, 'value')) {
       return undefined;
     }
@@ -836,11 +990,19 @@ export class AssistantActionSettings extends AssistantActionSettingsBase {
     return true;
   }
 
-  private hasLocationPreset(attributes: ActivityAttributeValue[] | undefined): boolean {
+  private hasLocationPreset(
+    attributes: ActivityAttributeValue[] | undefined,
+  ): boolean {
     return (
-      this.hasAttributeValue(this.readAttributeValue(attributes, 'from_location_mode')) ||
-      this.hasAttributeValue(this.readAttributeValue(attributes, 'to_location_mode')) ||
-      this.hasAttributeValue(this.readAttributeValue(attributes, 'from_hidden')) ||
+      this.hasAttributeValue(
+        this.readAttributeValue(attributes, 'from_location_mode'),
+      ) ||
+      this.hasAttributeValue(
+        this.readAttributeValue(attributes, 'to_location_mode'),
+      ) ||
+      this.hasAttributeValue(
+        this.readAttributeValue(attributes, 'from_hidden'),
+      ) ||
       this.hasAttributeValue(this.readAttributeValue(attributes, 'to_hidden'))
     );
   }

@@ -392,6 +392,10 @@
   pointer-events: none;
 }
 
+.gantt-activity.cdk-drag-animating {
+  transition: none !important;
+}
+
 .gantt-activity--block {
   padding: 0;
   justify-content: center;

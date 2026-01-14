@@ -23,14 +23,19 @@ export interface StoredConversationState {
 export class AssistantConversationStore {
   private readonly conversations = new Map<string, StoredConversationState>();
 
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
   get(conversationId: string): StoredConversationState | null {
     this.purgeExpired();
     return this.conversations.get(conversationId) ?? null;
   }
 
-  getOrCreate(conversationId: string, clientId?: string | null): StoredConversationState {
+  getOrCreate(
+    conversationId: string,
+    clientId?: string | null,
+  ): StoredConversationState {
     this.purgeExpired();
     const existing = this.conversations.get(conversationId);
     if (existing) {
@@ -78,7 +83,10 @@ export class AssistantConversationStore {
     conversation.updatedAt = Date.now();
   }
 
-  updateLastDocSignature(conversationId: string, signature: string | null): void {
+  updateLastDocSignature(
+    conversationId: string,
+    signature: string | null,
+  ): void {
     const conversation = this.get(conversationId);
     if (!conversation) {
       return;
@@ -99,7 +107,10 @@ export class AssistantConversationStore {
       conversation.summaryPending.push(...removed);
       const maxPending = Math.max(this.config.summaryBatchMessages * 10, 50);
       if (conversation.summaryPending.length > maxPending) {
-        conversation.summaryPending.splice(0, conversation.summaryPending.length - maxPending);
+        conversation.summaryPending.splice(
+          0,
+          conversation.summaryPending.length - maxPending,
+        );
       }
     }
   }
@@ -130,7 +141,10 @@ export class AssistantConversationStore {
     }
   }
 
-  private assertClient(conversation: StoredConversationState, clientId?: string | null): void {
+  private assertClient(
+    conversation: StoredConversationState,
+    clientId?: string | null,
+  ): void {
     const normalized = clientId?.trim() || null;
     if (!normalized) {
       return;

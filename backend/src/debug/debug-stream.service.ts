@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
-import type { DebugLogEntry, DebugLogLevel, DebugLogTopic, DebugStreamOptions } from './debug-stream.types';
+import type {
+  DebugLogEntry,
+  DebugLogLevel,
+  DebugLogTopic,
+  DebugStreamOptions,
+} from './debug-stream.types';
 
 const LEVEL_ORDER: Record<DebugLogLevel, number> = {
   debug: 10,
@@ -12,16 +17,41 @@ const LEVEL_ORDER: Record<DebugLogLevel, number> = {
 @Injectable()
 export class DebugStreamService {
   private readonly logger = new Logger(DebugStreamService.name);
-  private readonly enabled = this.toBoolean(process.env.DEBUG_STREAM_ENABLED, false);
-  private readonly minLevel = this.normalizeLevel(process.env.DEBUG_STREAM_LEVEL ?? 'info');
-  private readonly maxEntries = this.toNumber(process.env.DEBUG_STREAM_BUFFER_SIZE, 200);
+  private readonly enabled = this.toBoolean(
+    process.env.DEBUG_STREAM_ENABLED,
+    false,
+  );
+  private readonly minLevel = this.normalizeLevel(
+    process.env.DEBUG_STREAM_LEVEL ?? 'info',
+  );
+  private readonly maxEntries = this.toNumber(
+    process.env.DEBUG_STREAM_BUFFER_SIZE,
+    200,
+  );
   private readonly accessToken = (process.env.DEBUG_STREAM_TOKEN ?? '').trim();
-  private readonly heartbeatMs = this.toNumber(process.env.DEBUG_STREAM_HEARTBEAT_MS, 15000);
-  private readonly maxPayloadBytes = this.toNumber(process.env.DEBUG_STREAM_MAX_PAYLOAD_BYTES, 8000);
-  private readonly maxContextBytes = this.toNumber(process.env.DEBUG_STREAM_MAX_CONTEXT_BYTES, 6000);
-  private readonly maxMessageLength = this.toNumber(process.env.DEBUG_STREAM_MAX_MESSAGE_LENGTH, 400);
-  private readonly httpEnabled = this.toBoolean(process.env.DEBUG_STREAM_HTTP_ENABLED, false);
-  private readonly httpLevel = this.normalizeLevel(process.env.DEBUG_STREAM_HTTP_LEVEL ?? 'info');
+  private readonly heartbeatMs = this.toNumber(
+    process.env.DEBUG_STREAM_HEARTBEAT_MS,
+    15000,
+  );
+  private readonly maxPayloadBytes = this.toNumber(
+    process.env.DEBUG_STREAM_MAX_PAYLOAD_BYTES,
+    8000,
+  );
+  private readonly maxContextBytes = this.toNumber(
+    process.env.DEBUG_STREAM_MAX_CONTEXT_BYTES,
+    6000,
+  );
+  private readonly maxMessageLength = this.toNumber(
+    process.env.DEBUG_STREAM_MAX_MESSAGE_LENGTH,
+    400,
+  );
+  private readonly httpEnabled = this.toBoolean(
+    process.env.DEBUG_STREAM_HTTP_ENABLED,
+    false,
+  );
+  private readonly httpLevel = this.normalizeLevel(
+    process.env.DEBUG_STREAM_HTTP_LEVEL ?? 'info',
+  );
   private readonly subject = new Subject<DebugLogEntry>();
   private readonly buffer: DebugLogEntry[] = [];
   private sequence = 0;
@@ -91,14 +121,19 @@ export class DebugStreamService {
 
   stream(options: DebugStreamOptions): Observable<DebugLogEntry> {
     if (!this.enabled) {
-      return new Observable<DebugLogEntry>((subscriber) => subscriber.complete());
+      return new Observable<DebugLogEntry>((subscriber) =>
+        subscriber.complete(),
+      );
     }
     const levels = options.levels?.length ? new Set(options.levels) : null;
     const topics = options.topics?.length ? new Set(options.topics) : null;
     const userId = options.userId?.trim() || null;
     const connectionId = options.connectionId?.trim() || null;
     const includeHistory = options.includeHistory !== false;
-    const historySize = options.historySize && options.historySize > 0 ? options.historySize : null;
+    const historySize =
+      options.historySize && options.historySize > 0
+        ? options.historySize
+        : null;
 
     const matches = (entry: DebugLogEntry) => {
       if (levels && !levels.has(entry.level)) {
@@ -110,7 +145,11 @@ export class DebugStreamService {
       if (userId && entry.userId && entry.userId !== userId) {
         return false;
       }
-      if (connectionId && entry.connectionId && entry.connectionId !== connectionId) {
+      if (
+        connectionId &&
+        entry.connectionId &&
+        entry.connectionId !== connectionId
+      ) {
         return false;
       }
       return true;
@@ -118,7 +157,9 @@ export class DebugStreamService {
 
     return new Observable<DebugLogEntry>((subscriber) => {
       if (includeHistory && this.buffer.length) {
-        const history = historySize ? this.buffer.slice(-historySize) : this.buffer;
+        const history = historySize
+          ? this.buffer.slice(-historySize)
+          : this.buffer;
         history.filter(matches).forEach((entry) => subscriber.next(entry));
       }
 
@@ -142,10 +183,17 @@ export class DebugStreamService {
 
   private normalizeLevel(raw: string): DebugLogLevel {
     const normalized = raw.trim().toLowerCase();
-    if (normalized === 'debug' || normalized === 'info' || normalized === 'warn' || normalized === 'error') {
+    if (
+      normalized === 'debug' ||
+      normalized === 'info' ||
+      normalized === 'warn' ||
+      normalized === 'error'
+    ) {
       return normalized as DebugLogLevel;
     }
-    this.logger.warn(`Unbekanntes DEBUG_STREAM_LEVEL "${raw}", fallback auf "info".`);
+    this.logger.warn(
+      `Unbekanntes DEBUG_STREAM_LEVEL "${raw}", fallback auf "info".`,
+    );
     return 'info';
   }
 
@@ -174,20 +222,28 @@ export class DebugStreamService {
     return fallback;
   }
 
-  private truncateMessage(message: string, limit = this.maxMessageLength): string {
+  private truncateMessage(
+    message: string,
+    limit = this.maxMessageLength,
+  ): string {
     if (limit <= 0 || message.length <= limit) {
       return message;
     }
     return `${message.slice(0, limit)}...`;
   }
 
-  private sanitizeContext(context?: Record<string, unknown>): Record<string, unknown> | undefined {
+  private sanitizeContext(
+    context?: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
     if (!context || Object.keys(context).length === 0) {
       return undefined;
     }
     try {
       const serialized = JSON.stringify(context);
-      if (this.maxContextBytes > 0 && serialized.length > this.maxContextBytes) {
+      if (
+        this.maxContextBytes > 0 &&
+        serialized.length > this.maxContextBytes
+      ) {
         return { truncated: true, bytes: serialized.length };
       }
       return context;

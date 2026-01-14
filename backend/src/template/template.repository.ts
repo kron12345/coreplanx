@@ -48,11 +48,16 @@ export class TemplateRepository {
     return this.database.enabled;
   }
 
-  async listTemplateSets(variantId?: string, includeArchived = false): Promise<ActivityTemplateSet[]> {
+  async listTemplateSets(
+    variantId?: string,
+    includeArchived = false,
+  ): Promise<ActivityTemplateSet[]> {
     if (!this.isEnabled) {
       return [];
     }
-    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
+    const normalizedVariantId = variantId?.trim().length
+      ? variantId.trim()
+      : 'default';
     const archiveFilter = includeArchived ? '' : 'AND is_archived = FALSE';
     const result = await this.database.query<TemplateSetRow>(
       `
@@ -84,11 +89,16 @@ export class TemplateRepository {
     return result.rows.map((row) => this.mapTemplateSet(row));
   }
 
-  async getTemplateSet(id: string, variantId?: string): Promise<ActivityTemplateSet | null> {
+  async getTemplateSet(
+    id: string,
+    variantId?: string,
+  ): Promise<ActivityTemplateSet | null> {
     if (!this.isEnabled) {
       return null;
     }
-    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
+    const normalizedVariantId = variantId?.trim().length
+      ? variantId.trim()
+      : 'default';
     const result = await this.database.query<TemplateSetRow>(
       `
         SELECT
@@ -345,7 +355,9 @@ export class TemplateRepository {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
     }
-    const normalizedVariantId = variantId?.trim().length ? variantId.trim() : 'default';
+    const normalizedVariantId = variantId?.trim().length
+      ? variantId.trim()
+      : 'default';
     const row = await this.getTemplateSet(id, normalizedVariantId);
     if (!row) {
       return;
@@ -371,27 +383,32 @@ export class TemplateRepository {
     from: string,
     to: string,
     stage: 'base' | 'operations',
+    ignoreWindow = false,
   ): Promise<ActivityDto[]> {
     const safeTable = this.tableUtil.sanitize(tableName);
+    const baseQuery = `
+      SELECT
+        id,
+        type,
+        stage,
+        deleted,
+        deleted_at,
+        start_time,
+        end_time,
+        is_open_ended,
+        attributes
+      FROM ${safeTable}
+      WHERE deleted = FALSE
+        AND stage = $1
+    `;
+    const windowQuery = `
+      ${baseQuery}
+        AND start_time < $3
+        AND (end_time IS NULL OR end_time > $2 OR is_open_ended = TRUE)
+    `;
     const result = await this.database.query<ActivityRow>(
-      `
-        SELECT
-          id,
-          type,
-          stage,
-          deleted,
-          deleted_at,
-          start_time,
-          end_time,
-          is_open_ended,
-          attributes
-        FROM ${safeTable}
-        WHERE deleted = FALSE
-          AND stage = $1
-          AND start_time < $3
-          AND (end_time IS NULL OR end_time > $2 OR is_open_ended = TRUE)
-      `,
-      [stage, from, to],
+      ignoreWindow ? baseQuery : windowQuery,
+      ignoreWindow ? [stage] : [stage, from, to],
     );
     const mapped = result.rows
       .map((row) => mapActivityRow(row, this.logger))
@@ -502,7 +519,10 @@ export class TemplateRepository {
     const safeTable = this.tableUtil.sanitize(tableName);
     const startId = `svcstart:${serviceId}`;
     const endId = `svcend:${serviceId}`;
-    const result = await this.database.query<{ id: string; start_time: string | Date | null }>(
+    const result = await this.database.query<{
+      id: string;
+      start_time: string | Date | null;
+    }>(
       `
         SELECT id, start_time
         FROM ${safeTable}
@@ -570,8 +590,7 @@ export class TemplateRepository {
           ? val.toLowerCase() === 'true'
           : false;
     const isBreak =
-      toBool(attrs?.['is_break']) ||
-      toBool(attrs?.['is_short_break']);
+      toBool(attrs?.['is_break']) || toBool(attrs?.['is_short_break']);
     if (isBreak) {
       return undefined;
     }
@@ -696,7 +715,7 @@ export class TemplateRepository {
         id: newId,
         type: activity.type,
         stage: targetStage,
-        variant_id: (variantId?.trim().length ? variantId.trim() : 'default'),
+        variant_id: variantId?.trim().length ? variantId.trim() : 'default',
         start_time: shiftedStart,
         end_time: shiftedEnd,
         is_open_ended: isOpenEnded,
@@ -759,7 +778,9 @@ export class TemplateRepository {
     });
   }
 
-  private markActivitiesWithinService(activities: ActivityDto[]): ActivityDto[] {
+  private markActivitiesWithinService(
+    activities: ActivityDto[],
+  ): ActivityDto[] {
     if (!activities.length) {
       return activities;
     }
@@ -784,11 +805,17 @@ export class TemplateRepository {
     byOwner.forEach((list) => {
       const starts = list
         .filter((a) => a.serviceRole === 'start' && a.serviceId)
-        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .map((a) => ({
+          serviceId: a.serviceId as string,
+          start: Date.parse(a.start),
+        }))
         .filter((s) => Number.isFinite(s.start));
       const ends = list
         .filter((a) => a.serviceRole === 'end' && a.serviceId)
-        .map((a) => ({ serviceId: a.serviceId as string, start: Date.parse(a.start) }))
+        .map((a) => ({
+          serviceId: a.serviceId as string,
+          start: Date.parse(a.start),
+        }))
         .filter((e) => Number.isFinite(e.start));
       if (!starts.length) {
         return;
@@ -796,9 +823,14 @@ export class TemplateRepository {
       starts.forEach((startEntry) => {
         const windowStart = startEntry.start;
         const endEntry = ends
-          .filter((e) => e.serviceId === startEntry.serviceId && e.start >= windowStart)
+          .filter(
+            (e) =>
+              e.serviceId === startEntry.serviceId && e.start >= windowStart,
+          )
           .sort((a, b) => a.start - b.start)[0];
-        const windowEnd = endEntry ? endEntry.start : windowStart + 36 * 3600 * 1000;
+        const windowEnd = endEntry
+          ? endEntry.start
+          : windowStart + 36 * 3600 * 1000;
         list.forEach((activity) => {
           const begin = Date.parse(activity.start);
           if (!Number.isFinite(begin)) {
@@ -840,7 +872,9 @@ export class TemplateRepository {
     };
   }
 
-  private normalizeTimestamp(value: string | Date | null | undefined): string | null {
+  private normalizeTimestamp(
+    value: string | Date | null | undefined,
+  ): string | null {
     if (!value) {
       return null;
     }

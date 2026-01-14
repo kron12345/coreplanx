@@ -30,9 +30,14 @@ export interface StoredAssistantActionClarification {
 
 @Injectable()
 export class AssistantActionClarificationStore {
-  private readonly clarifications = new Map<string, StoredAssistantActionClarification>();
+  private readonly clarifications = new Map<
+    string,
+    StoredAssistantActionClarification
+  >();
 
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
   create(
     clarification: StoredAssistantActionClarification,

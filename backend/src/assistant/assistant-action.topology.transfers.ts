@@ -1,7 +1,17 @@
 import type { AssistantActionChangeDto } from './assistant.dto';
-import type { ActionApplyOutcome, ActionContext, ActionPayload } from './assistant-action.engine.types';
-import type { ResourceSnapshot, TransferEdge } from '../planning/planning.types';
-import { AssistantActionTopologyBase, TRANSFER_MODES } from './assistant-action.topology.base';
+import type {
+  ActionApplyOutcome,
+  ActionContext,
+  ActionPayload,
+} from './assistant-action.engine.types';
+import type {
+  ResourceSnapshot,
+  TransferEdge,
+} from '../planning/planning.types';
+import {
+  AssistantActionTopologyBase,
+  TRANSFER_MODES,
+} from './assistant-action.topology.base';
 
 export class AssistantActionTopologyTransfers extends AssistantActionTopologyBase {
   buildTransferEdgePreview(
@@ -14,7 +24,9 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
       payload.transferEdges ?? payload.transferEdge ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Transfer Edge wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Transfer Edge wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -30,10 +42,15 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
         applyPath: ['transferEdges', index, 'from'],
       });
       if (fromResult.clarification) {
-        return this.buildClarificationResponse(fromResult.clarification, context);
+        return this.buildClarificationResponse(
+          fromResult.clarification,
+          context,
+        );
       }
       if (fromResult.feedback || !fromResult.node) {
-        return this.buildFeedbackResponse(fromResult.feedback ?? 'Transfer-Knoten fehlt.');
+        return this.buildFeedbackResponse(
+          fromResult.feedback ?? 'Transfer-Knoten fehlt.',
+        );
       }
       const toResult = this.parseTransferNode(record['to'], state, {
         applyPath: ['transferEdges', index, 'to'],
@@ -42,11 +59,15 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
         return this.buildClarificationResponse(toResult.clarification, context);
       }
       if (toResult.feedback || !toResult.node) {
-        return this.buildFeedbackResponse(toResult.feedback ?? 'Transfer-Knoten fehlt.');
+        return this.buildFeedbackResponse(
+          toResult.feedback ?? 'Transfer-Knoten fehlt.',
+        );
       }
 
       if (this.transferNodesEqual(fromResult.node, toResult.node)) {
-        return this.buildFeedbackResponse('Transfer Edge darf keinen Selbst-Loop haben.');
+        return this.buildFeedbackResponse(
+          'Transfer Edge darf keinen Selbst-Loop haben.',
+        );
       }
 
       const modeRaw = this.cleanText(record['mode'])?.toUpperCase() ?? '';
@@ -62,16 +83,23 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
         usedIds.has(transferId) ||
         state.transferEdges.some((entry) => entry.transferId === transferId)
       ) {
-        return this.buildFeedbackResponse(`Transfer Edge "${transferId}" existiert bereits.`);
+        return this.buildFeedbackResponse(
+          `Transfer Edge "${transferId}" existiert bereits.`,
+        );
       }
 
       const avgDurationSec = this.parseNumber(record['avgDurationSec']);
-      if (record['avgDurationSec'] !== undefined && avgDurationSec === undefined) {
+      if (
+        record['avgDurationSec'] !== undefined &&
+        avgDurationSec === undefined
+      ) {
         return this.buildFeedbackResponse('Transfer Edge: Dauer ist ungültig.');
       }
       const distanceM = this.parseNumber(record['distanceM']);
       if (record['distanceM'] !== undefined && distanceM === undefined) {
-        return this.buildFeedbackResponse('Transfer Edge: Distanz ist ungültig.');
+        return this.buildFeedbackResponse(
+          'Transfer Edge: Distanz ist ungültig.',
+        );
       }
       const bidirectional = this.parseBoolean(record['bidirectional']) ?? false;
 
@@ -95,7 +123,10 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
     }
 
     state.transferEdges = [...state.transferEdges, ...edges];
-    const commitTasks = this.buildTopologyCommitTasksForState(['transferEdges'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['transferEdges'],
+      state,
+    );
     const summary =
       edges.length === 1
         ? `Transfer Edge "${edges[0].transferId}" angelegt.`
@@ -127,7 +158,9 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
     if (!transferId) {
       return this.buildFeedbackResponse('Transfer Edge ID fehlt.');
     }
-    const edge = state.transferEdges.find((entry) => entry.transferId === transferId);
+    const edge = state.transferEdges.find(
+      (entry) => entry.transferId === transferId,
+    );
     if (!edge) {
       return this.buildFeedbackResponse('Transfer Edge nicht gefunden.');
     }
@@ -145,10 +178,15 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
         applyPath: ['patch', 'from'],
       });
       if (fromResult.clarification) {
-        return this.buildClarificationResponse(fromResult.clarification, context);
+        return this.buildClarificationResponse(
+          fromResult.clarification,
+          context,
+        );
       }
       if (fromResult.feedback || !fromResult.node) {
-        return this.buildFeedbackResponse(fromResult.feedback ?? 'Transfer-Knoten fehlt.');
+        return this.buildFeedbackResponse(
+          fromResult.feedback ?? 'Transfer-Knoten fehlt.',
+        );
       }
       updated.from = fromResult.node;
       changed = true;
@@ -161,13 +199,17 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
         return this.buildClarificationResponse(toResult.clarification, context);
       }
       if (toResult.feedback || !toResult.node) {
-        return this.buildFeedbackResponse(toResult.feedback ?? 'Transfer-Knoten fehlt.');
+        return this.buildFeedbackResponse(
+          toResult.feedback ?? 'Transfer-Knoten fehlt.',
+        );
       }
       updated.to = toResult.node;
       changed = true;
     }
     if (this.transferNodesEqual(updated.from, updated.to)) {
-      return this.buildFeedbackResponse('Transfer Edge darf keinen Selbst-Loop haben.');
+      return this.buildFeedbackResponse(
+        'Transfer Edge darf keinen Selbst-Loop haben.',
+      );
     }
 
     if (this.hasOwn(patch, 'mode')) {
@@ -195,7 +237,8 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
       changed = true;
     }
     if (this.hasOwn(patch, 'bidirectional')) {
-      updated.bidirectional = this.parseBoolean(patch['bidirectional']) ?? false;
+      updated.bidirectional =
+        this.parseBoolean(patch['bidirectional']) ?? false;
       changed = true;
     }
 
@@ -206,10 +249,18 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
     state.transferEdges = state.transferEdges.map((entry) =>
       entry.transferId === edge.transferId ? updated : entry,
     );
-    const commitTasks = this.buildTopologyCommitTasksForState(['transferEdges'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['transferEdges'],
+      state,
+    );
     const summary = `Transfer Edge "${updated.transferId}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'transferEdge', id: updated.transferId, label: updated.transferId },
+      {
+        kind: 'update',
+        entityType: 'transferEdge',
+        id: updated.transferId,
+        label: updated.transferId,
+      },
     ];
 
     return {
@@ -238,7 +289,9 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
     if (!transferId) {
       return this.buildFeedbackResponse('Transfer Edge ID fehlt.');
     }
-    const edge = state.transferEdges.find((entry) => entry.transferId === transferId);
+    const edge = state.transferEdges.find(
+      (entry) => entry.transferId === transferId,
+    );
     if (!edge) {
       return this.buildFeedbackResponse('Transfer Edge nicht gefunden.');
     }
@@ -247,10 +300,18 @@ export class AssistantActionTopologyTransfers extends AssistantActionTopologyBas
       (entry) => entry.transferId !== edge.transferId,
     );
 
-    const commitTasks = this.buildTopologyCommitTasksForState(['transferEdges'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['transferEdges'],
+      state,
+    );
     const summary = `Transfer Edge "${edge.transferId}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'transferEdge', id: edge.transferId, label: edge.transferId },
+      {
+        kind: 'delete',
+        entityType: 'transferEdge',
+        id: edge.transferId,
+        label: edge.transferId,
+      },
     ];
 
     return {

@@ -14,7 +14,9 @@ interface RateLimitBucket {
 export class AssistantRateLimiter {
   private readonly buckets = new Map<string, RateLimitBucket>();
 
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
   assertAllowed(
     scope: RateLimitScope,
@@ -23,7 +25,9 @@ export class AssistantRateLimiter {
   ): void {
     const key = this.buildKey(scope, request, clientId);
     const limit =
-      scope === 'action' ? this.config.actionRateLimitMax : this.config.rateLimitMax;
+      scope === 'action'
+        ? this.config.actionRateLimitMax
+        : this.config.rateLimitMax;
     const windowMs = this.config.rateLimitWindowMs;
     const now = Date.now();
     const bucket = this.buckets.get(key);
@@ -53,7 +57,8 @@ export class AssistantRateLimiter {
     const forwarded = request.headers['x-forwarded-for'];
     const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
     const ip =
-      (typeof forwardedValue === 'string' && forwardedValue.split(',')[0]?.trim()) ||
+      (typeof forwardedValue === 'string' &&
+        forwardedValue.split(',')[0]?.trim()) ||
       request.ip ||
       request.raw?.socket?.remoteAddress ||
       'unknown';

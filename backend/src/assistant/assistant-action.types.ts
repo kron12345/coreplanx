@@ -79,7 +79,10 @@ export type AssistantActionCommitTask =
       type: 'translations';
       action: 'replace-locale' | 'delete-locale';
       locale: string;
-      entries?: Record<string, { label?: string | null; abbreviation?: string | null }>;
+      entries?: Record<
+        string,
+        { label?: string | null; abbreviation?: string | null }
+      >;
     }
   | {
       type: 'customAttributes';

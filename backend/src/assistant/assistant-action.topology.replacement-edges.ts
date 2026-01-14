@@ -1,5 +1,9 @@
 import type { AssistantActionChangeDto } from './assistant.dto';
-import type { ActionApplyOutcome, ActionContext, ActionPayload } from './assistant-action.engine.types';
+import type {
+  ActionApplyOutcome,
+  ActionContext,
+  ActionPayload,
+} from './assistant-action.engine.types';
 import type {
   OpReplacementStopLink,
   ReplacementEdge,
@@ -18,10 +22,14 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
     const rawEntries = this.asArray(
-      payload.replacementEdges ?? payload.replacementEdge ?? payloadRecord['items'],
+      payload.replacementEdges ??
+        payload.replacementEdge ??
+        payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Replacement Edge wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Replacement Edge wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -37,51 +45,84 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       const fromRef = this.cleanText(record['fromStopId']);
       const toRef = this.cleanText(record['toStopId']);
       if (!routeRef || !fromRef || !toRef) {
-        return this.buildFeedbackResponse('Replacement Edge: Route oder Stop fehlt.');
+        return this.buildFeedbackResponse(
+          'Replacement Edge: Route oder Stop fehlt.',
+        );
       }
 
       const routeResult = this.resolveReplacementRouteIdByReference(
         state.replacementRoutes,
         routeRef,
-        { apply: { mode: 'value', path: ['replacementEdges', index, 'replacementRouteId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['replacementEdges', index, 'replacementRouteId'],
+          },
+        },
       );
       if (routeResult.clarification) {
-        return this.buildClarificationResponse(routeResult.clarification, context);
+        return this.buildClarificationResponse(
+          routeResult.clarification,
+          context,
+        );
       }
       if (routeResult.feedback || !routeResult.routeId) {
-        return this.buildFeedbackResponse(routeResult.feedback ?? 'Replacement Route nicht gefunden.');
+        return this.buildFeedbackResponse(
+          routeResult.feedback ?? 'Replacement Route nicht gefunden.',
+        );
       }
 
       const fromResult = this.resolveReplacementStopIdByReference(
         state.replacementStops,
         fromRef,
-        { apply: { mode: 'value', path: ['replacementEdges', index, 'fromStopId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['replacementEdges', index, 'fromStopId'],
+          },
+        },
       );
       if (fromResult.clarification) {
-        return this.buildClarificationResponse(fromResult.clarification, context);
+        return this.buildClarificationResponse(
+          fromResult.clarification,
+          context,
+        );
       }
       if (fromResult.feedback || !fromResult.stopId) {
-        return this.buildFeedbackResponse(fromResult.feedback ?? 'Replacement Stop nicht gefunden.');
+        return this.buildFeedbackResponse(
+          fromResult.feedback ?? 'Replacement Stop nicht gefunden.',
+        );
       }
       const toResult = this.resolveReplacementStopIdByReference(
         state.replacementStops,
         toRef,
-        { apply: { mode: 'value', path: ['replacementEdges', index, 'toStopId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['replacementEdges', index, 'toStopId'],
+          },
+        },
       );
       if (toResult.clarification) {
         return this.buildClarificationResponse(toResult.clarification, context);
       }
       if (toResult.feedback || !toResult.stopId) {
-        return this.buildFeedbackResponse(toResult.feedback ?? 'Replacement Stop nicht gefunden.');
+        return this.buildFeedbackResponse(
+          toResult.feedback ?? 'Replacement Stop nicht gefunden.',
+        );
       }
 
       if (fromResult.stopId === toResult.stopId) {
-        return this.buildFeedbackResponse('Replacement Edge: Start und Ziel dürfen nicht gleich sein.');
+        return this.buildFeedbackResponse(
+          'Replacement Edge: Start und Ziel dürfen nicht gleich sein.',
+        );
       }
 
       const seqRaw = this.parseNumber(record['seq']);
       if (seqRaw === undefined || !Number.isInteger(seqRaw) || seqRaw <= 0) {
-        return this.buildFeedbackResponse('Replacement Edge: Sequenz ist ungültig.');
+        return this.buildFeedbackResponse(
+          'Replacement Edge: Sequenz ist ungültig.',
+        );
       }
 
       const seqConflict = this.assertUniqueReplacementEdgeSeq(
@@ -99,18 +140,29 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         this.generateId('REDGE');
       if (
         usedIds.has(edgeId) ||
-        state.replacementEdges.some((entry) => entry.replacementEdgeId === edgeId)
+        state.replacementEdges.some(
+          (entry) => entry.replacementEdgeId === edgeId,
+        )
       ) {
-        return this.buildFeedbackResponse(`Replacement Edge \"${edgeId}\" existiert bereits.`);
+        return this.buildFeedbackResponse(
+          `Replacement Edge \"${edgeId}\" existiert bereits.`,
+        );
       }
 
       const avgDurationSec = this.parseNumber(record['avgDurationSec']);
-      if (record['avgDurationSec'] !== undefined && avgDurationSec === undefined) {
-        return this.buildFeedbackResponse('Replacement Edge: Dauer ist ungültig.');
+      if (
+        record['avgDurationSec'] !== undefined &&
+        avgDurationSec === undefined
+      ) {
+        return this.buildFeedbackResponse(
+          'Replacement Edge: Dauer ist ungültig.',
+        );
       }
       const distanceM = this.parseNumber(record['distanceM']);
       if (record['distanceM'] !== undefined && distanceM === undefined) {
-        return this.buildFeedbackResponse('Replacement Edge: Distanz ist ungültig.');
+        return this.buildFeedbackResponse(
+          'Replacement Edge: Distanz ist ungültig.',
+        );
       }
 
       const edge: ReplacementEdge = {
@@ -133,7 +185,10 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
     }
 
     state.replacementEdges = [...state.replacementEdges, ...edges];
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementEdges'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementEdges'],
+      state,
+    );
     const summary =
       edges.length === 1
         ? `Replacement Edge \"${edges[0].replacementEdgeId}\" angelegt.`
@@ -168,7 +223,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       return this.buildClarificationResponse(edgeResult.clarification, context);
     }
     if (edgeResult.feedback || !edgeResult.item) {
-      return this.buildFeedbackResponse(edgeResult.feedback ?? 'Replacement Edge nicht gefunden.');
+      return this.buildFeedbackResponse(
+        edgeResult.feedback ?? 'Replacement Edge nicht gefunden.',
+      );
     }
 
     const edge = edgeResult.item;
@@ -196,10 +253,15 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         { apply: { mode: 'value', path: ['patch', 'replacementRouteId'] } },
       );
       if (routeResult.clarification) {
-        return this.buildClarificationResponse(routeResult.clarification, context);
+        return this.buildClarificationResponse(
+          routeResult.clarification,
+          context,
+        );
       }
       if (routeResult.feedback || !routeResult.routeId) {
-        return this.buildFeedbackResponse(routeResult.feedback ?? 'Replacement Route nicht gefunden.');
+        return this.buildFeedbackResponse(
+          routeResult.feedback ?? 'Replacement Route nicht gefunden.',
+        );
       }
       replacementRouteId = routeResult.routeId;
       changed = true;
@@ -216,10 +278,15 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         { apply: { mode: 'value', path: ['patch', 'fromStopId'] } },
       );
       if (fromResult.clarification) {
-        return this.buildClarificationResponse(fromResult.clarification, context);
+        return this.buildClarificationResponse(
+          fromResult.clarification,
+          context,
+        );
       }
       if (fromResult.feedback || !fromResult.stopId) {
-        return this.buildFeedbackResponse(fromResult.feedback ?? 'Replacement Stop nicht gefunden.');
+        return this.buildFeedbackResponse(
+          fromResult.feedback ?? 'Replacement Stop nicht gefunden.',
+        );
       }
       fromStopId = fromResult.stopId;
       changed = true;
@@ -239,14 +306,18 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         return this.buildClarificationResponse(toResult.clarification, context);
       }
       if (toResult.feedback || !toResult.stopId) {
-        return this.buildFeedbackResponse(toResult.feedback ?? 'Replacement Stop nicht gefunden.');
+        return this.buildFeedbackResponse(
+          toResult.feedback ?? 'Replacement Stop nicht gefunden.',
+        );
       }
       toStopId = toResult.stopId;
       changed = true;
     }
 
     if (fromStopId === toStopId) {
-      return this.buildFeedbackResponse('Start und Ziel dürfen nicht gleich sein.');
+      return this.buildFeedbackResponse(
+        'Start und Ziel dürfen nicht gleich sein.',
+      );
     }
 
     if (this.hasOwn(patch, 'seq')) {
@@ -297,7 +368,10 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
     state.replacementEdges = state.replacementEdges.map((entry) =>
       entry.replacementEdgeId === edge.replacementEdgeId ? updated : entry,
     );
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementEdges'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementEdges'],
+      state,
+    );
     const summary = `Replacement Edge \"${updated.replacementEdgeId}\" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
       {
@@ -337,7 +411,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       return this.buildClarificationResponse(edgeResult.clarification, context);
     }
     if (edgeResult.feedback || !edgeResult.item) {
-      return this.buildFeedbackResponse(edgeResult.feedback ?? 'Replacement Edge nicht gefunden.');
+      return this.buildFeedbackResponse(
+        edgeResult.feedback ?? 'Replacement Edge nicht gefunden.',
+      );
     }
 
     const edge = edgeResult.item;
@@ -345,7 +421,10 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       (entry) => entry.replacementEdgeId !== edge.replacementEdgeId,
     );
 
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementEdges'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementEdges'],
+      state,
+    );
     const summary = `Replacement Edge \"${edge.replacementEdgeId}\" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
       {
@@ -372,10 +451,14 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
     const rawEntries = this.asArray(
-      payload.opReplacementStopLinks ?? payload.opReplacementStopLink ?? payloadRecord['items'],
+      payload.opReplacementStopLinks ??
+        payload.opReplacementStopLink ??
+        payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein OP-Link wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein OP-Link wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -394,24 +477,41 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       const opResult = this.resolveOperationalPointUniqueOpIdByReference(
         state.operationalPoints,
         opRef,
-        { apply: { mode: 'value', path: ['opReplacementStopLinks', index, 'uniqueOpId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['opReplacementStopLinks', index, 'uniqueOpId'],
+          },
+        },
       );
       if (opResult.clarification) {
         return this.buildClarificationResponse(opResult.clarification, context);
       }
       if (opResult.feedback || !opResult.uniqueOpId) {
-        return this.buildFeedbackResponse(opResult.feedback ?? 'Operational Point nicht gefunden.');
+        return this.buildFeedbackResponse(
+          opResult.feedback ?? 'Operational Point nicht gefunden.',
+        );
       }
       const stopResult = this.resolveReplacementStopIdByReference(
         state.replacementStops,
         stopRef,
-        { apply: { mode: 'value', path: ['opReplacementStopLinks', index, 'replacementStopId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['opReplacementStopLinks', index, 'replacementStopId'],
+          },
+        },
       );
       if (stopResult.clarification) {
-        return this.buildClarificationResponse(stopResult.clarification, context);
+        return this.buildClarificationResponse(
+          stopResult.clarification,
+          context,
+        );
       }
       if (stopResult.feedback || !stopResult.stopId) {
-        return this.buildFeedbackResponse(stopResult.feedback ?? 'Replacement Stop nicht gefunden.');
+        return this.buildFeedbackResponse(
+          stopResult.feedback ?? 'Replacement Stop nicht gefunden.',
+        );
       }
 
       const relationRaw =
@@ -428,7 +528,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         usedIds.has(linkId) ||
         state.opReplacementStopLinks.some((entry) => entry.linkId === linkId)
       ) {
-        return this.buildFeedbackResponse(`OP-Link \"${linkId}\" existiert bereits.`);
+        return this.buildFeedbackResponse(
+          `OP-Link \"${linkId}\" existiert bereits.`,
+        );
       }
 
       const uniqueConflict = this.assertUniqueOpReplacementLink(
@@ -441,7 +543,10 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       }
 
       const walkingTimeSec = this.parseNumber(record['walkingTimeSec']);
-      if (record['walkingTimeSec'] !== undefined && walkingTimeSec === undefined) {
+      if (
+        record['walkingTimeSec'] !== undefined &&
+        walkingTimeSec === undefined
+      ) {
         return this.buildFeedbackResponse('OP-Link: Fußweg ist ungültig.');
       }
       const distanceM = this.parseNumber(record['distanceM']);
@@ -468,7 +573,10 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
     }
 
     state.opReplacementStopLinks = [...state.opReplacementStopLinks, ...links];
-    const commitTasks = this.buildTopologyCommitTasksForState(['opReplacementStopLinks'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['opReplacementStopLinks'],
+      state,
+    );
     const summary =
       links.length === 1
         ? `OP-Link \"${links[0].linkId}\" angelegt.`
@@ -488,7 +596,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['opReplacementStopLink']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'opReplacementStopLink',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-OP-Link fehlt.');
     }
@@ -503,7 +613,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       return this.buildClarificationResponse(linkResult.clarification, context);
     }
     if (linkResult.feedback || !linkResult.item) {
-      return this.buildFeedbackResponse(linkResult.feedback ?? 'OP-Link nicht gefunden.');
+      return this.buildFeedbackResponse(
+        linkResult.feedback ?? 'OP-Link nicht gefunden.',
+      );
     }
 
     const link = linkResult.item;
@@ -532,7 +644,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         return this.buildClarificationResponse(opResult.clarification, context);
       }
       if (opResult.feedback || !opResult.uniqueOpId) {
-        return this.buildFeedbackResponse(opResult.feedback ?? 'Operational Point nicht gefunden.');
+        return this.buildFeedbackResponse(
+          opResult.feedback ?? 'Operational Point nicht gefunden.',
+        );
       }
       uniqueOpId = opResult.uniqueOpId;
       changed = true;
@@ -549,10 +663,15 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
         { apply: { mode: 'value', path: ['patch', 'replacementStopId'] } },
       );
       if (stopResult.clarification) {
-        return this.buildClarificationResponse(stopResult.clarification, context);
+        return this.buildClarificationResponse(
+          stopResult.clarification,
+          context,
+        );
       }
       if (stopResult.feedback || !stopResult.stopId) {
-        return this.buildFeedbackResponse(stopResult.feedback ?? 'Replacement Stop nicht gefunden.');
+        return this.buildFeedbackResponse(
+          stopResult.feedback ?? 'Replacement Stop nicht gefunden.',
+        );
       }
       replacementStopId = stopResult.stopId;
       changed = true;
@@ -574,7 +693,8 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       if (!OP_REPLACEMENT_RELATIONS.has(relationRaw)) {
         return this.buildFeedbackResponse('Relation ist ungültig.');
       }
-      updated.relationType = relationRaw as OpReplacementStopLink['relationType'];
+      updated.relationType =
+        relationRaw as OpReplacementStopLink['relationType'];
       changed = true;
     }
 
@@ -605,10 +725,18 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
     state.opReplacementStopLinks = state.opReplacementStopLinks.map((entry) =>
       entry.linkId === link.linkId ? updated : entry,
     );
-    const commitTasks = this.buildTopologyCommitTasksForState(['opReplacementStopLinks'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['opReplacementStopLinks'],
+      state,
+    );
     const summary = `OP-Link \"${updated.linkId}\" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'opReplacementStopLink', id: updated.linkId, label: updated.linkId },
+      {
+        kind: 'update',
+        entityType: 'opReplacementStopLink',
+        id: updated.linkId,
+        label: updated.linkId,
+      },
     ];
 
     return {
@@ -625,7 +753,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['opReplacementStopLink']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'opReplacementStopLink',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-OP-Link fehlt.');
     }
@@ -640,7 +770,9 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       return this.buildClarificationResponse(linkResult.clarification, context);
     }
     if (linkResult.feedback || !linkResult.item) {
-      return this.buildFeedbackResponse(linkResult.feedback ?? 'OP-Link nicht gefunden.');
+      return this.buildFeedbackResponse(
+        linkResult.feedback ?? 'OP-Link nicht gefunden.',
+      );
     }
 
     const link = linkResult.item;
@@ -648,10 +780,18 @@ export class AssistantActionTopologyReplacementEdges extends AssistantActionTopo
       (entry) => entry.linkId !== link.linkId,
     );
 
-    const commitTasks = this.buildTopologyCommitTasksForState(['opReplacementStopLinks'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['opReplacementStopLinks'],
+      state,
+    );
     const summary = `OP-Link "${link.linkId}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'opReplacementStopLink', id: link.linkId, label: link.linkId },
+      {
+        kind: 'delete',
+        entityType: 'opReplacementStopLink',
+        id: link.linkId,
+        label: link.linkId,
+      },
     ];
 
     return {

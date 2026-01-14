@@ -1,6 +1,14 @@
 import type { AssistantActionChangeDto } from './assistant.dto';
-import type { ActionApplyOutcome, ActionContext, ActionPayload } from './assistant-action.engine.types';
-import type { ResourceSnapshot, VehicleService, VehicleServicePool } from '../planning/planning.types';
+import type {
+  ActionApplyOutcome,
+  ActionContext,
+  ActionPayload,
+} from './assistant-action.engine.types';
+import type {
+  ResourceSnapshot,
+  VehicleService,
+  VehicleServicePool,
+} from '../planning/planning.types';
 import { SYSTEM_POOL_IDS } from '../planning/planning-master-data.constants';
 import { AssistantActionBase } from './assistant-action.base';
 
@@ -14,7 +22,9 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
     const poolRecord = this.asRecord(poolRaw) ?? {};
     const payloadRecord = payload as Record<string, unknown>;
     const poolName =
-      this.cleanText(typeof poolRaw === 'string' ? poolRaw : poolRecord['name']) ??
+      this.cleanText(
+        typeof poolRaw === 'string' ? poolRaw : poolRecord['name'],
+      ) ??
       this.cleanText(poolRecord['poolName']) ??
       this.cleanText(payloadRecord['poolName']);
     if (!poolName) {
@@ -33,7 +43,9 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
         `Fahrzeugdienstpool "${poolName}" existiert bereits.`,
       );
     }
-    const duplicateNames = this.findDuplicateNames(services.map((service) => service.name));
+    const duplicateNames = this.findDuplicateNames(
+      services.map((service) => service.name),
+    );
     if (duplicateNames.length) {
       return this.buildFeedbackResponse(
         `Dienste doppelt angegeben: ${duplicateNames.join(', ')}`,
@@ -68,14 +80,21 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
 
     const summary = `Neuer Fahrzeugdienstpool "${poolName}" mit ${serviceEntries.length} Diensten.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'create', entityType: 'vehicleServicePool', id: poolId, label: poolName },
-      ...serviceEntries.map((service): AssistantActionChangeDto => ({
+      {
         kind: 'create',
-        entityType: 'vehicleService',
-        id: service.id,
-        label: service.name,
-        details: `Pool ${poolName}`,
-      })),
+        entityType: 'vehicleServicePool',
+        id: poolId,
+        label: poolName,
+      },
+      ...serviceEntries.map(
+        (service): AssistantActionChangeDto => ({
+          kind: 'create',
+          entityType: 'vehicleService',
+          id: service.id,
+          label: service.name,
+          details: `Pool ${poolName}`,
+        }),
+      ),
     ];
 
     return {
@@ -112,14 +131,18 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
       const record = this.asRecord(raw);
       const name =
         this.cleanText(
-          typeof raw === 'string' ? raw : record?.['name'] ?? record?.['serviceName'],
+          typeof raw === 'string'
+            ? raw
+            : (record?.['name'] ?? record?.['serviceName']),
         ) ?? undefined;
       if (!name) {
         return this.buildFeedbackResponse('Dienstname fehlt.');
       }
       const normalizedName = this.normalizeKey(name);
       if (seenServiceNames.has(normalizedName)) {
-        return this.buildFeedbackResponse(`Dienst "${name}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Dienst "${name}" ist doppelt angegeben.`,
+        );
       }
       seenServiceNames.add(normalizedName);
 
@@ -145,7 +168,10 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
         },
       );
       if (resolvedPool.clarification) {
-        return this.buildClarificationResponse(resolvedPool.clarification, context);
+        return this.buildClarificationResponse(
+          resolvedPool.clarification,
+          context,
+        );
       }
       if (resolvedPool.feedback) {
         return this.buildFeedbackResponse(
@@ -219,21 +245,32 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
       return this.buildFeedbackResponse('Ziel-Fahrzeugdienstpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehicleServicePools, targetRecord, {
-      label: 'Fahrzeugdienstpool',
-      nameKeys: ['name', 'poolName', 'servicePoolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.vehicleServicePools,
+      targetRecord,
+      {
+        label: 'Fahrzeugdienstpool',
+        nameKeys: ['name', 'poolName', 'servicePoolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.vehicleServicePool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht geändert werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht geändert werden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -250,7 +287,9 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
         return this.buildFeedbackResponse('Name darf nicht leer sein.');
       }
       if (this.hasNameCollision(snapshot.vehicleServicePools, name, pool.id)) {
-        return this.buildFeedbackResponse(`Name "${name}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `Name "${name}" ist bereits vergeben.`,
+        );
       }
       updated.name = name;
       changed = true;
@@ -298,29 +337,41 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['service', 'vehicleService']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'service',
+      'vehicleService',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Fahrzeugdienst fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehicleServices, targetRecord, {
-      label: 'Fahrzeugdienst',
-      nameKeys: ['name', 'serviceName'],
-      clarification: {
-        apply: { mode: 'target', path: ['target'] },
-        details: (service) => {
-          const pool = snapshot.vehicleServicePools.find(
-            (entry) => entry.id === service.poolId,
-          );
-          return pool?.name ? `Pool ${pool.name}` : `Pool ${service.poolId}`;
+    const targetResult = this.findByIdOrName(
+      snapshot.vehicleServices,
+      targetRecord,
+      {
+        label: 'Fahrzeugdienst',
+        nameKeys: ['name', 'serviceName'],
+        clarification: {
+          apply: { mode: 'target', path: ['target'] },
+          details: (service) => {
+            const pool = snapshot.vehicleServicePools.find(
+              (entry) => entry.id === service.poolId,
+            );
+            return pool?.name ? `Pool ${pool.name}` : `Pool ${service.poolId}`;
+          },
         },
       },
-    });
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Dienst nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Dienst nicht gefunden.',
+      );
     }
 
     const service = targetResult.item;
@@ -371,7 +422,11 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
 
     const hasPoolPatch = this.hasAnyKey(patch, ['poolId', 'pool', 'poolName']);
     if (hasPoolPatch) {
-      const poolRef = this.extractReference(patch, ['poolId', 'pool', 'poolName']);
+      const poolRef = this.extractReference(patch, [
+        'poolId',
+        'pool',
+        'poolName',
+      ]);
       if (!poolRef) {
         return this.buildFeedbackResponse('Dienst-Pool fehlt.');
       }
@@ -454,21 +509,32 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
       return this.buildFeedbackResponse('Ziel-Fahrzeugdienstpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehicleServicePools, targetRecord, {
-      label: 'Fahrzeugdienstpool',
-      nameKeys: ['name', 'poolName', 'servicePoolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.vehicleServicePools,
+      targetRecord,
+      {
+        label: 'Fahrzeugdienstpool',
+        nameKeys: ['name', 'poolName', 'servicePoolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.vehicleServicePool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht gelöscht werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht gelöscht werden.',
+      );
     }
 
     const movedServices = snapshot.vehicleServices.filter(
@@ -523,34 +589,48 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['service', 'vehicleService']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'service',
+      'vehicleService',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Fahrzeugdienst fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehicleServices, targetRecord, {
-      label: 'Fahrzeugdienst',
-      nameKeys: ['name', 'serviceName'],
-      clarification: {
-        apply: { mode: 'target', path: ['target'] },
-        details: (service) => {
-          const pool = snapshot.vehicleServicePools.find(
-            (entry) => entry.id === service.poolId,
-          );
-          return pool?.name ? `Pool ${pool.name}` : `Pool ${service.poolId}`;
+    const targetResult = this.findByIdOrName(
+      snapshot.vehicleServices,
+      targetRecord,
+      {
+        label: 'Fahrzeugdienst',
+        nameKeys: ['name', 'serviceName'],
+        clarification: {
+          apply: { mode: 'target', path: ['target'] },
+          details: (service) => {
+            const pool = snapshot.vehicleServicePools.find(
+              (entry) => entry.id === service.poolId,
+            );
+            return pool?.name ? `Pool ${pool.name}` : `Pool ${service.poolId}`;
+          },
         },
       },
-    });
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Dienst nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Dienst nicht gefunden.',
+      );
     }
 
     const service = targetResult.item;
     if (service.poolId === SYSTEM_POOL_IDS.vehicleServicePool) {
-      return this.buildFeedbackResponse('Dienst befindet sich bereits im System-Pool.');
+      return this.buildFeedbackResponse(
+        'Dienst befindet sich bereits im System-Pool.',
+      );
     }
 
     const updated = { ...service, poolId: SYSTEM_POOL_IDS.vehicleServicePool };
@@ -599,7 +679,8 @@ export class AssistantActionVehicleServices extends AssistantActionBase {
         if (entry && typeof entry === 'object') {
           const record = entry as Record<string, unknown>;
           const name =
-            this.cleanText(record['name']) ?? this.cleanText(record['serviceName']);
+            this.cleanText(record['name']) ??
+            this.cleanText(record['serviceName']);
           if (!name) {
             return null;
           }

@@ -160,10 +160,18 @@ export class PlanningActivityCatalogRepository {
     ]);
 
     return {
-      templates: templateResult.rows.map((row) => this.mapActivityTemplate(row)),
-      definitions: definitionResult.rows.map((row) => this.mapActivityDefinition(row)),
-      categories: categoryResult.rows.map((row) => this.mapActivityCategory(row)),
-      layerGroups: layerResult.rows.map((row) => this.mapActivityLayerGroup(row)),
+      templates: templateResult.rows.map((row) =>
+        this.mapActivityTemplate(row),
+      ),
+      definitions: definitionResult.rows.map((row) =>
+        this.mapActivityDefinition(row),
+      ),
+      categories: categoryResult.rows.map((row) =>
+        this.mapActivityCategory(row),
+      ),
+      layerGroups: layerResult.rows.map((row) =>
+        this.mapActivityLayerGroup(row),
+      ),
       translations: this.mapTranslations(translationResult.rows),
       customAttributes: this.mapCustomAttributes(customAttributeResult.rows),
     };
@@ -346,7 +354,9 @@ export class PlanningActivityCatalogRepository {
           );
         }
 
-        const customAttributeRows = this.flattenCustomAttributes(catalog.customAttributes);
+        const customAttributeRows = this.flattenCustomAttributes(
+          catalog.customAttributes,
+        );
         if (customAttributeRows.length) {
           await client.query(
             `
@@ -428,7 +438,9 @@ export class PlanningActivityCatalogRepository {
     };
   }
 
-  private mapActivityDefinition(row: ActivityDefinitionRow): ActivityDefinition {
+  private mapActivityDefinition(
+    row: ActivityDefinitionRow,
+  ): ActivityDefinition {
     return {
       id: row.id,
       label: row.label,
@@ -450,7 +462,9 @@ export class PlanningActivityCatalogRepository {
     };
   }
 
-  private mapActivityCategory(row: ActivityCategoryRow): ActivityCategoryDefinition {
+  private mapActivityCategory(
+    row: ActivityCategoryRow,
+  ): ActivityCategoryDefinition {
     return {
       id: row.id,
       label: row.label,
@@ -473,7 +487,9 @@ export class PlanningActivityCatalogRepository {
     return state;
   }
 
-  private mapCustomAttributes(rows: CustomAttributeDefinitionRow[]): CustomAttributeState {
+  private mapCustomAttributes(
+    rows: CustomAttributeDefinitionRow[],
+  ): CustomAttributeState {
     const state: CustomAttributeState = {};
     rows.forEach((row) => {
       const bucket = state[row.entity_id] ?? [];
@@ -494,7 +510,9 @@ export class PlanningActivityCatalogRepository {
     return state;
   }
 
-  private flattenTranslations(state: TranslationState): ActivityTranslationRow[] {
+  private flattenTranslations(
+    state: TranslationState,
+  ): ActivityTranslationRow[] {
     const rows: ActivityTranslationRow[] = [];
     Object.entries(state ?? {}).forEach(([locale, entries]) => {
       if (!locale) {
@@ -515,7 +533,9 @@ export class PlanningActivityCatalogRepository {
     return rows;
   }
 
-  private flattenCustomAttributes(state: CustomAttributeState): CustomAttributeDefinitionRow[] {
+  private flattenCustomAttributes(
+    state: CustomAttributeState,
+  ): CustomAttributeDefinitionRow[] {
     const rows: CustomAttributeDefinitionRow[] = [];
     Object.entries(state ?? {}).forEach(([entityId, entries]) => {
       if (!entityId) {
@@ -574,7 +594,9 @@ export class PlanningActivityCatalogRepository {
         }
         const metaValue = (entry as { meta?: unknown }).meta;
         const meta =
-          metaValue && typeof metaValue === 'object' && !Array.isArray(metaValue)
+          metaValue &&
+          typeof metaValue === 'object' &&
+          !Array.isArray(metaValue)
             ? { ...(metaValue as Record<string, unknown>) }
             : undefined;
         list.push({ key: key.trim(), meta });
@@ -583,22 +605,31 @@ export class PlanningActivityCatalogRepository {
     }
     if (typeof value === 'object') {
       const list: ActivityAttributeValue[] = [];
-      Object.entries(value as Record<string, unknown>).forEach(([key, metaValue]) => {
-        if (!key.trim()) {
-          return;
-        }
-        if (metaValue && typeof metaValue === 'object' && !Array.isArray(metaValue)) {
-          list.push({ key: key.trim(), meta: { ...(metaValue as Record<string, unknown>) } });
-        } else {
-          list.push({
-            key: key.trim(),
-            meta:
-              metaValue === undefined || metaValue === null
-                ? undefined
-                : { value: String(metaValue) },
-          });
-        }
-      });
+      Object.entries(value as Record<string, unknown>).forEach(
+        ([key, metaValue]) => {
+          if (!key.trim()) {
+            return;
+          }
+          if (
+            metaValue &&
+            typeof metaValue === 'object' &&
+            !Array.isArray(metaValue)
+          ) {
+            list.push({
+              key: key.trim(),
+              meta: { ...(metaValue as Record<string, unknown>) },
+            });
+          } else {
+            list.push({
+              key: key.trim(),
+              meta:
+                metaValue === undefined || metaValue === null
+                  ? undefined
+                  : { value: String(metaValue) },
+            });
+          }
+        },
+      );
       return list;
     }
     return [];

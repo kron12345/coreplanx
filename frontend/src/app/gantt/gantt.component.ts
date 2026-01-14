@@ -151,6 +151,8 @@ export class GanttComponent implements AfterViewInit {
   private readonly lassoAutoScrollEdgePx = 28;
   private readonly lassoAutoScrollMaxSpeedPx = 22;
   protected readonly periodsSignal = signal<TemplatePeriod[]>([]);
+  private readonly timelineViewportWidthSignal = signal<number | null>(null);
+  private headerResizeObserver: ResizeObserver | null = null;
   private readonly selection = new GanttSelectionFacade({
     host: () => this.hostElement.nativeElement,
     getResourceById: (id) => this.resourceMap().get(id),
@@ -177,6 +179,8 @@ export class GanttComponent implements AfterViewInit {
     this.destroyRef.onDestroy(() => {
       this.dragFacade.cleanup();
       this.viewportFacade.cleanup();
+      this.headerResizeObserver?.disconnect();
+      this.headerResizeObserver = null;
       if (this.timelineScrollHandle !== null) {
         if (typeof cancelAnimationFrame === 'function') {
           cancelAnimationFrame(this.timelineScrollHandle);
@@ -193,8 +197,8 @@ export class GanttComponent implements AfterViewInit {
       if (!this.viewportReady()) {
         return;
       }
-      const start = this.viewport.viewStart();
-      const end = this.viewport.viewEnd();
+      const start = this.viewStart();
+      const end = this.viewEnd();
       const signature = `${start.toISOString()}|${end.toISOString()}`;
       if (signature === this.lastViewportSignature) {
         return;
@@ -423,8 +427,8 @@ export class GanttComponent implements AfterViewInit {
             slotsByResource: this.activitySlotsByResource(),
             pendingActivityId: this.pendingActivitySignal()?.id ?? null,
             syncingActivityIds: this.syncingActivityIdsSignal(),
-            viewStart: this.viewport.viewStart(),
-            viewEnd: this.viewport.viewEnd(),
+            viewStart: this.viewStart(),
+            viewEnd: this.viewEnd(),
             selectedIds: displaySelectedIds,
             primarySlots: this.selection.primarySelectionSlots(),
           })
@@ -470,7 +474,7 @@ export class GanttComponent implements AfterViewInit {
     if (!this.viewportReady() || !this.timeScale.hasTimelineRange()) {
       return [];
     }
-    return this.timeScale.getTicks(this.viewport.viewStart(), this.viewport.viewEnd());
+    return this.timeScale.getTicks(this.viewStart(), this.viewEnd());
   });
 
   readonly dragStatus = this.dragFacade.dragStatus;
@@ -513,18 +517,20 @@ export class GanttComponent implements AfterViewInit {
     if (!this.viewportReady()) {
       return '';
     }
-    const start = this.viewport.viewStart();
-    const end = this.inclusiveViewEnd(start);
+    const start = this.viewStart();
+    const end = this.inclusiveViewEnd(start, this.viewEnd());
     return `${this.rangeFormatter.format(start)} – ${this.rangeFormatter.format(end)}`;
   });
 
   readonly viewStart = computed(() => (this.viewportReady() ? this.viewport.viewStart() : new Date()));
-  readonly viewEnd = computed(() => (this.viewportReady() ? this.viewport.viewEnd() : new Date()));
+  readonly viewEnd = computed(() =>
+    this.viewportReady() ? this.effectiveViewEnd(this.viewport.viewStart()) : new Date(),
+  );
   readonly viewDisplayEnd = computed(() => {
     if (!this.viewportReady()) {
       return new Date();
     }
-    return this.inclusiveViewEnd(this.viewport.viewStart());
+    return this.inclusiveViewEnd(this.viewStart(), this.viewEnd());
   });
   readonly zoomLabel = computed(() => (this.viewportReady() ? this.describeZoom(this.viewport.rangeMs()) : '—'));
   readonly resourceCount = computed(() => this.resourcesSignal().length);
@@ -535,9 +541,9 @@ export class GanttComponent implements AfterViewInit {
     }
     const now = Date.now();
     const start = this.timeScale.timeToPx(now);
-    const timelineStart = this.timeScale.timeToPx(this.viewport.viewStart());
-    const timelineEnd = this.timeScale.timeToPx(this.viewport.viewEnd());
-    if (now < this.viewport.viewStart().getTime() || now > this.viewport.viewEnd().getTime()) {
+    const timelineStart = this.timeScale.timeToPx(this.viewStart());
+    const timelineEnd = this.timeScale.timeToPx(this.viewEnd());
+    if (now < this.viewStart().getTime() || now > this.viewEnd().getTime()) {
       return null;
     }
     return start;
@@ -588,6 +594,12 @@ export class GanttComponent implements AfterViewInit {
     this.headerScrollerTargetsSignal.set(header ? [header] : null);
     this.updateRowScrollerElements();
     queueMicrotask(() => this.updateScrollbarWidth());
+    if (header && typeof ResizeObserver !== 'undefined') {
+      this.headerResizeObserver = new ResizeObserver(() => {
+        this.updateScrollbarWidth();
+      });
+      this.headerResizeObserver.observe(header);
+    }
     this.rowScrollerDirs?.changes
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
@@ -859,6 +871,23 @@ export class GanttComponent implements AfterViewInit {
       return;
     }
     this.hostElement.nativeElement.style.setProperty('--gantt-scrollbar-width', `${width}px`);
+    this.updateTimelineViewportWidth();
+  }
+
+  private lastTimelineViewportWidth: number | null = null;
+
+  private updateTimelineViewportWidth(): void {
+    const header = this.headerScrollerDir?.element ?? null;
+    const width = header?.clientWidth ?? 0;
+    if (!Number.isFinite(width) || width <= 0) {
+      return;
+    }
+    if (this.lastTimelineViewportWidth === width) {
+      return;
+    }
+    this.lastTimelineViewportWidth = width;
+    this.timelineViewportWidthSignal.set(width);
+    this.viewportFacade.setViewportWidth(width);
   }
 
   private prepareActivities(value: Activity[], isPreview = false): PreparedActivity[] {
@@ -884,12 +913,22 @@ export class GanttComponent implements AfterViewInit {
     return !!element.closest('.gantt-activity');
   }
 
-  private inclusiveViewEnd(viewStart: Date): Date {
+  private inclusiveViewEnd(viewStart: Date, viewEnd: Date): Date {
     const startMs = viewStart.getTime();
-    const exclusiveEnd = this.viewport.viewEnd();
-    const exclusiveMs = exclusiveEnd.getTime();
+    const exclusiveMs = viewEnd.getTime();
     const inclusiveMs = Math.max(startMs, exclusiveMs - 1);
     return new Date(inclusiveMs);
+  }
+
+  private effectiveViewEnd(viewStart: Date): Date {
+    const width = this.timelineViewportWidthSignal();
+    const pxPerMs = this.timeScale.pixelsPerMs();
+    if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0 || !Number.isFinite(pxPerMs) || pxPerMs <= 0) {
+      return this.viewport.viewEnd();
+    }
+    const unclampedEndMs = viewStart.getTime() + width / pxPerMs;
+    const timelineEndMs = this.timeScale.timelineEndDate().getTime();
+    return new Date(Math.min(unclampedEndMs, timelineEndMs));
   }
 
   private resetExpandedGroups(_resources: Resource[]): void {

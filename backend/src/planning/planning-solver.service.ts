@@ -1,8 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Activity, ActivityAttributeValue, ActivityDefinition, ActivityParticipant, ResourceKind } from './planning.types';
+import type {
+  Activity,
+  ActivityAttributeValue,
+  ActivityDefinition,
+  ActivityParticipant,
+  ResourceKind,
+} from './planning.types';
 import type { PlanningStageSnapshot } from './planning.types';
 import type { RulesetIR } from './planning-ruleset.types';
-import type { PlanningCandidate, PlanningCandidateBuildResult } from './planning-candidate-builder.service';
+import type {
+  PlanningCandidate,
+  PlanningCandidateBuildResult,
+} from './planning-candidate-builder.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 
 export interface PlanningSolverResult {
@@ -43,8 +52,13 @@ interface PlanningSolverRemoteResponse {
 @Injectable()
 export class PlanningSolverService {
   private readonly logger = new Logger(PlanningSolverService.name);
-  private readonly solverUrl = normalizeUrl(process.env.PLANNING_SOLVER_URL ?? 'http://localhost:8099');
-  private readonly solverTimeoutMs = toNumber(process.env.PLANNING_SOLVER_TIMEOUT_MS, 15_000);
+  private readonly solverUrl = normalizeUrl(
+    process.env.PLANNING_SOLVER_URL ?? 'http://localhost:8099',
+  );
+  private readonly solverTimeoutMs = toNumber(
+    process.env.PLANNING_SOLVER_TIMEOUT_MS,
+    15_000,
+  );
   private readonly solverTimeLimitSeconds = toOptionalNumber(
     process.env.PLANNING_SOLVER_TIME_LIMIT_SECONDS,
   );
@@ -64,8 +78,15 @@ export class PlanningSolverService {
 
     const request = this.buildRequest(snapshot, ruleset, candidateResult);
     const response = await this.requestSolver(request);
-    const selectedCandidates = this.resolveSelectedCandidates(response, candidateResult);
-    const result = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+    const selectedCandidates = this.resolveSelectedCandidates(
+      response,
+      candidateResult,
+    );
+    const result = this.buildUpsertsFromCandidates(
+      selectedCandidates,
+      ruleset,
+      snapshot,
+    );
 
     const summary =
       response.summary ??
@@ -127,12 +148,16 @@ export class PlanningSolverService {
       });
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`Solver-HTTP ${response.status} ${response.statusText}: ${text}`);
+        throw new Error(
+          `Solver-HTTP ${response.status} ${response.statusText}: ${text}`,
+        );
       }
       return (await response.json()) as PlanningSolverRemoteResponse;
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') {
-        throw new Error(`Solver-Request Timeout nach ${this.solverTimeoutMs}ms`);
+        throw new Error(
+          `Solver-Request Timeout nach ${this.solverTimeoutMs}ms`,
+        );
       }
       throw error;
     } finally {
@@ -145,13 +170,17 @@ export class PlanningSolverService {
     candidateResult: PlanningCandidateBuildResult,
   ): PlanningCandidate[] {
     if (response.selectedCandidates?.length) {
-      const byId = new Map(candidateResult.candidates.map((entry) => [entry.id, entry]));
+      const byId = new Map(
+        candidateResult.candidates.map((entry) => [entry.id, entry]),
+      );
       return response.selectedCandidates
         .map((entry) => byId.get(entry.id))
         .filter((entry): entry is PlanningCandidate => !!entry);
     }
     if (response.selectedIds?.length) {
-      const byId = new Map(candidateResult.candidates.map((entry) => [entry.id, entry]));
+      const byId = new Map(
+        candidateResult.candidates.map((entry) => [entry.id, entry]),
+      );
       return response.selectedIds
         .map((id) => byId.get(id))
         .filter((entry): entry is PlanningCandidate => !!entry);
@@ -166,11 +195,19 @@ export class PlanningSolverService {
   ): PlanningSolverResult {
     const selectedCandidates = [
       ...candidateResult.candidates.filter((c) => c.type === 'duty'),
-      ...this.selectBestByService(candidateResult.candidates.filter((c) => c.type === 'break')),
-      ...this.selectBestByService(candidateResult.candidates.filter((c) => c.type === 'travel')),
+      ...this.selectBestByService(
+        candidateResult.candidates.filter((c) => c.type === 'break'),
+      ),
+      ...this.selectBestByService(
+        candidateResult.candidates.filter((c) => c.type === 'travel'),
+      ),
     ];
 
-    const result = this.buildUpsertsFromCandidates(selectedCandidates, ruleset, snapshot);
+    const result = this.buildUpsertsFromCandidates(
+      selectedCandidates,
+      ruleset,
+      snapshot,
+    );
 
     const summary =
       result.upserts.length > 0
@@ -185,7 +222,9 @@ export class PlanningSolverService {
     };
   }
 
-  private selectBestByService(candidates: PlanningCandidate[]): PlanningCandidate[] {
+  private selectBestByService(
+    candidates: PlanningCandidate[],
+  ): PlanningCandidate[] {
     const byService = new Map<string, PlanningCandidate>();
     for (const candidate of candidates) {
       const serviceId = this.readString(candidate.params, 'serviceId');
@@ -209,10 +248,14 @@ export class PlanningSolverService {
     ruleset: RulesetIR,
     snapshot: PlanningStageSnapshot,
   ): { upserts: Activity[]; deletedIds: string[] } {
-    const activityById = new Map(snapshot.activities.map((activity) => [activity.id, activity]));
+    const activityById = new Map(
+      snapshot.activities.map((activity) => [activity.id, activity]),
+    );
     const activityUpdates = new Map<string, Activity>();
     const boundaryUpserts: Activity[] = [];
-    const dutyCandidates = candidates.filter((candidate) => candidate.type === 'duty');
+    const dutyCandidates = candidates.filter(
+      (candidate) => candidate.type === 'duty',
+    );
     const deletedIds = new Set<string>();
 
     if (dutyCandidates.length) {
@@ -241,7 +284,11 @@ export class PlanningSolverService {
         return;
       }
       if (candidate.type === 'travel') {
-        const activity = this.buildActivityFromCandidate(candidate, ruleset, snapshot);
+        const activity = this.buildActivityFromCandidate(
+          candidate,
+          ruleset,
+          snapshot,
+        );
         if (activity) {
           generated.push(activity);
         }
@@ -277,17 +324,29 @@ export class PlanningSolverService {
       return null;
     }
 
-    const durationMinutes = this.readNumber(candidate.params, 'durationMinutes', 30);
-    const maxEnd = candidate.type === 'break'
-      ? Math.min(endMs, startMs + durationMinutes * 60_000)
-      : endMs;
+    const durationMinutes = this.readNumber(
+      candidate.params,
+      'durationMinutes',
+      30,
+    );
+    const maxEnd =
+      candidate.type === 'break'
+        ? Math.min(endMs, startMs + durationMinutes * 60_000)
+        : endMs;
     const resolvedEndMs = Math.max(startMs, maxEnd);
     const activityType = this.resolveActivityType(candidate);
-    const title = candidate.type === 'break' ? 'Pause (Optimierung)' : 'Wegzeit (Optimierung)';
+    const title =
+      candidate.type === 'break'
+        ? 'Pause (Optimierung)'
+        : 'Wegzeit (Optimierung)';
     const serviceId = this.readString(candidate.params, 'serviceId');
     const fromLocation = this.readString(candidate.params, 'fromLocation');
     const toLocation = this.readString(candidate.params, 'toLocation');
-    const participants = this.resolveParticipants(candidate.params, snapshot.activities, serviceId);
+    const participants = this.resolveParticipants(
+      candidate.params,
+      snapshot.activities,
+      serviceId,
+    );
 
     return {
       id: this.buildActivityId(candidate),
@@ -326,16 +385,29 @@ export class PlanningSolverService {
       return { upsert: null, deleteIds: [] };
     }
 
-    const durationMinutes = this.readNumber(candidate.params, 'durationMinutes', 30);
+    const durationMinutes = this.readNumber(
+      candidate.params,
+      'durationMinutes',
+      30,
+    );
     const maxEnd = Math.min(endMs, startMs + durationMinutes * 60_000);
     const resolvedEndMs = Math.max(startMs, maxEnd);
     const activityType = this.resolveActivityType(candidate);
     const title = 'Pause (Optimierung)';
     const serviceId = this.readString(candidate.params, 'serviceId');
-    const participants = this.resolveParticipants(candidate.params, snapshot.activities, serviceId);
+    const participants = this.resolveParticipants(
+      candidate.params,
+      snapshot.activities,
+      serviceId,
+    );
 
     const existing = serviceId
-      ? this.collectExistingBreaks(snapshot.activities, serviceId, startMs, endMs)
+      ? this.collectExistingBreaks(
+          snapshot.activities,
+          serviceId,
+          startMs,
+          endMs,
+        )
       : [];
     if (existing.length) {
       const primary = existing[0];
@@ -390,7 +462,9 @@ export class PlanningSolverService {
     return activities
       .filter((activity) => this.activityMatchesService(activity, serviceId))
       .filter((activity) => this.isBreakActivity(activity))
-      .filter((activity) => this.activityOverlapsWindow(activity, windowStartMs, windowEndMs))
+      .filter((activity) =>
+        this.activityOverlapsWindow(activity, windowStartMs, windowEndMs),
+      )
       .sort((a, b) => {
         const aMs = this.toMs(a.start) ?? 0;
         const bMs = this.toMs(b.start) ?? 0;
@@ -401,7 +475,11 @@ export class PlanningSolverService {
       });
   }
 
-  private activityOverlapsWindow(activity: Activity, windowStartMs: number, windowEndMs: number): boolean {
+  private activityOverlapsWindow(
+    activity: Activity,
+    windowStartMs: number,
+    windowEndMs: number,
+  ): boolean {
     const startMs = this.toMs(activity.start);
     if (startMs === null) {
       return false;
@@ -413,7 +491,10 @@ export class PlanningSolverService {
   private isBreakActivity(activity: Activity): boolean {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     if (attrs && typeof attrs === 'object') {
-      if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
+      if (
+        this.toBool(attrs['is_break']) ||
+        this.toBool(attrs['is_short_break'])
+      ) {
         return true;
       }
     }
@@ -421,9 +502,10 @@ export class PlanningSolverService {
   }
 
   private resolveActivityType(candidate: PlanningCandidate): string {
-    const type = this.readString(candidate.params, 'activityTypeId')
-      || this.readString(candidate.params, 'typeId')
-      || this.readString(candidate.params, 'activityType');
+    const type =
+      this.readString(candidate.params, 'activityTypeId') ||
+      this.readString(candidate.params, 'typeId') ||
+      this.readString(candidate.params, 'activityType');
     if (type) {
       return type;
     }
@@ -467,7 +549,10 @@ export class PlanningSolverService {
     return this.inferParticipantsForService(activities, serviceId);
   }
 
-  private inferParticipantsForService(activities: Activity[], serviceId: string): ActivityParticipant[] {
+  private inferParticipantsForService(
+    activities: Activity[],
+    serviceId: string,
+  ): ActivityParticipant[] {
     const participants: ActivityParticipant[] = [];
     const seen = new Set<string>();
 
@@ -491,15 +576,21 @@ export class PlanningSolverService {
       if (owners.length) {
         owners.forEach((owner) => addParticipant(owner));
       } else {
-        (activity.participants ?? []).forEach((participant) => addParticipant(participant));
+        (activity.participants ?? []).forEach((participant) =>
+          addParticipant(participant),
+        );
       }
     }
 
     return participants;
   }
 
-  private activityMatchesService(activity: Activity, serviceId: string): boolean {
-    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+  private activityMatchesService(
+    activity: Activity,
+    serviceId: string,
+  ): boolean {
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
     if (direct && direct === serviceId) {
       return true;
     }
@@ -507,7 +598,8 @@ export class PlanningSolverService {
     const map = attrs?.['service_by_owner'];
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       return Object.values(map as Record<string, any>).some((entry) => {
-        const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+        const candidate =
+          typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
         return candidate === serviceId;
       });
     }
@@ -522,7 +614,10 @@ export class PlanningSolverService {
     return '';
   }
 
-  private readStringArray(params: Record<string, unknown>, key: string): string[] {
+  private readStringArray(
+    params: Record<string, unknown>,
+    key: string,
+  ): string[] {
     const raw = params[key];
     if (!Array.isArray(raw)) {
       return [];
@@ -532,7 +627,11 @@ export class PlanningSolverService {
       .filter((entry) => entry.length > 0);
   }
 
-  private readNumber(params: Record<string, unknown>, key: string, fallback: number): number {
+  private readNumber(
+    params: Record<string, unknown>,
+    key: string,
+    fallback: number,
+  ): number {
     const raw = params[key];
     if (typeof raw === 'number' && Number.isFinite(raw)) {
       return raw;
@@ -588,10 +687,20 @@ export class PlanningSolverService {
     }
 
     const ownerRole = this.readString(candidate.params, 'ownerRole') || null;
-    const owner: ActivityParticipant = { resourceId: ownerId, kind: ownerKind, role: ownerRole };
+    const owner: ActivityParticipant = {
+      resourceId: ownerId,
+      kind: ownerKind,
+      role: ownerRole,
+    };
     const ownerGroup = this.resolveOwnerGroup(owner.kind);
-    const startTypeId = ownerGroup === 'vehicle' ? boundaryTypes.vehicleStart : boundaryTypes.personnelStart;
-    const endTypeId = ownerGroup === 'vehicle' ? boundaryTypes.vehicleEnd : boundaryTypes.personnelEnd;
+    const startTypeId =
+      ownerGroup === 'vehicle'
+        ? boundaryTypes.vehicleStart
+        : boundaryTypes.personnelStart;
+    const endTypeId =
+      ownerGroup === 'vehicle'
+        ? boundaryTypes.vehicleEnd
+        : boundaryTypes.personnelEnd;
 
     const startMs = this.resolveDutyStartMs(candidate, activityEntries);
     const endMs = this.resolveDutyEndMs(candidate, activityEntries, startMs);
@@ -610,8 +719,10 @@ export class PlanningSolverService {
     const boundaries: Activity[] = [];
     const startId = `svcstart:${serviceId}`;
     const endId = `svcend:${serviceId}`;
-    const existingStart = activityById.get(startId) ?? activityUpdates.get(startId) ?? null;
-    const existingEnd = activityById.get(endId) ?? activityUpdates.get(endId) ?? null;
+    const existingStart =
+      activityById.get(startId) ?? activityUpdates.get(startId) ?? null;
+    const existingEnd =
+      activityById.get(endId) ?? activityUpdates.get(endId) ?? null;
 
     boundaries.push(
       this.buildBoundaryActivity({
@@ -645,7 +756,10 @@ export class PlanningSolverService {
     return { boundaries };
   }
 
-  private resolveDutyStartMs(candidate: PlanningCandidate, activities: Activity[]): number | null {
+  private resolveDutyStartMs(
+    candidate: PlanningCandidate,
+    activities: Activity[],
+  ): number | null {
     const startIso = this.readString(candidate.params, 'dutyStart');
     const explicit = startIso ? this.toMs(startIso) : null;
     if (explicit !== null) {
@@ -691,10 +805,15 @@ export class PlanningSolverService {
   ): Activity | null {
     const owners = this.resolveDutyOwners(activity);
     const hasMultipleOwners = owners.length > 1;
-    const nextAttrs: Record<string, unknown> = { ...(activity.attributes ?? {}) };
+    const nextAttrs: Record<string, unknown> = {
+      ...(activity.attributes ?? {}),
+    };
     const serviceByOwner = this.ensureServiceByOwner(nextAttrs);
     const currentEntry = serviceByOwner[owner.resourceId];
-    const currentServiceId = typeof currentEntry?.serviceId === 'string' ? currentEntry.serviceId : null;
+    const currentServiceId =
+      typeof currentEntry?.serviceId === 'string'
+        ? currentEntry.serviceId
+        : null;
     let changed = false;
 
     if (currentServiceId !== serviceId) {
@@ -715,7 +834,9 @@ export class PlanningSolverService {
     return next;
   }
 
-  private ensureServiceByOwner(attrs: Record<string, unknown>): Record<string, any> {
+  private ensureServiceByOwner(
+    attrs: Record<string, unknown>,
+  ): Record<string, any> {
     const raw = attrs['service_by_owner'];
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       return raw as Record<string, any>;
@@ -733,7 +854,9 @@ export class PlanningSolverService {
     return preferred;
   }
 
-  private resolveOwnerGroup(kind: ActivityParticipant['kind']): 'personnel' | 'vehicle' {
+  private resolveOwnerGroup(
+    kind: ActivityParticipant['kind'],
+  ): 'personnel' | 'vehicle' {
     if (kind === 'vehicle' || kind === 'vehicle-service') {
       return 'vehicle';
     }
@@ -771,13 +894,17 @@ export class PlanningSolverService {
     };
   }
 
-  private buildOwnerParticipant(owner: ActivityParticipant): ActivityParticipant {
+  private buildOwnerParticipant(
+    owner: ActivityParticipant,
+  ): ActivityParticipant {
     return {
       resourceId: owner.resourceId,
       kind: owner.kind,
       role:
         owner.role ??
-        (owner.kind === 'vehicle' || owner.kind === 'vehicle-service' ? 'primary-vehicle' : 'primary-personnel'),
+        (owner.kind === 'vehicle' || owner.kind === 'vehicle-service'
+          ? 'primary-vehicle'
+          : 'primary-personnel'),
     };
   }
 
@@ -786,7 +913,9 @@ export class PlanningSolverService {
     return this.pickBoundaryTypes(definitions);
   }
 
-  private pickBoundaryTypes(definitions: ActivityDefinition[]): ServiceBoundaryTypeIndex {
+  private pickBoundaryTypes(
+    definitions: ActivityDefinition[],
+  ): ServiceBoundaryTypeIndex {
     const flags = {
       serviceStart: [] as string[],
       serviceEnd: [] as string[],
@@ -794,13 +923,17 @@ export class PlanningSolverService {
       vehicleOff: [] as string[],
     };
     const toBool = (value: unknown) =>
-      typeof value === 'boolean' ? value : typeof value === 'string' ? value.toLowerCase() === 'true' : false;
+      typeof value === 'boolean'
+        ? value
+        : typeof value === 'string'
+          ? value.toLowerCase() === 'true'
+          : false;
     const readAttributeValue = (
       attributes: ActivityAttributeValue[] | undefined,
       key: string,
     ): unknown => {
       const entry = (attributes ?? []).find((attr) => attr.key === key);
-      const meta = entry?.meta as Record<string, unknown> | undefined;
+      const meta = entry?.meta;
       return meta?.['value'];
     };
     const recordFlag = (
@@ -827,11 +960,20 @@ export class PlanningSolverService {
 
     const vehicleOnSet = new Set(flags.vehicleOn);
     const vehicleOffSet = new Set(flags.vehicleOff);
-    const serviceStartCandidates = flags.serviceStart.filter((id) => !vehicleOnSet.has(id));
-    const serviceEndCandidates = flags.serviceEnd.filter((id) => !vehicleOffSet.has(id));
+    const serviceStartCandidates = flags.serviceStart.filter(
+      (id) => !vehicleOnSet.has(id),
+    );
+    const serviceEndCandidates = flags.serviceEnd.filter(
+      (id) => !vehicleOffSet.has(id),
+    );
 
-    const pickRequired = (label: string, ...candidates: Array<string | undefined>) => {
-      const match = candidates.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
+    const pickRequired = (
+      label: string,
+      ...candidates: Array<string | undefined>
+    ) => {
+      const match = candidates.find(
+        (entry) => typeof entry === 'string' && entry.trim().length > 0,
+      );
       if (!match) {
         throw new Error(`Activity-Katalog fehlt ${label}.`);
       }

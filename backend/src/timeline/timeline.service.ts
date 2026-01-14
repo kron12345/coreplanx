@@ -37,7 +37,12 @@ export class TimelineService {
         : { lod, services: [] };
     }
     if (lod === 'activity') {
-      const activities = await this.repository.listActivities(from, to, stage, variantId);
+      const activities = await this.repository.listActivities(
+        from,
+        to,
+        stage,
+        variantId,
+      );
       return { lod, activities };
     }
     const services = await this.repository.listAggregatedServices(

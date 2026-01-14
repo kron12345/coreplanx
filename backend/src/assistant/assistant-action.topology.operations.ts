@@ -12,7 +12,10 @@ import type {
   SectionOfLine,
   TransferNode,
 } from '../planning/planning.types';
-import { AssistantActionTopologyBase, SECTION_OF_LINE_NATURES } from './assistant-action.topology.base';
+import {
+  AssistantActionTopologyBase,
+  SECTION_OF_LINE_NATURES,
+} from './assistant-action.topology.base';
 
 export class AssistantActionTopologyOperations extends AssistantActionTopologyBase {
   buildOperationalPointPreview(
@@ -22,10 +25,14 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
     const rawEntries = this.asArray(
-      payload.operationalPoints ?? payload.operationalPoint ?? payloadRecord['items'],
+      payload.operationalPoints ??
+        payload.operationalPoint ??
+        payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Operational Point wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Operational Point wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -42,18 +49,23 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
         this.cleanText(record['id']) ??
         this.generateId('OP');
       const uniqueOpId = this.cleanText(record['uniqueOpId']);
-      const name = this.cleanText(record['name']) ?? this.cleanText(record['label']);
+      const name =
+        this.cleanText(record['name']) ?? this.cleanText(record['label']);
       const countryCode = this.cleanText(record['countryCode']);
       const opType = this.cleanText(record['opType']);
 
       if (!uniqueOpId) {
-        return this.buildFeedbackResponse('Operational Point: uniqueOpId fehlt.');
+        return this.buildFeedbackResponse(
+          'Operational Point: uniqueOpId fehlt.',
+        );
       }
       if (!name) {
         return this.buildFeedbackResponse('Operational Point: Name fehlt.');
       }
       if (!countryCode) {
-        return this.buildFeedbackResponse('Operational Point: Country Code fehlt.');
+        return this.buildFeedbackResponse(
+          'Operational Point: Country Code fehlt.',
+        );
       }
       if (!opType) {
         return this.buildFeedbackResponse('Operational Point: Typ fehlt.');
@@ -125,7 +137,9 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['operationalPoint']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'operationalPoint',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Operational Point fehlt.');
     }
@@ -137,7 +151,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       { apply: { mode: 'target', path: ['target'] } },
     );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -167,7 +184,9 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
           (entry) => entry.opId === opId && entry.opId !== oldOpId,
         )
       ) {
-        return this.buildFeedbackResponse(`opId "${opId}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `opId "${opId}" ist bereits vergeben.`,
+        );
       }
       updated.opId = opId;
       changed = true;
@@ -201,7 +220,8 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       changed = true;
     }
     if (this.hasOwn(patch, 'countryCode')) {
-      updated.countryCode = this.cleanText(patch['countryCode']) ?? updated.countryCode;
+      updated.countryCode =
+        this.cleanText(patch['countryCode']) ?? updated.countryCode;
       changed = true;
     }
     if (this.hasOwn(patch, 'opType')) {
@@ -266,7 +286,9 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['operationalPoint']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'operationalPoint',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Operational Point fehlt.');
     }
@@ -278,7 +300,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       { apply: { mode: 'target', path: ['target'] } },
     );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -397,7 +422,9 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       payload.sectionsOfLine ?? payload.sectionOfLine ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Section of Line wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Section of Line wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -424,15 +451,25 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       const startRef = this.cleanText(record['startUniqueOpId']);
       const endRef = this.cleanText(record['endUniqueOpId']);
       if (!startRef || !endRef) {
-        return this.buildFeedbackResponse('Section of Line: Start/End-OP fehlen.');
+        return this.buildFeedbackResponse(
+          'Section of Line: Start/End-OP fehlen.',
+        );
       }
       const startResult = this.resolveOperationalPointUniqueOpIdByReference(
         state.operationalPoints,
         startRef,
-        { apply: { mode: 'value', path: ['sectionsOfLine', index, 'startUniqueOpId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['sectionsOfLine', index, 'startUniqueOpId'],
+          },
+        },
       );
       if (startResult.clarification) {
-        return this.buildClarificationResponse(startResult.clarification, context);
+        return this.buildClarificationResponse(
+          startResult.clarification,
+          context,
+        );
       }
       if (startResult.feedback) {
         return this.buildFeedbackResponse(startResult.feedback);
@@ -440,22 +477,34 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       const endResult = this.resolveOperationalPointUniqueOpIdByReference(
         state.operationalPoints,
         endRef,
-        { apply: { mode: 'value', path: ['sectionsOfLine', index, 'endUniqueOpId'] } },
+        {
+          apply: {
+            mode: 'value',
+            path: ['sectionsOfLine', index, 'endUniqueOpId'],
+          },
+        },
       );
       if (endResult.clarification) {
-        return this.buildClarificationResponse(endResult.clarification, context);
+        return this.buildClarificationResponse(
+          endResult.clarification,
+          context,
+        );
       }
       if (endResult.feedback) {
         return this.buildFeedbackResponse(endResult.feedback);
       }
       if (startResult.uniqueOpId === endResult.uniqueOpId) {
-        return this.buildFeedbackResponse('Section of Line: Start und Ziel sind identisch.');
+        return this.buildFeedbackResponse(
+          'Section of Line: Start und Ziel sind identisch.',
+        );
       }
 
       const natureRaw =
         this.cleanText(record['nature'])?.toUpperCase() ?? 'REGULAR';
       if (!SECTION_OF_LINE_NATURES.has(natureRaw)) {
-        return this.buildFeedbackResponse('Section of Line: Nature ist ungültig.');
+        return this.buildFeedbackResponse(
+          'Section of Line: Nature ist ungültig.',
+        );
       }
       const lengthKm = this.parseNumber(record['lengthKm']);
 
@@ -477,7 +526,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
     }
 
     state.sectionsOfLine = [...state.sectionsOfLine, ...sections];
-    const commitTasks = this.buildTopologyCommitTasksForState(['sectionsOfLine'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['sectionsOfLine'],
+      state,
+    );
     const summary =
       sections.length === 1
         ? `Section of Line "${sections[0].solId}" angelegt.`
@@ -509,7 +561,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       { apply: { mode: 'target', path: ['target'] } },
     );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -540,7 +595,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
         { apply: { mode: 'value', path: ['patch', 'startUniqueOpId'] } },
       );
       if (startResult.clarification) {
-        return this.buildClarificationResponse(startResult.clarification, context);
+        return this.buildClarificationResponse(
+          startResult.clarification,
+          context,
+        );
       }
       if (startResult.feedback) {
         return this.buildFeedbackResponse(startResult.feedback);
@@ -560,7 +618,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
         { apply: { mode: 'value', path: ['patch', 'endUniqueOpId'] } },
       );
       if (endResult.clarification) {
-        return this.buildClarificationResponse(endResult.clarification, context);
+        return this.buildClarificationResponse(
+          endResult.clarification,
+          context,
+        );
       }
       if (endResult.feedback) {
         return this.buildFeedbackResponse(endResult.feedback);
@@ -570,12 +631,13 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
     }
 
     if (startUniqueOpId === endUniqueOpId) {
-      return this.buildFeedbackResponse('Start- und End-OP dürfen nicht gleich sein.');
+      return this.buildFeedbackResponse(
+        'Start- und End-OP dürfen nicht gleich sein.',
+      );
     }
 
     if (this.hasOwn(patch, 'nature')) {
-      const natureRaw =
-        this.cleanText(patch['nature'])?.toUpperCase() ?? '';
+      const natureRaw = this.cleanText(patch['nature'])?.toUpperCase() ?? '';
       if (!SECTION_OF_LINE_NATURES.has(natureRaw)) {
         return this.buildFeedbackResponse('Nature ist ungültig.');
       }
@@ -598,10 +660,18 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
     state.sectionsOfLine = state.sectionsOfLine.map((entry) =>
       entry.solId === section.solId ? updated : entry,
     );
-    const commitTasks = this.buildTopologyCommitTasksForState(['sectionsOfLine'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['sectionsOfLine'],
+      state,
+    );
     const summary = `Section of Line "${updated.solId}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'sectionOfLine', id: updated.solId, label: updated.solId },
+      {
+        kind: 'update',
+        entityType: 'sectionOfLine',
+        id: updated.solId,
+        label: updated.solId,
+      },
     ];
 
     return {
@@ -630,7 +700,10 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       { apply: { mode: 'target', path: ['target'] } },
     );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -643,10 +716,18 @@ export class AssistantActionTopologyOperations extends AssistantActionTopologyBa
       (entry) => entry.solId !== section.solId,
     );
 
-    const commitTasks = this.buildTopologyCommitTasksForState(['sectionsOfLine'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['sectionsOfLine'],
+      state,
+    );
     const summary = `Section of Line "${section.solId}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'sectionOfLine', id: section.solId, label: section.solId },
+      {
+        kind: 'delete',
+        entityType: 'sectionOfLine',
+        id: section.solId,
+        label: section.solId,
+      },
     ];
 
     return {

@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { Activity, ActivityParticipant, PlanningStageSnapshot } from './planning.types';
+import type {
+  Activity,
+  ActivityParticipant,
+  PlanningStageSnapshot,
+} from './planning.types';
 import type {
   RulesetExpression,
   RulesetIR,
@@ -8,7 +12,10 @@ import type {
   RulesetTemplateType,
 } from './planning-ruleset.types';
 
-type PlanningCandidateType = Extract<RulesetTemplateType, 'break' | 'travel' | 'duty' | 'duty_split'>;
+type PlanningCandidateType = Extract<
+  RulesetTemplateType,
+  'break' | 'travel' | 'duty' | 'duty_split'
+>;
 
 export interface PlanningCandidate {
   id: string;
@@ -34,14 +41,27 @@ export interface PlanningCandidateBuildResult {
 
 @Injectable()
 export class PlanningCandidateBuilder {
-  buildCandidates(snapshot: PlanningStageSnapshot, ruleset: RulesetIR): PlanningCandidateBuildResult {
-    const breakTemplates = ruleset.templates.filter((entry) => entry.template.type === 'break');
-    const travelTemplates = ruleset.templates.filter((entry) => entry.template.type === 'travel');
-    const dutyTemplates = ruleset.templates.filter((entry) => entry.template.type === 'duty');
-    const dutySplitTemplates = ruleset.templates.filter((entry) => entry.template.type === 'duty_split');
+  buildCandidates(
+    snapshot: PlanningStageSnapshot,
+    ruleset: RulesetIR,
+  ): PlanningCandidateBuildResult {
+    const breakTemplates = ruleset.templates.filter(
+      (entry) => entry.template.type === 'break',
+    );
+    const travelTemplates = ruleset.templates.filter(
+      (entry) => entry.template.type === 'travel',
+    );
+    const dutyTemplates = ruleset.templates.filter(
+      (entry) => entry.template.type === 'duty',
+    );
+    const dutySplitTemplates = ruleset.templates.filter(
+      (entry) => entry.template.type === 'duty_split',
+    );
     const gaps = this.collectServiceGaps(snapshot.stageId, snapshot.activities);
     const dutyGroups = this.collectDutyGroups(snapshot);
-    const dutiesByServiceId = new Map(dutyGroups.map((group) => [group.serviceId, group]));
+    const dutiesByServiceId = new Map(
+      dutyGroups.map((group) => [group.serviceId, group]),
+    );
 
     const candidates: PlanningCandidate[] = [
       ...this.buildBreakCandidates(breakTemplates, gaps, dutiesByServiceId),
@@ -73,13 +93,31 @@ export class PlanningCandidateBuilder {
     for (const template of templates) {
       const params = this.asParams(template);
       const durationMinutes = this.pickNumber(params, 'durationMinutes', 30);
-      const minGapMinutes = this.pickNumber(params, 'minGapMinutes', durationMinutes);
-      const maxGapMinutes = this.pickNumber(params, 'maxGapMinutes', Number.POSITIVE_INFINITY);
-      const maxCandidates = this.pickNumber(params, 'maxCandidates', Number.POSITIVE_INFINITY);
+      const minGapMinutes = this.pickNumber(
+        params,
+        'minGapMinutes',
+        durationMinutes,
+      );
+      const maxGapMinutes = this.pickNumber(
+        params,
+        'maxGapMinutes',
+        Number.POSITIVE_INFINITY,
+      );
+      const maxCandidates = this.pickNumber(
+        params,
+        'maxCandidates',
+        Number.POSITIVE_INFINITY,
+      );
       let counter = 0;
       for (const gap of gaps) {
         const duty = dutiesByServiceId.get(gap.serviceId) ?? null;
-        if (duty && !this.shouldApplyTemplate(template.when, this.buildDutyConditionContext(duty))) {
+        if (
+          duty &&
+          !this.shouldApplyTemplate(
+            template.when,
+            this.buildDutyConditionContext(duty),
+          )
+        ) {
           continue;
         }
         if (!this.supportsPersonnelBreaks(gap.participantKeys)) {
@@ -131,19 +169,34 @@ export class PlanningCandidateBuilder {
     });
   }
 
-  private buildTravelCandidates(templates: RulesetTemplate[], gaps: ServiceGap[]): PlanningCandidate[] {
+  private buildTravelCandidates(
+    templates: RulesetTemplate[],
+    gaps: ServiceGap[],
+  ): PlanningCandidate[] {
     const candidates: PlanningCandidate[] = [];
     for (const template of templates) {
       const params = this.asParams(template);
       const minGapMinutes = this.pickNumber(params, 'minGapMinutes', 0);
-      const maxGapMinutes = this.pickNumber(params, 'maxGapMinutes', Number.POSITIVE_INFINITY);
-      const maxCandidates = this.pickNumber(params, 'maxCandidates', Number.POSITIVE_INFINITY);
+      const maxGapMinutes = this.pickNumber(
+        params,
+        'maxGapMinutes',
+        Number.POSITIVE_INFINITY,
+      );
+      const maxCandidates = this.pickNumber(
+        params,
+        'maxCandidates',
+        Number.POSITIVE_INFINITY,
+      );
       let counter = 0;
       for (const gap of gaps) {
         if (gap.gapMinutes < minGapMinutes || gap.gapMinutes > maxGapMinutes) {
           continue;
         }
-        if (!gap.fromLocation || !gap.toLocation || gap.fromLocation === gap.toLocation) {
+        if (
+          !gap.fromLocation ||
+          !gap.toLocation ||
+          gap.fromLocation === gap.toLocation
+        ) {
           continue;
         }
         const candidateParams = {
@@ -173,13 +226,24 @@ export class PlanningCandidateBuilder {
     return candidates;
   }
 
-  private buildDutySplitCandidates(templates: RulesetTemplate[], gaps: ServiceGap[]): PlanningCandidate[] {
+  private buildDutySplitCandidates(
+    templates: RulesetTemplate[],
+    gaps: ServiceGap[],
+  ): PlanningCandidate[] {
     const candidates: PlanningCandidate[] = [];
     for (const template of templates) {
       const params = this.asParams(template);
       const minGapMinutes = this.pickNumber(params, 'minGapMinutes', 60);
-      const maxGapMinutes = this.pickNumber(params, 'maxGapMinutes', Number.POSITIVE_INFINITY);
-      const maxCandidates = this.pickNumber(params, 'maxCandidates', Number.POSITIVE_INFINITY);
+      const maxGapMinutes = this.pickNumber(
+        params,
+        'maxGapMinutes',
+        Number.POSITIVE_INFINITY,
+      );
+      const maxCandidates = this.pickNumber(
+        params,
+        'maxCandidates',
+        Number.POSITIVE_INFINITY,
+      );
       let counter = 0;
       for (const gap of gaps) {
         if (gap.gapMinutes < minGapMinutes || gap.gapMinutes > maxGapMinutes) {
@@ -220,13 +284,20 @@ export class PlanningCandidateBuilder {
       const params = this.asParams(template);
       const ownerGroupFilter = this.pickString(params, 'ownerGroup');
       const minActivities = this.pickNumber(params, 'minActivities', 1);
-      const maxActivities = this.pickNumber(params, 'maxActivities', Number.POSITIVE_INFINITY);
+      const maxActivities = this.pickNumber(
+        params,
+        'maxActivities',
+        Number.POSITIVE_INFINITY,
+      );
 
       for (const group of groups) {
         if (ownerGroupFilter && ownerGroupFilter !== group.ownerGroup) {
           continue;
         }
-        if (group.activityIds.length < minActivities || group.activityIds.length > maxActivities) {
+        if (
+          group.activityIds.length < minActivities ||
+          group.activityIds.length > maxActivities
+        ) {
           continue;
         }
         const candidateParams = {
@@ -255,7 +326,10 @@ export class PlanningCandidateBuilder {
     return candidates;
   }
 
-  private collectServiceGaps(stageId: string, activities: Activity[]): ServiceGap[] {
+  private collectServiceGaps(
+    stageId: string,
+    activities: Activity[],
+  ): ServiceGap[] {
     const byService = new Map<string, ServiceActivity[]>();
     for (const activity of activities) {
       if (this.isServiceBoundary(activity)) {
@@ -329,7 +403,10 @@ export class PlanningCandidateBuilder {
           gapMinutes,
           fromLocation: this.pickLocation(before, 'to'),
           toLocation: this.pickLocation(after, 'from'),
-          participantKeys: this.mergeParticipantKeys(current.participantKeys, next.participantKeys),
+          participantKeys: this.mergeParticipantKeys(
+            current.participantKeys,
+            next.participantKeys,
+          ),
         });
       }
     }
@@ -352,12 +429,21 @@ export class PlanningCandidateBuilder {
     const dayKey = this.utcDayKeyFromMs(startMs);
     const assignments = new Map<string, Set<string>>();
     owners.forEach((owner) => {
-      const serviceId = this.resolveServiceIdForOwner(activity, stageId, owner, dayKey);
+      const serviceId = this.resolveServiceIdForOwner(
+        activity,
+        stageId,
+        owner,
+        dayKey,
+      );
       if (!serviceId) {
         return;
       }
-      const ownerParticipants = participants.filter((participant) => participant.resourceId === owner.resourceId);
-      const usedParticipants = ownerParticipants.length ? ownerParticipants : [owner];
+      const ownerParticipants = participants.filter(
+        (participant) => participant.resourceId === owner.resourceId,
+      );
+      const usedParticipants = ownerParticipants.length
+        ? ownerParticipants
+        : [owner];
       this.addParticipantKeys(assignments, serviceId, usedParticipants);
     });
 
@@ -413,8 +499,12 @@ export class PlanningCandidateBuilder {
         continue;
       }
       const endMs = this.resolveEndMs(activity, startMs);
-      const durationMinutes = Math.max(0, Math.round((endMs - startMs) / 60000));
-      const countsAsWork = durationMinutes > 0 && !this.isBreakActivity(activity);
+      const durationMinutes = Math.max(
+        0,
+        Math.round((endMs - startMs) / 60000),
+      );
+      const countsAsWork =
+        durationMinutes > 0 && !this.isBreakActivity(activity);
       const owners = this.resolveDutyOwners(activity);
       if (!owners.length) {
         continue;
@@ -422,8 +512,15 @@ export class PlanningCandidateBuilder {
       const dayKey = this.utcDayKeyFromMs(startMs);
       for (const owner of owners) {
         const ownerGroup = this.resolveOwnerGroup(owner.kind);
-        const serviceId = this.resolveServiceIdForOwner(activity, snapshot.stageId, owner, dayKey);
-        const key = serviceId ? `${owner.resourceId}|${owner.kind}|${serviceId}` : `${owner.resourceId}|${owner.kind}|${dayKey}`;
+        const serviceId = this.resolveServiceIdForOwner(
+          activity,
+          snapshot.stageId,
+          owner,
+          dayKey,
+        );
+        const key = serviceId
+          ? `${owner.resourceId}|${owner.kind}|${serviceId}`
+          : `${owner.resourceId}|${owner.kind}|${dayKey}`;
         const existing = groups.get(key);
         if (!existing) {
           groups.set(key, {
@@ -458,7 +555,10 @@ export class PlanningCandidateBuilder {
       ...group,
       dutyStart: new Date(group.dutyStartMs).toISOString(),
       dutyEnd: new Date(group.dutyEndMs).toISOString(),
-      dutySpanMinutes: Math.max(0, Math.round((group.dutyEndMs - group.dutyStartMs) / 60000)),
+      dutySpanMinutes: Math.max(
+        0,
+        Math.round((group.dutyEndMs - group.dutyStartMs) / 60000),
+      ),
     }));
   }
 
@@ -472,7 +572,10 @@ export class PlanningCandidateBuilder {
     };
   }
 
-  private shouldApplyTemplate(when: RulesetExpression | undefined, ctx: Record<string, unknown>): boolean {
+  private shouldApplyTemplate(
+    when: RulesetExpression | undefined,
+    ctx: Record<string, unknown>,
+  ): boolean {
     if (!when) {
       return true;
     }
@@ -480,17 +583,24 @@ export class PlanningCandidateBuilder {
     return evaluated !== false;
   }
 
-  private evaluateExpression(expr: RulesetExpression, ctx: Record<string, unknown>): boolean | null {
+  private evaluateExpression(
+    expr: RulesetExpression,
+    ctx: Record<string, unknown>,
+  ): boolean | null {
     switch (expr.op) {
       case 'and': {
-        const results = expr.args.map((arg) => this.evaluateExpression(arg, ctx));
+        const results = expr.args.map((arg) =>
+          this.evaluateExpression(arg, ctx),
+        );
         if (results.some((entry) => entry === false)) {
           return false;
         }
         return results.every((entry) => entry === true) ? true : null;
       }
       case 'or': {
-        const results = expr.args.map((arg) => this.evaluateExpression(arg, ctx));
+        const results = expr.args.map((arg) =>
+          this.evaluateExpression(arg, ctx),
+        );
         if (results.some((entry) => entry === true)) {
           return true;
         }
@@ -518,13 +628,21 @@ export class PlanningCandidateBuilder {
           case 'ne':
             return left !== right;
           case 'gt':
-            return typeof left === 'number' && typeof right === 'number' ? left > right : null;
+            return typeof left === 'number' && typeof right === 'number'
+              ? left > right
+              : null;
           case 'gte':
-            return typeof left === 'number' && typeof right === 'number' ? left >= right : null;
+            return typeof left === 'number' && typeof right === 'number'
+              ? left >= right
+              : null;
           case 'lt':
-            return typeof left === 'number' && typeof right === 'number' ? left < right : null;
+            return typeof left === 'number' && typeof right === 'number'
+              ? left < right
+              : null;
           case 'lte':
-            return typeof left === 'number' && typeof right === 'number' ? left <= right : null;
+            return typeof left === 'number' && typeof right === 'number'
+              ? left <= right
+              : null;
           case 'in':
             return Array.isArray(right) ? right.includes(left as any) : null;
           default:
@@ -536,7 +654,10 @@ export class PlanningCandidateBuilder {
     }
   }
 
-  private evaluateOperand(operand: RulesetOperand, ctx: Record<string, unknown>): unknown | null {
+  private evaluateOperand(
+    operand: RulesetOperand,
+    ctx: Record<string, unknown>,
+  ): unknown | null {
     if ('value' in operand) {
       return operand.value;
     }
@@ -554,7 +675,8 @@ export class PlanningCandidateBuilder {
   }
 
   private pickLocation(activity: Activity, mode: 'from' | 'to'): string | null {
-    const trimmed = (value?: string | null) => (typeof value === 'string' ? value.trim() : '');
+    const trimmed = (value?: string | null) =>
+      typeof value === 'string' ? value.trim() : '';
     const direct = trimmed(mode === 'from' ? activity.from : activity.to);
     if (direct) {
       return direct;
@@ -602,7 +724,11 @@ export class PlanningCandidateBuilder {
     return `${y}-${m}-${d}`;
   }
 
-  private computeServiceId(stageId: string, ownerId: string, dayKey: string): string {
+  private computeServiceId(
+    stageId: string,
+    ownerId: string,
+    dayKey: string,
+  ): string {
     return `svc:${stageId}:${ownerId}:${dayKey}`;
   }
 
@@ -611,7 +737,11 @@ export class PlanningCandidateBuilder {
     return params && typeof params === 'object' ? { ...params } : {};
   }
 
-  private pickNumber(params: Record<string, unknown>, key: string, fallback: number): number {
+  private pickNumber(
+    params: Record<string, unknown>,
+    key: string,
+    fallback: number,
+  ): number {
     const raw = params[key];
     if (typeof raw === 'number' && Number.isFinite(raw)) {
       return raw;
@@ -632,11 +762,15 @@ export class PlanningCandidateBuilder {
 
   private resolveDutyOwners(activity: Activity): ActivityParticipant[] {
     const participants = activity.participants ?? [];
-    const preferred = participants.filter((p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service');
+    const preferred = participants.filter(
+      (p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service',
+    );
     return preferred;
   }
 
-  private resolveOwnerGroup(kind: ActivityParticipant['kind']): 'personnel' | 'vehicle' {
+  private resolveOwnerGroup(
+    kind: ActivityParticipant['kind'],
+  ): 'personnel' | 'vehicle' {
     if (kind === 'vehicle' || kind === 'vehicle-service') {
       return 'vehicle';
     }
@@ -652,20 +786,31 @@ export class PlanningCandidateBuilder {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const map = attrs?.['service_by_owner'];
     if (map && typeof map === 'object' && !Array.isArray(map)) {
-      const entry = (map as Record<string, { serviceId?: string | null } | null>)[owner.resourceId];
-      const mapped = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      const entry = (
+        map as Record<string, { serviceId?: string | null } | null>
+      )[owner.resourceId];
+      const mapped =
+        typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
       if (mapped) {
         return mapped;
       }
     }
-    const direct = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
-    if (direct && this.serviceIdMatchesOwner(direct, stageId, owner.resourceId)) {
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (
+      direct &&
+      this.serviceIdMatchesOwner(direct, stageId, owner.resourceId)
+    ) {
       return direct;
     }
     return this.computeServiceId(stageId, owner.resourceId, dayKey);
   }
 
-  private serviceIdMatchesOwner(serviceId: string, stageId: string, ownerId: string): boolean {
+  private serviceIdMatchesOwner(
+    serviceId: string,
+    stageId: string,
+    ownerId: string,
+  ): boolean {
     return serviceId.startsWith(`svc:${stageId}:${ownerId}:`);
   }
 
@@ -678,7 +823,10 @@ export class PlanningCandidateBuilder {
     if (!attrs) {
       return false;
     }
-    return this.toBool(attrs['is_service_start']) || this.toBool(attrs['is_service_end']);
+    return (
+      this.toBool(attrs['is_service_start']) ||
+      this.toBool(attrs['is_service_end'])
+    );
   }
 
   private isBreakActivity(activity: Activity): boolean {
@@ -686,7 +834,10 @@ export class PlanningCandidateBuilder {
     if (!attrs) {
       return false;
     }
-    if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
+    if (
+      this.toBool(attrs['is_break']) ||
+      this.toBool(attrs['is_short_break'])
+    ) {
       return true;
     }
     return false;

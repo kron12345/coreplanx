@@ -46,8 +46,13 @@ export class TemplateController {
     @Body() payload: CreateTemplateSetPayload,
   ): Promise<ActivityTemplateSet> {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -73,7 +78,11 @@ export class TemplateController {
     @Query('variantId') variantId: string | undefined,
     @Body() payload: UpdateTemplateSetPayload,
   ): Promise<ActivityTemplateSet> {
-    return this.templateService.updateTemplateSet(templateId, payload, variantId);
+    return this.templateService.updateTemplateSet(
+      templateId,
+      payload,
+      variantId,
+    );
   }
 
   @Delete(':templateId')
@@ -113,10 +122,14 @@ export class TemplateController {
     @Query('variantId') variantId: string | undefined,
     @Body() payload: ActivityDto,
   ): Promise<ActivityDto> {
-    return this.templateService.upsertTemplateActivity(templateId, {
-      ...payload,
-      id: activityId,
-    }, variantId);
+    return this.templateService.upsertTemplateActivity(
+      templateId,
+      {
+        ...payload,
+        id: activityId,
+      },
+      variantId,
+    );
   }
 
   @Delete(':templateId/activities/:activityId')
@@ -125,7 +138,11 @@ export class TemplateController {
     @Param('activityId') activityId: string,
     @Query('variantId') variantId?: string,
   ): Promise<void> {
-    return this.templateService.deleteTemplateActivity(templateId, activityId, variantId);
+    return this.templateService.deleteTemplateActivity(
+      templateId,
+      activityId,
+      variantId,
+    );
   }
 
   @Post(':templateId/rollout')
@@ -156,7 +173,11 @@ export class TemplateController {
     const derivedTargetYear = normalizedTargetVariantId
       ? deriveTimetableYearLabelFromVariantId(normalizedTargetVariantId)
       : null;
-    if (derivedTargetYear && timetableYearLabel && timetableYearLabel.trim() !== derivedTargetYear) {
+    if (
+      derivedTargetYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedTargetYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu targetVariantId (${normalizedTargetVariantId}).`,
       );

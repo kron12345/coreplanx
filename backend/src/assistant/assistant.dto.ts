@@ -186,4 +186,5 @@ export class AssistantActionResolveRequestDto {
   clientId?: string;
 }
 
-export type AssistantActionResolveResponseDto = AssistantActionPreviewResponseDto;
+export type AssistantActionResolveResponseDto =
+  AssistantActionPreviewResponseDto;

@@ -2,7 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ASSISTANT_CONFIG } from './assistant.constants';
 import type { AssistantConfig } from './assistant.config';
 import type { AssistantActionChangeDto } from './assistant.dto';
-import type { AssistantActionCommitTask, AssistantActionRefreshHint } from './assistant-action.types';
+import type {
+  AssistantActionCommitTask,
+  AssistantActionRefreshHint,
+} from './assistant-action.types';
 import type { ResourceSnapshot } from '../planning/planning.types';
 
 export interface StoredAssistantActionPreview {
@@ -23,7 +26,9 @@ export interface StoredAssistantActionPreview {
 export class AssistantActionPreviewStore {
   private readonly previews = new Map<string, StoredAssistantActionPreview>();
 
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
   create(preview: StoredAssistantActionPreview): StoredAssistantActionPreview {
     this.purgeExpired();
@@ -81,7 +86,10 @@ export class AssistantActionPreviewStore {
     }
   }
 
-  private assertRole(preview: StoredAssistantActionPreview, role?: string | null): void {
+  private assertRole(
+    preview: StoredAssistantActionPreview,
+    role?: string | null,
+  ): void {
     const normalized = role?.trim() || null;
     if (!normalized) {
       return;

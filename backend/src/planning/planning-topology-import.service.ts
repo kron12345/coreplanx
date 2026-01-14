@@ -422,4 +422,3 @@ export class PlanningTopologyImportService {
     return normalized;
   }
 }
-

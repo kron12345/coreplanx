@@ -74,8 +74,14 @@ export function buildUiContextMessage(
   if (dataSummaryRaw && options.maxDataChars > 0) {
     const lineChars = Math.max(40, options.lineChars ?? DEFAULT_LINE_CHARS);
     const minLines = Math.max(1, options.minLines ?? MIN_SUMMARY_LINES);
-    const maxLines = Math.max(minLines, Math.floor(options.maxDataChars / lineChars));
-    dataSummary = truncateText(limitLines(dataSummaryRaw, maxLines), options.maxDataChars);
+    const maxLines = Math.max(
+      minLines,
+      Math.floor(options.maxDataChars / lineChars),
+    );
+    dataSummary = truncateText(
+      limitLines(dataSummaryRaw, maxLines),
+      options.maxDataChars,
+    );
   }
 
   const lines: string[] = [];

@@ -1,11 +1,21 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import type { Activity, PlanningStageSnapshot, StageId } from './planning.types';
+import type {
+  Activity,
+  PlanningStageSnapshot,
+  StageId,
+} from './planning.types';
 import { PlanningStageService } from './planning-stage.service';
 import { PlanningRuleService } from './planning-rule.service';
 import { PlanningRulesetService } from './planning-ruleset.service';
-import { PlanningCandidateBuilder, PlanningCandidateBuildResult } from './planning-candidate-builder.service';
+import {
+  PlanningCandidateBuilder,
+  PlanningCandidateBuildResult,
+} from './planning-candidate-builder.service';
 import type { RulesetIR } from './planning-ruleset.types';
-import { PlanningSolverService, PlanningSolverResult } from './planning-solver.service';
+import {
+  PlanningSolverService,
+  PlanningSolverResult,
+} from './planning-solver.service';
 import { TemplateService } from '../template/template.service';
 import type { ActivityDto } from '../timeline/timeline.types';
 import type { TemplatePeriod } from '../template/template.types';
@@ -70,7 +80,12 @@ export class PlanningOptimizationService {
       timetableYearLabel,
       selection,
     );
-    const resolved = await this.resolveRulesetSelection(stageId, variantId, selection, true);
+    const resolved = await this.resolveRulesetSelection(
+      stageId,
+      variantId,
+      selection,
+      true,
+    );
     if (!resolved.ruleset) {
       throw new BadRequestException('Ruleset konnte nicht aufgeloest werden.');
     }
@@ -105,12 +120,24 @@ export class PlanningOptimizationService {
       timetableYearLabel,
       selection,
     );
-    const resolved = await this.resolveRulesetSelection(stageId, variantId, selection, true);
+    const resolved = await this.resolveRulesetSelection(
+      stageId,
+      variantId,
+      selection,
+      true,
+    );
     if (!resolved.ruleset) {
       throw new BadRequestException('Ruleset konnte nicht aufgeloest werden.');
     }
-    const candidateResult = this.candidates.buildCandidates(snapshot, resolved.ruleset);
-    const solverResult = await this.solver.solve(snapshot, resolved.ruleset, candidateResult);
+    const candidateResult = this.candidates.buildCandidates(
+      snapshot,
+      resolved.ruleset,
+    );
+    const solverResult = await this.solver.solve(
+      snapshot,
+      resolved.ruleset,
+      candidateResult,
+    );
     this.debugStream.log('info', 'solver', 'Solver abgeschlossen', {
       stageId,
       variantId,
@@ -130,11 +157,14 @@ export class PlanningOptimizationService {
     };
   }
 
-  private describeSelection(selection?: RulesetSelectionInput): Record<string, unknown> {
+  private describeSelection(
+    selection?: RulesetSelectionInput,
+  ): Record<string, unknown> {
     if (!selection) {
       return {};
     }
-    const activityIds = selection.activityIds?.filter((id) => id.trim().length > 0) ?? [];
+    const activityIds =
+      selection.activityIds?.filter((id) => id.trim().length > 0) ?? [];
     return {
       rulesetId: selection.rulesetId ?? null,
       rulesetVersion: selection.rulesetVersion ?? null,
@@ -150,9 +180,16 @@ export class PlanningOptimizationService {
     variantId: string,
     selection: RulesetSelectionInput | undefined,
     required: boolean,
-  ): Promise<{ ruleset?: RulesetIR; rulesetId?: string; rulesetVersion?: string }> {
-    const trimmed = (value?: string | null) => (typeof value === 'string' ? value.trim() : '');
-    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, { includeDisabled: true });
+  ): Promise<{
+    ruleset?: RulesetIR;
+    rulesetId?: string;
+    rulesetVersion?: string;
+  }> {
+    const trimmed = (value?: string | null) =>
+      typeof value === 'string' ? value.trim() : '';
+    const config = await this.rules.getDutyAutopilotConfig(stageId, variantId, {
+      includeDisabled: true,
+    });
     const preferredId = trimmed(selection?.rulesetId);
     const preferredVersion = trimmed(selection?.rulesetVersion);
     const configId = trimmed(config?.rulesetId);
@@ -174,7 +211,9 @@ export class PlanningOptimizationService {
     const availableVersions = this.safeListVersions(rulesetId);
     if (!availableVersions.length) {
       if (required) {
-        throw new BadRequestException(`Ruleset ${rulesetId} hat keine Versionen.`);
+        throw new BadRequestException(
+          `Ruleset ${rulesetId} hat keine Versionen.`,
+        );
       }
       return { rulesetId };
     }
@@ -190,7 +229,10 @@ export class PlanningOptimizationService {
     }
 
     try {
-      const ruleset = this.rulesets.getCompiledRuleset(rulesetId, rulesetVersion);
+      const ruleset = this.rulesets.getCompiledRuleset(
+        rulesetId,
+        rulesetVersion,
+      );
       return { ruleset, rulesetId, rulesetVersion };
     } catch (error) {
       this.logger.warn(
@@ -228,7 +270,9 @@ export class PlanningOptimizationService {
   }
 
   private cloneActivities(activities: Activity[]): Activity[] {
-    return activities.map((activity) => JSON.parse(JSON.stringify(activity)) as Activity);
+    return activities.map(
+      (activity) => JSON.parse(JSON.stringify(activity)) as Activity,
+    );
   }
 
   private async buildSnapshotForOptimization(
@@ -237,7 +281,11 @@ export class PlanningOptimizationService {
     timetableYearLabel?: string | null,
     selection?: RulesetSelectionInput,
   ): Promise<PlanningStageSnapshot> {
-    const snapshot = await this.stageService.getStageSnapshot(stageId, variantId, timetableYearLabel);
+    const snapshot = await this.stageService.getStageSnapshot(
+      stageId,
+      variantId,
+      timetableYearLabel,
+    );
     if (stageId !== 'base') {
       return this.applyActivitySelection(snapshot, selection);
     }
@@ -248,7 +296,10 @@ export class PlanningOptimizationService {
     }
     const viewStart = new Date(range.start);
     const viewEnd = new Date(range.end);
-    if (!Number.isFinite(viewStart.getTime()) || !Number.isFinite(viewEnd.getTime())) {
+    if (
+      !Number.isFinite(viewStart.getTime()) ||
+      !Number.isFinite(viewEnd.getTime())
+    ) {
       return this.applyActivitySelection(snapshot, selection);
     }
 
@@ -263,7 +314,9 @@ export class PlanningOptimizationService {
     }
 
     const effectiveYearLabel =
-      timetableYearLabel?.trim() || templateSet.timetableYearLabel?.trim() || null;
+      timetableYearLabel?.trim() ||
+      templateSet.timetableYearLabel?.trim() ||
+      null;
     const periods = templateSet.periods?.length
       ? templateSet.periods
       : this.defaultPeriodsFromYear(effectiveYearLabel);
@@ -285,7 +338,9 @@ export class PlanningOptimizationService {
         'base',
         variantId,
       );
-      templateActivities = this.mapTimelineActivities(timeline.activities ?? []);
+      templateActivities = this.mapTimelineActivities(
+        timeline.activities ?? [],
+      );
     } catch (error) {
       this.logger.warn(
         `Template-Timeline konnte nicht geladen werden: ${(error as Error).message ?? String(error)}`,
@@ -300,7 +355,11 @@ export class PlanningOptimizationService {
       viewEnd,
       defaultPeriodEnd,
     });
-    const stageActivities = this.filterActivitiesByRange(snapshot.activities, viewStart, viewEnd);
+    const stageActivities = this.filterActivitiesByRange(
+      snapshot.activities,
+      viewStart,
+      viewEnd,
+    );
     const merged = this.mergeActivitiesById(reflected, stageActivities);
 
     const mergedSnapshot = {
@@ -326,8 +385,14 @@ export class PlanningOptimizationService {
     if (!ids.size) {
       return snapshot;
     }
-    const filtered = snapshot.activities.filter((activity) => ids.has(activity.id));
-    const expanded = this.extendSelectionWithServiceContext(snapshot.stageId, snapshot.activities, filtered);
+    const filtered = snapshot.activities.filter((activity) =>
+      ids.has(activity.id),
+    );
+    const expanded = this.extendSelectionWithServiceContext(
+      snapshot.stageId,
+      snapshot.activities,
+      filtered,
+    );
     return { ...snapshot, activities: expanded };
   }
 
@@ -355,7 +420,10 @@ export class PlanningOptimizationService {
     return Array.from(expanded.values());
   }
 
-  private collectServiceIds(stageId: StageId, activities: Activity[]): Set<string> {
+  private collectServiceIds(
+    stageId: StageId,
+    activities: Activity[],
+  ): Set<string> {
     const serviceIds = new Set<string>();
     activities.forEach((activity) => {
       const local = new Set<string>();
@@ -371,7 +439,7 @@ export class PlanningOptimizationService {
       const map = attrs?.['service_by_owner'];
       if (map && typeof map === 'object' && !Array.isArray(map)) {
         Object.values(map as Record<string, any>).forEach((entry) => {
-          addServiceId((entry as any)?.serviceId);
+          addServiceId(entry?.serviceId);
         });
       }
 
@@ -397,7 +465,10 @@ export class PlanningOptimizationService {
   private isBreakActivity(activity: Activity): boolean {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     if (attrs && typeof attrs === 'object') {
-      if (this.toBool(attrs['is_break']) || this.toBool(attrs['is_short_break'])) {
+      if (
+        this.toBool(attrs['is_break']) ||
+        this.toBool(attrs['is_short_break'])
+      ) {
         return true;
       }
     }
@@ -417,7 +488,9 @@ export class PlanningOptimizationService {
   private mapTimelineActivities(entries: ActivityDto[]): Activity[] {
     return entries.map((entry) => ({
       id: entry.id,
-      title: entry.label?.trim().length ? entry.label : entry.type ?? entry.id,
+      title: entry.label?.trim().length
+        ? entry.label
+        : (entry.type ?? entry.id),
       start: entry.start,
       end: entry.end ?? null,
       type: entry.type ?? undefined,
@@ -443,7 +516,14 @@ export class PlanningOptimizationService {
     viewEnd: Date;
     defaultPeriodEnd: Date | null;
   }): Activity[] {
-    const { activities, periods, specialDays, viewStart, viewEnd, defaultPeriodEnd } = options;
+    const {
+      activities,
+      periods,
+      specialDays,
+      viewStart,
+      viewEnd,
+      defaultPeriodEnd,
+    } = options;
     if (!activities.length || !periods.length || !defaultPeriodEnd) {
       return activities;
     }
@@ -453,8 +533,13 @@ export class PlanningOptimizationService {
 
     periods.forEach((period) => {
       const periodStart = new Date(period.validFrom);
-      const periodEnd = period.validTo ? new Date(period.validTo) : defaultPeriodEnd;
-      if (!Number.isFinite(periodStart.getTime()) || !Number.isFinite(periodEnd.getTime())) {
+      const periodEnd = period.validTo
+        ? new Date(period.validTo)
+        : defaultPeriodEnd;
+      if (
+        !Number.isFinite(periodStart.getTime()) ||
+        !Number.isFinite(periodEnd.getTime())
+      ) {
         return;
       }
       if (periodEnd < periodStart) {
@@ -492,9 +577,7 @@ export class PlanningOptimizationService {
             cursor.getUTCDate(),
           );
           const newStart = new Date(
-            baseDayMs +
-              pattern.startOffsetDays * DAY_MS +
-              pattern.startTimeMs,
+            baseDayMs + pattern.startOffsetDays * DAY_MS + pattern.startTimeMs,
           );
           const newEnd =
             pattern.endOffsetDays !== null && pattern.endTimeMs !== null
@@ -535,7 +618,9 @@ export class PlanningOptimizationService {
     endTimeMs: number | null;
   } {
     const parsedStartMs = Date.parse(activity.start);
-    const startDate = Number.isFinite(parsedStartMs) ? new Date(parsedStartMs) : null;
+    const startDate = Number.isFinite(parsedStartMs)
+      ? new Date(parsedStartMs)
+      : null;
     const fallbackWeekday = startDate ? startDate.getUTCDay() : 0;
     const fallbackStartTimeMs = startDate
       ? startDate.getUTCHours() * 3600_000 +
@@ -545,11 +630,17 @@ export class PlanningOptimizationService {
       : 0;
 
     const serviceMidnightMs = startDate
-      ? Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
+      ? Date.UTC(
+          startDate.getUTCFullYear(),
+          startDate.getUTCMonth(),
+          startDate.getUTCDate(),
+        )
       : NaN;
     const parsedEndMs = activity.end ? Date.parse(activity.end) : NaN;
     const fallbackEndDiff =
-      activity.end && Number.isFinite(parsedEndMs) && Number.isFinite(serviceMidnightMs)
+      activity.end &&
+      Number.isFinite(parsedEndMs) &&
+      Number.isFinite(serviceMidnightMs)
         ? parsedEndMs - serviceMidnightMs
         : null;
     let fallbackEndOffsetDays: number | null = null;
@@ -585,19 +676,23 @@ export class PlanningOptimizationService {
         ? pattern.weekday
         : fallbackWeekday;
     const startOffsetDays =
-      typeof pattern.startOffsetDays === 'number' && Number.isInteger(pattern.startOffsetDays)
+      typeof pattern.startOffsetDays === 'number' &&
+      Number.isInteger(pattern.startOffsetDays)
         ? pattern.startOffsetDays
         : 0;
     const startTimeMs =
-      typeof pattern.startTimeMs === 'number' && Number.isFinite(pattern.startTimeMs)
+      typeof pattern.startTimeMs === 'number' &&
+      Number.isFinite(pattern.startTimeMs)
         ? pattern.startTimeMs
         : fallbackStartTimeMs;
     const endOffsetDays =
-      typeof pattern.endOffsetDays === 'number' && Number.isInteger(pattern.endOffsetDays)
+      typeof pattern.endOffsetDays === 'number' &&
+      Number.isInteger(pattern.endOffsetDays)
         ? pattern.endOffsetDays
         : fallbackEndOffsetDays;
     const endTimeMs =
-      typeof pattern.endTimeMs === 'number' && Number.isFinite(pattern.endTimeMs)
+      typeof pattern.endTimeMs === 'number' &&
+      Number.isFinite(pattern.endTimeMs)
         ? pattern.endTimeMs
         : fallbackEndTimeMs;
 
@@ -611,7 +706,10 @@ export class PlanningOptimizationService {
     };
   }
 
-  private rewriteServiceIdForIso(serviceId: string | null, iso: string): string | null {
+  private rewriteServiceIdForIso(
+    serviceId: string | null,
+    iso: string,
+  ): string | null {
     const trimmed = (serviceId ?? '').toString().trim();
     if (!trimmed) {
       return null;
@@ -641,10 +739,16 @@ export class PlanningOptimizationService {
     return result;
   }
 
-  private resolveDefaultPeriodEnd(periods: TemplatePeriod[], timetableYearLabel: string | null): Date | null {
+  private resolveDefaultPeriodEnd(
+    periods: TemplatePeriod[],
+    timetableYearLabel: string | null,
+  ): Date | null {
     const explicitEnds = periods
       .map((period) => period.validTo)
-      .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
+      .filter(
+        (val): val is string =>
+          typeof val === 'string' && val.trim().length > 0,
+      )
       .map((iso) => new Date(iso))
       .filter((date) => Number.isFinite(date.getTime()))
       .map((date) => date.getTime());
@@ -657,7 +761,9 @@ export class PlanningOptimizationService {
     return this.computeYearBounds(timetableYearLabel).end;
   }
 
-  private defaultPeriodsFromYear(timetableYearLabel: string | null): TemplatePeriod[] {
+  private defaultPeriodsFromYear(
+    timetableYearLabel: string | null,
+  ): TemplatePeriod[] {
     if (!timetableYearLabel) {
       return [];
     }
@@ -696,7 +802,11 @@ export class PlanningOptimizationService {
     return date;
   }
 
-  private filterActivitiesByRange(activities: Activity[], start: Date, end: Date): Activity[] {
+  private filterActivitiesByRange(
+    activities: Activity[],
+    start: Date,
+    end: Date,
+  ): Activity[] {
     const startMs = start.getTime();
     const endMs = end.getTime();
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
@@ -712,11 +822,16 @@ export class PlanningOptimizationService {
     });
   }
 
-  private mergeActivitiesById(base: Activity[], overrides: Activity[]): Activity[] {
+  private mergeActivitiesById(
+    base: Activity[],
+    overrides: Activity[],
+  ): Activity[] {
     if (!overrides.length) {
       return base;
     }
-    const merged = new Map<string, Activity>(base.map((entry) => [entry.id, entry]));
+    const merged = new Map<string, Activity>(
+      base.map((entry) => [entry.id, entry]),
+    );
     overrides.forEach((entry) => merged.set(entry.id, entry));
     return Array.from(merged.values());
   }

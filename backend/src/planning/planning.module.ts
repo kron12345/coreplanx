@@ -74,6 +74,11 @@ import { PlanningAdminService } from './planning-admin.service';
     PlanWeekRepository,
     PlanningAdminService,
   ],
-  exports: [PlanningService, PlanWeekService, DutyAutopilotService],
+  exports: [
+    PlanningService,
+    PlanWeekService,
+    DutyAutopilotService,
+    PlanningMasterDataService,
+  ],
 })
 export class PlanningModule {}

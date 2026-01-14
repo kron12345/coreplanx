@@ -9,7 +9,9 @@ export class OllamaOpenAiHttpError extends Error {
   readonly body: string;
 
   constructor(status: number, statusText: string, body: string) {
-    super(`Ollama request failed (${status} ${statusText})${body ? `: ${body}` : ''}`);
+    super(
+      `Ollama request failed (${status} ${statusText})${body ? `: ${body}` : ''}`,
+    );
     this.name = 'OllamaOpenAiHttpError';
     this.status = status;
     this.statusText = statusText;
@@ -67,7 +69,9 @@ interface OpenAiChatCompletionResponse {
 
 @Injectable()
 export class OllamaOpenAiClient {
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
   async createChatCompletion(
     messages: OpenAiChatMessage[],
@@ -101,7 +105,9 @@ export class OllamaOpenAiClient {
       ...(this.config.ollamaTemperature !== null
         ? { temperature: this.config.ollamaTemperature }
         : {}),
-      ...(this.config.ollamaTopP !== null ? { top_p: this.config.ollamaTopP } : {}),
+      ...(this.config.ollamaTopP !== null
+        ? { top_p: this.config.ollamaTopP }
+        : {}),
       ...(this.config.ollamaMaxTokens !== null
         ? { max_tokens: this.config.ollamaMaxTokens }
         : {}),
@@ -115,37 +121,52 @@ export class OllamaOpenAiClient {
     payload: OpenAiChatCompletionRequest,
   ): Promise<string> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.ollamaTimeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.config.ollamaTimeoutMs,
+    );
     try {
       let response: Response;
       try {
-        response = await fetch(`${this.config.ollamaBaseUrl}/v1/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            ...(this.config.ollamaApiKey
-              ? { authorization: `Bearer ${this.config.ollamaApiKey}` }
-              : {}),
+        response = await fetch(
+          `${this.config.ollamaBaseUrl}/v1/chat/completions`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...(this.config.ollamaApiKey
+                ? { authorization: `Bearer ${this.config.ollamaApiKey}` }
+                : {}),
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
           },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
+        );
       } catch (error) {
         if ((error as Error)?.name === 'AbortError') {
           throw new OllamaOpenAiTimeoutError(this.config.ollamaTimeoutMs);
         }
-        throw new OllamaOpenAiNetworkError('Ollama request failed (network error).', error);
+        throw new OllamaOpenAiNetworkError(
+          'Ollama request failed (network error).',
+          error,
+        );
       }
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new OllamaOpenAiHttpError(response.status, response.statusText, text);
+        throw new OllamaOpenAiHttpError(
+          response.status,
+          response.statusText,
+          text,
+        );
       }
 
       const data = (await response.json()) as OpenAiChatCompletionResponse;
       const content = data.choices?.[0]?.message?.content;
       if (!content || typeof content !== 'string') {
-        throw new Error('Ollama response did not contain a chat completion message.');
+        throw new Error(
+          'Ollama response did not contain a chat completion message.',
+        );
       }
       return content;
     } finally {

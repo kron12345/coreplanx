@@ -1,6 +1,14 @@
 import type { AssistantActionChangeDto } from './assistant.dto';
-import type { ActionApplyOutcome, ActionContext, ActionPayload } from './assistant-action.engine.types';
-import type { PersonnelService, PersonnelServicePool, ResourceSnapshot } from '../planning/planning.types';
+import type {
+  ActionApplyOutcome,
+  ActionContext,
+  ActionPayload,
+} from './assistant-action.engine.types';
+import type {
+  PersonnelService,
+  PersonnelServicePool,
+  ResourceSnapshot,
+} from '../planning/planning.types';
 import { SYSTEM_POOL_IDS } from '../planning/planning-master-data.constants';
 import { AssistantActionBase } from './assistant-action.base';
 
@@ -14,7 +22,9 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
     const poolRecord = this.asRecord(poolRaw) ?? {};
     const payloadRecord = payload as Record<string, unknown>;
     const poolName =
-      this.cleanText(typeof poolRaw === 'string' ? poolRaw : poolRecord['name']) ??
+      this.cleanText(
+        typeof poolRaw === 'string' ? poolRaw : poolRecord['name'],
+      ) ??
       this.cleanText(poolRecord['poolName']) ??
       this.cleanText(payloadRecord['poolName']);
     if (!poolName) {
@@ -33,21 +43,29 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
         `Personaldienstpool "${poolName}" existiert bereits.`,
       );
     }
-    const duplicateNames = this.findDuplicateNames(services.map((service) => service.name));
+    const duplicateNames = this.findDuplicateNames(
+      services.map((service) => service.name),
+    );
     if (duplicateNames.length) {
       return this.buildFeedbackResponse(
         `Dienste doppelt angegeben: ${duplicateNames.join(', ')}`,
       );
     }
     const depotRef = this.parsePoolReference(
-      poolRecord['homeDepotId'] ?? poolRecord['homeDepot'] ?? poolRecord['homeDepotName'],
+      poolRecord['homeDepotId'] ??
+        poolRecord['homeDepot'] ??
+        poolRecord['homeDepotName'],
     );
     let homeDepotId: string | undefined;
     if (depotRef) {
-      const resolved = this.resolveHomeDepotIdByReference(snapshot.homeDepots, depotRef, {
-        title: `Mehrere Heimatdepots fuer "${depotRef}" gefunden. Welches meinst du?`,
-        apply: { mode: 'value', path: ['pool', 'homeDepot'] },
-      });
+      const resolved = this.resolveHomeDepotIdByReference(
+        snapshot.homeDepots,
+        depotRef,
+        {
+          title: `Mehrere Heimatdepots fuer "${depotRef}" gefunden. Welches meinst du?`,
+          apply: { mode: 'value', path: ['pool', 'homeDepot'] },
+        },
+      );
       if (resolved.clarification) {
         return this.buildClarificationResponse(resolved.clarification, context);
       }
@@ -89,14 +107,21 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
 
     const summary = `Neuer Personaldienstpool "${poolName}" mit ${serviceEntries.length} Diensten.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'create', entityType: 'personnelServicePool', id: poolId, label: poolName },
-      ...serviceEntries.map((service): AssistantActionChangeDto => ({
+      {
         kind: 'create',
-        entityType: 'personnelService',
-        id: service.id,
-        label: service.name,
-        details: `Pool ${poolName}`,
-      })),
+        entityType: 'personnelServicePool',
+        id: poolId,
+        label: poolName,
+      },
+      ...serviceEntries.map(
+        (service): AssistantActionChangeDto => ({
+          kind: 'create',
+          entityType: 'personnelService',
+          id: service.id,
+          label: service.name,
+          details: `Pool ${poolName}`,
+        }),
+      ),
     ];
 
     return {
@@ -133,14 +158,18 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
       const record = this.asRecord(raw);
       const name =
         this.cleanText(
-          typeof raw === 'string' ? raw : record?.['name'] ?? record?.['serviceName'],
+          typeof raw === 'string'
+            ? raw
+            : (record?.['name'] ?? record?.['serviceName']),
         ) ?? undefined;
       if (!name) {
         return this.buildFeedbackResponse('Dienstname fehlt.');
       }
       const normalizedName = this.normalizeKey(name);
       if (seenServiceNames.has(normalizedName)) {
-        return this.buildFeedbackResponse(`Dienst "${name}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Dienst "${name}" ist doppelt angegeben.`,
+        );
       }
       seenServiceNames.add(normalizedName);
 
@@ -166,7 +195,10 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
         },
       );
       if (resolvedPool.clarification) {
-        return this.buildClarificationResponse(resolvedPool.clarification, context);
+        return this.buildClarificationResponse(
+          resolvedPool.clarification,
+          context,
+        );
       }
       if (resolvedPool.feedback) {
         return this.buildFeedbackResponse(
@@ -192,9 +224,13 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
         startTime: this.cleanText(record?.['startTime']),
         endTime: this.cleanText(record?.['endTime']),
         isNightService: this.parseBoolean(record?.['isNightService']),
-        requiredQualifications: this.parseStringArray(record?.['requiredQualifications']),
+        requiredQualifications: this.parseStringArray(
+          record?.['requiredQualifications'],
+        ),
         maxDailyInstances: this.parseNumber(record?.['maxDailyInstances']),
-        maxResourcesPerInstance: this.parseNumber(record?.['maxResourcesPerInstance']),
+        maxResourcesPerInstance: this.parseNumber(
+          record?.['maxResourcesPerInstance'],
+        ),
       };
       services.push(service);
 
@@ -242,21 +278,32 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
       return this.buildFeedbackResponse('Ziel-Personaldienstpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.personnelServicePools, targetRecord, {
-      label: 'Personaldienstpool',
-      nameKeys: ['name', 'poolName', 'servicePoolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.personnelServicePools,
+      targetRecord,
+      {
+        label: 'Personaldienstpool',
+        nameKeys: ['name', 'poolName', 'servicePoolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.personnelServicePool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht geändert werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht geändert werden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -272,8 +319,12 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
       if (!name) {
         return this.buildFeedbackResponse('Name darf nicht leer sein.');
       }
-      if (this.hasNameCollision(snapshot.personnelServicePools, name, pool.id)) {
-        return this.buildFeedbackResponse(`Name "${name}" ist bereits vergeben.`);
+      if (
+        this.hasNameCollision(snapshot.personnelServicePools, name, pool.id)
+      ) {
+        return this.buildFeedbackResponse(
+          `Name "${name}" ist bereits vergeben.`,
+        );
       }
       updated.name = name;
       changed = true;
@@ -289,12 +340,19 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
         patch['homeDepotId'] ?? patch['homeDepot'] ?? patch['homeDepotName'],
       );
       if (depotRef) {
-        const resolved = this.resolveHomeDepotIdByReference(snapshot.homeDepots, depotRef, {
-          title: `Mehrere Heimatdepots fuer "${depotRef}" gefunden. Welches meinst du?`,
-          apply: { mode: 'value', path: ['patch', 'homeDepot'] },
-        });
+        const resolved = this.resolveHomeDepotIdByReference(
+          snapshot.homeDepots,
+          depotRef,
+          {
+            title: `Mehrere Heimatdepots fuer "${depotRef}" gefunden. Welches meinst du?`,
+            apply: { mode: 'value', path: ['patch', 'homeDepot'] },
+          },
+        );
         if (resolved.clarification) {
-          return this.buildClarificationResponse(resolved.clarification, context);
+          return this.buildClarificationResponse(
+            resolved.clarification,
+            context,
+          );
         }
         if (resolved.feedback) {
           return this.buildFeedbackResponse(resolved.feedback);
@@ -331,7 +389,12 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
 
     const summary = `Personaldienstpool "${updated.name}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'personnelServicePool', id: pool.id, label: updated.name },
+      {
+        kind: 'update',
+        entityType: 'personnelServicePool',
+        id: pool.id,
+        label: updated.name,
+      },
     ];
 
     return {
@@ -347,21 +410,32 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['personnelService']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'personnelService',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Personaldienst fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.personnelServices, targetRecord, {
-      label: 'Dienst',
-      nameKeys: ['name', 'serviceName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.personnelServices,
+      targetRecord,
+      {
+        label: 'Dienst',
+        nameKeys: ['name', 'serviceName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Dienst nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Dienst nicht gefunden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -403,7 +477,9 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
     }
 
     if (this.hasOwn(patch, 'requiredQualifications')) {
-      updated.requiredQualifications = this.parseStringArray(patch['requiredQualifications']);
+      updated.requiredQualifications = this.parseStringArray(
+        patch['requiredQualifications'],
+      );
       changed = true;
     }
 
@@ -413,12 +489,16 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
     }
 
     if (this.hasOwn(patch, 'maxResourcesPerInstance')) {
-      updated.maxResourcesPerInstance = this.parseNumber(patch['maxResourcesPerInstance']);
+      updated.maxResourcesPerInstance = this.parseNumber(
+        patch['maxResourcesPerInstance'],
+      );
       changed = true;
     }
 
     if (this.hasAnyKey(patch, ['pool', 'poolName', 'poolId'])) {
-      const poolRef = this.parsePoolReference(patch['poolId'] ?? patch['pool'] ?? patch['poolName']);
+      const poolRef = this.parsePoolReference(
+        patch['poolId'] ?? patch['pool'] ?? patch['poolName'],
+      );
       if (!poolRef) {
         return this.buildFeedbackResponse('Dienst-Pool fehlt.');
       }
@@ -454,7 +534,12 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
 
     const summary = `Personaldienst "${updated.name}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'personnelService', id: service.id, label: updated.name },
+      {
+        kind: 'update',
+        entityType: 'personnelService',
+        id: service.id,
+        label: updated.name,
+      },
     ];
 
     return {
@@ -470,25 +555,38 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['personnelServicePool']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'personnelServicePool',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Personaldienstpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.personnelServicePools, targetRecord, {
-      label: 'Personaldienstpool',
-      nameKeys: ['name', 'poolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.personnelServicePools,
+      targetRecord,
+      {
+        label: 'Personaldienstpool',
+        nameKeys: ['name', 'poolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     if (targetResult.item.id === SYSTEM_POOL_IDS.personnelServicePool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht gelöscht werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht gelöscht werden.',
+      );
     }
 
     const pool = targetResult.item;
@@ -503,12 +601,18 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
       (service) => service.poolId === pool.id,
     );
     const nextServices = snapshot.personnelServices.map((service) =>
-      service.poolId === pool.id ? { ...service, poolId: systemPool.id } : service,
+      service.poolId === pool.id
+        ? { ...service, poolId: systemPool.id }
+        : service,
     );
-    const nextPools = snapshot.personnelServicePools.filter((entry) => entry.id !== pool.id);
+    const nextPools = snapshot.personnelServicePools.filter(
+      (entry) => entry.id !== pool.id,
+    );
     const nextSystemPool = {
       ...systemPool,
-      serviceIds: Array.from(new Set([...systemPool.serviceIds, ...pool.serviceIds])),
+      serviceIds: Array.from(
+        new Set([...systemPool.serviceIds, ...pool.serviceIds]),
+      ),
     };
 
     const nextSnapshot: ResourceSnapshot = {
@@ -524,7 +628,12 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
       ? `Personaldienstpool "${pool.name}" gelöscht (${affectedServices.length} Dienste verschoben).`
       : `Personaldienstpool "${pool.name}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'personnelServicePool', id: pool.id, label: pool.name },
+      {
+        kind: 'delete',
+        entityType: 'personnelServicePool',
+        id: pool.id,
+        label: pool.name,
+      },
     ];
 
     return {
@@ -540,26 +649,39 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['personnelService']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'personnelService',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Personaldienst fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.personnelServices, targetRecord, {
-      label: 'Dienst',
-      nameKeys: ['name', 'serviceName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.personnelServices,
+      targetRecord,
+      {
+        label: 'Dienst',
+        nameKeys: ['name', 'serviceName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Dienst nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Dienst nicht gefunden.',
+      );
     }
 
     const service = targetResult.item;
     if (service.poolId === SYSTEM_POOL_IDS.personnelServicePool) {
-      return this.buildFeedbackResponse('Dienst befindet sich bereits im System-Pool.');
+      return this.buildFeedbackResponse(
+        'Dienst befindet sich bereits im System-Pool.',
+      );
     }
 
     const systemPool = snapshot.personnelServicePools.find(
@@ -580,7 +702,10 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
         };
       }
       if (entry.id === service.poolId) {
-        return { ...entry, serviceIds: entry.serviceIds.filter((id) => id !== service.id) };
+        return {
+          ...entry,
+          serviceIds: entry.serviceIds.filter((id) => id !== service.id),
+        };
       }
       return entry;
     });
@@ -594,7 +719,12 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
 
     const summary = `Personaldienst "${service.name}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'personnelService', id: service.id, label: service.name },
+      {
+        kind: 'delete',
+        entityType: 'personnelService',
+        id: service.id,
+        label: service.name,
+      },
     ];
 
     return {
@@ -624,7 +754,8 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
         if (entry && typeof entry === 'object') {
           const record = entry as Record<string, unknown>;
           const name =
-            this.cleanText(record['name']) ?? this.cleanText(record['serviceName']);
+            this.cleanText(record['name']) ??
+            this.cleanText(record['serviceName']);
           if (!name) {
             return null;
           }
@@ -634,9 +765,13 @@ export class AssistantActionPersonnelServices extends AssistantActionBase {
             startTime: this.cleanText(record['startTime']),
             endTime: this.cleanText(record['endTime']),
             isNightService: this.parseBoolean(record['isNightService']),
-            requiredQualifications: this.parseStringArray(record['requiredQualifications']),
+            requiredQualifications: this.parseStringArray(
+              record['requiredQualifications'],
+            ),
             maxDailyInstances: this.parseNumber(record['maxDailyInstances']),
-            maxResourcesPerInstance: this.parseNumber(record['maxResourcesPerInstance']),
+            maxResourcesPerInstance: this.parseNumber(
+              record['maxResourcesPerInstance'],
+            ),
           };
         }
         return null;

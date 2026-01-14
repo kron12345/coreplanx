@@ -1,7 +1,18 @@
-import { BadRequestException, Body, Controller, Param, Post, Query, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { PlanningOptimizationService } from './planning-optimization.service';
 import type { RulesetSelectionInput } from './planning-optimization.service';
-import { deriveTimetableYearLabelFromVariantId, normalizeVariantId } from '../shared/variant-scope';
+import {
+  deriveTimetableYearLabelFromVariantId,
+  normalizeVariantId,
+} from '../shared/variant-scope';
 import { isStageId } from './planning.types';
 
 @Controller('planning/stages')
@@ -14,14 +25,23 @@ export class PlanningOptimizationController {
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
     @Body() payload?: RulesetSelectionInput,
-    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
+    @Req()
+    req?: {
+      requestId?: string;
+      headers?: Record<string, string | string[] | undefined>;
+    },
   ) {
     if (!isStageId(stageId)) {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
     }
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -41,14 +61,23 @@ export class PlanningOptimizationController {
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
     @Body() payload?: RulesetSelectionInput,
-    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
+    @Req()
+    req?: {
+      requestId?: string;
+      headers?: Record<string, string | string[] | undefined>;
+    },
   ) {
     if (!isStageId(stageId)) {
       throw new BadRequestException(`Stage ${stageId} ist unbekannt.`);
     }
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );

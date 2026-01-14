@@ -43,7 +43,9 @@ export class VariantsRepository {
     );
   }
 
-  async listVariants(timetableYearLabel?: string): Promise<PlanningVariantRecord[]> {
+  async listVariants(
+    timetableYearLabel?: string,
+  ): Promise<PlanningVariantRecord[]> {
     if (!this.isEnabled) {
       return [];
     }
@@ -151,13 +153,17 @@ export class VariantsRepository {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
     }
-    await this.database.query(`DELETE FROM planning_variant WHERE id = $1`, [id]);
+    await this.database.query(`DELETE FROM planning_variant WHERE id = $1`, [
+      id,
+    ]);
   }
 
   async deleteTimetableYear(label: string): Promise<void> {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
     }
-    await this.database.query(`DELETE FROM timetable_year WHERE label = $1`, [label]);
+    await this.database.query(`DELETE FROM timetable_year WHERE label = $1`, [
+      label,
+    ]);
   }
 }

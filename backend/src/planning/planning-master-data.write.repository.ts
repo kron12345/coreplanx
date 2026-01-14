@@ -33,7 +33,9 @@ export class PlanningMasterDataWriteRepository {
     return this.database.enabled;
   }
 
-  async replacePersonnelServicePools(items: PersonnelServicePool[]): Promise<void> {
+  async replacePersonnelServicePools(
+    items: PersonnelServicePool[],
+  ): Promise<void> {
     if (!this.isEnabled) {
       return;
     }
@@ -722,7 +724,9 @@ export class PlanningMasterDataWriteRepository {
     );
   }
 
-  async replaceOpReplacementStopLinks(items: OpReplacementStopLink[]): Promise<void> {
+  async replaceOpReplacementStopLinks(
+    items: OpReplacementStopLink[],
+  ): Promise<void> {
     if (!this.isEnabled) {
       return;
     }
@@ -747,7 +751,11 @@ export class PlanningMasterDataWriteRepository {
   private flattenVehicleCompositionEntries(
     items: VehicleComposition[],
   ): { compositionId: string; typeId: string; quantity: number }[] {
-    const payload: { compositionId: string; typeId: string; quantity: number }[] = [];
+    const payload: {
+      compositionId: string;
+      typeId: string;
+      quantity: number;
+    }[] = [];
     items.forEach((composition) => {
       (composition.entries ?? []).forEach((entry) => {
         payload.push({
@@ -827,7 +835,10 @@ export class PlanningMasterDataWriteRepository {
       } catch (error) {
         await client.query('ROLLBACK');
         if (this.isTopologyStructureMissing(error)) {
-          this.warnTopologyTableOnce(tableName, 'noch nicht migriert – überspringe Persistierung.');
+          this.warnTopologyTableOnce(
+            tableName,
+            'noch nicht migriert – überspringe Persistierung.',
+          );
           return;
         }
         this.logger.error(

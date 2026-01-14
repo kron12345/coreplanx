@@ -238,9 +238,10 @@ export class GanttDragFacade {
       participantCategory: pointerCategory ?? this.dragState.participantCategory ?? null,
     };
 
+    const timeRangeLabel = this.formatTimeRangeLabel(startTime, endTime);
     const badgeLabel = sameResource
-      ? `${this.formatTimeLabel(startTime)}`
-      : `${this.getResourceName(targetResourceId)} • ${this.formatTimeLabel(startTime)}`;
+      ? timeRangeLabel
+      : `${this.getResourceName(targetResourceId)} • ${timeRangeLabel}`;
     this.updateDragBadge(badgeLabel, pointer);
     if (sameResource) {
       const verb = this.dragState.mode === 'copy' ? 'kopiert' : 'verschoben';
@@ -334,6 +335,13 @@ export class GanttDragFacade {
 
   private formatTimeLabel(date: Date): string {
     return this.dragTimeFormat.format(date);
+  }
+
+  private formatTimeRangeLabel(start: Date, end: Date | null): string {
+    if (!end) {
+      return this.formatTimeLabel(start);
+    }
+    return `${this.formatTimeLabel(start)} – ${this.formatTimeLabel(end)}`;
   }
 
   private describeParticipantCategory(category: ActivityParticipantCategory | null): string {

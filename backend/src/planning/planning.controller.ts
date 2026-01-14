@@ -37,8 +37,13 @@ export class PlanningController {
     @Body() payload?: { templateId?: string; replaceExisting?: boolean },
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -58,8 +63,13 @@ export class PlanningController {
     @Query('timetableYearLabel') timetableYearLabel?: string,
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -78,8 +88,13 @@ export class PlanningController {
     @Query('timetableYearLabel') timetableYearLabel?: string,
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -101,8 +116,13 @@ export class PlanningController {
     @Query('resourceIds') resourceIds?: string | string[],
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -128,8 +148,13 @@ export class PlanningController {
     @Body() request?: ResourceMutationRequest,
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -148,18 +173,29 @@ export class PlanningController {
     @Query('variantId') variantId?: string,
     @Query('timetableYearLabel') timetableYearLabel?: string,
     @Body() request?: ActivityMutationRequest,
-    @Req() req?: { requestId?: string; headers?: Record<string, string | string[] | undefined> },
+    @Req()
+    req?: {
+      requestId?: string;
+      headers?: Record<string, string | string[] | undefined>;
+    },
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
     }
     const requestId =
       req?.requestId ??
-      (typeof req?.headers?.['x-request-id'] === 'string' ? req?.headers?.['x-request-id'] : undefined);
+      (typeof req?.headers?.['x-request-id'] === 'string'
+        ? req?.headers?.['x-request-id']
+        : undefined);
     return this.planningService.mutateActivities(
       stageId,
       normalizedVariantId,
@@ -177,8 +213,13 @@ export class PlanningController {
     @Body() request?: ActivityValidationRequest,
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
@@ -199,13 +240,20 @@ export class PlanningController {
     @Body() request?: PlanningStageViewportSubscriptionRequest,
   ) {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );
     }
-    const normalizedResourceIds = this.normalizeResourceIds(request?.resourceIds);
+    const normalizedResourceIds = this.normalizeResourceIds(
+      request?.resourceIds,
+    );
     const payload = request
       ? {
           ...request,
@@ -230,8 +278,13 @@ export class PlanningController {
     @Query('connectionId') connectionId?: string,
   ): Observable<MessageEvent> {
     const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear = deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (derivedYear && timetableYearLabel && timetableYearLabel.trim() !== derivedYear) {
+    const derivedYear =
+      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
+    if (
+      derivedYear &&
+      timetableYearLabel &&
+      timetableYearLabel.trim() !== derivedYear
+    ) {
       throw new BadRequestException(
         `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
       );

@@ -1,6 +1,18 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { TimetableService } from './timetable.service';
-import type { TimetableStageId, TrainServicePartLinkRecord } from './timetable.types';
+import type {
+  TimetableStageId,
+  TrainServicePartLinkRecord,
+} from './timetable.types';
 import type { TrainRun, TrainSegment } from '../planning/planning.types';
 
 function normalizeStageId(value?: string): TimetableStageId {
@@ -8,10 +20,16 @@ function normalizeStageId(value?: string): TimetableStageId {
   if (!trimmed) {
     return 'base';
   }
-  if (trimmed === 'base' || trimmed === 'operations' || trimmed === 'dispatch') {
+  if (
+    trimmed === 'base' ||
+    trimmed === 'operations' ||
+    trimmed === 'dispatch'
+  ) {
     return trimmed;
   }
-  throw new BadRequestException('Ungültiger stageId (erwartet: base|operations|dispatch).');
+  throw new BadRequestException(
+    'Ungültiger stageId (erwartet: base|operations|dispatch).',
+  );
 }
 
 @Controller('timetable')
@@ -83,7 +101,10 @@ export class TimetableController {
     @Query('variantId') variantId?: string,
     @Query('stageId') stageId?: string,
   ) {
-    return this.service.listTrainServiceParts(variantId, normalizeStageId(stageId));
+    return this.service.listTrainServiceParts(
+      variantId,
+      normalizeStageId(stageId),
+    );
   }
 
   @Post('service-parts/auto')
@@ -91,18 +112,28 @@ export class TimetableController {
     @Query('variantId') variantId?: string,
     @Query('stageId') stageId?: string,
   ) {
-    return this.service.rebuildTrainServiceParts(variantId, normalizeStageId(stageId));
+    return this.service.rebuildTrainServiceParts(
+      variantId,
+      normalizeStageId(stageId),
+    );
   }
 
   @Put('service-parts/links')
   upsertServicePartLink(
     @Query('variantId') variantId?: string,
-    @Body() payload?: { fromPartId?: string; toPartId?: string; kind?: TrainServicePartLinkRecord['kind'] },
+    @Body()
+    payload?: {
+      fromPartId?: string;
+      toPartId?: string;
+      kind?: TrainServicePartLinkRecord['kind'];
+    },
   ) {
     const fromPartId = payload?.fromPartId?.trim();
     const toPartId = payload?.toPartId?.trim();
     if (!fromPartId || !toPartId) {
-      throw new BadRequestException('fromPartId und toPartId sind erforderlich.');
+      throw new BadRequestException(
+        'fromPartId und toPartId sind erforderlich.',
+      );
     }
     return this.service.upsertTrainServicePartLink({
       variantId,
@@ -143,7 +174,9 @@ export class TimetableController {
     const leftPartId = payload?.leftPartId?.trim();
     const rightPartId = payload?.rightPartId?.trim();
     if (!leftPartId || !rightPartId) {
-      throw new BadRequestException('leftPartId und rightPartId sind erforderlich.');
+      throw new BadRequestException(
+        'leftPartId und rightPartId sind erforderlich.',
+      );
     }
     return this.service.mergeTrainServiceParts({
       variantId,

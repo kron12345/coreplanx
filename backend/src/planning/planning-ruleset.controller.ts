@@ -17,12 +17,18 @@ export class PlanningRulesetController {
   }
 
   @Get(':rulesetId/:version')
-  getRuleset(@Param('rulesetId') rulesetId: string, @Param('version') version: string) {
+  getRuleset(
+    @Param('rulesetId') rulesetId: string,
+    @Param('version') version: string,
+  ) {
     return this.rulesets.getRuleset(rulesetId, version);
   }
 
   @Get(':rulesetId/:version/ir')
-  getRulesetIr(@Param('rulesetId') rulesetId: string, @Param('version') version: string) {
+  getRulesetIr(
+    @Param('rulesetId') rulesetId: string,
+    @Param('version') version: string,
+  ) {
     return this.rulesets.getCompiledRuleset(rulesetId, version);
   }
 

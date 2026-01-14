@@ -34,7 +34,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     commitTasks: AssistantActionCommitTask[],
   ): ActionApplyOutcome {
     const summary =
-      summaries.length === 1 ? summaries[0] : `Einstellungen: ${summaries.length} Aktionen.`;
+      summaries.length === 1
+        ? summaries[0]
+        : `Einstellungen: ${summaries.length} Aktionen.`;
     return {
       type: 'applied',
       snapshot,
@@ -156,7 +158,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     } else if (!options.allowNew) {
       return { error: 'Keine Activity Definitions vorhanden.' };
     }
-    const normalized = /^[a-zA-Z0-9_-]+$/.test(cleaned) ? cleaned : this.slugify(cleaned);
+    const normalized = /^[a-zA-Z0-9_-]+$/.test(cleaned)
+      ? cleaned
+      : this.slugify(cleaned);
     return { id: normalized };
   }
 
@@ -164,7 +168,11 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     entry: unknown,
     definitions: ActivityDefinition[],
     context: ActionContext,
-  ): { value?: ActivityTemplate; error?: string; clarification?: ClarificationRequest } {
+  ): {
+    value?: ActivityTemplate;
+    error?: string;
+    clarification?: ClarificationRequest;
+  } {
     const record = this.asRecord(entry);
     const label =
       this.cleanText(record?.['label'] ?? record?.['name']) ??
@@ -175,7 +183,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (!id) {
       return { error: 'Activity Template ID fehlt.' };
     }
-    const activityTypeRef = this.cleanText(record?.['activityType'] ?? record?.['activity_type']);
+    const activityTypeRef = this.cleanText(
+      record?.['activityType'] ?? record?.['activity_type'],
+    );
     let activityType: string | undefined;
     if (activityTypeRef) {
       const resolved = this.resolveActivityTypeRef({
@@ -194,7 +204,8 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       activityType = resolved.id;
     }
     const defaultDuration = this.parseNumber(
-      record?.['defaultDurationMinutes'] ?? record?.['default_duration_minutes'],
+      record?.['defaultDurationMinutes'] ??
+        record?.['default_duration_minutes'],
     );
 
     return {
@@ -204,7 +215,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
         description: this.cleanText(record?.['description']),
         activityType: activityType ?? undefined,
         defaultDurationMinutes:
-          defaultDuration !== undefined ? Math.max(0, Math.trunc(defaultDuration)) : undefined,
+          defaultDuration !== undefined
+            ? Math.max(0, Math.trunc(defaultDuration))
+            : undefined,
         attributes: this.normalizeAttributeList(record?.['attributes']),
       },
     };
@@ -215,8 +228,14 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     patch: Record<string, unknown>,
     definitions: ActivityDefinition[],
     context: ActionContext,
-  ): { value?: ActivityTemplate; error?: string; clarification?: ClarificationRequest } {
-    const activityTypeRef = this.cleanText(patch['activityType'] ?? patch['activity_type']);
+  ): {
+    value?: ActivityTemplate;
+    error?: string;
+    clarification?: ClarificationRequest;
+  } {
+    const activityTypeRef = this.cleanText(
+      patch['activityType'] ?? patch['activity_type'],
+    );
     let activityType = existing.activityType;
     if (activityTypeRef) {
       const resolved = this.resolveActivityTypeRef({
@@ -241,13 +260,16 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       value: {
         ...existing,
         label: this.cleanText(patch['label']) ?? existing.label,
-        description: this.cleanText(patch['description']) ?? existing.description,
+        description:
+          this.cleanText(patch['description']) ?? existing.description,
         activityType,
         defaultDurationMinutes:
           defaultDuration !== undefined
             ? Math.max(0, Math.trunc(defaultDuration))
             : existing.defaultDurationMinutes,
-        attributes: this.normalizeAttributeList(patch['attributes']) ?? existing.attributes,
+        attributes:
+          this.normalizeAttributeList(patch['attributes']) ??
+          existing.attributes,
       },
     };
   }
@@ -257,7 +279,11 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     definitions: ActivityDefinition[],
     templates: ActivityTemplate[],
     context: ActionContext,
-  ): { value?: ActivityDefinition; error?: string; clarification?: ClarificationRequest } {
+  ): {
+    value?: ActivityDefinition;
+    error?: string;
+    clarification?: ClarificationRequest;
+  } {
     const record = this.asRecord(entry);
     const label =
       this.cleanText(record?.['label'] ?? record?.['name']) ??
@@ -268,7 +294,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (!id) {
       return { error: 'Activity Definition ID fehlt.' };
     }
-    const activityTypeRef = this.cleanText(record?.['activityType'] ?? record?.['activity_type']);
+    const activityTypeRef = this.cleanText(
+      record?.['activityType'] ?? record?.['activity_type'],
+    );
     if (!activityTypeRef) {
       return { error: 'Activity Definition activityType fehlt.' };
     }
@@ -285,12 +313,17 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (!typeResolved.id) {
       return { error: typeResolved.error ?? 'Activity Type nicht gefunden.' };
     }
-    const templateRef = this.cleanText(record?.['templateId'] ?? record?.['template_id']);
+    const templateRef = this.cleanText(
+      record?.['templateId'] ?? record?.['template_id'],
+    );
     let templateId: string | undefined;
     if (templateRef) {
       const templateResolved = this.resolveByIdOrLabel(templates, templateRef, {
         title: `Mehrere Activity Templates passen zu "${templateRef}". Welches meinst du?`,
-        apply: { mode: 'value', path: [...context.pathPrefix, 'activityDefinition', 'templateId'] },
+        apply: {
+          mode: 'value',
+          path: [...context.pathPrefix, 'activityDefinition', 'templateId'],
+        },
       });
       if (templateResolved.clarification) {
         return { clarification: templateResolved.clarification };
@@ -302,14 +335,18 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       }
     }
     const defaultDuration = this.parseNumber(
-      record?.['defaultDurationMinutes'] ?? record?.['default_duration_minutes'],
+      record?.['defaultDurationMinutes'] ??
+        record?.['default_duration_minutes'],
     );
     const relevantFor = this.normalizeResourceKinds(
       record?.['relevantFor'] ?? record?.['relevant_for'],
     );
     const rawAttributes = this.normalizeAttributeList(record?.['attributes']);
     const presetAttributes = this.normalizeDefinitionPresets(record ?? {});
-    const mergedAttributes = this.mergeAttributeLists(rawAttributes, presetAttributes);
+    const mergedAttributes = this.mergeAttributeLists(
+      rawAttributes,
+      presetAttributes,
+    );
 
     return {
       value: {
@@ -319,7 +356,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
         activityType: typeResolved.id,
         templateId: templateId ?? undefined,
         defaultDurationMinutes:
-          defaultDuration !== undefined ? Math.max(0, Math.trunc(defaultDuration)) : undefined,
+          defaultDuration !== undefined
+            ? Math.max(0, Math.trunc(defaultDuration))
+            : undefined,
         relevantFor: relevantFor.length ? relevantFor : undefined,
         attributes: mergedAttributes?.length ? mergedAttributes : undefined,
       },
@@ -332,9 +371,15 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     definitions: ActivityDefinition[],
     templates: ActivityTemplate[],
     context: ActionContext,
-  ): { value?: ActivityDefinition; error?: string; clarification?: ClarificationRequest } {
+  ): {
+    value?: ActivityDefinition;
+    error?: string;
+    clarification?: ClarificationRequest;
+  } {
     let activityType = existing.activityType;
-    const activityTypeRef = this.cleanText(patch['activityType'] ?? patch['activity_type']);
+    const activityTypeRef = this.cleanText(
+      patch['activityType'] ?? patch['activity_type'],
+    );
     if (activityTypeRef) {
       const resolved = this.resolveActivityTypeRef({
         ref: activityTypeRef,
@@ -353,17 +398,24 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     }
 
     let templateId = existing.templateId;
-    const templateRef = this.cleanText(patch['templateId'] ?? patch['template_id']);
+    const templateRef = this.cleanText(
+      patch['templateId'] ?? patch['template_id'],
+    );
     if (templateRef) {
       const resolved = this.resolveByIdOrLabel(templates, templateRef, {
         title: `Mehrere Activity Templates passen zu "${templateRef}". Welches meinst du?`,
-        apply: { mode: 'value', path: [...context.pathPrefix, 'patch', 'templateId'] },
+        apply: {
+          mode: 'value',
+          path: [...context.pathPrefix, 'patch', 'templateId'],
+        },
       });
       if (resolved.clarification) {
         return { clarification: resolved.clarification };
       }
       if (!resolved.item) {
-        return { error: resolved.feedback ?? 'Activity Template nicht gefunden.' };
+        return {
+          error: resolved.feedback ?? 'Activity Template nicht gefunden.',
+        };
       }
       templateId = resolved.item.id;
     }
@@ -384,13 +436,14 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       value: {
         ...existing,
         label: this.cleanText(patch['label']) ?? existing.label,
-        description: this.cleanText(patch['description']) ?? existing.description,
+        description:
+          this.cleanText(patch['description']) ?? existing.description,
         activityType,
         templateId,
         defaultDurationMinutes:
           defaultDuration !== undefined
-          ? Math.max(0, Math.trunc(defaultDuration))
-          : existing.defaultDurationMinutes,
+            ? Math.max(0, Math.trunc(defaultDuration))
+            : existing.defaultDurationMinutes,
         relevantFor: relevantFor.length ? relevantFor : existing.relevantFor,
         attributes: mergedAttributes?.length ? mergedAttributes : undefined,
       },
@@ -412,9 +465,13 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (!id) {
       return { error: 'Layer-Gruppe ID fehlt.' };
     }
-    const orderRaw = this.parseNumber(record?.['order'] ?? record?.['sort_order']);
+    const orderRaw = this.parseNumber(
+      record?.['order'] ?? record?.['sort_order'],
+    );
     const order =
-      orderRaw !== undefined ? Math.trunc(orderRaw) : this.nextLayerOrder(existing);
+      orderRaw !== undefined
+        ? Math.trunc(orderRaw)
+        : this.nextLayerOrder(existing);
     return {
       value: {
         id,
@@ -455,26 +512,40 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     const allowedSet = new Set<ResourceKind>(allowed);
     return (this.parseStringArray(value) ?? [])
       .map((entry) => entry.trim())
-      .filter((entry): entry is ResourceKind => allowedSet.has(entry as ResourceKind));
+      .filter((entry): entry is ResourceKind =>
+        allowedSet.has(entry as ResourceKind),
+      );
   }
 
   protected normalizeActivityFields(value: unknown): ActivityFieldKey[] {
-    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
+    const allowed: ActivityFieldKey[] = [
+      'start',
+      'end',
+      'from',
+      'to',
+      'remark',
+    ];
     const allowedSet = new Set<ActivityFieldKey>(allowed);
     const list = (this.parseStringArray(value) ?? [])
       .map((entry) => entry.trim())
-      .filter((entry): entry is ActivityFieldKey => allowedSet.has(entry as ActivityFieldKey));
+      .filter((entry): entry is ActivityFieldKey =>
+        allowedSet.has(entry as ActivityFieldKey),
+      );
     return Array.from(new Set(list));
   }
 
-  protected normalizeMetaRecord(value: unknown): Record<string, unknown> | undefined {
+  protected normalizeMetaRecord(
+    value: unknown,
+  ): Record<string, unknown> | undefined {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return undefined;
     }
     return { ...(value as Record<string, unknown>) };
   }
 
-  protected normalizeAttributeList(value: unknown): ActivityAttributeValue[] | undefined {
+  protected normalizeAttributeList(
+    value: unknown,
+  ): ActivityAttributeValue[] | undefined {
     if (!value) {
       return undefined;
     }
@@ -496,23 +567,32 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     }
     if (typeof value === 'object') {
       const list: ActivityAttributeValue[] = [];
-      Object.entries(value as Record<string, unknown>).forEach(([key, metaValue]) => {
-        const trimmed = key.trim();
-        if (!trimmed) {
-          return;
-        }
-        if (metaValue && typeof metaValue === 'object' && !Array.isArray(metaValue)) {
-          list.push({ key: trimmed, meta: { ...(metaValue as Record<string, unknown>) } });
-        } else {
-          list.push({
-            key: trimmed,
-            meta:
-              metaValue === undefined || metaValue === null
-                ? undefined
-                : { value: String(metaValue) },
-          });
-        }
-      });
+      Object.entries(value as Record<string, unknown>).forEach(
+        ([key, metaValue]) => {
+          const trimmed = key.trim();
+          if (!trimmed) {
+            return;
+          }
+          if (
+            metaValue &&
+            typeof metaValue === 'object' &&
+            !Array.isArray(metaValue)
+          ) {
+            list.push({
+              key: trimmed,
+              meta: { ...(metaValue as Record<string, unknown>) },
+            });
+          } else {
+            list.push({
+              key: trimmed,
+              meta:
+                metaValue === undefined || metaValue === null
+                  ? undefined
+                  : { value: String(metaValue) },
+            });
+          }
+        },
+      );
       return list;
     }
     return undefined;
@@ -532,7 +612,7 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       }
       map.set(entry.key, {
         key: entry.key,
-        meta: entry.meta ? { ...(entry.meta as Record<string, unknown>) } : undefined,
+        meta: entry.meta ? { ...entry.meta } : undefined,
       });
     };
     (base ?? []).forEach(push);
@@ -622,7 +702,10 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     const booleanFlags: Array<{ key: string; aliases: string[] }> = [
       { key: 'is_break', aliases: ['isBreak', 'is_break'] },
       { key: 'is_short_break', aliases: ['isShortBreak', 'is_short_break'] },
-      { key: 'is_service_start', aliases: ['isServiceStart', 'is_service_start'] },
+      {
+        key: 'is_service_start',
+        aliases: ['isServiceStart', 'is_service_start'],
+      },
       { key: 'is_service_end', aliases: ['isServiceEnd', 'is_service_end'] },
       { key: 'is_absence', aliases: ['isAbsence', 'is_absence'] },
       { key: 'is_reserve', aliases: ['isReserve', 'is_reserve'] },
@@ -696,7 +779,8 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     if (value === undefined || value === null) {
       return undefined;
     }
-    const normalized = typeof value === 'string' ? this.normalizeKey(value) : '';
+    const normalized =
+      typeof value === 'string' ? this.normalizeKey(value) : '';
     if (
       normalized === 'fix' ||
       normalized === 'fixed' ||
@@ -729,14 +813,12 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
   protected resolveLocationPreset(
     presets: Record<string, unknown> | null,
     record: Record<string, unknown>,
-  ):
-    | {
-        fromMode?: 'fix' | 'previous' | 'next';
-        toMode?: 'fix' | 'previous' | 'next';
-        fromHidden?: boolean;
-        toHidden?: boolean;
-      }
-    | null {
+  ): {
+    fromMode?: 'fix' | 'previous' | 'next';
+    toMode?: 'fix' | 'previous' | 'next';
+    fromHidden?: boolean;
+    toHidden?: boolean;
+  } | null {
     const readRaw = (keys: string[]): unknown => {
       for (const key of keys) {
         if (presets && this.hasOwn(presets, key)) {
@@ -748,7 +830,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       }
       return undefined;
     };
-    const readMode = (keys: string[]): 'fix' | 'previous' | 'next' | undefined =>
+    const readMode = (
+      keys: string[],
+    ): 'fix' | 'previous' | 'next' | undefined =>
       this.normalizeLocationModePreset(readRaw(keys));
     const readBool = (keys: string[]): boolean | undefined => {
       const raw = readRaw(keys);
@@ -763,7 +847,12 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     ]);
     const locationRecord = this.asRecord(locationRaw ?? undefined);
     const fromMode =
-      readMode(['fromLocationMode', 'from_location_mode', 'fromMode', 'from_mode']) ??
+      readMode([
+        'fromLocationMode',
+        'from_location_mode',
+        'fromMode',
+        'from_mode',
+      ]) ??
       this.normalizeLocationModePreset(
         locationRecord?.['from'] ??
           locationRecord?.['fromMode'] ??
@@ -778,10 +867,14 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       );
     const fromHidden =
       readBool(['fromHidden', 'from_hidden']) ??
-      this.parseBoolean(locationRecord?.['fromHidden'] ?? locationRecord?.['from_hidden']);
+      this.parseBoolean(
+        locationRecord?.['fromHidden'] ?? locationRecord?.['from_hidden'],
+      );
     const toHidden =
       readBool(['toHidden', 'to_hidden']) ??
-      this.parseBoolean(locationRecord?.['toHidden'] ?? locationRecord?.['to_hidden']);
+      this.parseBoolean(
+        locationRecord?.['toHidden'] ?? locationRecord?.['to_hidden'],
+      );
 
     let resolved: {
       fromMode?: 'fix' | 'previous' | 'next';
@@ -805,14 +898,21 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
 
     if (locationRaw && typeof locationRaw === 'string') {
       const normalized = this.normalizeKey(locationRaw);
-      if (normalized.includes('unveraenderlich') || normalized.includes('gleich') || normalized.includes('same')) {
+      if (
+        normalized.includes('unveraenderlich') ||
+        normalized.includes('gleich') ||
+        normalized.includes('same')
+      ) {
         resolved = {
           ...resolved,
           fromMode: resolved.fromMode ?? 'previous',
           toMode: resolved.toMode ?? 'previous',
           toHidden: resolved.toHidden ?? true,
         };
-      } else if (normalized.includes('vorher') || normalized.includes('previous')) {
+      } else if (
+        normalized.includes('vorher') ||
+        normalized.includes('previous')
+      ) {
         resolved = {
           ...resolved,
           fromMode: resolved.fromMode ?? 'previous',
@@ -824,7 +924,11 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
           fromMode: resolved.fromMode ?? 'fix',
           toMode: resolved.toMode ?? 'next',
         };
-      } else if (normalized.includes('manuell') || normalized.includes('manual') || normalized.includes('fix')) {
+      } else if (
+        normalized.includes('manuell') ||
+        normalized.includes('manual') ||
+        normalized.includes('fix')
+      ) {
         resolved = {
           ...resolved,
           fromMode: resolved.fromMode ?? 'fix',
@@ -846,8 +950,14 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
     return resolved;
   }
 
-  protected extractTranslationEntries(payload: ActionPayload): TranslationEntry[] {
-    const rawEntries = this.extractEntries(payload, ['translations', 'translation', 'items']);
+  protected extractTranslationEntries(
+    payload: ActionPayload,
+  ): TranslationEntry[] {
+    const rawEntries = this.extractEntries(payload, [
+      'translations',
+      'translation',
+      'items',
+    ]);
     const baseLocale = this.cleanText(payload.locale);
     const entries: TranslationEntry[] = [];
     for (const raw of rawEntries) {
@@ -860,7 +970,9 @@ export class AssistantActionSettingsBase extends AssistantActionBase {
       if (!locale || !key) {
         continue;
       }
-      const deleteFlag = this.parseBoolean(record['delete'] ?? record['remove']);
+      const deleteFlag = this.parseBoolean(
+        record['delete'] ?? record['remove'],
+      );
       const label = this.cleanText(record['label']);
       const abbreviation = this.cleanText(record['abbreviation']);
       entries.push({

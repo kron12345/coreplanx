@@ -16,7 +16,9 @@ interface AssistantActionAuditEntry {
   role?: string | null;
   summary?: string;
   changes?: AssistantActionChangeDto[];
-  diffs?: Array<AssistantActionChangeDto & { before?: unknown; after?: unknown }>;
+  diffs?: Array<
+    AssistantActionChangeDto & { before?: unknown; after?: unknown }
+  >;
   payload?: Record<string, unknown>;
   reason?: string;
 }
@@ -27,7 +29,9 @@ export class AssistantActionAuditService {
   private initialized = false;
   private pending = Promise.resolve();
 
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
   recordPreview(options: {
     previewId?: string;
@@ -50,7 +54,11 @@ export class AssistantActionAuditService {
       role: options.role,
       summary: options.summary,
       changes: options.changes,
-      diffs: this.buildDiffs(options.baseSnapshot, options.nextSnapshot, options.changes),
+      diffs: this.buildDiffs(
+        options.baseSnapshot,
+        options.nextSnapshot,
+        options.changes,
+      ),
       payload: options.payload,
     };
     this.enqueue(entry);
@@ -76,7 +84,11 @@ export class AssistantActionAuditService {
       role: options.role,
       summary: options.summary,
       changes: options.changes,
-      diffs: this.buildDiffs(options.baseSnapshot, options.nextSnapshot, options.changes),
+      diffs: this.buildDiffs(
+        options.baseSnapshot,
+        options.nextSnapshot,
+        options.changes,
+      ),
     };
     this.enqueue(entry);
   }
@@ -133,8 +145,12 @@ export class AssistantActionAuditService {
   ): Array<AssistantActionChangeDto & { before?: unknown; after?: unknown }> {
     return changes.map((change) => ({
       ...change,
-      before: this.clone(this.findEntity(baseSnapshot, change.entityType, change.id)),
-      after: this.clone(this.findEntity(nextSnapshot, change.entityType, change.id)),
+      before: this.clone(
+        this.findEntity(baseSnapshot, change.entityType, change.id),
+      ),
+      after: this.clone(
+        this.findEntity(nextSnapshot, change.entityType, change.id),
+      ),
     }));
   }
 
@@ -145,17 +161,26 @@ export class AssistantActionAuditService {
   ): unknown {
     switch (entityType) {
       case 'personnelServicePool':
-        return snapshot.personnelServicePools.find((entry) => entry.id === id) ?? null;
+        return (
+          snapshot.personnelServicePools.find((entry) => entry.id === id) ??
+          null
+        );
       case 'vehicleServicePool':
-        return snapshot.vehicleServicePools.find((entry) => entry.id === id) ?? null;
+        return (
+          snapshot.vehicleServicePools.find((entry) => entry.id === id) ?? null
+        );
       case 'personnelPool':
         return snapshot.personnelPools.find((entry) => entry.id === id) ?? null;
       case 'vehiclePool':
         return snapshot.vehiclePools.find((entry) => entry.id === id) ?? null;
       case 'personnelService':
-        return snapshot.personnelServices.find((entry) => entry.id === id) ?? null;
+        return (
+          snapshot.personnelServices.find((entry) => entry.id === id) ?? null
+        );
       case 'vehicleService':
-        return snapshot.vehicleServices.find((entry) => entry.id === id) ?? null;
+        return (
+          snapshot.vehicleServices.find((entry) => entry.id === id) ?? null
+        );
       case 'personnel':
         return snapshot.personnel.find((entry) => entry.id === id) ?? null;
       case 'vehicle':

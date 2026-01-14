@@ -1,4 +1,10 @@
-import { Controller, MessageEvent, NotFoundException, Query, Sse } from '@nestjs/common';
+import {
+  Controller,
+  MessageEvent,
+  NotFoundException,
+  Query,
+  Sse,
+} from '@nestjs/common';
 import { Observable, interval, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { DebugStreamService } from './debug-stream.service';
@@ -17,14 +23,19 @@ export class DebugStreamController {
     @Query('history') history?: string,
     @Query('token') token?: string,
   ): Observable<MessageEvent> {
-    if (!this.debugStream.isEnabled() || !this.debugStream.isAuthorized(token)) {
+    if (
+      !this.debugStream.isEnabled() ||
+      !this.debugStream.isAuthorized(token)
+    ) {
       throw new NotFoundException();
     }
     const parsedLevels = this.parseList<DebugLogLevel>(levels, (entry) =>
       ['debug', 'info', 'warn', 'error'].includes(entry),
     );
     const parsedTopics = this.parseList<DebugLogTopic>(topics, (entry) =>
-      ['planning', 'solver', 'assistant', 'db', 'rules', 'system'].includes(entry),
+      ['planning', 'solver', 'assistant', 'db', 'rules', 'system'].includes(
+        entry,
+      ),
     );
     const { includeHistory, historySize } = this.parseHistory(history);
 
@@ -68,14 +79,20 @@ export class DebugStreamController {
     return values.length ? (values as T[]) : undefined;
   }
 
-  private parseHistory(raw: string | undefined): { includeHistory: boolean; historySize?: number } {
+  private parseHistory(raw: string | undefined): {
+    includeHistory: boolean;
+    historySize?: number;
+  } {
     if (!raw) {
       return { includeHistory: true };
     }
     const trimmed = raw.trim().toLowerCase();
     const parsed = Number.parseInt(trimmed, 10);
     if (Number.isFinite(parsed)) {
-      return { includeHistory: parsed > 0, historySize: parsed > 0 ? parsed : undefined };
+      return {
+        includeHistory: parsed > 0,
+        historySize: parsed > 0 ? parsed : undefined,
+      };
     }
     if (trimmed === 'false' || trimmed === '0' || trimmed === 'no') {
       return { includeHistory: false };

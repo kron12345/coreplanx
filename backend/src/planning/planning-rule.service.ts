@@ -36,18 +36,60 @@ export interface DutyAutopilotConfig {
   azg: {
     enabled: boolean;
     exceedBufferMinutes: number;
-    workAvg7d: { enabled: boolean; windowWorkdays: number; maxAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
-    workAvg365d: { enabled: boolean; windowDays: number; maxAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
-    dutySpanAvg28d: { enabled: boolean; windowDays: number; maxAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
-    restMin: { enabled: boolean; minMinutes: number; resourceKinds?: ResourceKind[] | null };
-    restAvg28d: { enabled: boolean; windowDays: number; minAverageMinutes: number; resourceKinds?: ResourceKind[] | null };
+    workAvg7d: {
+      enabled: boolean;
+      windowWorkdays: number;
+      maxAverageMinutes: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
+    workAvg365d: {
+      enabled: boolean;
+      windowDays: number;
+      maxAverageMinutes: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
+    dutySpanAvg28d: {
+      enabled: boolean;
+      windowDays: number;
+      maxAverageMinutes: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
+    restMin: {
+      enabled: boolean;
+      minMinutes: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
+    restAvg28d: {
+      enabled: boolean;
+      windowDays: number;
+      minAverageMinutes: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
     breakMaxCount: { enabled: boolean; maxCount: number };
-    breakForbiddenNight: { enabled: boolean; startHour: number; endHour: number };
+    breakForbiddenNight: {
+      enabled: boolean;
+      startHour: number;
+      endHour: number;
+    };
     breakStandard: { enabled: boolean; minMinutes: number };
     breakMidpoint: { enabled: boolean; toleranceMinutes: number };
-    breakInterruption: { enabled: boolean; minMinutes: number; maxDutyMinutes: number; maxWorkMinutes: number };
-    nightMaxStreak: { enabled: boolean; maxConsecutive: number; resourceKinds?: ResourceKind[] | null };
-    nightMax28d: { enabled: boolean; windowDays: number; maxCount: number; resourceKinds?: ResourceKind[] | null };
+    breakInterruption: {
+      enabled: boolean;
+      minMinutes: number;
+      maxDutyMinutes: number;
+      maxWorkMinutes: number;
+    };
+    nightMaxStreak: {
+      enabled: boolean;
+      maxConsecutive: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
+    nightMax28d: {
+      enabled: boolean;
+      windowDays: number;
+      maxCount: number;
+      resourceKinds?: ResourceKind[] | null;
+    };
     restDaysYear: {
       enabled: boolean;
       minRestDays: number;
@@ -62,7 +104,10 @@ export interface DutyAutopilotConfig {
 export class PlanningRuleService {
   private readonly logger = new Logger(PlanningRuleService.name);
   private readonly cache = new Map<string, PlanningRule[]>();
-  private readonly defaultDutyRules = new Map<string, Omit<PlanningRule, 'stageId' | 'variantId'>>();
+  private readonly defaultDutyRules = new Map<
+    string,
+    Omit<PlanningRule, 'stageId' | 'variantId'>
+  >();
 
   constructor(
     private readonly repository: PlanningRuleRepository,
@@ -71,7 +116,10 @@ export class PlanningRuleService {
     this.loadDefaultDutyRules();
   }
 
-  async listRules(stageId: StageId, variantId: string): Promise<PlanningRule[]> {
+  async listRules(
+    stageId: StageId,
+    variantId: string,
+  ): Promise<PlanningRule[]> {
     const key = `${stageId}:${variantId}`;
     const cached = this.cache.get(key);
     if (cached) {
@@ -85,7 +133,11 @@ export class PlanningRuleService {
     }
 
     await this.partitions.ensurePlanningPartitions(variantId);
-    await this.repository.insertDefaults(stageId, variantId, this.materializeDefaults(stageId, variantId));
+    await this.repository.insertDefaults(
+      stageId,
+      variantId,
+      this.materializeDefaults(stageId, variantId),
+    );
 
     const rules = await this.repository.listRules(stageId, variantId);
     this.cache.set(key, rules);
@@ -107,7 +159,11 @@ export class PlanningRuleService {
     const normalizedUpserts: PlanningRule[] = [];
     const derivedDeleteIds: string[] = [];
     for (const incoming of upserts) {
-      const { rule, deleteId } = this.normalizeUpsert(stageId, variantId, incoming);
+      const { rule, deleteId } = this.normalizeUpsert(
+        stageId,
+        variantId,
+        incoming,
+      );
       normalizedUpserts.push(rule);
       if (deleteId) {
         derivedDeleteIds.push(deleteId);
@@ -118,16 +174,24 @@ export class PlanningRuleService {
       await this.repository.upsertRules(stageId, variantId, normalizedUpserts);
     }
 
-    const allDeleteIds = Array.from(new Set([...deleteIds, ...derivedDeleteIds]));
+    const allDeleteIds = Array.from(
+      new Set([...deleteIds, ...derivedDeleteIds]),
+    );
     if (allDeleteIds.length) {
       await this.repository.deleteRules(stageId, variantId, allDeleteIds);
     }
 
     this.cache.delete(`${stageId}:${variantId}`);
-    return { appliedUpserts: normalizedUpserts.map((r) => r.id), deletedIds: allDeleteIds };
+    return {
+      appliedUpserts: normalizedUpserts.map((r) => r.id),
+      deletedIds: allDeleteIds,
+    };
   }
 
-  async resetRulesToDefaults(stageId: StageId, variantId: string): Promise<PlanningRule[]> {
+  async resetRulesToDefaults(
+    stageId: StageId,
+    variantId: string,
+  ): Promise<PlanningRule[]> {
     if (!this.repository.isEnabled) {
       const rules = this.materializeDefaults(stageId, variantId);
       this.cache.set(`${stageId}:${variantId}`, rules);
@@ -151,7 +215,10 @@ export class PlanningRuleService {
     options?: { includeDisabled?: boolean },
   ): Promise<DutyAutopilotConfig | null> {
     const rules = await this.listRules(stageId, variantId);
-    const generator = rules.find((rule) => rule.executor === 'duty/autopilot' || rule.id === 'duty.generator');
+    const generator = rules.find(
+      (rule) =>
+        rule.executor === 'duty/autopilot' || rule.id === 'duty.generator',
+    );
     if (!generator) {
       return null;
     }
@@ -163,7 +230,11 @@ export class PlanningRuleService {
       return null;
     }
 
-    const pickNumber = (ruleId: string, key: string, fallback: number): number => {
+    const pickNumber = (
+      ruleId: string,
+      key: string,
+      fallback: number,
+    ): number => {
       const rule = rules.find((r) => r.id === ruleId && r.enabled);
       const raw = rule?.params?.[key];
       const parsed =
@@ -202,11 +273,15 @@ export class PlanningRuleService {
     const rulesetVersion = readOptionalTypeId('rulesetVersion');
     const breakTypeIdsRaw = params['breakTypeIds'];
     const breakTypeIds = Array.isArray(breakTypeIdsRaw)
-      ? breakTypeIdsRaw.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
+      ? breakTypeIdsRaw
+          .map((entry) => String(entry))
+          .filter((entry) => entry.trim().length > 0)
       : null;
     const shortBreakTypeId = readOptionalTypeId('shortBreakTypeId');
     const commuteTypeId = readOptionalTypeId('commuteTypeId');
-    const conflictAttributeKey = String(params['conflictAttributeKey'] ?? 'service_conflict_level');
+    const conflictAttributeKey = String(
+      params['conflictAttributeKey'] ?? 'service_conflict_level',
+    );
     const conflictCodesAttributeKey = String(
       params['conflictCodesAttributeKey'] ?? 'service_conflict_codes',
     );
@@ -218,9 +293,12 @@ export class PlanningRuleService {
           ? Number.parseInt(maxConflictLevelRaw, 10)
           : 2;
 
-    const enforceOneDutyPerDay = !!rules.find((r) => r.id === 'duty.one_per_day' && r.enabled);
+    const enforceOneDutyPerDay = !!rules.find(
+      (r) => r.id === 'duty.one_per_day' && r.enabled,
+    );
 
-    const isRuleEnabled = (ruleId: string): boolean => !!rules.find((r) => r.id === ruleId && r.enabled);
+    const isRuleEnabled = (ruleId: string): boolean =>
+      !!rules.find((r) => r.id === ruleId && r.enabled);
     const pickInt = (ruleId: string, key: string, fallback: number): number => {
       const rule = rules.find((r) => r.id === ruleId && r.enabled);
       const raw = rule?.params?.[key];
@@ -236,7 +314,9 @@ export class PlanningRuleService {
       const rule = rules.find((r) => r.id === ruleId && r.enabled);
       const raw = rule?.params?.[key];
       if (Array.isArray(raw)) {
-        return raw.map((entry) => `${entry ?? ''}`.trim()).filter((entry) => entry.length > 0);
+        return raw
+          .map((entry) => `${entry ?? ''}`.trim())
+          .filter((entry) => entry.length > 0);
       }
       if (typeof raw === 'string') {
         const trimmed = raw.trim();
@@ -263,32 +343,62 @@ export class PlanningRuleService {
       commuteTypeId,
       conflictAttributeKey,
       conflictCodesAttributeKey,
-      maxConflictLevel: Number.isFinite(maxConflictLevel) ? maxConflictLevel : 2,
+      maxConflictLevel: Number.isFinite(maxConflictLevel)
+        ? maxConflictLevel
+        : 2,
       maxWorkMinutes: pickNumber('duty.max_work_minutes', 'maxMinutes', 600),
-      maxContinuousWorkMinutes: pickNumber('duty.max_continuous_work_minutes', 'maxMinutes', 300),
+      maxContinuousWorkMinutes: pickNumber(
+        'duty.max_continuous_work_minutes',
+        'maxMinutes',
+        300,
+      ),
       minBreakMinutes: pickNumber('duty.min_break_minutes', 'minMinutes', 30),
-      minShortBreakMinutes: pickNumber('duty.min_short_break_minutes', 'minMinutes', 20),
-      maxDutySpanMinutes: pickNumber('duty.max_duty_span_minutes', 'maxMinutes', 720),
+      minShortBreakMinutes: pickNumber(
+        'duty.min_short_break_minutes',
+        'minMinutes',
+        20,
+      ),
+      maxDutySpanMinutes: pickNumber(
+        'duty.max_duty_span_minutes',
+        'maxMinutes',
+        720,
+      ),
       enforceOneDutyPerDay,
       azg: {
         enabled: rules.some((r) => r.id.startsWith('azg.') && r.enabled),
-        exceedBufferMinutes: pickInt('azg.exceed_buffer_minutes', 'bufferMinutes', 10),
+        exceedBufferMinutes: pickInt(
+          'azg.exceed_buffer_minutes',
+          'bufferMinutes',
+          10,
+        ),
         workAvg7d: {
           enabled: isRuleEnabled('azg.work_avg_7d'),
           windowWorkdays: pickInt('azg.work_avg_7d', 'windowWorkdays', 7),
-          maxAverageMinutes: pickInt('azg.work_avg_7d', 'maxAverageMinutes', 540),
+          maxAverageMinutes: pickInt(
+            'azg.work_avg_7d',
+            'maxAverageMinutes',
+            540,
+          ),
           resourceKinds: pickResourceKinds('azg.work_avg_7d'),
         },
         workAvg365d: {
           enabled: isRuleEnabled('azg.work_avg_365d'),
           windowDays: pickInt('azg.work_avg_365d', 'windowDays', 365),
-          maxAverageMinutes: pickInt('azg.work_avg_365d', 'maxAverageMinutes', 420),
+          maxAverageMinutes: pickInt(
+            'azg.work_avg_365d',
+            'maxAverageMinutes',
+            420,
+          ),
           resourceKinds: pickResourceKinds('azg.work_avg_365d'),
         },
         dutySpanAvg28d: {
           enabled: isRuleEnabled('azg.duty_span_avg_28d'),
           windowDays: pickInt('azg.duty_span_avg_28d', 'windowDays', 28),
-          maxAverageMinutes: pickInt('azg.duty_span_avg_28d', 'maxAverageMinutes', 720),
+          maxAverageMinutes: pickInt(
+            'azg.duty_span_avg_28d',
+            'maxAverageMinutes',
+            720,
+          ),
           resourceKinds: pickResourceKinds('azg.duty_span_avg_28d'),
         },
         restMin: {
@@ -299,7 +409,11 @@ export class PlanningRuleService {
         restAvg28d: {
           enabled: isRuleEnabled('azg.rest_avg_28d'),
           windowDays: pickInt('azg.rest_avg_28d', 'windowDays', 28),
-          minAverageMinutes: pickInt('azg.rest_avg_28d', 'minAverageMinutes', 720),
+          minAverageMinutes: pickInt(
+            'azg.rest_avg_28d',
+            'minAverageMinutes',
+            720,
+          ),
           resourceKinds: pickResourceKinds('azg.rest_avg_28d'),
         },
         breakMaxCount: {
@@ -317,13 +431,25 @@ export class PlanningRuleService {
         },
         breakMidpoint: {
           enabled: isRuleEnabled('azg.break_midpoint'),
-          toleranceMinutes: pickInt('azg.break_midpoint', 'toleranceMinutes', 60),
+          toleranceMinutes: pickInt(
+            'azg.break_midpoint',
+            'toleranceMinutes',
+            60,
+          ),
         },
         breakInterruption: {
           enabled: isRuleEnabled('azg.break_interruption'),
           minMinutes: pickInt('azg.break_interruption', 'minMinutes', 20),
-          maxDutyMinutes: pickInt('azg.break_interruption', 'maxDutyMinutes', 540),
-          maxWorkMinutes: pickInt('azg.break_interruption', 'maxWorkMinutes', 360),
+          maxDutyMinutes: pickInt(
+            'azg.break_interruption',
+            'maxDutyMinutes',
+            540,
+          ),
+          maxWorkMinutes: pickInt(
+            'azg.break_interruption',
+            'maxWorkMinutes',
+            360,
+          ),
         },
         nightMaxStreak: {
           enabled: isRuleEnabled('azg.night_max_streak'),
@@ -339,8 +465,15 @@ export class PlanningRuleService {
         restDaysYear: {
           enabled: isRuleEnabled('azg.rest_days_year'),
           minRestDays: pickInt('azg.rest_days_year', 'minRestDays', 62),
-          minSundayRestDays: pickInt('azg.rest_days_year', 'minSundayRestDays', 20),
-          additionalSundayLikeHolidays: pickStringList('azg.rest_days_year', 'additionalSundayLikeHolidays'),
+          minSundayRestDays: pickInt(
+            'azg.rest_days_year',
+            'minSundayRestDays',
+            20,
+          ),
+          additionalSundayLikeHolidays: pickStringList(
+            'azg.rest_days_year',
+            'additionalSundayLikeHolidays',
+          ),
           resourceKinds: pickResourceKinds('azg.rest_days_year'),
         },
       },
@@ -350,11 +483,18 @@ export class PlanningRuleService {
   private loadDefaultDutyRules(): void {
     const dir = this.resolveDutyRulesDir();
     if (!dir) {
-      this.logger.warn('Duty rules directory not found; defaults will be empty.');
+      this.logger.warn(
+        'Duty rules directory not found; defaults will be empty.',
+      );
       return;
     }
     const files = readdirSync(dir)
-      .filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'))
+      .filter(
+        (entry) =>
+          entry.endsWith('.yaml') ||
+          entry.endsWith('.yml') ||
+          entry.endsWith('.json'),
+      )
       .sort((a, b) => a.localeCompare(b));
     for (const filename of files) {
       const fullPath = join(dir, filename);
@@ -364,7 +504,10 @@ export class PlanningRuleService {
       try {
         parsed = format === 'json' ? JSON.parse(raw) : yaml.load(raw);
       } catch (error) {
-        this.logger.error(`Failed to parse rule file ${fullPath}`, (error as Error).stack ?? String(error));
+        this.logger.error(
+          `Failed to parse rule file ${fullPath}`,
+          (error as Error).stack ?? String(error),
+        );
         continue;
       }
       const id = typeof parsed?.id === 'string' ? parsed.id.trim() : '';
@@ -373,7 +516,8 @@ export class PlanningRuleService {
         continue;
       }
       const kind = (parsed?.kind as PlanningRuleKind) ?? 'constraint';
-      const executor = typeof parsed?.executor === 'string' ? parsed.executor : id;
+      const executor =
+        typeof parsed?.executor === 'string' ? parsed.executor : id;
       const enabled = parsed?.enabled !== false;
       const params = (parsed?.params ?? {}) as Record<string, unknown>;
 
@@ -391,7 +535,10 @@ export class PlanningRuleService {
     }
   }
 
-  private materializeDefaults(stageId: StageId, variantId: string): PlanningRule[] {
+  private materializeDefaults(
+    stageId: StageId,
+    variantId: string,
+  ): PlanningRule[] {
     return Array.from(this.defaultDutyRules.values()).map((rule) => ({
       ...rule,
       stageId,
@@ -409,23 +556,35 @@ export class PlanningRuleService {
     const parsed = raw.trim().length ? this.parseRaw(raw, format) : null;
     const doc = parsed ?? this.buildDocFromFields(incoming);
 
-    const id = typeof doc.id === 'string' ? doc.id.trim() : (incoming.id ?? '').trim();
+    const id =
+      typeof doc.id === 'string' ? doc.id.trim() : (incoming.id ?? '').trim();
     if (!id) {
       throw new BadRequestException('Rule id ist erforderlich.');
     }
 
     const kindRaw = doc.kind ?? incoming.kind ?? 'constraint';
-    const kind = (kindRaw === 'generator' ? 'generator' : 'constraint') as PlanningRuleKind;
-    const executor = typeof doc.executor === 'string' && doc.executor.trim().length ? doc.executor.trim() : incoming.executor?.trim() || id;
-    const enabled = typeof doc.enabled === 'boolean' ? doc.enabled : incoming.enabled !== false;
+    const kind = (
+      kindRaw === 'generator' ? 'generator' : 'constraint'
+    ) as PlanningRuleKind;
+    const executor =
+      typeof doc.executor === 'string' && doc.executor.trim().length
+        ? doc.executor.trim()
+        : incoming.executor?.trim() || id;
+    const enabled =
+      typeof doc.enabled === 'boolean'
+        ? doc.enabled
+        : incoming.enabled !== false;
     const params = this.ensureRecord(doc.params ?? incoming.params ?? {});
 
     const timetableYearLabel =
       typeof doc.timetableYearLabel === 'string'
         ? doc.timetableYearLabel.trim() || null
-        : incoming.timetableYearLabel ?? null;
+        : (incoming.timetableYearLabel ?? null);
 
-    const deleteId = incoming.id && incoming.id.trim().length && incoming.id !== id ? incoming.id : null;
+    const deleteId =
+      incoming.id && incoming.id.trim().length && incoming.id !== id
+        ? incoming.id
+        : null;
 
     return {
       rule: {
@@ -439,7 +598,7 @@ export class PlanningRuleService {
         format,
         raw,
         params,
-        definition: doc as Record<string, unknown>,
+        definition: doc,
       },
       deleteId,
     };
@@ -456,7 +615,10 @@ export class PlanningRuleService {
     return 'yaml';
   }
 
-  private parseRaw(raw: string, format: PlanningRuleFormat): Record<string, unknown> {
+  private parseRaw(
+    raw: string,
+    format: PlanningRuleFormat,
+  ): Record<string, unknown> {
     try {
       const parsed = format === 'json' ? JSON.parse(raw) : yaml.load(raw);
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -519,7 +681,9 @@ export class PlanningRuleService {
       'personnel-service',
       'vehicle-service',
     ]);
-    const filtered = entries.filter((entry) => allowed.has(entry as ResourceKind)) as ResourceKind[];
+    const filtered = entries.filter((entry) =>
+      allowed.has(entry as ResourceKind),
+    ) as ResourceKind[];
     if (!filtered.length) {
       return null;
     }

@@ -35,7 +35,9 @@ export class AssistantContextSerializer {
           name: pool.name,
           description: pool.description,
           homeDepotId: pool.homeDepotId ?? undefined,
-          serviceCount: Array.isArray(pool.serviceIds) ? pool.serviceIds.length : undefined,
+          serviceCount: Array.isArray(pool.serviceIds)
+            ? pool.serviceIds.length
+            : undefined,
           shiftCoordinator: pool.shiftCoordinator ?? undefined,
           contactEmail: pool.contactEmail ?? undefined,
         };
@@ -58,7 +60,9 @@ export class AssistantContextSerializer {
           description: pool.description,
           homeDepotId: pool.homeDepotId ?? undefined,
           locationCode: pool.locationCode ?? undefined,
-          personnelCount: Array.isArray(pool.personnelIds) ? pool.personnelIds.length : undefined,
+          personnelCount: Array.isArray(pool.personnelIds)
+            ? pool.personnelIds.length
+            : undefined,
         };
       }
       case 'homeDepots': {
@@ -66,8 +70,12 @@ export class AssistantContextSerializer {
         return {
           name: depot.name,
           description: depot.description,
-          siteCount: Array.isArray(depot.siteIds) ? depot.siteIds.length : undefined,
-          breakSiteCount: Array.isArray(depot.breakSiteIds) ? depot.breakSiteIds.length : undefined,
+          siteCount: Array.isArray(depot.siteIds)
+            ? depot.siteIds.length
+            : undefined,
+          breakSiteCount: Array.isArray(depot.breakSiteIds)
+            ? depot.breakSiteIds.length
+            : undefined,
           shortBreakSiteCount: Array.isArray(depot.shortBreakSiteIds)
             ? depot.shortBreakSiteIds.length
             : undefined,
@@ -92,7 +100,9 @@ export class AssistantContextSerializer {
           name: pool.name,
           description: pool.description,
           dispatcher: pool.dispatcher ?? undefined,
-          serviceCount: Array.isArray(pool.serviceIds) ? pool.serviceIds.length : undefined,
+          serviceCount: Array.isArray(pool.serviceIds)
+            ? pool.serviceIds.length
+            : undefined,
         };
       }
       case 'vehiclePools': {
@@ -101,7 +111,9 @@ export class AssistantContextSerializer {
           name: pool.name,
           description: pool.description,
           depotManager: pool.depotManager ?? undefined,
-          vehicleCount: Array.isArray(pool.vehicleIds) ? pool.vehicleIds.length : undefined,
+          vehicleCount: Array.isArray(pool.vehicleIds)
+            ? pool.vehicleIds.length
+            : undefined,
         };
       }
       case 'personnel': {
@@ -115,18 +127,23 @@ export class AssistantContextSerializer {
         return {
           fullName,
           qualifications: person.qualifications,
-          serviceCount: Array.isArray(person.serviceIds) ? person.serviceIds.length : undefined,
+          serviceCount: Array.isArray(person.serviceIds)
+            ? person.serviceIds.length
+            : undefined,
           poolId: person.poolId ?? undefined,
         };
       }
       case 'vehicles': {
         const vehicle = entry as Vehicle;
         return {
-          vehicleNumber: this.cleanText(vehicle.vehicleNumber ?? vehicle.name) ?? vehicle.id,
+          vehicleNumber:
+            this.cleanText(vehicle.vehicleNumber ?? vehicle.name) ?? vehicle.id,
           typeId: vehicle.typeId ?? undefined,
           depot: vehicle.depot ?? undefined,
           description: vehicle.description,
-          serviceCount: Array.isArray(vehicle.serviceIds) ? vehicle.serviceIds.length : undefined,
+          serviceCount: Array.isArray(vehicle.serviceIds)
+            ? vehicle.serviceIds.length
+            : undefined,
           poolId: vehicle.poolId ?? undefined,
         };
       }

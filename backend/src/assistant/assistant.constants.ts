@@ -1,2 +1,1 @@
 export const ASSISTANT_CONFIG = Symbol('ASSISTANT_CONFIG');
-

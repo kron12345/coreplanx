@@ -23,10 +23,13 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     context: ActionContext,
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
-    const poolSource = payload.pool ?? payloadRecord['personnelPool'] ?? payloadRecord['pool'];
+    const poolSource =
+      payload.pool ?? payloadRecord['personnelPool'] ?? payloadRecord['pool'];
     const poolRecord = this.asRecord(poolSource);
     const poolName =
-      this.cleanText(typeof poolSource === 'string' ? poolSource : poolRecord?.['name']) ??
+      this.cleanText(
+        typeof poolSource === 'string' ? poolSource : poolRecord?.['name'],
+      ) ??
       this.cleanText(poolRecord?.['poolName']) ??
       this.cleanText(payloadRecord['poolName']);
     if (!poolName) {
@@ -46,10 +49,14 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     );
     let homeDepotId: string | undefined;
     if (depotRef) {
-      const resolved = this.resolveHomeDepotIdByReference(snapshot.homeDepots, depotRef, {
-        title: `Mehrere Heimatdepots fuer "${depotRef}" gefunden. Welches meinst du?`,
-        apply: { mode: 'value', path: ['pool', 'homeDepot'] },
-      });
+      const resolved = this.resolveHomeDepotIdByReference(
+        snapshot.homeDepots,
+        depotRef,
+        {
+          title: `Mehrere Heimatdepots fuer "${depotRef}" gefunden. Welches meinst du?`,
+          apply: { mode: 'value', path: ['pool', 'homeDepot'] },
+        },
+      );
       if (resolved.clarification) {
         return this.buildClarificationResponse(resolved.clarification, context);
       }
@@ -77,7 +84,12 @@ export class AssistantActionPersonnel extends AssistantActionBase {
 
     const summary = `Neuer Personalpool "${poolName}".`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'create', entityType: 'personnelPool', id: poolId, label: poolName },
+      {
+        kind: 'create',
+        entityType: 'personnelPool',
+        id: poolId,
+        label: poolName,
+      },
     ];
 
     return {
@@ -101,7 +113,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
         payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Person wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Person wird benötigt.',
+      );
     }
 
     const defaultPoolRef = this.parsePoolReference(
@@ -126,7 +140,7 @@ export class AssistantActionPersonnel extends AssistantActionBase {
           this.cleanText(
             typeof raw === 'string'
               ? raw
-              : record?.['name'] ?? record?.['fullName'] ?? record?.['label'],
+              : (record?.['name'] ?? record?.['fullName'] ?? record?.['label']),
           ) ?? undefined;
         if (fullName) {
           const parsed = this.splitFullName(fullName);
@@ -141,7 +155,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
       const fullName = `${firstName} ${lastName}`;
       const normalizedName = this.normalizeKey(fullName);
       if (seenPersonnelNames.has(normalizedName)) {
-        return this.buildFeedbackResponse(`Personal "${fullName}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Personal "${fullName}" ist doppelt angegeben.`,
+        );
       }
       seenPersonnelNames.add(normalizedName);
 
@@ -169,7 +185,10 @@ export class AssistantActionPersonnel extends AssistantActionBase {
         },
       );
       if (resolvedPool.clarification) {
-        return this.buildClarificationResponse(resolvedPool.clarification, context);
+        return this.buildClarificationResponse(
+          resolvedPool.clarification,
+          context,
+        );
       }
       if (resolvedPool.feedback) {
         return this.buildFeedbackResponse(
@@ -178,7 +197,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
       }
 
       const serviceNames = this.parseStringArray(
-        record?.['services'] ?? record?.['serviceNames'] ?? record?.['serviceIds'],
+        record?.['services'] ??
+          record?.['serviceNames'] ??
+          record?.['serviceIds'],
       );
       const serviceResult = this.resolvePersonnelServiceIds(
         snapshot.personnelServices,
@@ -191,7 +212,10 @@ export class AssistantActionPersonnel extends AssistantActionBase {
           : undefined,
       );
       if (serviceResult.clarification) {
-        return this.buildClarificationResponse(serviceResult.clarification, context);
+        return this.buildClarificationResponse(
+          serviceResult.clarification,
+          context,
+        );
       }
       if (serviceResult.feedback) {
         return this.buildFeedbackResponse(
@@ -258,21 +282,32 @@ export class AssistantActionPersonnel extends AssistantActionBase {
       return this.buildFeedbackResponse('Ziel-Personalpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.personnelPools, targetRecord, {
-      label: 'Personalpool',
-      nameKeys: ['name', 'poolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.personnelPools,
+      targetRecord,
+      {
+        label: 'Personalpool',
+        nameKeys: ['name', 'poolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.personnelPool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht geändert werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht geändert werden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -289,7 +324,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
         return this.buildFeedbackResponse('Name darf nicht leer sein.');
       }
       if (this.hasNameCollision(snapshot.personnelPools, name, pool.id)) {
-        return this.buildFeedbackResponse(`Name "${name}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `Name "${name}" ist bereits vergeben.`,
+        );
       }
       updated.name = name;
       changed = true;
@@ -312,11 +349,18 @@ export class AssistantActionPersonnel extends AssistantActionBase {
         'homeDepotName',
       ]);
       if (depotRef) {
-        const resolved = this.resolveHomeDepotIdByReference(snapshot.homeDepots, depotRef, {
-          apply: { mode: 'value', path: ['patch', 'homeDepot'] },
-        });
+        const resolved = this.resolveHomeDepotIdByReference(
+          snapshot.homeDepots,
+          depotRef,
+          {
+            apply: { mode: 'value', path: ['patch', 'homeDepot'] },
+          },
+        );
         if (resolved.clarification) {
-          return this.buildClarificationResponse(resolved.clarification, context);
+          return this.buildClarificationResponse(
+            resolved.clarification,
+            context,
+          );
         }
         if (resolved.feedback) {
           return this.buildFeedbackResponse(resolved.feedback);
@@ -365,7 +409,10 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['personnel', 'person']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'personnel',
+      'person',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Personal fehlt.');
     }
@@ -373,12 +420,19 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     const poolLabels = new Map(
       snapshot.personnelPools.map((pool) => [pool.id, pool.name]),
     );
-    const targetResult = this.resolvePersonnelTarget(snapshot.personnel, targetRecord, {
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-      poolLabelById: poolLabels,
-    });
+    const targetResult = this.resolvePersonnelTarget(
+      snapshot.personnel,
+      targetRecord,
+      {
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+        poolLabelById: poolLabels,
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -460,7 +514,10 @@ export class AssistantActionPersonnel extends AssistantActionBase {
         },
       );
       if (serviceResult.clarification) {
-        return this.buildClarificationResponse(serviceResult.clarification, context);
+        return this.buildClarificationResponse(
+          serviceResult.clarification,
+          context,
+        );
       }
       if (serviceResult.feedback) {
         return this.buildFeedbackResponse(serviceResult.feedback);
@@ -471,7 +528,11 @@ export class AssistantActionPersonnel extends AssistantActionBase {
 
     const hasPoolPatch = this.hasAnyKey(patch, ['poolId', 'pool', 'poolName']);
     if (hasPoolPatch) {
-      const poolRef = this.extractReference(patch, ['poolId', 'pool', 'poolName']);
+      const poolRef = this.extractReference(patch, [
+        'poolId',
+        'pool',
+        'poolName',
+      ]);
       if (!poolRef) {
         return this.buildFeedbackResponse('Personalpool fehlt.');
       }
@@ -507,7 +568,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     }
 
     if (this.hasOwn(patch, 'qualificationExpires')) {
-      updated.qualificationExpires = this.cleanText(patch['qualificationExpires']);
+      updated.qualificationExpires = this.cleanText(
+        patch['qualificationExpires'],
+      );
       changed = true;
     }
 
@@ -548,26 +611,40 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['pool', 'personnelPool']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'pool',
+      'personnelPool',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Personalpool fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.personnelPools, targetRecord, {
-      label: 'Personalpool',
-      nameKeys: ['name', 'poolName'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.personnelPools,
+      targetRecord,
+      {
+        label: 'Personalpool',
+        nameKeys: ['name', 'poolName'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Pool nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Pool nicht gefunden.',
+      );
     }
 
     const pool = targetResult.item;
     if (pool.id === SYSTEM_POOL_IDS.personnelPool) {
-      return this.buildFeedbackResponse('System-Pool kann nicht gelöscht werden.');
+      return this.buildFeedbackResponse(
+        'System-Pool kann nicht gelöscht werden.',
+      );
     }
 
     const movedPersonnel = snapshot.personnel.filter(
@@ -578,7 +655,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
         ? { ...person, poolId: SYSTEM_POOL_IDS.personnelPool }
         : person,
     );
-    const nextPools = snapshot.personnelPools.filter((entry) => entry.id !== pool.id);
+    const nextPools = snapshot.personnelPools.filter(
+      (entry) => entry.id !== pool.id,
+    );
 
     const nextSnapshot: ResourceSnapshot = {
       ...snapshot,
@@ -620,7 +699,10 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['personnel', 'person']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'personnel',
+      'person',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Personal fehlt.');
     }
@@ -628,12 +710,19 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     const poolLabels = new Map(
       snapshot.personnelPools.map((pool) => [pool.id, pool.name]),
     );
-    const targetResult = this.resolvePersonnelTarget(snapshot.personnel, targetRecord, {
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-      poolLabelById: poolLabels,
-    });
+    const targetResult = this.resolvePersonnelTarget(
+      snapshot.personnel,
+      targetRecord,
+      {
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+        poolLabelById: poolLabels,
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
       return this.buildFeedbackResponse(
@@ -686,7 +775,11 @@ export class AssistantActionPersonnel extends AssistantActionBase {
       title?: (name: string) => string;
       poolLabelById?: Map<string, string>;
     },
-  ): { ids?: string[]; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    ids?: string[];
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     if (!serviceNames || !serviceNames.length) {
       return { ids: undefined };
     }
@@ -761,7 +854,9 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     }
 
     if (missing.length) {
-      return { feedback: `Personaldienst(e) nicht gefunden: ${missing.join(', ')}` };
+      return {
+        feedback: `Personaldienst(e) nicht gefunden: ${missing.join(', ')}`,
+      };
     }
     return { ids };
   }
@@ -779,8 +874,14 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     return undefined;
   }
 
-  private splitFullName(value: string): { firstName?: string; lastName?: string } {
-    const parts = value.trim().split(/\\s+/).filter((part) => part.length > 0);
+  private splitFullName(value: string): {
+    firstName?: string;
+    lastName?: string;
+  } {
+    const parts = value
+      .trim()
+      .split(/\\s+/)
+      .filter((part) => part.length > 0);
     if (!parts.length) {
       return {};
     }
@@ -805,10 +906,17 @@ export class AssistantActionPersonnel extends AssistantActionBase {
     personnel: Personnel[],
     target: Record<string, unknown>,
     options?: {
-      clarification?: { title?: string; apply: AssistantActionClarificationApply };
+      clarification?: {
+        title?: string;
+        apply: AssistantActionClarificationApply;
+      };
       poolLabelById?: Map<string, string>;
     },
-  ): { item?: Personnel; feedback?: string; clarification?: ClarificationRequest } {
+  ): {
+    item?: Personnel;
+    feedback?: string;
+    clarification?: ClarificationRequest;
+  } {
     const id = this.extractFirstText(target, ['id', 'personnelId']);
     if (id) {
       const match = personnel.find((entry) => entry.id === id);
@@ -833,7 +941,8 @@ export class AssistantActionPersonnel extends AssistantActionBase {
 
     const normalized = this.normalizeKey(name);
     const matches = personnel.filter(
-      (entry) => this.normalizeKey(this.formatPersonnelLabel(entry)) === normalized,
+      (entry) =>
+        this.normalizeKey(this.formatPersonnelLabel(entry)) === normalized,
     );
     if (!matches.length) {
       return { feedback: `Personal "${name}" nicht gefunden.` };

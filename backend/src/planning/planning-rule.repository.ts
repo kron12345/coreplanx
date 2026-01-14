@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import type { PlanningRule, PlanningRuleFormat, PlanningRuleKind, StageId } from './planning.types';
+import type {
+  PlanningRule,
+  PlanningRuleFormat,
+  PlanningRuleKind,
+  StageId,
+} from './planning.types';
 
 type PlanningRuleRow = {
   id: string;
@@ -26,7 +31,10 @@ export class PlanningRuleRepository {
     return this.database.enabled;
   }
 
-  async listRules(stageId: StageId, variantId: string): Promise<PlanningRule[]> {
+  async listRules(
+    stageId: StageId,
+    variantId: string,
+  ): Promise<PlanningRule[]> {
     if (!this.isEnabled) {
       return [];
     }
@@ -70,7 +78,11 @@ export class PlanningRuleRepository {
     }));
   }
 
-  async upsertRules(stageId: StageId, variantId: string, rules: PlanningRule[]): Promise<void> {
+  async upsertRules(
+    stageId: StageId,
+    variantId: string,
+    rules: PlanningRule[],
+  ): Promise<void> {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
     }
@@ -139,7 +151,11 @@ export class PlanningRuleRepository {
     );
   }
 
-  async insertDefaults(stageId: StageId, variantId: string, rules: PlanningRule[]): Promise<void> {
+  async insertDefaults(
+    stageId: StageId,
+    variantId: string,
+    rules: PlanningRule[],
+  ): Promise<void> {
     if (!this.isEnabled) {
       return;
     }
@@ -195,7 +211,11 @@ export class PlanningRuleRepository {
     );
   }
 
-  async deleteRules(stageId: StageId, variantId: string, deleteIds: string[]): Promise<void> {
+  async deleteRules(
+    stageId: StageId,
+    variantId: string,
+    deleteIds: string[],
+  ): Promise<void> {
     if (!this.isEnabled) {
       throw new Error('Database connection not configured');
     }

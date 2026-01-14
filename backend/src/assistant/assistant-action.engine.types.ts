@@ -13,7 +13,10 @@ import type {
   AssistantActionChangeDto,
   AssistantActionPreviewResponseDto,
 } from './assistant.dto';
-import type { AssistantActionCommitTask, AssistantActionRefreshHint } from './assistant-action.types';
+import type {
+  AssistantActionCommitTask,
+  AssistantActionRefreshHint,
+} from './assistant-action.types';
 import type { AssistantActionClarificationApply } from './assistant-action-clarification.store';
 
 export type ActionPayload = {

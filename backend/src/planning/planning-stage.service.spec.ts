@@ -6,10 +6,16 @@ describe('PlanningStageService', () => {
   const makeService = () => {
     const repository = { isEnabled: false } as any;
     const dutyAutopilot = {
-      apply: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], touchedIds: [] }),
+      apply: jest
+        .fn()
+        .mockResolvedValue({ upserts: [], deletedIds: [], touchedIds: [] }),
       applyWorktimeCompliance: jest.fn().mockResolvedValue([]),
-      cleanupServiceBoundaries: jest.fn().mockResolvedValue({ deletedIds: [], entries: [] }),
-      normalizeManagedServiceActivities: jest.fn().mockResolvedValue({ upserts: [], deletedIds: [], entries: [] }),
+      cleanupServiceBoundaries: jest
+        .fn()
+        .mockResolvedValue({ deletedIds: [], entries: [] }),
+      normalizeManagedServiceActivities: jest
+        .fn()
+        .mockResolvedValue({ upserts: [], deletedIds: [], entries: [] }),
     } as any;
     const activityCatalog = {
       listActivityDefinitions: jest.fn().mockReturnValue([
@@ -34,14 +40,24 @@ describe('PlanningStageService', () => {
       ]),
     } as any;
     return {
-      service: new PlanningStageService(repository, dutyAutopilot, activityCatalog),
+      service: new PlanningStageService(
+        repository,
+        dutyAutopilot,
+        activityCatalog,
+      ),
       dutyAutopilot,
       activityCatalog,
     };
   };
 
-  const getStage = (service: PlanningStageService, stageId: StageId, variantId: string) =>
-    (service as any).stages.get(`${stageId}::${variantId}`) as { activities: Activity[] };
+  const getStage = (
+    service: PlanningStageService,
+    stageId: StageId,
+    variantId: string,
+  ) =>
+    (service as any).stages.get(`${stageId}::${variantId}`) as {
+      activities: Activity[];
+    };
 
   it('validates participant requirements only for changed activities', async () => {
     const { service } = makeService();
@@ -74,8 +90,12 @@ describe('PlanningStageService', () => {
     });
 
     expect(result.appliedUpserts).toEqual(['new-valid']);
-    expect(stage.activities.some((activity) => activity.id === 'new-valid')).toBe(true);
-    expect(stage.activities.some((activity) => activity.id === 'legacy-invalid')).toBe(true);
+    expect(
+      stage.activities.some((activity) => activity.id === 'new-valid'),
+    ).toBe(true);
+    expect(
+      stage.activities.some((activity) => activity.id === 'legacy-invalid'),
+    ).toBe(true);
   });
 
   it('rolls back stage mutations when participant validation fails', async () => {
@@ -143,7 +163,9 @@ describe('PlanningStageService', () => {
     });
 
     expect(result.appliedUpserts).toEqual(['personnel-only']);
-    expect(stage.activities.some((activity) => activity.id === 'personnel-only')).toBe(true);
+    expect(
+      stage.activities.some((activity) => activity.id === 'personnel-only'),
+    ).toBe(true);
   });
 
   it('enforces boundary order when a boundary group is touched', async () => {
@@ -209,6 +231,8 @@ describe('PlanningStageService', () => {
     });
 
     expect(result.appliedUpserts).toEqual(['on-only']);
-    expect(stage.activities.some((activity) => activity.id === 'on-only')).toBe(true);
+    expect(stage.activities.some((activity) => activity.id === 'on-only')).toBe(
+      true,
+    );
   });
 });

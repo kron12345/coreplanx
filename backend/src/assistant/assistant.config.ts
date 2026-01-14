@@ -69,7 +69,9 @@ function toOptionalInt(value: string | undefined): number | null {
   return Number.isFinite(asInt) ? asInt : null;
 }
 
-function toJsonRecord(value: string | undefined): Record<string, string[]> | null {
+function toJsonRecord(
+  value: string | undefined,
+): Record<string, string[]> | null {
   if (!value) {
     return null;
   }
@@ -89,7 +91,9 @@ function toJsonRecord(value: string | undefined): Record<string, string[]> | nul
   }
 }
 
-function toDocInjectionMode(value: string | undefined): 'always' | 'on-change' | 'never' {
+function toDocInjectionMode(
+  value: string | undefined,
+): 'always' | 'on-change' | 'never' {
   const normalized = (value ?? 'always').trim().toLowerCase();
   switch (normalized) {
     case 'never':
@@ -104,13 +108,18 @@ function toDocInjectionMode(value: string | undefined): 'always' | 'on-change' |
 
 export function loadAssistantConfig(): AssistantConfig {
   const maxDocChars = toNumber(process.env.ASSISTANT_MAX_DOC_CHARS, 6000);
-  const maxUiDataChars = toNumber(process.env.ASSISTANT_MAX_UI_DATA_CHARS, 2000);
+  const maxUiDataChars = toNumber(
+    process.env.ASSISTANT_MAX_UI_DATA_CHARS,
+    2000,
+  );
   const maxContextChars = toNumber(
     process.env.ASSISTANT_MAX_CONTEXT_CHARS,
     maxDocChars + maxUiDataChars,
   );
   return {
-    ollamaBaseUrl: (process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434').replace(/\/+$/, ''),
+    ollamaBaseUrl: (
+      process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434'
+    ).replace(/\/+$/, ''),
     ollamaModel: process.env.OLLAMA_MODEL ?? 'qwen3:8b',
     ollamaApiKey: process.env.OLLAMA_API_KEY?.trim()
       ? process.env.OLLAMA_API_KEY.trim()
@@ -119,22 +128,48 @@ export function loadAssistantConfig(): AssistantConfig {
     ollamaTemperature: toOptionalNumber(process.env.OLLAMA_TEMPERATURE),
     ollamaTopP: toOptionalNumber(process.env.OLLAMA_TOP_P),
     ollamaMaxTokens: toOptionalInt(process.env.OLLAMA_MAX_TOKENS),
-    maxContextMessages: toNumber(process.env.ASSISTANT_MAX_CONTEXT_MESSAGES, 20),
+    maxContextMessages: toNumber(
+      process.env.ASSISTANT_MAX_CONTEXT_MESSAGES,
+      20,
+    ),
     maxConversations: toNumber(process.env.ASSISTANT_MAX_CONVERSATIONS, 200),
-    conversationTtlMs: toNumber(process.env.ASSISTANT_CONVERSATION_TTL_MS, 3_600_000),
+    conversationTtlMs: toNumber(
+      process.env.ASSISTANT_CONVERSATION_TTL_MS,
+      3_600_000,
+    ),
     enableSummary: toBoolean(process.env.ASSISTANT_ENABLE_SUMMARY, false),
-    summaryBatchMessages: toNumber(process.env.ASSISTANT_SUMMARY_BATCH_MESSAGES, 10),
+    summaryBatchMessages: toNumber(
+      process.env.ASSISTANT_SUMMARY_BATCH_MESSAGES,
+      10,
+    ),
     summaryMaxChars: toNumber(process.env.ASSISTANT_SUMMARY_MAX_CHARS, 2000),
     maxDocChars,
     maxUiDataChars,
     maxContextChars,
-    docInjectionMode: toDocInjectionMode(process.env.ASSISTANT_DOC_INJECTION_MODE),
-    actionPreviewTtlMs: toNumber(process.env.ASSISTANT_ACTION_PREVIEW_TTL_MS, 3_600_000),
-    actionRetryInvalid: toBoolean(process.env.ASSISTANT_ACTION_RETRY_INVALID, true),
-    rateLimitWindowMs: toNumber(process.env.ASSISTANT_RATE_LIMIT_WINDOW_MS, 60_000),
+    docInjectionMode: toDocInjectionMode(
+      process.env.ASSISTANT_DOC_INJECTION_MODE,
+    ),
+    actionPreviewTtlMs: toNumber(
+      process.env.ASSISTANT_ACTION_PREVIEW_TTL_MS,
+      3_600_000,
+    ),
+    actionRetryInvalid: toBoolean(
+      process.env.ASSISTANT_ACTION_RETRY_INVALID,
+      true,
+    ),
+    rateLimitWindowMs: toNumber(
+      process.env.ASSISTANT_RATE_LIMIT_WINDOW_MS,
+      60_000,
+    ),
     rateLimitMax: toNumber(process.env.ASSISTANT_RATE_LIMIT_MAX, 60),
-    actionRateLimitMax: toNumber(process.env.ASSISTANT_ACTION_RATE_LIMIT_MAX, 20),
-    actionAuditEnabled: toBoolean(process.env.ASSISTANT_ACTION_AUDIT_ENABLED, true),
+    actionRateLimitMax: toNumber(
+      process.env.ASSISTANT_ACTION_RATE_LIMIT_MAX,
+      20,
+    ),
+    actionAuditEnabled: toBoolean(
+      process.env.ASSISTANT_ACTION_AUDIT_ENABLED,
+      true,
+    ),
     actionAuditLogPath:
       process.env.ASSISTANT_ACTION_AUDIT_LOG_PATH?.trim() ||
       `${process.cwd()}/logs/assistant-actions.ndjson`,

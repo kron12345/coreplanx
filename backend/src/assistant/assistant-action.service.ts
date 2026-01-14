@@ -23,8 +23,15 @@ import { COREPLANX_ASSISTANT_ACTION_SYSTEM_PROMPT } from './assistant.action.sys
 import { AssistantActionPreviewStore } from './assistant-action-preview.store';
 import { AssistantActionClarificationStore } from './assistant-action-clarification.store';
 import { AssistantActionAuditService } from './assistant-action-audit.service';
-import type { AssistantActionCommitTask, AssistantActionRefreshHint } from './assistant-action.types';
-import type { ActionApplyOutcome, ActionContext, ActionPayload } from './assistant-action.engine.types';
+import type {
+  AssistantActionCommitTask,
+  AssistantActionRefreshHint,
+} from './assistant-action.types';
+import type {
+  ActionApplyOutcome,
+  ActionContext,
+  ActionPayload,
+} from './assistant-action.engine.types';
 import { AssistantActionBase } from './assistant-action.base';
 import { AssistantActionPayloadParser } from './assistant-action.payload-parser';
 import { AssistantActionPersonnelServices } from './assistant-action.personnel-services';
@@ -103,11 +110,19 @@ export class AssistantActionService extends AssistantActionBase {
     this.vehicle = new AssistantActionVehicle(baseOptions);
     this.homeDepots = new AssistantActionHomeDepot(baseOptions);
     this.vehicleMeta = new AssistantActionVehicleMeta(baseOptions);
-    this.timetableSimulation = new AssistantActionTimetableSimulation(baseOptions);
-    this.topologyOperations = new AssistantActionTopologyOperations(baseOptions);
+    this.timetableSimulation = new AssistantActionTimetableSimulation(
+      baseOptions,
+    );
+    this.topologyOperations = new AssistantActionTopologyOperations(
+      baseOptions,
+    );
     this.topologySites = new AssistantActionTopologySites(baseOptions);
-    this.topologyReplacements = new AssistantActionTopologyReplacements(baseOptions);
-    this.topologyReplacementEdges = new AssistantActionTopologyReplacementEdges(baseOptions);
+    this.topologyReplacements = new AssistantActionTopologyReplacements(
+      baseOptions,
+    );
+    this.topologyReplacementEdges = new AssistantActionTopologyReplacementEdges(
+      baseOptions,
+    );
     this.topologyTransfers = new AssistantActionTopologyTransfers(baseOptions);
     this.settings = new AssistantActionSettings(baseOptions);
   }
@@ -125,12 +140,16 @@ export class AssistantActionService extends AssistantActionBase {
     const normalizedRole = this.normalizeRole(role);
     const contextMessages = this.buildContextMessages(uiContext);
     const messages = [
-      { role: 'system' as const, content: COREPLANX_ASSISTANT_ACTION_SYSTEM_PROMPT },
+      {
+        role: 'system' as const,
+        content: COREPLANX_ASSISTANT_ACTION_SYSTEM_PROMPT,
+      },
       ...contextMessages,
       { role: 'user' as const, content: prompt },
     ];
 
-    const firstAttempt = await this.payloadParser.requestActionPayload(messages);
+    const firstAttempt =
+      await this.payloadParser.requestActionPayload(messages);
     let payload = firstAttempt.payload;
     if (!payload && this.config.actionRetryInvalid) {
       const retryMessages = [
@@ -143,7 +162,8 @@ export class AssistantActionService extends AssistantActionBase {
           content: `Deine letzte Antwort war ungueltig (${firstAttempt.error ?? 'unbekannter Fehler'}). Antworte nur mit JSON gemaess Schema.`,
         },
       ];
-      const secondAttempt = await this.payloadParser.requestActionPayload(retryMessages);
+      const secondAttempt =
+        await this.payloadParser.requestActionPayload(retryMessages);
       payload = secondAttempt.payload;
       if (!payload) {
         return this.buildFeedbackResponse(
@@ -153,7 +173,8 @@ export class AssistantActionService extends AssistantActionBase {
     }
 
     if (!payload?.action) {
-      return this.buildFeedbackResponse('Keine erkennbare Aktion gefunden.').response;
+      return this.buildFeedbackResponse('Keine erkennbare Aktion gefunden.')
+        .response;
     }
     if (payload.action === 'none') {
       return this.buildFeedbackResponse(
@@ -233,14 +254,15 @@ export class AssistantActionService extends AssistantActionBase {
       );
     }
 
-    const snapshot = await this.planning.replaceResourceSnapshot(preview.snapshot);
+    const snapshot = await this.planning.replaceResourceSnapshot(
+      preview.snapshot,
+    );
     if (preview.commitTasks && preview.commitTasks.length) {
       await this.applyCommitTasks(preview.commitTasks);
     }
-    const refreshHints =
-      preview.refreshHints?.length
-        ? preview.refreshHints
-        : this.collectRefreshHints(preview.commitTasks);
+    const refreshHints = preview.refreshHints?.length
+      ? preview.refreshHints
+      : this.collectRefreshHints(preview.commitTasks);
     this.audit.recordCommit({
       previewId: preview.id,
       clientId: preview.clientId ?? request.clientId ?? null,
@@ -258,7 +280,9 @@ export class AssistantActionService extends AssistantActionBase {
     };
   }
 
-  private async applyCommitTasks(tasks: AssistantActionCommitTask[]): Promise<void> {
+  private async applyCommitTasks(
+    tasks: AssistantActionCommitTask[],
+  ): Promise<void> {
     for (const task of tasks) {
       switch (task.type) {
         case 'timetableYear': {
@@ -281,7 +305,9 @@ export class AssistantActionService extends AssistantActionBase {
             const yearLabel = task.timetableYearLabel?.trim();
             const label = task.label?.trim();
             if (!yearLabel) {
-              throw new BadRequestException('Fahrplanjahr fuer Simulation fehlt.');
+              throw new BadRequestException(
+                'Fahrplanjahr fuer Simulation fehlt.',
+              );
             }
             if (!label) {
               throw new BadRequestException('Simulationstitel fehlt.');
@@ -297,10 +323,13 @@ export class AssistantActionService extends AssistantActionBase {
             task.variantId?.trim() ||
             (await this.resolveSimulationVariantId({
               label: task.targetLabel ?? task.label,
-              timetableYearLabel: task.targetTimetableYearLabel ?? task.timetableYearLabel,
+              timetableYearLabel:
+                task.targetTimetableYearLabel ?? task.timetableYearLabel,
             }));
           if (!variantId) {
-            throw new BadRequestException('Simulation konnte nicht aufgeloest werden.');
+            throw new BadRequestException(
+              'Simulation konnte nicht aufgeloest werden.',
+            );
           }
           if (task.action === 'update') {
             await this.timetableYears.updateSimulationVariant(variantId, {
@@ -340,7 +369,10 @@ export class AssistantActionService extends AssistantActionBase {
             await this.planning.deleteTranslationsForLocale(locale);
             break;
           }
-          await this.planning.replaceTranslationsForLocale(locale, task.entries ?? {});
+          await this.planning.replaceTranslationsForLocale(
+            locale,
+            task.entries ?? {},
+          );
           break;
         }
         case 'customAttributes': {
@@ -358,28 +390,44 @@ export class AssistantActionService extends AssistantActionBase {
   ): Promise<void> {
     switch (task.scope) {
       case 'operationalPoints':
-        await this.planning.saveOperationalPoints({ items: task.items as OperationalPoint[] });
+        await this.planning.saveOperationalPoints({
+          items: task.items as OperationalPoint[],
+        });
         return;
       case 'sectionsOfLine':
-        await this.planning.saveSectionsOfLine({ items: task.items as SectionOfLine[] });
+        await this.planning.saveSectionsOfLine({
+          items: task.items as SectionOfLine[],
+        });
         return;
       case 'personnelSites':
-        await this.planning.savePersonnelSites({ items: task.items as PersonnelSite[] });
+        await this.planning.savePersonnelSites({
+          items: task.items as PersonnelSite[],
+        });
         return;
       case 'replacementStops':
-        await this.planning.saveReplacementStops({ items: task.items as ReplacementStop[] });
+        await this.planning.saveReplacementStops({
+          items: task.items as ReplacementStop[],
+        });
         return;
       case 'replacementRoutes':
-        await this.planning.saveReplacementRoutes({ items: task.items as ReplacementRoute[] });
+        await this.planning.saveReplacementRoutes({
+          items: task.items as ReplacementRoute[],
+        });
         return;
       case 'replacementEdges':
-        await this.planning.saveReplacementEdges({ items: task.items as ReplacementEdge[] });
+        await this.planning.saveReplacementEdges({
+          items: task.items as ReplacementEdge[],
+        });
         return;
       case 'opReplacementStopLinks':
-        await this.planning.saveOpReplacementStopLinks({ items: task.items as OpReplacementStopLink[] });
+        await this.planning.saveOpReplacementStopLinks({
+          items: task.items as OpReplacementStopLink[],
+        });
         return;
       case 'transferEdges':
-        await this.planning.saveTransferEdges({ items: task.items as TransferEdge[] });
+        await this.planning.saveTransferEdges({
+          items: task.items as TransferEdge[],
+        });
         return;
       default:
         return;
@@ -402,7 +450,9 @@ export class AssistantActionService extends AssistantActionBase {
     if (!selectedId) {
       throw new BadRequestException('selectedId is required');
     }
-    const isOption = clarification.options.some((option) => option.id === selectedId);
+    const isOption = clarification.options.some(
+      (option) => option.id === selectedId,
+    );
     const inputSpec = clarification.input;
     if (!isOption && !inputSpec) {
       throw new BadRequestException('selectedId is not a valid option');
@@ -467,48 +517,114 @@ export class AssistantActionService extends AssistantActionBase {
       return this.applyBatch(payload, snapshot, context);
     }
     if (!this.isActionAllowed(payload.action, context.role)) {
-      return this.buildFeedbackResponse('Aktion ist fuer diese Rolle nicht erlaubt.');
+      return this.buildFeedbackResponse(
+        'Aktion ist fuer diese Rolle nicht erlaubt.',
+      );
     }
 
     switch (payload.action) {
       case 'create_personnel_service_pool':
-        return this.personnelServices.buildPersonnelServicePoolPreview(payload, snapshot, context);
+        return this.personnelServices.buildPersonnelServicePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_vehicle_service_pool':
-        return this.vehicleServices.buildVehicleServicePoolPreview(payload, snapshot, context);
+        return this.vehicleServices.buildVehicleServicePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_personnel_service':
-        return this.personnelServices.buildPersonnelServicePreview(payload, snapshot, context);
+        return this.personnelServices.buildPersonnelServicePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_vehicle_service':
-        return this.vehicleServices.buildVehicleServicePreview(payload, snapshot, context);
+        return this.vehicleServices.buildVehicleServicePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_personnel_pool':
-        return this.personnel.buildPersonnelPoolPreview(payload, snapshot, context);
+        return this.personnel.buildPersonnelPoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_vehicle_pool':
         return this.vehicle.buildVehiclePoolPreview(payload, snapshot, context);
       case 'create_home_depot':
-        return this.homeDepots.buildHomeDepotPreview(payload, snapshot, context);
+        return this.homeDepots.buildHomeDepotPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_personnel':
         return this.personnel.buildPersonnelPreview(payload, snapshot, context);
       case 'create_vehicle':
         return this.vehicle.buildVehiclePreview(payload, snapshot, context);
       case 'create_vehicle_type':
-        return this.vehicleMeta.buildVehicleTypePreview(payload, snapshot, context);
+        return this.vehicleMeta.buildVehicleTypePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_vehicle_composition':
-        return this.vehicleMeta.buildVehicleCompositionPreview(payload, snapshot, context);
+        return this.vehicleMeta.buildVehicleCompositionPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_timetable_year':
-        return this.timetableSimulation.buildTimetableYearPreview(payload, snapshot, context);
+        return this.timetableSimulation.buildTimetableYearPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_simulation':
-        return this.timetableSimulation.buildSimulationPreview(payload, snapshot, context);
+        return this.timetableSimulation.buildSimulationPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_operational_point':
-        return this.topologyOperations.buildOperationalPointPreview(payload, snapshot, context);
+        return this.topologyOperations.buildOperationalPointPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_section_of_line':
-        return this.topologyOperations.buildSectionOfLinePreview(payload, snapshot, context);
+        return this.topologyOperations.buildSectionOfLinePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_personnel_site':
-        return this.topologySites.buildPersonnelSitePreview(payload, snapshot, context);
+        return this.topologySites.buildPersonnelSitePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_replacement_stop':
-        return this.topologyReplacements.buildReplacementStopPreview(payload, snapshot, context);
+        return this.topologyReplacements.buildReplacementStopPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_replacement_route':
-        return this.topologyReplacements.buildReplacementRoutePreview(payload, snapshot, context);
+        return this.topologyReplacements.buildReplacementRoutePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_replacement_edge':
-        return this.topologyReplacementEdges.buildReplacementEdgePreview(payload, snapshot, context);
+        return this.topologyReplacementEdges.buildReplacementEdgePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_op_replacement_stop_link':
         return this.topologyReplacementEdges.buildOpReplacementStopLinkPreview(
           payload,
@@ -516,41 +632,113 @@ export class AssistantActionService extends AssistantActionBase {
           context,
         );
       case 'create_transfer_edge':
-        return this.topologyTransfers.buildTransferEdgePreview(payload, snapshot, context);
+        return this.topologyTransfers.buildTransferEdgePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_personnel_service_pool':
-        return this.personnelServices.buildUpdatePersonnelServicePoolPreview(payload, snapshot, context);
+        return this.personnelServices.buildUpdatePersonnelServicePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_vehicle_service_pool':
-        return this.vehicleServices.buildUpdateVehicleServicePoolPreview(payload, snapshot, context);
+        return this.vehicleServices.buildUpdateVehicleServicePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_personnel_pool':
-        return this.personnel.buildUpdatePersonnelPoolPreview(payload, snapshot, context);
+        return this.personnel.buildUpdatePersonnelPoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_vehicle_pool':
-        return this.vehicle.buildUpdateVehiclePoolPreview(payload, snapshot, context);
+        return this.vehicle.buildUpdateVehiclePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_home_depot':
-        return this.homeDepots.buildUpdateHomeDepotPreview(payload, snapshot, context);
+        return this.homeDepots.buildUpdateHomeDepotPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_personnel_service':
-        return this.personnelServices.buildUpdatePersonnelServicePreview(payload, snapshot, context);
+        return this.personnelServices.buildUpdatePersonnelServicePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_vehicle_service':
-        return this.vehicleServices.buildUpdateVehicleServicePreview(payload, snapshot, context);
+        return this.vehicleServices.buildUpdateVehicleServicePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_personnel':
-        return this.personnel.buildUpdatePersonnelPreview(payload, snapshot, context);
+        return this.personnel.buildUpdatePersonnelPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_vehicle':
-        return this.vehicle.buildUpdateVehiclePreview(payload, snapshot, context);
+        return this.vehicle.buildUpdateVehiclePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_vehicle_type':
-        return this.vehicleMeta.buildUpdateVehicleTypePreview(payload, snapshot, context);
+        return this.vehicleMeta.buildUpdateVehicleTypePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_vehicle_composition':
-        return this.vehicleMeta.buildUpdateVehicleCompositionPreview(payload, snapshot, context);
+        return this.vehicleMeta.buildUpdateVehicleCompositionPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_simulation':
-        return this.timetableSimulation.buildUpdateSimulationPreview(payload, snapshot, context);
+        return this.timetableSimulation.buildUpdateSimulationPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_operational_point':
-        return this.topologyOperations.buildUpdateOperationalPointPreview(payload, snapshot, context);
+        return this.topologyOperations.buildUpdateOperationalPointPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_section_of_line':
-        return this.topologyOperations.buildUpdateSectionOfLinePreview(payload, snapshot, context);
+        return this.topologyOperations.buildUpdateSectionOfLinePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_personnel_site':
-        return this.topologySites.buildUpdatePersonnelSitePreview(payload, snapshot, context);
+        return this.topologySites.buildUpdatePersonnelSitePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_replacement_stop':
-        return this.topologyReplacements.buildUpdateReplacementStopPreview(payload, snapshot, context);
+        return this.topologyReplacements.buildUpdateReplacementStopPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_replacement_route':
-        return this.topologyReplacements.buildUpdateReplacementRoutePreview(payload, snapshot, context);
+        return this.topologyReplacements.buildUpdateReplacementRoutePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_replacement_edge':
         return this.topologyReplacementEdges.buildUpdateReplacementEdgePreview(
           payload,
@@ -564,43 +752,119 @@ export class AssistantActionService extends AssistantActionBase {
           context,
         );
       case 'update_transfer_edge':
-        return this.topologyTransfers.buildUpdateTransferEdgePreview(payload, snapshot, context);
+        return this.topologyTransfers.buildUpdateTransferEdgePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_personnel_service_pool':
-        return this.personnelServices.buildDeletePersonnelServicePoolPreview(payload, snapshot, context);
+        return this.personnelServices.buildDeletePersonnelServicePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_vehicle_service_pool':
-        return this.vehicleServices.buildDeleteVehicleServicePoolPreview(payload, snapshot, context);
+        return this.vehicleServices.buildDeleteVehicleServicePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_personnel_pool':
-        return this.personnel.buildDeletePersonnelPoolPreview(payload, snapshot, context);
+        return this.personnel.buildDeletePersonnelPoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_vehicle_pool':
-        return this.vehicle.buildDeleteVehiclePoolPreview(payload, snapshot, context);
+        return this.vehicle.buildDeleteVehiclePoolPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_home_depot':
-        return this.homeDepots.buildDeleteHomeDepotPreview(payload, snapshot, context);
+        return this.homeDepots.buildDeleteHomeDepotPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_personnel_service':
-        return this.personnelServices.buildDeletePersonnelServicePreview(payload, snapshot, context);
+        return this.personnelServices.buildDeletePersonnelServicePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_vehicle_service':
-        return this.vehicleServices.buildDeleteVehicleServicePreview(payload, snapshot, context);
+        return this.vehicleServices.buildDeleteVehicleServicePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_personnel':
-        return this.personnel.buildDeletePersonnelPreview(payload, snapshot, context);
+        return this.personnel.buildDeletePersonnelPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_vehicle':
-        return this.vehicle.buildDeleteVehiclePreview(payload, snapshot, context);
+        return this.vehicle.buildDeleteVehiclePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_vehicle_type':
-        return this.vehicleMeta.buildDeleteVehicleTypePreview(payload, snapshot, context);
+        return this.vehicleMeta.buildDeleteVehicleTypePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_vehicle_composition':
-        return this.vehicleMeta.buildDeleteVehicleCompositionPreview(payload, snapshot, context);
+        return this.vehicleMeta.buildDeleteVehicleCompositionPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_timetable_year':
-        return this.timetableSimulation.buildDeleteTimetableYearPreview(payload, snapshot, context);
+        return this.timetableSimulation.buildDeleteTimetableYearPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_simulation':
-        return this.timetableSimulation.buildDeleteSimulationPreview(payload, snapshot, context);
+        return this.timetableSimulation.buildDeleteSimulationPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_operational_point':
-        return this.topologyOperations.buildDeleteOperationalPointPreview(payload, snapshot, context);
+        return this.topologyOperations.buildDeleteOperationalPointPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_section_of_line':
-        return this.topologyOperations.buildDeleteSectionOfLinePreview(payload, snapshot, context);
+        return this.topologyOperations.buildDeleteSectionOfLinePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_personnel_site':
-        return this.topologySites.buildDeletePersonnelSitePreview(payload, snapshot, context);
+        return this.topologySites.buildDeletePersonnelSitePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_replacement_stop':
-        return this.topologyReplacements.buildDeleteReplacementStopPreview(payload, snapshot, context);
+        return this.topologyReplacements.buildDeleteReplacementStopPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_replacement_route':
-        return this.topologyReplacements.buildDeleteReplacementRoutePreview(payload, snapshot, context);
+        return this.topologyReplacements.buildDeleteReplacementRoutePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_replacement_edge':
         return this.topologyReplacementEdges.buildDeleteReplacementEdgePreview(
           payload,
@@ -614,35 +878,92 @@ export class AssistantActionService extends AssistantActionBase {
           context,
         );
       case 'delete_transfer_edge':
-        return this.topologyTransfers.buildDeleteTransferEdgePreview(payload, snapshot, context);
+        return this.topologyTransfers.buildDeleteTransferEdgePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_activity_template':
-        return this.settings.buildCreateActivityTemplatePreview(payload, snapshot, context);
+        return this.settings.buildCreateActivityTemplatePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_activity_definition':
-        return this.settings.buildCreateActivityDefinitionPreview(payload, snapshot, context);
+        return this.settings.buildCreateActivityDefinitionPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'create_layer_group':
-        return this.settings.buildCreateLayerGroupPreview(payload, snapshot, context);
+        return this.settings.buildCreateLayerGroupPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_activity_template':
-        return this.settings.buildUpdateActivityTemplatePreview(payload, snapshot, context);
+        return this.settings.buildUpdateActivityTemplatePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_activity_definition':
-        return this.settings.buildUpdateActivityDefinitionPreview(payload, snapshot, context);
+        return this.settings.buildUpdateActivityDefinitionPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_layer_group':
-        return this.settings.buildUpdateLayerGroupPreview(payload, snapshot, context);
+        return this.settings.buildUpdateLayerGroupPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_activity_template':
-        return this.settings.buildDeleteActivityTemplatePreview(payload, snapshot, context);
+        return this.settings.buildDeleteActivityTemplatePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_activity_definition':
-        return this.settings.buildDeleteActivityDefinitionPreview(payload, snapshot, context);
+        return this.settings.buildDeleteActivityDefinitionPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_layer_group':
-        return this.settings.buildDeleteLayerGroupPreview(payload, snapshot, context);
+        return this.settings.buildDeleteLayerGroupPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'update_translations':
-        return this.settings.buildUpdateTranslationsPreview(payload, snapshot, context);
+        return this.settings.buildUpdateTranslationsPreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_translation_locale':
-        return this.settings.buildDeleteTranslationLocalePreview(payload, snapshot);
+        return this.settings.buildDeleteTranslationLocalePreview(
+          payload,
+          snapshot,
+        );
       case 'create_custom_attribute':
-        return this.settings.buildCreateCustomAttributePreview(payload, snapshot);
+        return this.settings.buildCreateCustomAttributePreview(
+          payload,
+          snapshot,
+        );
       case 'update_custom_attribute':
-        return this.settings.buildUpdateCustomAttributePreview(payload, snapshot, context);
+        return this.settings.buildUpdateCustomAttributePreview(
+          payload,
+          snapshot,
+          context,
+        );
       case 'delete_custom_attribute':
-        return this.settings.buildDeleteCustomAttributePreview(payload, snapshot);
+        return this.settings.buildDeleteCustomAttributePreview(
+          payload,
+          snapshot,
+        );
       default:
         return this.buildFeedbackResponse(
           `Aktion '${payload.action}' wird noch nicht unterstützt.`,
@@ -664,11 +985,15 @@ export class AssistantActionService extends AssistantActionBase {
     for (let i = 0; i < rawActions.length; i += 1) {
       const record = this.asRecord(rawActions[i]);
       if (!record) {
-        return this.buildFeedbackResponse(`Batch-Aktion ${i + 1} ist ungueltig.`);
+        return this.buildFeedbackResponse(
+          `Batch-Aktion ${i + 1} ist ungueltig.`,
+        );
       }
       const actionPayload = record as ActionPayload;
       if (!actionPayload.action || typeof actionPayload.action !== 'string') {
-        return this.buildFeedbackResponse(`Batch-Aktion ${i + 1} fehlt "action".`);
+        return this.buildFeedbackResponse(
+          `Batch-Aktion ${i + 1} fehlt "action".`,
+        );
       }
       actions.push(actionPayload);
     }
@@ -695,7 +1020,10 @@ export class AssistantActionService extends AssistantActionBase {
         commitTasks = this.mergeCommitTasks(commitTasks, outcome.commitTasks);
       }
       if (outcome.refreshHints && outcome.refreshHints.length) {
-        refreshHints = this.mergeRefreshHints(refreshHints, outcome.refreshHints);
+        refreshHints = this.mergeRefreshHints(
+          refreshHints,
+          outcome.refreshHints,
+        );
       }
     }
 
@@ -720,8 +1048,9 @@ export class AssistantActionService extends AssistantActionBase {
       return outcome.response;
     }
     const previewId = randomUUID();
-    const refreshHints =
-      outcome.refreshHints?.length ? outcome.refreshHints : this.collectRefreshHints(outcome.commitTasks);
+    const refreshHints = outcome.refreshHints?.length
+      ? outcome.refreshHints
+      : this.collectRefreshHints(outcome.commitTasks);
     this.previews.create({
       id: previewId,
       clientId,

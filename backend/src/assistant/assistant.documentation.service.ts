@@ -107,11 +107,16 @@ const ASSISTANT_DOCS: Record<AssistantDocKey, AssistantDocDescriptor> = {
 
 @Injectable()
 export class AssistantDocumentationService {
-  constructor(@Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig) {}
+  constructor(
+    @Inject(ASSISTANT_CONFIG) private readonly config: AssistantConfig,
+  ) {}
 
-  resolveDocumentation(
-    uiContext?: AssistantUiContextDto,
-  ): { title: string; sourcePath: string; markdown: string; subtopic: string } | null {
+  resolveDocumentation(uiContext?: AssistantUiContextDto): {
+    title: string;
+    sourcePath: string;
+    markdown: string;
+    subtopic: string;
+  } | null {
     const docKey = this.resolveDocKey(uiContext);
     if (!docKey) {
       return null;
@@ -128,7 +133,8 @@ export class AssistantDocumentationService {
     }
 
     const breadcrumbs = uiContext?.breadcrumbs ?? [];
-    const subtopic = uiContext?.docSubtopic?.trim() || breadcrumbs[2]?.trim() || '';
+    const subtopic =
+      uiContext?.docSubtopic?.trim() || breadcrumbs[2]?.trim() || '';
     return {
       title: descriptor.title,
       sourcePath: descriptor.relativePath,
@@ -148,12 +154,15 @@ export class AssistantDocumentationService {
     return this.buildDocumentationMessagesFromResolved(resolved, options);
   }
 
-  buildDocumentationMessagesFromResolved(resolved: {
-    title: string;
-    sourcePath: string;
-    markdown: string;
-    subtopic: string;
-  }, options?: { maxChars?: number }): Array<{ role: 'system'; content: string }> {
+  buildDocumentationMessagesFromResolved(
+    resolved: {
+      title: string;
+      sourcePath: string;
+      markdown: string;
+      subtopic: string;
+    },
+    options?: { maxChars?: number },
+  ): Array<{ role: 'system'; content: string }> {
     const excerpt = this.buildExcerpt(resolved.markdown, resolved.subtopic);
     const maxChars = this.resolveDocBudget(options?.maxChars);
     if (maxChars <= 0) {
@@ -170,7 +179,9 @@ export class AssistantDocumentationService {
   }
 
   private extractMasterDataArea(breadcrumbs: string[]): string | null {
-    const normalized = breadcrumbs.map((crumb) => crumb?.trim?.() ?? '').filter((c) => c.length);
+    const normalized = breadcrumbs
+      .map((crumb) => crumb?.trim?.() ?? '')
+      .filter((c) => c.length);
     if (!normalized.length) {
       return null;
     }
@@ -183,7 +194,9 @@ export class AssistantDocumentationService {
     return normalized[masterIndex + 1] ?? null;
   }
 
-  private resolveDocKey(uiContext?: AssistantUiContextDto): AssistantDocKey | null {
+  private resolveDocKey(
+    uiContext?: AssistantUiContextDto,
+  ): AssistantDocKey | null {
     const explicit = uiContext?.docKey?.trim();
     if (explicit && explicit in ASSISTANT_DOCS) {
       return explicit as AssistantDocKey;
@@ -195,7 +208,9 @@ export class AssistantDocumentationService {
     }
 
     const masterDataTitle = this.extractMasterDataArea(breadcrumbs);
-    const masterKey = masterDataTitle ? MASTER_DATA_TITLE_TO_DOC_KEY[masterDataTitle] ?? null : null;
+    const masterKey = masterDataTitle
+      ? (MASTER_DATA_TITLE_TO_DOC_KEY[masterDataTitle] ?? null)
+      : null;
     if (masterKey) {
       return masterKey;
     }
@@ -208,7 +223,9 @@ export class AssistantDocumentationService {
   }
 
   private extractSettingsArea(breadcrumbs: string[]): string | null {
-    const normalized = breadcrumbs.map((crumb) => crumb?.trim?.() ?? '').filter((c) => c.length);
+    const normalized = breadcrumbs
+      .map((crumb) => crumb?.trim?.() ?? '')
+      .filter((c) => c.length);
     if (!normalized.length) {
       return null;
     }
@@ -263,7 +280,10 @@ export class AssistantDocumentationService {
     return markdown;
   }
 
-  private extractSection(markdown: string, wantedHeading: string): string | null {
+  private extractSection(
+    markdown: string,
+    wantedHeading: string,
+  ): string | null {
     const wanted = wantedHeading.trim().toLowerCase();
     if (!wanted) {
       return null;

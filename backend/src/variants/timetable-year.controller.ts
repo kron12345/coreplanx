@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { TimetableYearService } from './timetable-year.service';
 
 @Controller('timetable-years')
@@ -17,12 +27,19 @@ export class TimetableYearController {
 
   @Post('variants')
   createSimulationVariant(
-    @Body() payload: { timetableYearLabel?: string; label?: string; description?: string | null },
+    @Body()
+    payload: {
+      timetableYearLabel?: string;
+      label?: string;
+      description?: string | null;
+    },
   ) {
     const timetableYearLabel = payload?.timetableYearLabel?.trim();
     const label = payload?.label?.trim();
     if (!timetableYearLabel) {
-      throw new BadRequestException('timetableYearLabel ist erforderlich (z. B. 2025/26).');
+      throw new BadRequestException(
+        'timetableYearLabel ist erforderlich (z. B. 2025/26).',
+      );
     }
     if (!label) {
       throw new BadRequestException('label ist erforderlich.');
@@ -71,7 +88,9 @@ export class TimetableYearController {
   deleteYear(@Query('label') label?: string) {
     const trimmed = label?.trim();
     if (!trimmed) {
-      throw new BadRequestException('Query param "label" ist erforderlich (z. B. 2025/26).');
+      throw new BadRequestException(
+        'Query param "label" ist erforderlich (z. B. 2025/26).',
+      );
     }
     return this.service.deleteYear(trimmed);
   }

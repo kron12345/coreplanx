@@ -42,4 +42,3 @@ export interface TrainServicePartLinkRecord {
   kind: 'circulation';
   createdAt: string;
 }
-

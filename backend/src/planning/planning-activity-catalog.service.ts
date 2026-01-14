@@ -32,7 +32,9 @@ type ActivityCatalogDefaultsFile = {
   templates?: ActivityTemplate | ActivityTemplate[];
   activityTemplates?: ActivityTemplate | ActivityTemplate[];
   layerGroups?: LayerGroup | LayerGroup[];
-  activityCategories?: ActivityCategoryDefinition | ActivityCategoryDefinition[];
+  activityCategories?:
+    | ActivityCategoryDefinition
+    | ActivityCategoryDefinition[];
   translations?: TranslationState;
   customAttributes?: CustomAttributeState;
 };
@@ -80,7 +82,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   getActivityCatalogDefaults(): ActivityCatalogSnapshot {
     const defaults = this.getDefaultCatalogSnapshot();
     if (!defaults) {
-      throw new NotFoundException('Activity-Katalog Defaults sind nicht konfiguriert.');
+      throw new NotFoundException(
+        'Activity-Katalog Defaults sind nicht konfiguriert.',
+      );
     }
     return defaults;
   }
@@ -88,7 +92,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   async resetActivityCatalogToDefaults(): Promise<ActivityCatalogSnapshot> {
     const defaults = this.getDefaultCatalogSnapshot();
     if (!defaults) {
-      throw new BadRequestException('Activity-Katalog Defaults sind nicht konfiguriert.');
+      throw new BadRequestException(
+        'Activity-Katalog Defaults sind nicht konfiguriert.',
+      );
     }
     return this.replaceActivityCatalog(defaults);
   }
@@ -230,7 +236,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     );
     if (index >= 0) {
       const existing = this.activityDefinitions[index];
-      if (this.isSystemDefinition(existing) && !this.isSystemDefinition(normalized)) {
+      if (
+        this.isSystemDefinition(existing) &&
+        !this.isSystemDefinition(normalized)
+      ) {
         this.throwManagedDeleteForbidden([definitionId]);
       }
       this.activityDefinitions[index] = normalized;
@@ -260,7 +269,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   listActivityCategories(): ActivityCategoryDefinition[] {
-    return this.activityCategories.map((category) => this.cloneActivityCategory(category));
+    return this.activityCategories.map((category) =>
+      this.cloneActivityCategory(category),
+    );
   }
 
   async replaceActivityCategories(
@@ -275,7 +286,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   getActivityCategory(categoryId: string): ActivityCategoryDefinition {
-    const found = this.activityCategories.find((category) => category.id === categoryId);
+    const found = this.activityCategories.find(
+      (category) => category.id === categoryId,
+    );
     if (!found) {
       throw new NotFoundException(
         `Activity Kategorie ${categoryId} ist nicht vorhanden.`,
@@ -288,7 +301,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     payload: ActivityCategoryDefinition,
   ): Promise<ActivityCategoryDefinition> {
     const normalized = this.normalizeActivityCategory(payload);
-    if (this.activityCategories.some((category) => category.id === normalized.id)) {
+    if (
+      this.activityCategories.some((category) => category.id === normalized.id)
+    ) {
       throw new ConflictException(
         `Activity Kategorie ${normalized.id} existiert bereits.`,
       );
@@ -304,7 +319,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     payload: ActivityCategoryDefinition,
   ): Promise<ActivityCategoryDefinition> {
     const normalized = this.normalizeActivityCategory(payload, categoryId);
-    const index = this.activityCategories.findIndex((category) => category.id === categoryId);
+    const index = this.activityCategories.findIndex(
+      (category) => category.id === categoryId,
+    );
     if (index >= 0) {
       this.activityCategories[index] = normalized;
     } else {
@@ -316,7 +333,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   async deleteActivityCategory(categoryId: string): Promise<void> {
-    const index = this.activityCategories.findIndex((category) => category.id === categoryId);
+    const index = this.activityCategories.findIndex(
+      (category) => category.id === categoryId,
+    );
     if (index < 0) {
       throw new NotFoundException(
         `Activity Kategorie ${categoryId} ist nicht vorhanden.`,
@@ -340,9 +359,13 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   getLayerGroup(layerId: string): LayerGroup {
-    const found = this.activityLayerGroups.find((layer) => layer.id === layerId);
+    const found = this.activityLayerGroups.find(
+      (layer) => layer.id === layerId,
+    );
     if (!found) {
-      throw new NotFoundException(`Layer-Gruppe ${layerId} ist nicht vorhanden.`);
+      throw new NotFoundException(
+        `Layer-Gruppe ${layerId} ist nicht vorhanden.`,
+      );
     }
     return this.cloneLayerGroup(found);
   }
@@ -360,9 +383,14 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return this.cloneLayerGroup(normalized);
   }
 
-  async upsertLayerGroup(layerId: string, payload: LayerGroup): Promise<LayerGroup> {
+  async upsertLayerGroup(
+    layerId: string,
+    payload: LayerGroup,
+  ): Promise<LayerGroup> {
     const normalized = this.normalizeLayerGroup(payload, layerId);
-    const index = this.activityLayerGroups.findIndex((layer) => layer.id === layerId);
+    const index = this.activityLayerGroups.findIndex(
+      (layer) => layer.id === layerId,
+    );
     if (index >= 0) {
       this.activityLayerGroups[index] = normalized;
     } else {
@@ -374,9 +402,13 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   }
 
   async deleteLayerGroup(layerId: string): Promise<void> {
-    const index = this.activityLayerGroups.findIndex((layer) => layer.id === layerId);
+    const index = this.activityLayerGroups.findIndex(
+      (layer) => layer.id === layerId,
+    );
     if (index < 0) {
-      throw new NotFoundException(`Layer-Gruppe ${layerId} ist nicht vorhanden.`);
+      throw new NotFoundException(
+        `Layer-Gruppe ${layerId} ist nicht vorhanden.`,
+      );
     }
     this.activityLayerGroups.splice(index, 1);
     await this.persistActivityCatalog();
@@ -459,7 +491,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     this.defaultsLoaded = true;
     const defaultsLocation = this.resolveDefaultsLocation();
     if (!defaultsLocation) {
-      this.logger.warn('Activity-Katalog Defaults nicht gefunden; ueberspringe Seeding.');
+      this.logger.warn(
+        'Activity-Katalog Defaults nicht gefunden; ueberspringe Seeding.',
+      );
       return;
     }
     const doc = this.loadDefaultsDocument(defaultsLocation);
@@ -530,23 +564,74 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     const candidates = [
       join(process.cwd(), 'catalog', 'activity-catalog', 'defaults'),
       join(process.cwd(), 'backend', 'catalog', 'activity-catalog', 'defaults'),
-      join(__dirname, '..', '..', '..', 'catalog', 'activity-catalog', 'defaults'),
-      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'activity-catalog', 'defaults'),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'catalog',
+        'activity-catalog',
+        'defaults',
+      ),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'backend',
+        'catalog',
+        'activity-catalog',
+        'defaults',
+      ),
       join(process.cwd(), 'catalog', 'activity-catalog'),
       join(process.cwd(), 'backend', 'catalog', 'activity-catalog'),
       join(__dirname, '..', '..', '..', 'catalog', 'activity-catalog'),
-      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'activity-catalog'),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'backend',
+        'catalog',
+        'activity-catalog',
+      ),
       join(process.cwd(), 'catalog', 'activity-catalog', 'defaults.yaml'),
-      join(process.cwd(), 'backend', 'catalog', 'activity-catalog', 'defaults.yaml'),
-      join(__dirname, '..', '..', '..', 'catalog', 'activity-catalog', 'defaults.yaml'),
-      join(__dirname, '..', '..', '..', 'backend', 'catalog', 'activity-catalog', 'defaults.yaml'),
+      join(
+        process.cwd(),
+        'backend',
+        'catalog',
+        'activity-catalog',
+        'defaults.yaml',
+      ),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'catalog',
+        'activity-catalog',
+        'defaults.yaml',
+      ),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'backend',
+        'catalog',
+        'activity-catalog',
+        'defaults.yaml',
+      ),
     ];
     for (const candidate of candidates) {
       try {
         const stat = statSync(candidate);
         if (stat.isDirectory()) {
-          const entries = readdirSync(candidate).filter((entry) =>
-            entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'),
+          const entries = readdirSync(candidate).filter(
+            (entry) =>
+              entry.endsWith('.yaml') ||
+              entry.endsWith('.yml') ||
+              entry.endsWith('.json'),
           );
           if (entries.length) {
             return candidate;
@@ -564,7 +649,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return null;
   }
 
-  private loadDefaultsDocument(location: string): ActivityCatalogDefaultsFile | null {
+  private loadDefaultsDocument(
+    location: string,
+  ): ActivityCatalogDefaultsFile | null {
     let stat: ReturnType<typeof statSync> | null = null;
     try {
       stat = statSync(location);
@@ -577,7 +664,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return this.loadDefaultsFromFile(location);
   }
 
-  private loadDefaultsFromFile(path: string): ActivityCatalogDefaultsFile | null {
+  private loadDefaultsFromFile(
+    path: string,
+  ): ActivityCatalogDefaultsFile | null {
     const raw = readFileSync(path, 'utf-8');
     try {
       const parsed = path.endsWith('.json') ? JSON.parse(raw) : yaml.load(raw);
@@ -591,11 +680,18 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     }
   }
 
-  private loadDefaultsFromDirectory(dir: string): ActivityCatalogDefaultsFile | null {
+  private loadDefaultsFromDirectory(
+    dir: string,
+  ): ActivityCatalogDefaultsFile | null {
     let files: string[] = [];
     try {
       files = readdirSync(dir)
-        .filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml') || entry.endsWith('.json'))
+        .filter(
+          (entry) =>
+            entry.endsWith('.yaml') ||
+            entry.endsWith('.yml') ||
+            entry.endsWith('.json'),
+        )
         .sort((a, b) => a.localeCompare(b));
     } catch (error) {
       this.logger.error(
@@ -624,7 +720,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
         );
         continue;
       }
-      this.deepMergeDefaults(merged, (parsed ?? {}) as ActivityCatalogDefaultsFile);
+      this.deepMergeDefaults(
+        merged,
+        (parsed ?? {}) as ActivityCatalogDefaultsFile,
+      );
     }
     return merged;
   }
@@ -682,9 +781,11 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       ...this.collectDefaultsList<ActivityTemplate>(doc.activityTemplates),
     ];
     const layerGroups = this.collectDefaultsList<LayerGroup>(doc.layerGroups);
-    const categories = this.collectDefaultsList<ActivityCategoryDefinition>(doc.activityCategories);
-    const translations = (doc.translations ?? {}) as TranslationState;
-    const customAttributes = (doc.customAttributes ?? {}) as CustomAttributeState;
+    const categories = this.collectDefaultsList<ActivityCategoryDefinition>(
+      doc.activityCategories,
+    );
+    const translations = doc.translations ?? {};
+    const customAttributes = doc.customAttributes ?? {};
 
     const snapshot: ActivityCatalogSnapshot = {
       templates,
@@ -715,10 +816,16 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       definitions: snapshot.definitions.map((definition) =>
         this.cloneActivityDefinition(definition),
       ),
-      layerGroups: snapshot.layerGroups.map((layer) => this.cloneLayerGroup(layer)),
-      categories: snapshot.categories.map((category) => this.cloneActivityCategory(category)),
+      layerGroups: snapshot.layerGroups.map((layer) =>
+        this.cloneLayerGroup(layer),
+      ),
+      categories: snapshot.categories.map((category) =>
+        this.cloneActivityCategory(category),
+      ),
       translations: this.cloneTranslationState(snapshot.translations),
-      customAttributes: this.cloneCustomAttributeState(snapshot.customAttributes),
+      customAttributes: this.cloneCustomAttributeState(
+        snapshot.customAttributes,
+      ),
     };
   }
 
@@ -732,13 +839,17 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     };
   }
 
-  private cloneActivityDefinition(definition: ActivityDefinition): ActivityDefinition {
+  private cloneActivityDefinition(
+    definition: ActivityDefinition,
+  ): ActivityDefinition {
     return {
       ...definition,
       description: definition.description ?? undefined,
       templateId: definition.templateId ?? undefined,
       defaultDurationMinutes: definition.defaultDurationMinutes ?? undefined,
-      relevantFor: definition.relevantFor ? [...definition.relevantFor] : undefined,
+      relevantFor: definition.relevantFor
+        ? [...definition.relevantFor]
+        : undefined,
       attributes: this.cloneAttributeList(definition.attributes),
     };
   }
@@ -782,7 +893,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return clone;
   }
 
-  private cloneCustomAttributeState(state: CustomAttributeState): CustomAttributeState {
+  private cloneCustomAttributeState(
+    state: CustomAttributeState,
+  ): CustomAttributeState {
     const clone: CustomAttributeState = {};
     Object.entries(state ?? {}).forEach(([entityId, entries]) => {
       clone[entityId] = (entries ?? []).map((entry) => ({ ...entry }));
@@ -823,8 +936,12 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     this.activityCategories = snapshot.categories.map((category) =>
       this.cloneActivityCategory(category),
     );
-    this.activityTranslations = this.cloneTranslationState(snapshot.translations);
-    this.customAttributes = this.cloneCustomAttributeState(snapshot.customAttributes);
+    this.activityTranslations = this.cloneTranslationState(
+      snapshot.translations,
+    );
+    this.customAttributes = this.cloneCustomAttributeState(
+      snapshot.customAttributes,
+    );
     this.sortActivityCatalog();
   }
 
@@ -853,7 +970,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     if (!this.usingDatabase) {
       return;
     }
-    await this.repository.replaceActivityCatalog(this.buildActivityCatalogSnapshot());
+    await this.repository.replaceActivityCatalog(
+      this.buildActivityCatalogSnapshot(),
+    );
   }
 
   private normalizeCatalogSnapshot(
@@ -862,20 +981,28 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     const categories = (snapshot.categories ?? []).map((category) =>
       this.normalizeActivityCategory(category),
     );
-    const allowedCategories = new Set(categories.map((category) => category.id));
+    const allowedCategories = new Set(
+      categories.map((category) => category.id),
+    );
     return {
       templates: (snapshot.templates ?? []).map((template) =>
         this.normalizeActivityTemplate(template),
       ),
       definitions: (snapshot.definitions ?? []).map((definition) =>
-        this.normalizeActivityDefinition(definition, undefined, allowedCategories),
+        this.normalizeActivityDefinition(
+          definition,
+          undefined,
+          allowedCategories,
+        ),
       ),
       layerGroups: (snapshot.layerGroups ?? []).map((layer) =>
         this.normalizeLayerGroup(layer),
       ),
       categories,
       translations: this.normalizeTranslations(snapshot.translations),
-      customAttributes: this.normalizeCustomAttributes(snapshot.customAttributes),
+      customAttributes: this.normalizeCustomAttributes(
+        snapshot.customAttributes,
+      ),
     };
   }
 
@@ -891,7 +1018,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       payload.label,
       'Activity Template Label',
     );
-    const defaultDuration = this.normalizeOptionalNumber(payload.defaultDurationMinutes);
+    const defaultDuration = this.normalizeOptionalNumber(
+      payload.defaultDurationMinutes,
+    );
     if (defaultDuration !== undefined && defaultDuration < 0) {
       throw new BadRequestException(
         'Activity Template defaultDurationMinutes darf nicht negativ sein.',
@@ -925,7 +1054,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       payload.activityType,
       'Activity Definition activityType',
     );
-    const defaultDuration = this.normalizeOptionalNumber(payload.defaultDurationMinutes);
+    const defaultDuration = this.normalizeOptionalNumber(
+      payload.defaultDurationMinutes,
+    );
     if (defaultDuration !== undefined && defaultDuration < 0) {
       throw new BadRequestException(
         'Activity Definition defaultDurationMinutes darf nicht negativ sein.',
@@ -951,8 +1082,14 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     payload: ActivityCategoryDefinition,
     overrideId?: string,
   ): ActivityCategoryDefinition {
-    const id = this.normalizeIdentifier(overrideId ?? payload.id, 'Activity Kategorie ID');
-    const label = this.normalizeIdentifier(payload.label, 'Activity Kategorie Label');
+    const id = this.normalizeIdentifier(
+      overrideId ?? payload.id,
+      'Activity Kategorie ID',
+    );
+    const label = this.normalizeIdentifier(
+      payload.label,
+      'Activity Kategorie Label',
+    );
     const order = this.normalizeOptionalNumber(payload.order) ?? 50;
     return {
       id,
@@ -963,7 +1100,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     };
   }
 
-  private normalizeLayerGroup(payload: LayerGroup, overrideId?: string): LayerGroup {
+  private normalizeLayerGroup(
+    payload: LayerGroup,
+    overrideId?: string,
+  ): LayerGroup {
     const id = this.normalizeIdentifier(overrideId ?? payload.id, 'Layer ID');
     const label = this.normalizeIdentifier(payload.label, 'Layer Label');
     const order = this.normalizeOptionalNumber(payload.order) ?? 50;
@@ -975,7 +1115,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     };
   }
 
-  private normalizeTranslations(translations?: TranslationState): TranslationState {
+  private normalizeTranslations(
+    translations?: TranslationState,
+  ): TranslationState {
     const normalized: TranslationState = {};
     Object.entries(translations ?? {}).forEach(([locale, entries]) => {
       const localeKey = this.normalizeLocale(locale);
@@ -986,7 +1128,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       Object.entries(entries ?? {}).forEach(([key, value]) => {
         const normalizedKey = (key ?? '').trim();
         if (!normalizedKey) {
-          throw new BadRequestException('Translation-Key darf nicht leer sein.');
+          throw new BadRequestException(
+            'Translation-Key darf nicht leer sein.',
+          );
         }
         normalizedEntries[normalizedKey] = {
           label: value?.label ?? null,
@@ -998,7 +1142,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return normalized;
   }
 
-  private normalizeCustomAttributes(state?: CustomAttributeState): CustomAttributeState {
+  private normalizeCustomAttributes(
+    state?: CustomAttributeState,
+  ): CustomAttributeState {
     const normalized: CustomAttributeState = {};
     const allowedTypes: CustomAttributeDefinition['type'][] = [
       'string',
@@ -1015,14 +1161,20 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       const seenKeys = new Set<string>();
       const normalizedEntries = (entries ?? []).map((entry) => {
         const id = this.normalizeIdentifier(entry?.id, 'Custom Attribute ID');
-        const key = this.normalizeIdentifier(entry?.key, 'Custom Attribute Key');
+        const key = this.normalizeIdentifier(
+          entry?.key,
+          'Custom Attribute Key',
+        );
         if (seenKeys.has(key)) {
           throw new BadRequestException(
             `Custom Attribute Key ${key} ist in ${normalizedEntityId} doppelt.`,
           );
         }
         seenKeys.add(key);
-        const label = this.normalizeIdentifier(entry?.label, 'Custom Attribute Label');
+        const label = this.normalizeIdentifier(
+          entry?.label,
+          'Custom Attribute Label',
+        );
         const type = entry?.type;
         if (!type || !allowedTypes.includes(type)) {
           throw new BadRequestException(
@@ -1047,7 +1199,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return normalized;
   }
 
-  private normalizeIdentifier(value: string | undefined, context: string): string {
+  private normalizeIdentifier(
+    value: string | undefined,
+    context: string,
+  ): string {
     const normalized = (value ?? '').trim();
     if (!normalized) {
       throw new BadRequestException(`${context} darf nicht leer sein.`);
@@ -1066,7 +1221,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return parsed;
   }
 
-  private normalizeResourceKinds(values?: (string | ResourceKind)[]): ResourceKind[] {
+  private normalizeResourceKinds(
+    values?: (string | ResourceKind)[],
+  ): ResourceKind[] {
     const allowed: ResourceKind[] = [
       'personnel-service',
       'vehicle-service',
@@ -1076,7 +1233,9 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     const allowedSet = new Set<ResourceKind>(allowed);
     const cleaned = (values ?? [])
       .map((entry) => (entry ?? '').trim())
-      .filter((entry) => allowedSet.has(entry as ResourceKind)) as ResourceKind[];
+      .filter((entry) =>
+        allowedSet.has(entry as ResourceKind),
+      ) as ResourceKind[];
     return Array.from(new Set(cleaned));
   }
 
@@ -1111,7 +1270,7 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     key: string,
   ): string | null {
     const entry = (attributes ?? []).find((attr) => attr.key === key);
-    const meta = entry?.meta as Record<string, unknown> | undefined;
+    const meta = entry?.meta;
     if (!meta || typeof meta !== 'object') {
       return null;
     }
@@ -1173,7 +1332,13 @@ export class PlanningActivityCatalogService implements OnModuleInit {
   private readAttributeFields(
     attributes: ActivityAttributeValue[] | undefined,
   ): Set<ActivityFieldKey> {
-    const allowed: ActivityFieldKey[] = ['start', 'end', 'from', 'to', 'remark'];
+    const allowed: ActivityFieldKey[] = [
+      'start',
+      'end',
+      'from',
+      'to',
+      'remark',
+    ];
     const allowedSet = new Set<ActivityFieldKey>(allowed);
     const fields = new Set<ActivityFieldKey>();
     (attributes ?? []).forEach((attr) => {
@@ -1206,16 +1371,16 @@ export class PlanningActivityCatalogService implements OnModuleInit {
     return flags.some((key) => this.readAttributeBoolean(attributes, key));
   }
 
-  private assertSystemDefinitionsPreserved(
-    next: ActivityDefinition[],
-  ): void {
+  private assertSystemDefinitionsPreserved(next: ActivityDefinition[]): void {
     const protectedIds = this.activityDefinitions
       .filter((definition) => this.isSystemDefinition(definition))
       .map((definition) => definition.id);
     if (!protectedIds.length) {
       return;
     }
-    const nextMap = new Map(next.map((definition) => [definition.id, definition] as const));
+    const nextMap = new Map(
+      next.map((definition) => [definition.id, definition] as const),
+    );
     const missing = protectedIds.filter((id) => !nextMap.has(id));
     if (missing.length) {
       this.throwManagedDeleteForbidden(missing);
@@ -1240,14 +1405,19 @@ export class PlanningActivityCatalogService implements OnModuleInit {
 
     const category = this.readAttributeValue(attributes, 'category');
     const timeMode = this.readAttributeValue(attributes, 'time_mode');
-    const defaultDuration = this.readAttributeNumber(attributes, 'default_duration');
+    const defaultDuration = this.readAttributeNumber(
+      attributes,
+      'default_duration',
+    );
     const relevantFor = this.readAttributeList(attributes, 'relevant_for');
     const fields = this.readAttributeFields(attributes);
     const color = this.readAttributeValue(attributes, 'color');
 
     const allowedCategoryIds =
       allowedCategories ??
-      new Set(this.activityCategories.map((entry) => entry.id).filter((id) => id));
+      new Set(
+        this.activityCategories.map((entry) => entry.id).filter((id) => id),
+      );
     const allowedTimeModes = new Set<ActivityTimeMode>([
       'duration',
       'range',
@@ -1260,7 +1430,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       'vehicle-service',
     ]);
 
-    if (allowedCategoryIds.size && (!category || !allowedCategoryIds.has(category))) {
+    if (
+      allowedCategoryIds.size &&
+      (!category || !allowedCategoryIds.has(category))
+    ) {
       throw new BadRequestException(
         `System-Activity ${definition.id} benötigt ein gültiges category-Attribut.`,
       );
@@ -1275,7 +1448,10 @@ export class PlanningActivityCatalogService implements OnModuleInit {
         `System-Activity ${definition.id} benötigt default_duration in Minuten.`,
       );
     }
-    if (!relevantFor.length || relevantFor.some((entry) => !allowedRelevant.has(entry as ResourceKind))) {
+    if (
+      !relevantFor.length ||
+      relevantFor.some((entry) => !allowedRelevant.has(entry as ResourceKind))
+    ) {
       throw new BadRequestException(
         `System-Activity ${definition.id} benötigt ein gültiges relevant_for-Attribut.`,
       );
@@ -1309,5 +1485,4 @@ export class PlanningActivityCatalogService implements OnModuleInit {
       })),
     });
   }
-
 }

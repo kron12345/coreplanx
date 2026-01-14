@@ -10,6 +10,7 @@ export class GanttViewportFacade {
   private snapTimelineToMidnightValue = true;
   private viewportInitialized = false;
   private lastTimelineRange: { start: number; end: number } | null = null;
+  private viewportWidthPx: number | null = null;
 
   private readonly viewportReadySignal = signal(false);
   readonly viewportReady = this.viewportReadySignal.asReadonly();
@@ -56,6 +57,22 @@ export class GanttViewportFacade {
       end: new Date(value.end),
     };
     this.applyTimelineRange();
+  }
+
+  setViewportWidth(widthPx: number | null | undefined): void {
+    if (!Number.isFinite(widthPx as number)) {
+      return;
+    }
+    const next = Math.max(0, Math.floor(widthPx as number));
+    if (this.viewportWidthPx === next) {
+      return;
+    }
+    this.viewportWidthPx = next;
+    if (!this.viewportInitialized) {
+      return;
+    }
+    this.viewport.setViewportWidth(next);
+    this.syncTimeScaleToViewport();
   }
 
   setMinTimelineDays(value: number | null | undefined): void {
@@ -330,6 +347,7 @@ export class GanttViewportFacade {
       timelineEnd: end,
       initialRangeMs: this.computeInitialRange(start, end, ZOOM_RANGE_MS['week']),
       initialCenter: start,
+      viewportWidthPx: this.viewportWidthPx ?? undefined,
     });
     this.viewportInitialized = true;
     this.syncTimeScaleToViewport();
@@ -346,6 +364,7 @@ export class GanttViewportFacade {
       timelineEnd: end,
       initialRangeMs: this.computeInitialRange(start, end, previousRange),
       initialCenter: this.clampCenter(previousCenter, start, end),
+      viewportWidthPx: this.viewportWidthPx ?? undefined,
     });
     this.syncTimeScaleToViewport();
     this.viewportReadySignal.set(true);

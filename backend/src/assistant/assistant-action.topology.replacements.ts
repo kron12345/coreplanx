@@ -1,6 +1,14 @@
 import type { AssistantActionChangeDto } from './assistant.dto';
-import type { ActionApplyOutcome, ActionContext, ActionPayload } from './assistant-action.engine.types';
-import type { ReplacementRoute, ReplacementStop, ResourceSnapshot } from '../planning/planning.types';
+import type {
+  ActionApplyOutcome,
+  ActionContext,
+  ActionPayload,
+} from './assistant-action.engine.types';
+import type {
+  ReplacementRoute,
+  ReplacementStop,
+  ResourceSnapshot,
+} from '../planning/planning.types';
 import { AssistantActionTopologyBase } from './assistant-action.topology.base';
 
 export class AssistantActionTopologyReplacements extends AssistantActionTopologyBase {
@@ -11,10 +19,14 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
     const rawEntries = this.asArray(
-      payload.replacementStops ?? payload.replacementStop ?? payloadRecord['items'],
+      payload.replacementStops ??
+        payload.replacementStop ??
+        payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Replacement Stop wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Replacement Stop wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -25,7 +37,8 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     for (let index = 0; index < rawEntries.length; index += 1) {
       const raw = rawEntries[index];
       const record = this.asRecord(raw) ?? {};
-      const name = this.cleanText(record['name']) ?? this.cleanText(record['label']);
+      const name =
+        this.cleanText(record['name']) ?? this.cleanText(record['label']);
       if (!name) {
         return this.buildFeedbackResponse('Replacement Stop: Name fehlt.');
       }
@@ -35,7 +48,9 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
         this.generateId('RSTOP');
       if (
         usedIds.has(stopId) ||
-        state.replacementStops.some((entry) => entry.replacementStopId === stopId)
+        state.replacementStops.some(
+          (entry) => entry.replacementStopId === stopId,
+        )
       ) {
         return this.buildFeedbackResponse(
           `Replacement Stop "${name}": ID "${stopId}" ist bereits vergeben.`,
@@ -53,10 +68,18 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
         const opResult = this.resolveOperationalPointUniqueOpIdByReference(
           state.operationalPoints,
           nearestRef,
-          { apply: { mode: 'value', path: ['replacementStops', index, 'nearestUniqueOpId'] } },
+          {
+            apply: {
+              mode: 'value',
+              path: ['replacementStops', index, 'nearestUniqueOpId'],
+            },
+          },
         );
         if (opResult.clarification) {
-          return this.buildClarificationResponse(opResult.clarification, context);
+          return this.buildClarificationResponse(
+            opResult.clarification,
+            context,
+          );
         }
         if (opResult.feedback) {
           return this.buildFeedbackResponse(opResult.feedback);
@@ -82,7 +105,10 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     }
 
     state.replacementStops = [...state.replacementStops, ...stops];
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementStops'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementStops'],
+      state,
+    );
     const summary =
       stops.length === 1
         ? `Replacement Stop "${stops[0].name}" angelegt.`
@@ -125,7 +151,9 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
       return this.buildClarificationResponse(stopResult.clarification, context);
     }
     if (stopResult.feedback || !stopResult.stopId) {
-      return this.buildFeedbackResponse(stopResult.feedback ?? 'Replacement Stop nicht gefunden.');
+      return this.buildFeedbackResponse(
+        stopResult.feedback ?? 'Replacement Stop nicht gefunden.',
+      );
     }
 
     const stop = state.replacementStops.find(
@@ -164,7 +192,10 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
           { apply: { mode: 'value', path: ['patch', 'nearestUniqueOpId'] } },
         );
         if (opResult.clarification) {
-          return this.buildClarificationResponse(opResult.clarification, context);
+          return this.buildClarificationResponse(
+            opResult.clarification,
+            context,
+          );
         }
         if (opResult.feedback) {
           return this.buildFeedbackResponse(opResult.feedback);
@@ -191,7 +222,10 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     state.replacementStops = state.replacementStops.map((entry) =>
       entry.replacementStopId === stop.replacementStopId ? updated : entry,
     );
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementStops'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementStops'],
+      state,
+    );
     const summary = `Replacement Stop "${updated.name}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
       {
@@ -239,7 +273,9 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
       return this.buildClarificationResponse(stopResult.clarification, context);
     }
     if (stopResult.feedback || !stopResult.stopId) {
-      return this.buildFeedbackResponse(stopResult.feedback ?? 'Replacement Stop nicht gefunden.');
+      return this.buildFeedbackResponse(
+        stopResult.feedback ?? 'Replacement Stop nicht gefunden.',
+      );
     }
 
     const stop = state.replacementStops.find(
@@ -292,7 +328,12 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     );
 
     const commitTasks = this.buildTopologyCommitTasksForState(
-      ['replacementStops', 'replacementEdges', 'opReplacementStopLinks', 'transferEdges'],
+      [
+        'replacementStops',
+        'replacementEdges',
+        'opReplacementStopLinks',
+        'transferEdges',
+      ],
       state,
     );
     const details: string[] = [];
@@ -333,10 +374,14 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
     const rawEntries = this.asArray(
-      payload.replacementRoutes ?? payload.replacementRoute ?? payloadRecord['items'],
+      payload.replacementRoutes ??
+        payload.replacementRoute ??
+        payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Replacement Route wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Replacement Route wird benötigt.',
+      );
     }
 
     const state = this.ensureTopologyState(context);
@@ -347,7 +392,8 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     for (let index = 0; index < rawEntries.length; index += 1) {
       const raw = rawEntries[index];
       const record = this.asRecord(raw) ?? {};
-      const name = this.cleanText(record['name']) ?? this.cleanText(record['label']);
+      const name =
+        this.cleanText(record['name']) ?? this.cleanText(record['label']);
       if (!name) {
         return this.buildFeedbackResponse('Replacement Route: Name fehlt.');
       }
@@ -357,7 +403,9 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
         this.generateId('RROUTE');
       if (
         usedIds.has(routeId) ||
-        state.replacementRoutes.some((entry) => entry.replacementRouteId === routeId)
+        state.replacementRoutes.some(
+          (entry) => entry.replacementRouteId === routeId,
+        )
       ) {
         return this.buildFeedbackResponse(
           `Replacement Route "${name}": ID "${routeId}" ist bereits vergeben.`,
@@ -380,7 +428,10 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     }
 
     state.replacementRoutes = [...state.replacementRoutes, ...routes];
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementRoutes'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementRoutes'],
+      state,
+    );
     const summary =
       routes.length === 1
         ? `Replacement Route "${routes[0].name}" angelegt.`
@@ -400,7 +451,9 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['replacementRoute']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'replacementRoute',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Replacement Route fehlt.');
     }
@@ -420,10 +473,15 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
       { apply: { mode: 'target', path: ['target'] } },
     );
     if (routeResult.clarification) {
-      return this.buildClarificationResponse(routeResult.clarification, context);
+      return this.buildClarificationResponse(
+        routeResult.clarification,
+        context,
+      );
     }
     if (routeResult.feedback || !routeResult.routeId) {
-      return this.buildFeedbackResponse(routeResult.feedback ?? 'Replacement Route nicht gefunden.');
+      return this.buildFeedbackResponse(
+        routeResult.feedback ?? 'Replacement Route nicht gefunden.',
+      );
     }
 
     const route = state.replacementRoutes.find(
@@ -461,7 +519,10 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     state.replacementRoutes = state.replacementRoutes.map((entry) =>
       entry.replacementRouteId === route.replacementRouteId ? updated : entry,
     );
-    const commitTasks = this.buildTopologyCommitTasksForState(['replacementRoutes'], state);
+    const commitTasks = this.buildTopologyCommitTasksForState(
+      ['replacementRoutes'],
+      state,
+    );
     const summary = `Replacement Route "${updated.name}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
       {
@@ -486,7 +547,9 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['replacementRoute']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'replacementRoute',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Replacement Route fehlt.');
     }
@@ -506,10 +569,15 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
       { apply: { mode: 'target', path: ['target'] } },
     );
     if (routeResult.clarification) {
-      return this.buildClarificationResponse(routeResult.clarification, context);
+      return this.buildClarificationResponse(
+        routeResult.clarification,
+        context,
+      );
     }
     if (routeResult.feedback || !routeResult.routeId) {
-      return this.buildFeedbackResponse(routeResult.feedback ?? 'Replacement Route nicht gefunden.');
+      return this.buildFeedbackResponse(
+        routeResult.feedback ?? 'Replacement Route nicht gefunden.',
+      );
     }
 
     const route = state.replacementRoutes.find(
@@ -553,5 +621,4 @@ export class AssistantActionTopologyReplacements extends AssistantActionTopology
       commitTasks,
     };
   }
-
 }

@@ -23,7 +23,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
       payload.vehicleTypes ?? payload.vehicleType ?? payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens ein Fahrzeugtyp wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens ein Fahrzeugtyp wird benötigt.',
+      );
     }
 
     const types: VehicleType[] = [];
@@ -41,20 +43,26 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
       }
       const normalizedLabel = this.normalizeKey(label);
       if (seenLabels.has(normalizedLabel)) {
-        return this.buildFeedbackResponse(`Fahrzeugtyp "${label}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Fahrzeugtyp "${label}" ist doppelt angegeben.`,
+        );
       }
       if (
         snapshot.vehicleTypes.some(
           (entry) => this.normalizeKey(entry.label) === normalizedLabel,
         )
       ) {
-        return this.buildFeedbackResponse(`Fahrzeugtyp "${label}" existiert bereits.`);
+        return this.buildFeedbackResponse(
+          `Fahrzeugtyp "${label}" existiert bereits.`,
+        );
       }
       seenLabels.add(normalizedLabel);
 
       const tiltingRaw = this.cleanText(record?.['tiltingCapability']);
       const tilting =
-        tiltingRaw === 'none' || tiltingRaw === 'passive' || tiltingRaw === 'active'
+        tiltingRaw === 'none' ||
+        tiltingRaw === 'passive' ||
+        tiltingRaw === 'active'
           ? tiltingRaw
           : undefined;
       if (tiltingRaw && !tilting) {
@@ -63,8 +71,12 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
         );
       }
 
-      const powerSupplySystems = this.parseStringArray(record?.['powerSupplySystems']);
-      const trainProtectionSystems = this.parseStringArray(record?.['trainProtectionSystems']);
+      const powerSupplySystems = this.parseStringArray(
+        record?.['powerSupplySystems'],
+      );
+      const trainProtectionSystems = this.parseStringArray(
+        record?.['trainProtectionSystems'],
+      );
 
       const type: VehicleType = {
         id: this.generateId('VT'),
@@ -72,7 +84,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
         category: this.cleanText(record?.['category']),
         capacity: this.parseNumber(record?.['capacity']),
         maxSpeed: this.parseNumber(record?.['maxSpeed']),
-        maintenanceIntervalDays: this.parseNumber(record?.['maintenanceIntervalDays']),
+        maintenanceIntervalDays: this.parseNumber(
+          record?.['maintenanceIntervalDays'],
+        ),
         energyType: this.cleanText(record?.['energyType']),
         manufacturer: this.cleanText(record?.['manufacturer']),
         trainTypeCode: this.cleanText(record?.['trainTypeCode']),
@@ -81,7 +95,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
         brakeType: this.cleanText(record?.['brakeType']),
         brakePercentage: this.parseNumber(record?.['brakePercentage']),
         tiltingCapability: tilting ?? null,
-        powerSupplySystems: powerSupplySystems?.length ? powerSupplySystems : undefined,
+        powerSupplySystems: powerSupplySystems?.length
+          ? powerSupplySystems
+          : undefined,
         trainProtectionSystems: trainProtectionSystems?.length
           ? trainProtectionSystems
           : undefined,
@@ -141,17 +157,25 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     if (!typeRef) {
       return this.buildFeedbackResponse('Ziel-Fahrzeugtyp fehlt.');
     }
-    const resolved = this.resolveVehicleTypeIdByReference(snapshot.vehicleTypes, typeRef, {
-      apply: { mode: 'target', path: ['target'] },
-    });
+    const resolved = this.resolveVehicleTypeIdByReference(
+      snapshot.vehicleTypes,
+      typeRef,
+      {
+        apply: { mode: 'target', path: ['target'] },
+      },
+    );
     if (resolved.clarification) {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.id) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Fahrzeugtyp nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Fahrzeugtyp nicht gefunden.',
+      );
     }
 
-    const type = snapshot.vehicleTypes.find((entry) => entry.id === resolved.id);
+    const type = snapshot.vehicleTypes.find(
+      (entry) => entry.id === resolved.id,
+    );
     if (!type) {
       return this.buildFeedbackResponse('Fahrzeugtyp nicht gefunden.');
     }
@@ -172,10 +196,13 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
       if (
         snapshot.vehicleTypes.some(
           (entry) =>
-            entry.id !== type.id && this.normalizeKey(entry.label) === this.normalizeKey(label),
+            entry.id !== type.id &&
+            this.normalizeKey(entry.label) === this.normalizeKey(label),
         )
       ) {
-        return this.buildFeedbackResponse(`Bezeichnung "${label}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `Bezeichnung "${label}" ist bereits vergeben.`,
+        );
       }
       updated.label = label;
       changed = true;
@@ -194,7 +221,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
       changed = true;
     }
     if (this.hasOwn(patch, 'maintenanceIntervalDays')) {
-      updated.maintenanceIntervalDays = this.parseNumber(patch['maintenanceIntervalDays']);
+      updated.maintenanceIntervalDays = this.parseNumber(
+        patch['maintenanceIntervalDays'],
+      );
       changed = true;
     }
     if (this.hasOwn(patch, 'energyType')) {
@@ -228,7 +257,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     if (this.hasOwn(patch, 'tiltingCapability')) {
       const tiltingRaw = this.cleanText(patch['tiltingCapability']);
       const tilting =
-        tiltingRaw === 'none' || tiltingRaw === 'passive' || tiltingRaw === 'active'
+        tiltingRaw === 'none' ||
+        tiltingRaw === 'passive' ||
+        tiltingRaw === 'active'
           ? tiltingRaw
           : undefined;
       if (tiltingRaw && !tilting) {
@@ -283,7 +314,12 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
 
     const summary = `Fahrzeugtyp "${updated.label}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'vehicleType', id: type.id, label: updated.label },
+      {
+        kind: 'update',
+        entityType: 'vehicleType',
+        id: type.id,
+        label: updated.label,
+      },
     ];
 
     return {
@@ -316,22 +352,32 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     if (!typeRef) {
       return this.buildFeedbackResponse('Ziel-Fahrzeugtyp fehlt.');
     }
-    const resolved = this.resolveVehicleTypeIdByReference(snapshot.vehicleTypes, typeRef, {
-      apply: { mode: 'target', path: ['target'] },
-    });
+    const resolved = this.resolveVehicleTypeIdByReference(
+      snapshot.vehicleTypes,
+      typeRef,
+      {
+        apply: { mode: 'target', path: ['target'] },
+      },
+    );
     if (resolved.clarification) {
       return this.buildClarificationResponse(resolved.clarification, context);
     }
     if (resolved.feedback || !resolved.id) {
-      return this.buildFeedbackResponse(resolved.feedback ?? 'Fahrzeugtyp nicht gefunden.');
+      return this.buildFeedbackResponse(
+        resolved.feedback ?? 'Fahrzeugtyp nicht gefunden.',
+      );
     }
 
-    const type = snapshot.vehicleTypes.find((entry) => entry.id === resolved.id);
+    const type = snapshot.vehicleTypes.find(
+      (entry) => entry.id === resolved.id,
+    );
     if (!type) {
       return this.buildFeedbackResponse('Fahrzeugtyp nicht gefunden.');
     }
 
-    const nextTypes = snapshot.vehicleTypes.filter((entry) => entry.id !== type.id);
+    const nextTypes = snapshot.vehicleTypes.filter(
+      (entry) => entry.id !== type.id,
+    );
     const nextSnapshot: ResourceSnapshot = {
       ...snapshot,
       vehicleTypes: nextTypes,
@@ -340,7 +386,12 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
 
     const summary = `Fahrzeugtyp "${type.label}" gelöscht.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'delete', entityType: 'vehicleType', id: type.id, label: type.label },
+      {
+        kind: 'delete',
+        entityType: 'vehicleType',
+        id: type.id,
+        label: type.label,
+      },
     ];
 
     return {
@@ -358,10 +409,14 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
   ): ActionApplyOutcome {
     const payloadRecord = payload as Record<string, unknown>;
     const rawEntries = this.asArray(
-      payload.vehicleCompositions ?? payload.vehicleComposition ?? payloadRecord['items'],
+      payload.vehicleCompositions ??
+        payload.vehicleComposition ??
+        payloadRecord['items'],
     );
     if (!rawEntries.length) {
-      return this.buildFeedbackResponse('Mindestens eine Komposition wird benötigt.');
+      return this.buildFeedbackResponse(
+        'Mindestens eine Komposition wird benötigt.',
+      );
     }
 
     const compositions: VehicleComposition[] = [];
@@ -379,14 +434,18 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
       }
       const normalizedName = this.normalizeKey(name);
       if (seenNames.has(normalizedName)) {
-        return this.buildFeedbackResponse(`Komposition "${name}" ist doppelt angegeben.`);
+        return this.buildFeedbackResponse(
+          `Komposition "${name}" ist doppelt angegeben.`,
+        );
       }
       if (
         snapshot.vehicleCompositions.some(
           (entry) => this.normalizeKey(entry.name) === normalizedName,
         )
       ) {
-        return this.buildFeedbackResponse(`Komposition "${name}" existiert bereits.`);
+        return this.buildFeedbackResponse(
+          `Komposition "${name}" existiert bereits.`,
+        );
       }
       seenNames.add(normalizedName);
 
@@ -396,7 +455,10 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
         ['vehicleCompositions', index, 'entries'],
       );
       if (entriesResult.clarification) {
-        return this.buildClarificationResponse(entriesResult.clarification, context);
+        return this.buildClarificationResponse(
+          entriesResult.clarification,
+          context,
+        );
       }
       if (entriesResult.feedback) {
         return this.buildFeedbackResponse(entriesResult.feedback);
@@ -448,22 +510,33 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['vehicleComposition']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'vehicleComposition',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Komposition fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehicleCompositions, targetRecord, {
-      label: 'Komposition',
-      nameKeys: ['name', 'label'],
-      idKeys: ['id', 'compositionId'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.vehicleCompositions,
+      targetRecord,
+      {
+        label: 'Komposition',
+        nameKeys: ['name', 'label'],
+        idKeys: ['id', 'compositionId'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Komposition nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Komposition nicht gefunden.',
+      );
     }
 
     const patch = this.asRecord(payload.patch);
@@ -487,7 +560,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
             this.normalizeKey(entry.name) === this.normalizeKey(name),
         )
       ) {
-        return this.buildFeedbackResponse(`Name "${name}" ist bereits vergeben.`);
+        return this.buildFeedbackResponse(
+          `Name "${name}" ist bereits vergeben.`,
+        );
       }
       updated.name = name;
       changed = true;
@@ -500,14 +575,19 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
         ['patch', 'entries'],
       );
       if (entriesResult.clarification) {
-        return this.buildClarificationResponse(entriesResult.clarification, context);
+        return this.buildClarificationResponse(
+          entriesResult.clarification,
+          context,
+        );
       }
       if (entriesResult.feedback) {
         return this.buildFeedbackResponse(entriesResult.feedback);
       }
       const entries = entriesResult.entries ?? [];
       if (!entries.length) {
-        return this.buildFeedbackResponse('Mindestens ein Fahrzeugtyp ist erforderlich.');
+        return this.buildFeedbackResponse(
+          'Mindestens ein Fahrzeugtyp ist erforderlich.',
+        );
       }
       updated.entries = entries;
       changed = true;
@@ -539,7 +619,12 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     const label = updated.name ?? composition.name;
     const summary = `Komposition "${label}" aktualisiert.`;
     const changes: AssistantActionChangeDto[] = [
-      { kind: 'update', entityType: 'vehicleComposition', id: composition.id, label },
+      {
+        kind: 'update',
+        entityType: 'vehicleComposition',
+        id: composition.id,
+        label,
+      },
     ];
 
     return {
@@ -555,22 +640,33 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     snapshot: ResourceSnapshot,
     context: ActionContext,
   ): ActionApplyOutcome {
-    const targetRecord = this.resolveTargetRecord(payload, ['vehicleComposition']);
+    const targetRecord = this.resolveTargetRecord(payload, [
+      'vehicleComposition',
+    ]);
     if (!targetRecord) {
       return this.buildFeedbackResponse('Ziel-Komposition fehlt.');
     }
 
-    const targetResult = this.findByIdOrName(snapshot.vehicleCompositions, targetRecord, {
-      label: 'Komposition',
-      nameKeys: ['name', 'label'],
-      idKeys: ['id', 'compositionId'],
-      clarification: { apply: { mode: 'target', path: ['target'] } },
-    });
+    const targetResult = this.findByIdOrName(
+      snapshot.vehicleCompositions,
+      targetRecord,
+      {
+        label: 'Komposition',
+        nameKeys: ['name', 'label'],
+        idKeys: ['id', 'compositionId'],
+        clarification: { apply: { mode: 'target', path: ['target'] } },
+      },
+    );
     if (targetResult.clarification) {
-      return this.buildClarificationResponse(targetResult.clarification, context);
+      return this.buildClarificationResponse(
+        targetResult.clarification,
+        context,
+      );
     }
     if (targetResult.feedback || !targetResult.item) {
-      return this.buildFeedbackResponse(targetResult.feedback ?? 'Komposition nicht gefunden.');
+      return this.buildFeedbackResponse(
+        targetResult.feedback ?? 'Komposition nicht gefunden.',
+      );
     }
 
     const composition = targetResult.item;
@@ -610,7 +706,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
     feedback?: string;
     clarification?: ClarificationRequest;
   } {
-    const entriesRaw = Array.isArray(record['entries']) ? record['entries'] : [];
+    const entriesRaw = Array.isArray(record['entries'])
+      ? record['entries']
+      : [];
     const serialized = this.cleanText(record['entriesSerialized']) ?? '';
     const parsedEntries: Array<{ typeRef: string; quantity: number }> = [];
 
@@ -634,7 +732,9 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
               entryRecord['typeLabel'] ??
               entryRecord['vehicleType'],
           ) ?? '';
-        const quantityRaw = this.parseNumber(entryRecord['quantity'] ?? entryRecord['count']);
+        const quantityRaw = this.parseNumber(
+          entryRecord['quantity'] ?? entryRecord['count'],
+        );
         const quantity =
           quantityRaw && Number.isFinite(quantityRaw)
             ? Math.max(1, Math.trunc(quantityRaw))
@@ -649,9 +749,14 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
       lines.forEach((line) => {
-        const [typePart, quantityPart] = line.split(':').map((part) => part.trim());
+        const [typePart, quantityPart] = line
+          .split(':')
+          .map((part) => part.trim());
         const typeRef = typePart ?? '';
-        const quantity = Math.max(1, Number.parseInt(quantityPart ?? '1', 10) || 1);
+        const quantity = Math.max(
+          1,
+          Number.parseInt(quantityPart ?? '1', 10) || 1,
+        );
         if (typeRef) {
           parsedEntries.push({ typeRef, quantity });
         }
@@ -664,12 +769,16 @@ export class AssistantActionVehicleMeta extends AssistantActionBase {
       if (!entry.typeRef) {
         return { feedback: 'Fahrzeugtyp fehlt.' };
       }
-      const resolved = this.resolveVehicleTypeIdByReference(types, entry.typeRef, {
-        apply: {
-          mode: 'value',
-          path: [...basePath, index, 'typeId'],
+      const resolved = this.resolveVehicleTypeIdByReference(
+        types,
+        entry.typeRef,
+        {
+          apply: {
+            mode: 'value',
+            path: [...basePath, index, 'typeId'],
+          },
         },
-      });
+      );
       if (resolved.clarification) {
         return { clarification: resolved.clarification };
       }

@@ -13,6 +13,9 @@ export class PlanningAdminController {
 
   @Post('clear')
   clearPlanningData(@Body() body?: { confirmation?: string; scope?: string }) {
-    return this.adminService.clearPlanningData(body?.confirmation ?? '', body?.scope);
+    return this.adminService.clearPlanningData(
+      body?.confirmation ?? '',
+      body?.scope,
+    );
   }
 }

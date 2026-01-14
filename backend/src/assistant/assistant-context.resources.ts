@@ -57,12 +57,7 @@ export const RESOURCE_FIELDS: Record<AssistantContextResource, string[]> = {
     'overnightSiteCount',
   ],
   personnel: ['fullName', 'qualifications', 'serviceCount', 'poolId'],
-  vehicleServicePools: [
-    'name',
-    'description',
-    'dispatcher',
-    'serviceCount',
-  ],
+  vehicleServicePools: ['name', 'description', 'dispatcher', 'serviceCount'],
   vehicleServices: [
     'name',
     'startTime',
@@ -70,13 +65,15 @@ export const RESOURCE_FIELDS: Record<AssistantContextResource, string[]> = {
     'isOvernight',
     'primaryRoute',
   ],
-  vehiclePools: [
-    'name',
+  vehiclePools: ['name', 'description', 'depotManager', 'vehicleCount'],
+  vehicles: [
+    'vehicleNumber',
+    'typeId',
+    'depot',
+    'serviceCount',
     'description',
-    'depotManager',
-    'vehicleCount',
+    'poolId',
   ],
-  vehicles: ['vehicleNumber', 'typeId', 'depot', 'serviceCount', 'description', 'poolId'],
   vehicleTypes: [
     'label',
     'category',
@@ -86,7 +83,12 @@ export const RESOURCE_FIELDS: Record<AssistantContextResource, string[]> = {
     'manufacturer',
     'lengthMeters',
   ],
-  vehicleCompositions: ['name', 'entrySummary', 'entryCount', 'turnaroundBuffer'],
+  vehicleCompositions: [
+    'name',
+    'entrySummary',
+    'entryCount',
+    'turnaroundBuffer',
+  ],
   timetableYears: ['label', 'simulationCount', 'variantCount'],
   simulations: ['label', 'timetableYearLabel', 'description'],
   operationalPoints: ['uniqueOpId', 'name', 'countryCode', 'opType'],
@@ -98,7 +100,12 @@ export const RESOURCE_FIELDS: Record<AssistantContextResource, string[]> = {
     'nature',
   ],
   personnelSites: ['siteId', 'name', 'siteType', 'uniqueOpId'],
-  replacementStops: ['replacementStopId', 'name', 'stopCode', 'nearestUniqueOpId'],
+  replacementStops: [
+    'replacementStopId',
+    'name',
+    'stopCode',
+    'nearestUniqueOpId',
+  ],
   replacementRoutes: ['replacementRouteId', 'name', 'operator'],
   replacementEdges: [
     'replacementEdgeId',

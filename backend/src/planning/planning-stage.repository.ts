@@ -2,7 +2,15 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service';
 import { VariantPartitionService } from '../database/variant-partition.service';
-import { isStageId, type Activity, type Resource, type StageId, type TimelineRange, type TrainRun, type TrainSegment } from './planning.types';
+import {
+  isStageId,
+  type Activity,
+  type Resource,
+  type StageId,
+  type TimelineRange,
+  type TrainRun,
+  type TrainSegment,
+} from './planning.types';
 import type { StageData } from './planning.repository.types';
 
 interface StageRow {
@@ -71,7 +79,10 @@ export class PlanningStageRepository {
     return this.database.enabled;
   }
 
-  async loadStageData(stageId: StageId, variantId: string): Promise<StageData | null> {
+  async loadStageData(
+    stageId: StageId,
+    variantId: string,
+  ): Promise<StageData | null> {
     if (!this.isEnabled) {
       return null;
     }
@@ -197,18 +208,20 @@ export class PlanningStageRepository {
       timetableId: row.timetable_id ?? undefined,
       attributes: row.attributes ?? undefined,
     }));
-    const trainSegments: TrainSegment[] = trainSegmentsResult.rows.map((row) => ({
-      id: row.id,
-      trainRunId: row.train_run_id,
-      sectionIndex: row.section_index,
-      startTime: this.toIso(row.start_time),
-      endTime: this.toIso(row.end_time),
-      fromLocationId: row.from_location_id,
-      toLocationId: row.to_location_id,
-      pathId: row.path_id ?? undefined,
-      distanceKm: row.distance_km ?? undefined,
-      attributes: row.attributes ?? undefined,
-    }));
+    const trainSegments: TrainSegment[] = trainSegmentsResult.rows.map(
+      (row) => ({
+        id: row.id,
+        trainRunId: row.train_run_id,
+        sectionIndex: row.section_index,
+        startTime: this.toIso(row.start_time),
+        endTime: this.toIso(row.end_time),
+        fromLocationId: row.from_location_id,
+        toLocationId: row.to_location_id,
+        pathId: row.path_id ?? undefined,
+        distanceKm: row.distance_km ?? undefined,
+        attributes: row.attributes ?? undefined,
+      }),
+    );
 
     return {
       stageId,
@@ -378,7 +391,12 @@ export class PlanningStageRepository {
         const normalizedUpserts: Activity[] = [];
         for (const activity of effectiveUpserts) {
           normalizedUpserts.push(
-            await this.prepareServiceMetadata(client, stageId, variantId, activity),
+            await this.prepareServiceMetadata(
+              client,
+              stageId,
+              variantId,
+              activity,
+            ),
           );
         }
         if (normalizedUpserts.length) {
@@ -547,7 +565,11 @@ export class PlanningStageRepository {
     });
   }
 
-  async deleteActivities(stageId: StageId, variantId: string, deleteIds: string[]): Promise<void> {
+  async deleteActivities(
+    stageId: StageId,
+    variantId: string,
+    deleteIds: string[],
+  ): Promise<void> {
     if (!this.isEnabled || !deleteIds.length) {
       return;
     }
@@ -576,9 +598,9 @@ export class PlanningStageRepository {
     let participants: Activity['participants'] | undefined;
     if (row.participants && Array.isArray(row.participants)) {
       participants = row.participants.map((entry) => ({
-        resourceId: String((entry as any).resourceId),
-        kind: (entry as any).kind,
-        role: (entry as any).role ?? undefined,
+        resourceId: String(entry.resourceId),
+        kind: entry.kind,
+        role: entry.role ?? undefined,
       }));
     }
 
@@ -619,7 +641,10 @@ export class PlanningStageRepository {
     };
   }
 
-  private enrichServiceMetadata(stageId: StageId, activity: Activity): Activity {
+  private enrichServiceMetadata(
+    stageId: StageId,
+    activity: Activity,
+  ): Activity {
     const role = this.resolveServiceRole(activity);
     if (!role) {
       return activity;
@@ -675,7 +700,8 @@ export class PlanningStageRepository {
       }
     }
     if (role === 'end') {
-      const predefinedServiceId = activity.serviceId?.trim() || managedServiceId || null;
+      const predefinedServiceId =
+        activity.serviceId?.trim() || managedServiceId || null;
       const match = predefinedServiceId
         ? null
         : await this.findLatestServiceStart(
@@ -689,7 +715,14 @@ export class PlanningStageRepository {
         predefinedServiceId ??
         match?.serviceId ??
         this.computeServiceId(stageId, ownerId, match?.start ?? activity.start);
-      await this.ensureNoDuplicate(client, stageId, variantId, serviceId, 'end', activity.id);
+      await this.ensureNoDuplicate(
+        client,
+        stageId,
+        variantId,
+        serviceId,
+        'end',
+        activity.id,
+      );
       await this.enforceWithinPreference(
         client,
         stageId,
@@ -706,9 +739,26 @@ export class PlanningStageRepository {
       };
     }
     // role === 'start'
-    const serviceId = activity.serviceId?.trim() || managedServiceId || this.computeServiceId(stageId, ownerId, activity.start);
-    await this.ensureNoDuplicate(client, stageId, variantId, serviceId, 'start', activity.id);
-    await this.attachPendingEnd(client, stageId, variantId, ownerId, serviceId, activity.start);
+    const serviceId =
+      activity.serviceId?.trim() ||
+      managedServiceId ||
+      this.computeServiceId(stageId, ownerId, activity.start);
+    await this.ensureNoDuplicate(
+      client,
+      stageId,
+      variantId,
+      serviceId,
+      'start',
+      activity.id,
+    );
+    await this.attachPendingEnd(
+      client,
+      stageId,
+      variantId,
+      ownerId,
+      serviceId,
+      activity.start,
+    );
     await this.enforceWithinPreference(
       client,
       stageId,
@@ -729,13 +779,21 @@ export class PlanningStageRepository {
     const participants = activity.participants ?? [];
     const owners = participants
       .filter((p) => (p as any)?.resourceId && (p as any)?.kind)
-      .filter((p) => (p as any).kind === 'personnel-service' || (p as any).kind === 'vehicle-service')
+      .filter(
+        (p) =>
+          (p as any).kind === 'personnel-service' ||
+          (p as any).kind === 'vehicle-service',
+      )
       .map((p) => (p as any).resourceId as string);
     return Array.from(new Set(owners));
   }
 
-  private resolveServiceIdForOwner(activity: Activity, ownerId: string): string | null {
-    const explicit = typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+  private resolveServiceIdForOwner(
+    activity: Activity,
+    ownerId: string,
+  ): string | null {
+    const explicit =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
     if (explicit.startsWith('svc:')) {
       return explicit;
     }
@@ -743,7 +801,8 @@ export class PlanningStageRepository {
     const map = attrs['service_by_owner'];
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       const entry = (map as Record<string, any>)[ownerId];
-      const candidate = typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+      const candidate =
+        typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
       return candidate.startsWith('svc:') ? candidate : null;
     }
     return null;
@@ -758,16 +817,23 @@ export class PlanningStageRepository {
     withinPref: 'within' | 'outside' | 'both',
   ): Promise<Activity> {
     const isSingleOwner = owners.length === 1;
-    const existingAttrs = (activity.attributes ?? {}) as Record<string, unknown>;
+    const existingAttrs = (activity.attributes ?? {}) as Record<
+      string,
+      unknown
+    >;
     const existingMap = existingAttrs['service_by_owner'];
-    const existingGlobalCodes = Array.isArray(existingAttrs['service_conflict_codes'])
+    const existingGlobalCodes = Array.isArray(
+      existingAttrs['service_conflict_codes'],
+    )
       ? existingAttrs['service_conflict_codes']
           .map((entry) => String(entry).trim())
           .filter((entry) => entry.length > 0)
       : [];
     let nextAttrs: Record<string, unknown> | null = null;
     let nextMap: Record<string, any> | null = null;
-    let nextServiceId: string | null = isSingleOwner ? (activity.serviceId ?? null) : null;
+    let nextServiceId: string | null = isSingleOwner
+      ? (activity.serviceId ?? null)
+      : null;
     let nextGlobalCodes: string[] | null = null;
     let changed = false;
 
@@ -781,7 +847,9 @@ export class PlanningStageRepository {
       if (!nextMap) {
         const attrs = ensureAttrs();
         const current =
-          existingMap && typeof existingMap === 'object' && !Array.isArray(existingMap)
+          existingMap &&
+          typeof existingMap === 'object' &&
+          !Array.isArray(existingMap)
             ? { ...(existingMap as Record<string, any>) }
             : {};
         nextMap = current;
@@ -792,11 +860,15 @@ export class PlanningStageRepository {
 
     for (const ownerId of owners) {
       const existingEntry =
-        existingMap && typeof existingMap === 'object' && !Array.isArray(existingMap)
+        existingMap &&
+        typeof existingMap === 'object' &&
+        !Array.isArray(existingMap)
           ? (existingMap as Record<string, any>)[ownerId]
           : null;
       const existingCodes = Array.isArray(existingEntry?.conflictCodes)
-        ? existingEntry.conflictCodes.map((entry: unknown) => String(entry).trim()).filter(Boolean)
+        ? existingEntry.conflictCodes
+            .map((entry: unknown) => String(entry).trim())
+            .filter(Boolean)
         : [];
       const currentServiceId = this.resolveServiceIdForOwner(activity, ownerId);
       const window = await this.findServiceWindow(
@@ -807,10 +879,18 @@ export class PlanningStageRepository {
         currentServiceId ?? undefined,
         activity.start,
       );
-      const isWithin = window ? this.isWithinWindow(activity.start, window) : false;
-      const targetServiceId = isWithin ? window?.serviceId ?? currentServiceId : null;
+      const isWithin = window
+        ? this.isWithinWindow(activity.start, window)
+        : false;
+      const targetServiceId = isWithin
+        ? (window?.serviceId ?? currentServiceId)
+        : null;
 
-      const nextCodes = this.mergeWithinServiceConflictCodes(existingCodes, withinPref, isWithin);
+      const nextCodes = this.mergeWithinServiceConflictCodes(
+        existingCodes,
+        withinPref,
+        isWithin,
+      );
       const conflictLevel =
         typeof existingEntry?.conflictLevel === 'number'
           ? existingEntry.conflictLevel
@@ -818,12 +898,15 @@ export class PlanningStageRepository {
             ? Number.parseInt(existingEntry.conflictLevel, 10)
             : 0;
 
-      const serviceChanged = (existingEntry?.serviceId ?? null) !== (targetServiceId ?? null);
+      const serviceChanged =
+        (existingEntry?.serviceId ?? null) !== (targetServiceId ?? null);
       const codesChanged = this.codesChanged(existingCodes, nextCodes);
       if (serviceChanged || codesChanged) {
         const map = ensureMap();
         map[ownerId] = {
-          ...(existingEntry && typeof existingEntry === 'object' ? existingEntry : {}),
+          ...(existingEntry && typeof existingEntry === 'object'
+            ? existingEntry
+            : {}),
           serviceId: targetServiceId ?? null,
           conflictCodes: nextCodes,
           conflictLevel,
@@ -859,7 +942,7 @@ export class PlanningStageRepository {
     }
     const updated: Activity = {
       ...activity,
-      serviceId: isSingleOwner ? nextServiceId : activity.serviceId ?? null,
+      serviceId: isSingleOwner ? nextServiceId : (activity.serviceId ?? null),
       attributes: nextAttrs ?? existingAttrs,
     };
     return updated;
@@ -872,8 +955,12 @@ export class PlanningStageRepository {
   ): string[] {
     const WITHIN_REQUIRED = 'WITHIN_SERVICE_REQUIRED';
     const OUTSIDE_REQUIRED = 'OUTSIDE_SERVICE_REQUIRED';
-    const trimmed = existing.map((code) => code.trim()).filter((code) => code.length > 0);
-    const base = trimmed.filter((code) => code !== WITHIN_REQUIRED && code !== OUTSIDE_REQUIRED);
+    const trimmed = existing
+      .map((code) => code.trim())
+      .filter((code) => code.length > 0);
+    const base = trimmed.filter(
+      (code) => code !== WITHIN_REQUIRED && code !== OUTSIDE_REQUIRED,
+    );
     if (pref === 'within' && !isWithin) {
       base.push(WITHIN_REQUIRED);
     }
@@ -899,12 +986,16 @@ export class PlanningStageRepository {
       participants.find(
         (p) =>
           (p as any)?.resourceId &&
-          preferredKinds.has(((p as any).kind ?? (p as any).role ?? '') as string),
+          preferredKinds.has(
+            ((p as any).kind ?? (p as any).role ?? '') as string,
+          ),
       ) ?? null;
     return (owner as any)?.resourceId ?? null;
   }
 
-  private resolveServiceRole(activity: Activity): 'start' | 'end' | 'segment' | null {
+  private resolveServiceRole(
+    activity: Activity,
+  ): 'start' | 'end' | 'segment' | null {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
     const toBool = (val: unknown) =>
       typeof val === 'boolean'
@@ -912,7 +1003,8 @@ export class PlanningStageRepository {
         : typeof val === 'string'
           ? val.toLowerCase() === 'true'
           : false;
-    const isBreak = toBool(attrs?.['is_break']) || toBool(attrs?.['is_short_break']);
+    const isBreak =
+      toBool(attrs?.['is_break']) || toBool(attrs?.['is_short_break']);
     if (isBreak) {
       return null;
     }
@@ -930,9 +1022,11 @@ export class PlanningStageRepository {
     return null;
   }
 
-  private resolveWithinPreference(activity: Activity): 'within' | 'outside' | 'both' {
+  private resolveWithinPreference(
+    activity: Activity,
+  ): 'within' | 'outside' | 'both' {
     const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const meta = activity.meta as Record<string, unknown> | undefined;
+    const meta = activity.meta;
     const raw =
       attrs && attrs['is_within_service'] !== undefined
         ? attrs['is_within_service']
@@ -945,7 +1039,12 @@ export class PlanningStageRepository {
       if (val === 'yes' || val === 'true' || val === 'inside' || val === 'in') {
         return 'within';
       }
-      if (val === 'no' || val === 'false' || val === 'outside' || val === 'out') {
+      if (
+        val === 'no' ||
+        val === 'false' ||
+        val === 'outside' ||
+        val === 'out'
+      ) {
         return 'outside';
       }
       if (val === 'both') {
@@ -955,7 +1054,11 @@ export class PlanningStageRepository {
     return 'both';
   }
 
-  private computeServiceId(stageId: StageId, ownerId: string, startIso: string): string {
+  private computeServiceId(
+    stageId: StageId,
+    ownerId: string,
+    startIso: string,
+  ): string {
     const date = new Date(startIso);
     const y = date.getUTCFullYear();
     const m = `${date.getUTCMonth() + 1}`.padStart(2, '0');
@@ -1005,12 +1108,15 @@ export class PlanningStageRepository {
       ORDER BY start DESC
       LIMIT 1
     `;
-    const result = await client.query<{ id: string; start: string; service_id: string | null }>(
-      sql,
-      params,
-    );
+    const result = await client.query<{
+      id: string;
+      start: string;
+      service_id: string | null;
+    }>(sql, params);
     const row = result.rows[0];
-    return row ? { id: row.id, start: row.start, serviceId: row.service_id } : null;
+    return row
+      ? { id: row.id, start: row.start, serviceId: row.service_id }
+      : null;
   }
 
   private async ensureNoDuplicate(
@@ -1038,7 +1144,9 @@ export class PlanningStageRepository {
       [stageId, variantId, serviceId, role, selfId],
     );
     if (result.rows.length) {
-      throw new ConflictException(`Service ${serviceId} hat bereits ein ${role}.`);
+      throw new ConflictException(
+        `Service ${serviceId} hat bereits ein ${role}.`,
+      );
     }
   }
 
@@ -1070,7 +1178,13 @@ export class PlanningStageRepository {
         WHERE a.id = candidate.id
           AND a.variant_id = $2
       `,
-      [stageId, variantId, serviceId, startIso, JSON.stringify([{ resourceId: ownerId }])],
+      [
+        stageId,
+        variantId,
+        serviceId,
+        startIso,
+        JSON.stringify([{ resourceId: ownerId }]),
+      ],
     );
   }
 
@@ -1104,7 +1218,11 @@ export class PlanningStageRepository {
     referenceIso: string,
   ): Promise<{ serviceId: string; startMs: number; endMs: number } | null> {
     const referenceDayKey = this.utcDayKey(referenceIso);
-    let startRow: { id: string; start: string; serviceId: string | null } | null = null;
+    let startRow: {
+      id: string;
+      start: string;
+      serviceId: string | null;
+    } | null = null;
     if (serviceId) {
       startRow = await this.findLatestServiceStart(
         client,
@@ -1118,7 +1236,13 @@ export class PlanningStageRepository {
         return null;
       }
     } else {
-      startRow = await this.findLatestServiceStart(client, stageId, variantId, ownerId, referenceIso);
+      startRow = await this.findLatestServiceStart(
+        client,
+        stageId,
+        variantId,
+        ownerId,
+        referenceIso,
+      );
       if (!startRow) {
         return null;
       }
@@ -1140,7 +1264,9 @@ export class PlanningStageRepository {
       startRow.start,
     );
     const startMs = Date.parse(startRow.start);
-    const endMs = endRow ? Date.parse(endRow.start) : startMs + 36 * 3600 * 1000;
+    const endMs = endRow
+      ? Date.parse(endRow.start)
+      : startMs + 36 * 3600 * 1000;
     return { serviceId: effectiveServiceId, startMs, endMs };
   }
 
@@ -1165,12 +1291,21 @@ export class PlanningStageRepository {
         ORDER BY start ASC
         LIMIT 1
       `,
-      [stageId, variantId, serviceId, afterIso, JSON.stringify([{ resourceId: ownerId }])],
+      [
+        stageId,
+        variantId,
+        serviceId,
+        afterIso,
+        JSON.stringify([{ resourceId: ownerId }]),
+      ],
     );
     return result.rows[0] ?? null;
   }
 
-  private isWithinWindow(startIso: string, window: { startMs: number; endMs: number }): boolean {
+  private isWithinWindow(
+    startIso: string,
+    window: { startMs: number; endMs: number },
+  ): boolean {
     const ts = Date.parse(startIso);
     if (!Number.isFinite(ts)) {
       return false;
@@ -1179,7 +1314,9 @@ export class PlanningStageRepository {
   }
 
   private toIso(value: string | Date): string {
-    return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+    return value instanceof Date
+      ? value.toISOString()
+      : new Date(value).toISOString();
   }
 
   private toDateString(value: string | Date | null): string | undefined {
@@ -1193,7 +1330,9 @@ export class PlanningStageRepository {
       return value;
     }
     const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().substring(0, 10);
+    return Number.isNaN(parsed.getTime())
+      ? undefined
+      : parsed.toISOString().substring(0, 10);
   }
 
   private markActivitiesWithinService(activities: Activity[]): Activity[] {
@@ -1239,9 +1378,14 @@ export class PlanningStageRepository {
       starts.forEach((startEntry) => {
         const windowStart = startEntry.start;
         const endEntry = ends
-          .filter((e) => e.serviceId === startEntry.serviceId && e.start >= windowStart)
+          .filter(
+            (e) =>
+              e.serviceId === startEntry.serviceId && e.start >= windowStart,
+          )
           .sort((a, b) => a.start - b.start)[0];
-        const windowEnd = endEntry ? endEntry.start : windowStart + 36 * 3600 * 1000;
+        const windowEnd = endEntry
+          ? endEntry.start
+          : windowStart + 36 * 3600 * 1000;
         list.forEach((activity) => {
           const begin = Date.parse(activity.start);
           if (!Number.isFinite(begin)) {
@@ -1262,7 +1406,9 @@ export class PlanningStageRepository {
     return result;
   }
 
-  private parseServiceParts(serviceId: string): { stageId: StageId; ownerId: string; dayKey: string } | null {
+  private parseServiceParts(
+    serviceId: string,
+  ): { stageId: StageId; ownerId: string; dayKey: string } | null {
     const trimmed = (serviceId ?? '').trim();
     if (!trimmed.startsWith('svc:')) {
       return null;
@@ -1280,7 +1426,7 @@ export class PlanningStageRepository {
     if (!isStageId(stagePart)) {
       return null;
     }
-    return { stageId: stagePart as StageId, ownerId, dayKey };
+    return { stageId: stagePart, ownerId, dayKey };
   }
 
   private parseServiceIdFromManagedId(id: string): string | null {

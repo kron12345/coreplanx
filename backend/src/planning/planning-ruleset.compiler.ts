@@ -11,7 +11,8 @@ import type {
   RulesetInclude,
 } from './planning-ruleset.types';
 
-const normalizeList = <T>(value: T[] | undefined): T[] => (Array.isArray(value) ? value : []);
+const normalizeList = <T>(value: T[] | undefined): T[] =>
+  Array.isArray(value) ? value : [];
 
 const mergeById = <T extends { id: string }>(base: T[], next: T[]): T[] => {
   if (!base.length) {
@@ -32,23 +33,47 @@ const mergeById = <T extends { id: string }>(base: T[], next: T[]): T[] => {
   return merged;
 };
 
-export const mergeRulesetDocuments = (base: RulesetDocument, next: RulesetDocument): RulesetDocument => {
+export const mergeRulesetDocuments = (
+  base: RulesetDocument,
+  next: RulesetDocument,
+): RulesetDocument => {
   return {
     id: next.id || base.id,
     version: next.version || base.version,
     label: next.label ?? base.label,
     description: next.description ?? base.description,
     includes: normalizeList(base.includes).concat(normalizeList(next.includes)),
-    conditions: mergeById(normalizeList(base.conditions), normalizeList(next.conditions)),
-    hardConstraints: mergeById(normalizeList(base.hardConstraints), normalizeList(next.hardConstraints)),
-    softConstraints: mergeById(normalizeList(base.softConstraints), normalizeList(next.softConstraints)),
-    objectives: mergeById(normalizeList(base.objectives), normalizeList(next.objectives)),
-    actions: mergeById(normalizeList(base.actions), normalizeList(next.actions)),
-    templates: mergeById(normalizeList(base.templates), normalizeList(next.templates)),
+    conditions: mergeById(
+      normalizeList(base.conditions),
+      normalizeList(next.conditions),
+    ),
+    hardConstraints: mergeById(
+      normalizeList(base.hardConstraints),
+      normalizeList(next.hardConstraints),
+    ),
+    softConstraints: mergeById(
+      normalizeList(base.softConstraints),
+      normalizeList(next.softConstraints),
+    ),
+    objectives: mergeById(
+      normalizeList(base.objectives),
+      normalizeList(next.objectives),
+    ),
+    actions: mergeById(
+      normalizeList(base.actions),
+      normalizeList(next.actions),
+    ),
+    templates: mergeById(
+      normalizeList(base.templates),
+      normalizeList(next.templates),
+    ),
   };
 };
 
-const ensureUniqueIds = <T extends { id: string }>(items: T[], label: string) => {
+const ensureUniqueIds = <T extends { id: string }>(
+  items: T[],
+  label: string,
+) => {
   const seen = new Set<string>();
   items.forEach((item) => {
     if (seen.has(item.id)) {
@@ -58,15 +83,25 @@ const ensureUniqueIds = <T extends { id: string }>(items: T[], label: string) =>
   });
 };
 
-const hashRuleset = (value: RulesetDocument, includes: RulesetInclude[]): string => {
+const hashRuleset = (
+  value: RulesetDocument,
+  includes: RulesetInclude[],
+): string => {
   const payload = JSON.stringify({ value, includes });
   return crypto.createHash('sha256').update(payload).digest('hex');
 };
 
-export const compileRuleset = (doc: RulesetDocument, resolvedIncludes: RulesetInclude[]): RulesetIR => {
+export const compileRuleset = (
+  doc: RulesetDocument,
+  resolvedIncludes: RulesetInclude[],
+): RulesetIR => {
   const conditions: RulesetCondition[] = normalizeList(doc.conditions);
-  const hardConstraints: RulesetConstraint[] = normalizeList(doc.hardConstraints);
-  const softConstraints: RulesetSoftConstraint[] = normalizeList(doc.softConstraints);
+  const hardConstraints: RulesetConstraint[] = normalizeList(
+    doc.hardConstraints,
+  );
+  const softConstraints: RulesetSoftConstraint[] = normalizeList(
+    doc.softConstraints,
+  );
   const objectives: RulesetObjectiveTerm[] = normalizeList(doc.objectives);
   const actions: RulesetAction[] = normalizeList(doc.actions);
   const templates: RulesetTemplate[] = normalizeList(doc.templates);

@@ -85,7 +85,10 @@ export class VariantPartitionService {
     if (candidate.length <= 63) {
       return candidate;
     }
-    const hash = createHash('sha1').update(variantId).digest('hex').slice(0, 10);
+    const hash = createHash('sha1')
+      .update(variantId)
+      .digest('hex')
+      .slice(0, 10);
     const remaining = 63 - parentTable.length - 1 - hash.length - 1;
     const prefix = normalized.slice(0, Math.max(0, remaining));
     return `${parentTable}_${prefix}_${hash}`.replace(/_+$/, '');

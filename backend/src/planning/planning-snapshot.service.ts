@@ -71,7 +71,10 @@ export class PlanningSnapshotService {
       );
     }
 
-    const templateSet = await this.templateService.getTemplateSet(templateId, variantId);
+    const templateSet = await this.templateService.getTemplateSet(
+      templateId,
+      variantId,
+    );
     const effectiveYearLabel =
       timetableYearLabel?.trim() ||
       templateSet.timetableYearLabel?.trim() ||
@@ -90,7 +93,10 @@ export class PlanningSnapshotService {
     const specialDays = new Set(
       (templateSet.specialDays ?? []).map((day) => day.trim()).filter(Boolean),
     );
-    const defaultPeriodEnd = this.resolveDefaultPeriodEnd(periods, effectiveYearLabel);
+    const defaultPeriodEnd = this.resolveDefaultPeriodEnd(
+      periods,
+      effectiveYearLabel,
+    );
     if (periods.some((period) => !period.validTo) && !defaultPeriodEnd) {
       throw new BadRequestException(
         'Mindestens ein Zeitraum hat kein Ende (validTo=null). Bitte validTo setzen oder timetableYearLabel übergeben.',
@@ -142,16 +148,17 @@ export class PlanningSnapshotService {
         ...(entry.activity.meta && typeof entry.activity.meta === 'object'
           ? entry.activity.meta
           : {}),
-        templatePattern: (entry.activity.attributes as Record<string, unknown> | undefined)?.[
-          TEMPLATE_PATTERN_KEY
-        ] ?? null,
+        templatePattern:
+          (entry.activity.attributes as Record<string, unknown> | undefined)?.[
+            TEMPLATE_PATTERN_KEY
+          ] ?? null,
         snapshot: {
           templateId,
           baseActivityId: entry.baseActivityId,
           sliceId:
-            ((entry.activity.attributes as Record<string, any> | undefined)?.[
+            (entry.activity.attributes as Record<string, any> | undefined)?.[
               TEMPLATE_PATTERN_KEY
-            ] as any)?.sliceId ?? null,
+            ]?.sliceId ?? null,
           date: entry.dateIso,
           createdAt: timestamp,
         },
@@ -200,7 +207,9 @@ export class PlanningSnapshotService {
   private mapTimelineActivities(entries: ActivityDto[]): Activity[] {
     return entries.map((entry) => ({
       id: entry.id,
-      title: entry.label?.trim().length ? entry.label : entry.type ?? entry.id,
+      title: entry.label?.trim().length
+        ? entry.label
+        : (entry.type ?? entry.id),
       start: entry.start,
       end: entry.end ?? null,
       type: entry.type ?? undefined,
@@ -237,11 +246,16 @@ export class PlanningSnapshotService {
 
     periods.forEach((period) => {
       const periodStart = new Date(period.validFrom);
-      const periodEnd = period.validTo ? new Date(period.validTo) : defaultPeriodEnd;
+      const periodEnd = period.validTo
+        ? new Date(period.validTo)
+        : defaultPeriodEnd;
       if (!periodEnd) {
         return;
       }
-      if (!Number.isFinite(periodStart.getTime()) || !Number.isFinite(periodEnd.getTime())) {
+      if (
+        !Number.isFinite(periodStart.getTime()) ||
+        !Number.isFinite(periodEnd.getTime())
+      ) {
         return;
       }
       if (periodEnd < periodStart) {
@@ -274,9 +288,7 @@ export class PlanningSnapshotService {
             cursor.getUTCDate(),
           );
           const newStart = new Date(
-            baseDayMs +
-              pattern.startOffsetDays * DAY_MS +
-              pattern.startTimeMs,
+            baseDayMs + pattern.startOffsetDays * DAY_MS + pattern.startTimeMs,
           );
           const newEnd =
             pattern.endOffsetDays !== null && pattern.endTimeMs !== null
@@ -315,7 +327,10 @@ export class PlanningSnapshotService {
     return reflected;
   }
 
-  private rewriteServiceIdForIso(serviceId: string | null, iso: string): string | null {
+  private rewriteServiceIdForIso(
+    serviceId: string | null,
+    iso: string,
+  ): string | null {
     const trimmed = (serviceId ?? '').toString().trim();
     if (!trimmed) {
       return null;
@@ -344,7 +359,9 @@ export class PlanningSnapshotService {
     endTimeMs: number | null;
   } {
     const parsedStartMs = Date.parse(activity.start);
-    const startDate = Number.isFinite(parsedStartMs) ? new Date(parsedStartMs) : null;
+    const startDate = Number.isFinite(parsedStartMs)
+      ? new Date(parsedStartMs)
+      : null;
     const fallbackWeekday = startDate ? startDate.getUTCDay() : 0;
     const fallbackStartTimeMs = startDate
       ? startDate.getUTCHours() * 3600_000 +
@@ -354,11 +371,17 @@ export class PlanningSnapshotService {
       : 0;
 
     const serviceMidnightMs = startDate
-      ? Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
+      ? Date.UTC(
+          startDate.getUTCFullYear(),
+          startDate.getUTCMonth(),
+          startDate.getUTCDate(),
+        )
       : NaN;
     const parsedEndMs = activity.end ? Date.parse(activity.end) : NaN;
     const fallbackEndDiff =
-      activity.end && Number.isFinite(parsedEndMs) && Number.isFinite(serviceMidnightMs)
+      activity.end &&
+      Number.isFinite(parsedEndMs) &&
+      Number.isFinite(serviceMidnightMs)
         ? parsedEndMs - serviceMidnightMs
         : null;
     let fallbackEndOffsetDays: number | null = null;
@@ -394,19 +417,23 @@ export class PlanningSnapshotService {
         ? pattern.weekday
         : fallbackWeekday;
     const startOffsetDays =
-      typeof pattern.startOffsetDays === 'number' && Number.isInteger(pattern.startOffsetDays)
+      typeof pattern.startOffsetDays === 'number' &&
+      Number.isInteger(pattern.startOffsetDays)
         ? pattern.startOffsetDays
         : 0;
     const startTimeMs =
-      typeof pattern.startTimeMs === 'number' && Number.isFinite(pattern.startTimeMs)
+      typeof pattern.startTimeMs === 'number' &&
+      Number.isFinite(pattern.startTimeMs)
         ? pattern.startTimeMs
         : fallbackStartTimeMs;
     const endOffsetDays =
-      typeof pattern.endOffsetDays === 'number' && Number.isInteger(pattern.endOffsetDays)
+      typeof pattern.endOffsetDays === 'number' &&
+      Number.isInteger(pattern.endOffsetDays)
         ? pattern.endOffsetDays
         : fallbackEndOffsetDays;
     const endTimeMs =
-      typeof pattern.endTimeMs === 'number' && Number.isFinite(pattern.endTimeMs)
+      typeof pattern.endTimeMs === 'number' &&
+      Number.isFinite(pattern.endTimeMs)
         ? pattern.endTimeMs
         : fallbackEndTimeMs;
 
@@ -436,7 +463,10 @@ export class PlanningSnapshotService {
   ): Date | null {
     const explicitEnds = periods
       .map((period) => period.validTo)
-      .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
+      .filter(
+        (val): val is string =>
+          typeof val === 'string' && val.trim().length > 0,
+      )
       .map((iso) => new Date(iso))
       .filter((date) => Number.isFinite(date.getTime()))
       .map((date) => date.getTime());
@@ -449,7 +479,9 @@ export class PlanningSnapshotService {
     return this.computeYearBounds(timetableYearLabel).end;
   }
 
-  private defaultPeriodsFromYear(timetableYearLabel: string | null): TemplatePeriod[] {
+  private defaultPeriodsFromYear(
+    timetableYearLabel: string | null,
+  ): TemplatePeriod[] {
     if (!timetableYearLabel) {
       return [];
     }
