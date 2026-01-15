@@ -3,6 +3,7 @@ import type {
   Activity,
   ActivityParticipant,
   PlanningStageSnapshot,
+  ResourceKind,
 } from './planning.types';
 import type {
   RulesetExpression,
@@ -39,12 +40,20 @@ export interface PlanningCandidateBuildResult {
   stats: PlanningCandidateBuildStats;
 }
 
+export interface PlanningCandidateBuildOptions {
+  ignoreExistingServiceAssignments?: boolean;
+}
+
 @Injectable()
 export class PlanningCandidateBuilder {
   buildCandidates(
     snapshot: PlanningStageSnapshot,
     ruleset: RulesetIR,
+    options: PlanningCandidateBuildOptions = {},
   ): PlanningCandidateBuildResult {
+    const resourceKindById = this.buildResourceKindIndex(snapshot.resources);
+    const ignoreAssignments =
+      options.ignoreExistingServiceAssignments === true;
     const breakTemplates = ruleset.templates.filter(
       (entry) => entry.template.type === 'break',
     );
@@ -57,8 +66,17 @@ export class PlanningCandidateBuilder {
     const dutySplitTemplates = ruleset.templates.filter(
       (entry) => entry.template.type === 'duty_split',
     );
-    const gaps = this.collectServiceGaps(snapshot.stageId, snapshot.activities);
-    const dutyGroups = this.collectDutyGroups(snapshot);
+    const gaps = this.collectServiceGaps(
+      snapshot.stageId,
+      snapshot.activities,
+      resourceKindById,
+      ignoreAssignments,
+    );
+    const dutyGroups = this.collectDutyGroups(
+      snapshot,
+      resourceKindById,
+      ignoreAssignments,
+    );
     const dutiesByServiceId = new Map(
       dutyGroups.map((group) => [group.serviceId, group]),
     );
@@ -329,6 +347,8 @@ export class PlanningCandidateBuilder {
   private collectServiceGaps(
     stageId: string,
     activities: Activity[],
+    resourceKindById: Map<string, ResourceKind>,
+    ignoreExistingServiceAssignments: boolean,
   ): ServiceGap[] {
     const byService = new Map<string, ServiceActivity[]>();
     for (const activity of activities) {
@@ -338,7 +358,12 @@ export class PlanningCandidateBuilder {
       if (this.isBreakActivity(activity)) {
         continue;
       }
-      const assignments = this.collectServiceAssignments(activity, stageId);
+      const assignments = this.collectServiceAssignments(
+        activity,
+        stageId,
+        resourceKindById,
+        ignoreExistingServiceAssignments,
+      );
       if (!assignments.length) {
         continue;
       }
@@ -416,9 +441,11 @@ export class PlanningCandidateBuilder {
   private collectServiceAssignments(
     activity: Activity,
     stageId: string,
+    resourceKindById: Map<string, ResourceKind>,
+    ignoreExistingServiceAssignments: boolean,
   ): Array<{ serviceId: string; participantKeys: string[] }> {
     const participants = activity.participants ?? [];
-    const owners = this.resolveDutyOwners(activity);
+    const owners = this.resolveDutyOwners(activity, resourceKindById);
     if (!owners.length) {
       return [];
     }
@@ -434,6 +461,7 @@ export class PlanningCandidateBuilder {
         stageId,
         owner,
         dayKey,
+        ignoreExistingServiceAssignments,
       );
       if (!serviceId) {
         return;
@@ -488,7 +516,11 @@ export class PlanningCandidateBuilder {
     return Array.from(merged.values()).sort((a, b) => a.localeCompare(b));
   }
 
-  private collectDutyGroups(snapshot: PlanningStageSnapshot): DutyGroup[] {
+  private collectDutyGroups(
+    snapshot: PlanningStageSnapshot,
+    resourceKindById: Map<string, ResourceKind>,
+    ignoreExistingServiceAssignments: boolean,
+  ): DutyGroup[] {
     const groups = new Map<string, DutyGroupDraft>();
     for (const activity of snapshot.activities) {
       if (this.isServiceBoundary(activity)) {
@@ -505,7 +537,7 @@ export class PlanningCandidateBuilder {
       );
       const countsAsWork =
         durationMinutes > 0 && !this.isBreakActivity(activity);
-      const owners = this.resolveDutyOwners(activity);
+      const owners = this.resolveDutyOwners(activity, resourceKindById);
       if (!owners.length) {
         continue;
       }
@@ -517,6 +549,7 @@ export class PlanningCandidateBuilder {
           snapshot.stageId,
           owner,
           dayKey,
+          ignoreExistingServiceAssignments,
         );
         const key = serviceId
           ? `${owner.resourceId}|${owner.kind}|${serviceId}`
@@ -732,6 +765,64 @@ export class PlanningCandidateBuilder {
     return `svc:${stageId}:${ownerId}:${dayKey}`;
   }
 
+  private buildResourceKindIndex(
+    resources: PlanningStageSnapshot['resources'],
+  ): Map<string, ResourceKind> {
+    const map = new Map<string, ResourceKind>();
+    resources.forEach((resource) => {
+      const id = `${resource.id ?? ''}`.trim();
+      if (!id) {
+        return;
+      }
+      map.set(id, resource.kind);
+    });
+    return map;
+  }
+
+  private resolveServiceId(activity: Activity): string | null {
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      return direct;
+    }
+    return this.parseServiceIdFromManagedId(activity.id);
+  }
+
+  private parseOwnerIdFromServiceId(serviceId: string): string | null {
+    const parts = serviceId.split(':');
+    if (parts.length < 3 || parts[0] !== 'svc') {
+      return null;
+    }
+    const ownerId = parts[2]?.trim();
+    return ownerId ? ownerId : null;
+  }
+
+  private parseServiceIdFromManagedId(id: string): string | null {
+    if (id.startsWith('svcstart:')) {
+      return id.slice('svcstart:'.length) || null;
+    }
+    if (id.startsWith('svcend:')) {
+      return id.slice('svcend:'.length) || null;
+    }
+    const prefixes = ['svcbreak:', 'svcshortbreak:', 'svccommute:'];
+    for (const prefix of prefixes) {
+      if (!id.startsWith(prefix)) {
+        continue;
+      }
+      const rest = id.slice(prefix.length);
+      if (!rest) {
+        return null;
+      }
+      const idx = rest.indexOf(':');
+      if (idx === -1) {
+        return rest;
+      }
+      const serviceId = rest.slice(0, idx);
+      return serviceId || null;
+    }
+    return null;
+  }
+
   private asParams(template: RulesetTemplate): Record<string, unknown> {
     const params = template.template.params;
     return params && typeof params === 'object' ? { ...params } : {};
@@ -760,12 +851,55 @@ export class PlanningCandidateBuilder {
     return typeof raw === 'string' ? raw.trim() : '';
   }
 
-  private resolveDutyOwners(activity: Activity): ActivityParticipant[] {
+  private resolveDutyOwners(
+    activity: Activity,
+    resourceKindById?: Map<string, ResourceKind>,
+  ): ActivityParticipant[] {
     const participants = activity.participants ?? [];
     const preferred = participants.filter(
       (p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service',
     );
-    return preferred;
+    if (preferred.length) {
+      return preferred;
+    }
+    const direct = participants.filter(
+      (p) => p.kind === 'personnel' || p.kind === 'vehicle',
+    );
+    if (direct.length) {
+      return direct;
+    }
+
+    if (resourceKindById) {
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const map = attrs?.['service_by_owner'];
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        const fallbackOwners = Object.keys(map)
+          .map((ownerId) => ownerId.trim())
+          .filter((ownerId) => ownerId.length > 0)
+          .map((ownerId) => {
+            const kind = resourceKindById.get(ownerId);
+            return kind ? { resourceId: ownerId, kind } : null;
+          })
+          .filter((entry): entry is ActivityParticipant => entry !== null);
+        if (fallbackOwners.length) {
+          return fallbackOwners;
+        }
+      }
+    }
+
+    const serviceId = this.resolveServiceId(activity);
+    if (!serviceId || !resourceKindById) {
+      return [];
+    }
+    const ownerId = this.parseOwnerIdFromServiceId(serviceId);
+    if (!ownerId) {
+      return [];
+    }
+    const ownerKind = resourceKindById.get(ownerId);
+    if (!ownerKind) {
+      return [];
+    }
+    return [{ resourceId: ownerId, kind: ownerKind }];
   }
 
   private resolveOwnerGroup(
@@ -782,26 +916,29 @@ export class PlanningCandidateBuilder {
     stageId: string,
     owner: ActivityParticipant,
     dayKey: string,
+    ignoreExistingServiceAssignments: boolean,
   ): string {
-    const attrs = activity.attributes as Record<string, unknown> | undefined;
-    const map = attrs?.['service_by_owner'];
-    if (map && typeof map === 'object' && !Array.isArray(map)) {
-      const entry = (
-        map as Record<string, { serviceId?: string | null } | null>
-      )[owner.resourceId];
-      const mapped =
-        typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
-      if (mapped) {
-        return mapped;
+    if (!ignoreExistingServiceAssignments) {
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const map = attrs?.['service_by_owner'];
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        const entry = (
+          map as Record<string, { serviceId?: string | null } | null>
+        )[owner.resourceId];
+        const mapped =
+          typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+        if (mapped) {
+          return mapped;
+        }
       }
-    }
-    const direct =
-      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
-    if (
-      direct &&
-      this.serviceIdMatchesOwner(direct, stageId, owner.resourceId)
-    ) {
-      return direct;
+      const direct =
+        typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+      if (
+        direct &&
+        this.serviceIdMatchesOwner(direct, stageId, owner.resourceId)
+      ) {
+        return direct;
+      }
     }
     return this.computeServiceId(stageId, owner.resourceId, dayKey);
   }

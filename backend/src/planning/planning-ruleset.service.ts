@@ -249,15 +249,15 @@ export class PlanningRulesetService {
 
   private formatValidationErrors(): string[] {
     return (this.validator.errors ?? []).map((entry) => {
-      const entryPath =
-        'instancePath' in entry
-          ? entry.instancePath
-          : 'dataPath' in entry
-            ? entry.dataPath
-            : '';
+      const error = entry as {
+        instancePath?: string;
+        dataPath?: string;
+        message?: string;
+      };
+      const entryPath = error.instancePath ?? error.dataPath ?? '';
       const pathLabel =
         typeof entryPath === 'string' && entryPath.length > 0 ? entryPath : '/';
-      return `${pathLabel} ${entry.message ?? ''}`.trim();
+      return `${pathLabel} ${error.message ?? ''}`.trim();
     });
   }
 

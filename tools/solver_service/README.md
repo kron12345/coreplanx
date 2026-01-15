@@ -26,7 +26,7 @@ with `PLANNING_SOLVER_URL` in `backend/.env`.
 - `GET /health` basic health check
 - `POST /solve` runs a CP-SAT solve on candidates
 
-Example payload:
+Example payload (candidates):
 
 ```json
 {
@@ -46,6 +46,42 @@ Example payload:
   "options": {
     "max_per_service_type": 1,
     "weight_key": "gapMinutes",
+    "time_limit_seconds": 1.5
+  }
+}
+```
+
+Example payload (duty sequencing):
+
+```json
+{
+  "rulesetId": "coreplanx",
+  "rulesetVersion": "v1",
+  "candidates": [],
+  "problem": {
+    "groups": [
+      {
+        "id": "svc:base:personnel-1:2026-01-15",
+        "ownerId": "personnel-1",
+        "ownerKind": "personnel-service",
+        "dayKey": "2026-01-15",
+        "activities": [
+          { "id": "act-1", "startMs": 1705318800000, "endMs": 1705326000000 },
+          { "id": "act-2", "startMs": 1705330800000, "endMs": 1705338000000 }
+        ],
+        "edges": [
+          {
+            "fromId": "act-1",
+            "toId": "act-2",
+            "gapMinutes": 60,
+            "travelMinutes": 10,
+            "missingTravel": false
+          }
+        ]
+      }
+    ]
+  },
+  "options": {
     "time_limit_seconds": 1.5
   }
 }

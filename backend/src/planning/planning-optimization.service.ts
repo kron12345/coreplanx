@@ -89,7 +89,15 @@ export class PlanningOptimizationService {
     if (!resolved.ruleset) {
       throw new BadRequestException('Ruleset konnte nicht aufgeloest werden.');
     }
-    const result = this.candidates.buildCandidates(snapshot, resolved.ruleset);
+    const ignoreExistingServiceAssignments =
+      selection?.activityIds?.some(
+        (id) => typeof id === 'string' && id.trim().length > 0,
+      ) ?? false;
+    const result = this.candidates.buildCandidates(
+      snapshot,
+      resolved.ruleset,
+      { ignoreExistingServiceAssignments },
+    );
     this.debugStream.log('info', 'solver', 'Kandidatenaufbau abgeschlossen', {
       stageId,
       variantId,
@@ -129,9 +137,14 @@ export class PlanningOptimizationService {
     if (!resolved.ruleset) {
       throw new BadRequestException('Ruleset konnte nicht aufgeloest werden.');
     }
+    const ignoreExistingServiceAssignments =
+      selection?.activityIds?.some(
+        (id) => typeof id === 'string' && id.trim().length > 0,
+      ) ?? false;
     const candidateResult = this.candidates.buildCandidates(
       snapshot,
       resolved.ruleset,
+      { ignoreExistingServiceAssignments },
     );
     const solverResult = await this.solver.solve(
       snapshot,

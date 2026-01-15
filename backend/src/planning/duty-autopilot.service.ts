@@ -1130,9 +1130,41 @@ export class DutyAutopilotService {
       let dutyDayKey: string | null = null;
       let serviceId: string | null = null;
 
+      const resolveServiceOverride = (activity: Activity): string | null => {
+        const attrs = activity.attributes as Record<string, unknown> | undefined;
+        const map = attrs?.[this.serviceByOwnerKey()];
+        if (map && typeof map === 'object' && !Array.isArray(map)) {
+          const entry = (map as Record<string, any>)[ownerId];
+          const mapped =
+            typeof entry?.serviceId === 'string' ? entry.serviceId.trim() : '';
+          if (mapped) {
+            return mapped;
+          }
+        }
+        const direct =
+          typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+        if (!direct || !direct.startsWith('svc:')) {
+          return null;
+        }
+        const parsedOwner = this.parseOwnerIdFromServiceId(direct);
+        if (parsedOwner && parsedOwner !== ownerId) {
+          return null;
+        }
+        const parsedStage = this.parseStageIdFromServiceId(direct);
+        if (parsedStage && parsedStage !== stageId) {
+          return null;
+        }
+        return direct;
+      };
+
       for (const entry of intervals) {
         const startMs = entry.startMs;
         const dayKey = this.utcDayKeyFromMs(startMs);
+        const override = resolveServiceOverride(entry.activity);
+        if (override) {
+          assignment.set(entry.activity.id, override);
+          continue;
+        }
         if (!serviceId || dutyStartMs === null || dutyDayKey === null) {
           dutyStartMs = startMs;
           dutyDayKey = dayKey;
@@ -1319,6 +1351,14 @@ export class DutyAutopilotService {
       basePayloadActivities,
       context,
     );
+    const firstPayload = this.findFirstActivity(basePayloadActivities);
+    const lastPayload = this.findLastActivity(basePayloadActivities);
+    const payloadStartLocation = firstPayload
+      ? this.readStartLocation(firstPayload)
+      : null;
+    const payloadEndLocation = lastPayload
+      ? this.readEndLocation(lastPayload)
+      : null;
     const selectionCodes = homeDepotSelection.conflictCodes;
     const startSpecific = new Set([
       'HOME_DEPOT_START_LOCATION_MISSING',
@@ -1405,31 +1445,26 @@ export class DutyAutopilotService {
         context,
       );
 
-      const first = this.findFirstActivity(basePayloadActivities);
-      const last = this.findLastActivity(basePayloadActivities);
-      const startCandidate = first ? this.readStartLocation(first) : null;
-      const endCandidate = last ? this.readEndLocation(last) : null;
-
       if (allowedStartEnd.siteIds.size > 0) {
         if (
-          startCandidate &&
+          payloadStartLocation &&
           !this.isLocationInAllowedSiteIds(
-            startCandidate,
+            payloadStartLocation,
             allowedStartEnd.siteIds,
             context,
           )
         ) {
-          recordOutside('Dienstanfang', startCandidate, startId);
+          recordOutside('Dienstanfang', payloadStartLocation, startId);
         }
         if (
-          endCandidate &&
+          payloadEndLocation &&
           !this.isLocationInAllowedSiteIds(
-            endCandidate,
+            payloadEndLocation,
             allowedStartEnd.siteIds,
             context,
           )
         ) {
-          recordOutside('Dienstende', endCandidate, endId);
+          recordOutside('Dienstende', payloadEndLocation, endId);
         }
       }
     }
@@ -1483,12 +1518,12 @@ export class DutyAutopilotService {
     const generatedCommutes: Activity[] = [];
     if (homeDepotSelection.selection) {
       const selection = homeDepotSelection.selection;
-      const first = this.findFirstActivity(basePayloadActivities);
-      const last = this.findLastActivity(basePayloadActivities);
-      const firstStartMs = first ? this.parseMs(first.start) : null;
-      const lastEndMs = last ? this.parseMs(last.end ?? last.start) : null;
-      const startCandidate = first ? this.readStartLocation(first) : null;
-      const endCandidate = last ? this.readEndLocation(last) : null;
+      const firstStartMs = firstPayload ? this.parseMs(firstPayload.start) : null;
+      const lastEndMs = lastPayload
+        ? this.parseMs(lastPayload.end ?? lastPayload.start)
+        : null;
+      const startCandidate = payloadStartLocation;
+      const endCandidate = payloadEndLocation;
       const startOpId = startCandidate
         ? this.resolveOperationalPointId(startCandidate, context)
         : null;
@@ -1621,6 +1656,52 @@ export class DutyAutopilotService {
         locationId: site.siteId,
         locationLabel: site.name,
       };
+    }
+
+    const manualStart =
+      !!existingStart && this.isManualBoundary(existingStart, manualBoundaryKey);
+    const manualEnd =
+      !!existingEnd && this.isManualBoundary(existingEnd, manualBoundaryKey);
+    const depotLabel =
+      homeDepotSelection.selection?.selectedSite?.name ??
+      homeDepotSelection.selection?.selectedSite?.siteId ??
+      null;
+    const pickBoundaryLocation = (
+      candidate: string | null,
+      existing: Activity | null,
+      manual: boolean,
+      fallback: string | null,
+    ) => {
+      const existingFrom = this.normalizeLocationValue(existing?.from);
+      const existingTo = this.normalizeLocationValue(existing?.to);
+      if (manual && (existingFrom || existingTo)) {
+        return existingFrom ?? existingTo;
+      }
+      return (
+        this.normalizeLocationValue(candidate) ??
+        existingFrom ??
+        existingTo ??
+        fallback ??
+        null
+      );
+    };
+    const startLocation = pickBoundaryLocation(
+      payloadStartLocation,
+      existingStart,
+      manualStart,
+      depotLabel,
+    );
+    const endLocation = pickBoundaryLocation(
+      payloadEndLocation,
+      existingEnd,
+      manualEnd,
+      depotLabel,
+    );
+    if (startLocation) {
+      serviceStart = { ...serviceStart, from: startLocation, to: startLocation };
+    }
+    if (endLocation) {
+      serviceEnd = { ...serviceEnd, from: endLocation, to: endLocation };
     }
 
     const workEntries = this.buildWorkEntries([
@@ -1979,12 +2060,21 @@ export class DutyAutopilotService {
           ? shortBreakTypeId
           : (breakTypeIds[0] ?? shortBreakTypeId);
       const title = pause.kind === 'short-break' ? 'Kurzpause' : 'Pause';
+      const breakFrom =
+        this.normalizeLocationValue(pause.fromLocation) ??
+        this.normalizeLocationValue(pause.site?.name) ??
+        this.normalizeLocationValue(pause.site?.siteId) ??
+        null;
+      const breakTo =
+        this.normalizeLocationValue(pause.toLocation) ?? breakFrom ?? null;
       const breakActivity = this.buildBreakActivity({
         id: breakId,
         title,
         type,
         startMs: pause.breakStartMs,
         endMs: pause.breakEndMs,
+        from: breakFrom,
+        to: breakTo,
         owner,
         serviceId,
         conflictKey,
@@ -2143,6 +2233,8 @@ export class DutyAutopilotService {
     type: string;
     startMs: number;
     endMs: number;
+    from?: string | null;
+    to?: string | null;
     owner: ActivityParticipant;
     serviceId: string;
     conflictKey: string;
@@ -2166,6 +2258,8 @@ export class DutyAutopilotService {
       end: new Date(options.endMs).toISOString(),
       type: options.type,
       serviceId: options.serviceId,
+      from: options.from ?? null,
+      to: options.to ?? null,
       locationId: options.locationId ?? null,
       locationLabel: options.locationLabel ?? null,
       participants: [this.buildOwnerParticipant(options.owner)],
@@ -4525,6 +4619,13 @@ export class DutyAutopilotService {
     }
     const from = `${activity.from ?? ''}`.trim();
     return from || null;
+  }
+
+  private normalizeLocationValue(
+    value: string | null | undefined,
+  ): string | null {
+    const normalized = `${value ?? ''}`.trim();
+    return normalized.length > 0 ? normalized : null;
   }
 
   private buildWorkEntries(

@@ -4,7 +4,12 @@ import type {
   ActivityAttributeValue,
   ActivityDefinition,
   ActivityParticipant,
+  OperationalPoint,
+  PersonnelSite,
+  Resource,
   ResourceKind,
+  TransferEdge,
+  TransferNode,
 } from './planning.types';
 import type { PlanningStageSnapshot } from './planning.types';
 import type { RulesetIR } from './planning-ruleset.types';
@@ -13,6 +18,8 @@ import type {
   PlanningCandidateBuildResult,
 } from './planning-candidate-builder.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
+import { DutyAutopilotService } from './duty-autopilot.service';
+import { PlanningMasterDataService } from './planning-master-data.service';
 
 export interface PlanningSolverResult {
   summary: string;
@@ -29,6 +36,34 @@ interface PlanningSolverRequestOptions {
   random_seed?: number;
 }
 
+interface PlanningSolverProblem {
+  groups: PlanningSolverGroup[];
+}
+
+interface PlanningSolverGroup {
+  id: string;
+  ownerId: string;
+  ownerKind: ResourceKind;
+  dayKey: string;
+  activities: PlanningSolverGroupActivity[];
+  edges: PlanningSolverGroupEdge[];
+}
+
+interface PlanningSolverGroupActivity {
+  id: string;
+  startMs: number;
+  endMs: number;
+}
+
+interface PlanningSolverGroupEdge {
+  fromId: string;
+  toId: string;
+  gapMinutes: number;
+  travelMinutes: number;
+  missingTravel?: boolean;
+  missingLocation?: boolean;
+}
+
 interface PlanningSolverRequestPayload {
   rulesetId: string;
   rulesetVersion: string;
@@ -38,13 +73,23 @@ interface PlanningSolverRequestPayload {
     variantId: string;
     timetableYearLabel?: string | null;
   };
+  problem?: PlanningSolverProblem;
   options?: PlanningSolverRequestOptions;
+}
+
+interface PlanningSolverDutyGroup {
+  groupId: string;
+  ownerId?: string | null;
+  ownerKind?: ResourceKind | null;
+  dayKey?: string | null;
+  duties: string[][];
 }
 
 interface PlanningSolverRemoteResponse {
   summary?: string;
   selectedIds?: string[];
   selectedCandidates?: PlanningCandidate[];
+  dutyGroups?: PlanningSolverDutyGroup[];
   score?: number;
   status?: string;
 }
@@ -63,7 +108,11 @@ export class PlanningSolverService {
     process.env.PLANNING_SOLVER_TIME_LIMIT_SECONDS,
   );
 
-  constructor(private readonly catalog: PlanningActivityCatalogService) {}
+  constructor(
+    private readonly catalog: PlanningActivityCatalogService,
+    private readonly masterData: PlanningMasterDataService,
+    private readonly dutyAutopilot: DutyAutopilotService,
+  ) {}
 
   async solve(
     snapshot: PlanningStageSnapshot,
@@ -78,11 +127,30 @@ export class PlanningSolverService {
 
     const request = this.buildRequest(snapshot, ruleset, candidateResult);
     const response = await this.requestSolver(request);
+    const dutyGroups = response.dutyGroups ?? [];
+    if (dutyGroups.length) {
+      const result = await this.buildUpsertsFromDutyGroups(
+        dutyGroups,
+        ruleset,
+        snapshot,
+      );
+      const summary =
+        response.summary ??
+        (result.upserts.length
+          ? `${result.upserts.length} Vorschlaege aus ${dutyGroups.length} Dienstgruppen.`
+          : 'Keine geeigneten Kandidaten gefunden.');
+      return {
+        summary,
+        upserts: result.upserts,
+        deletedIds: result.deletedIds,
+        candidatesUsed: result.candidatesUsed,
+      };
+    }
     const selectedCandidates = this.resolveSelectedCandidates(
       response,
       candidateResult,
     );
-    const result = this.buildUpsertsFromCandidates(
+    const result = await this.buildUpsertsFromCandidates(
       selectedCandidates,
       ruleset,
       snapshot,
@@ -121,6 +189,7 @@ export class PlanningSolverService {
     if (this.solverTimeLimitSeconds !== null) {
       options.time_limit_seconds = this.solverTimeLimitSeconds;
     }
+    const problem = this.buildSolverProblem(snapshot);
     return {
       rulesetId: ruleset.id,
       rulesetVersion: ruleset.version,
@@ -130,8 +199,485 @@ export class PlanningSolverService {
         variantId: snapshot.variantId,
         timetableYearLabel: snapshot.timetableYearLabel ?? null,
       },
+      ...(problem.groups.length ? { problem } : {}),
       options,
     };
+  }
+
+  private buildSolverProblem(
+    snapshot: PlanningStageSnapshot,
+  ): PlanningSolverProblem {
+    const context = this.buildSolverContext();
+    const resourceKindById = this.buildResourceKindIndex(snapshot.resources);
+    const groups = new Map<string, SolverGroupDraft>();
+
+    for (const activity of snapshot.activities) {
+      if (this.isManagedId(activity.id)) {
+        continue;
+      }
+      if (this.isBreakActivity(activity) || this.isServiceBoundary(activity)) {
+        continue;
+      }
+      const startMs = this.toMs(activity.start);
+      if (startMs === null) {
+        continue;
+      }
+      const endMs = this.resolveActivityEndMs(activity, startMs);
+      const owners = this.resolveSolverOwners(activity, resourceKindById);
+      if (!owners.length) {
+        continue;
+      }
+      const dayKey = this.utcDayKeyFromMs(startMs);
+      for (const owner of owners) {
+        const ownerId = `${owner.resourceId ?? ''}`.trim();
+        if (!ownerId) {
+          continue;
+        }
+        const groupId = this.computeServiceId(
+          snapshot.stageId,
+          ownerId,
+          dayKey,
+        );
+        let draft = groups.get(groupId);
+        if (!draft) {
+          draft = {
+            group: {
+              id: groupId,
+              ownerId,
+              ownerKind: owner.kind,
+              dayKey,
+              activities: [],
+              edges: [],
+            },
+            entries: [],
+            activityIds: new Set<string>(),
+          };
+          groups.set(groupId, draft);
+        }
+        if (draft.activityIds.has(activity.id)) {
+          continue;
+        }
+        draft.activityIds.add(activity.id);
+        draft.entries.push({ activity, startMs, endMs });
+      }
+    }
+
+    for (const draft of groups.values()) {
+      const entries = draft.entries.sort(
+        (a, b) => a.startMs - b.startMs || a.endMs - b.endMs,
+      );
+      draft.group.activities = entries.map((entry) => ({
+        id: entry.activity.id,
+        startMs: entry.startMs,
+        endMs: entry.endMs,
+      }));
+      draft.group.edges = this.buildSolverEdges(entries, context);
+    }
+
+    return { groups: Array.from(groups.values()).map((entry) => entry.group) };
+  }
+
+  private buildSolverEdges(
+    entries: SolverActivityEntry[],
+    context: SolverMasterDataContext,
+  ): PlanningSolverGroupEdge[] {
+    const meta = entries.map((entry) => {
+      const startLocation = this.readStartLocation(entry.activity);
+      const endLocation = this.readEndLocation(entry.activity);
+      const startOpId = startLocation
+        ? this.resolveOperationalPointId(startLocation, context)
+        : null;
+      const endOpId = endLocation
+        ? this.resolveOperationalPointId(endLocation, context)
+        : null;
+      return {
+        ...entry,
+        startLocation,
+        endLocation,
+        startOpId,
+        endOpId,
+      };
+    });
+
+    const edges: PlanningSolverGroupEdge[] = [];
+    for (let i = 0; i < meta.length; i += 1) {
+      const from = meta[i];
+      for (let j = i + 1; j < meta.length; j += 1) {
+        const to = meta[j];
+        const gapMs = to.startMs - from.endMs;
+        if (gapMs < 0) {
+          continue;
+        }
+        const travel = this.resolveTravelMs(from, to, context);
+        if (travel.ms > gapMs) {
+          continue;
+        }
+        edges.push({
+          fromId: from.activity.id,
+          toId: to.activity.id,
+          gapMinutes: Math.max(0, Math.floor(gapMs / 60000)),
+          travelMinutes: Math.max(0, Math.ceil(travel.ms / 60000)),
+          ...(travel.missingTravel ? { missingTravel: true } : {}),
+          ...(travel.missingLocation ? { missingLocation: true } : {}),
+        });
+      }
+    }
+    return edges;
+  }
+
+  private resolveTravelMs(
+    from: SolverActivityMeta,
+    to: SolverActivityMeta,
+    context: SolverMasterDataContext,
+  ): { ms: number; missingTravel: boolean; missingLocation: boolean } {
+    const fromOpId = from.endOpId;
+    const toOpId = to.startOpId;
+    if (!fromOpId || !toOpId) {
+      return { ms: 0, missingTravel: true, missingLocation: true };
+    }
+    if (fromOpId === toOpId) {
+      return { ms: 0, missingTravel: false, missingLocation: false };
+    }
+    const walkMs = this.lookupWalkTimeMs(
+      context,
+      `OP:${fromOpId}`,
+      `OP:${toOpId}`,
+    );
+    if (walkMs === null) {
+      return { ms: 0, missingTravel: true, missingLocation: false };
+    }
+    return { ms: walkMs, missingTravel: false, missingLocation: false };
+  }
+
+  private buildSolverContext(): SolverMasterDataContext {
+    const personnelSites = this.masterData.listPersonnelSites();
+    const operationalPoints = this.masterData.listOperationalPoints();
+    const transferEdges = this.masterData.listTransferEdges();
+
+    const personnelSitesById = new Map<string, PersonnelSite>(
+      personnelSites.map((site) => [site.siteId, site]),
+    );
+    const operationalPointsById = new Map<string, OperationalPoint>(
+      operationalPoints.map((point) => [
+        `${point.uniqueOpId ?? ''}`.trim().toUpperCase(),
+        point,
+      ]),
+    );
+
+    const walkTimeMs = new Map<string, number>();
+    for (const edge of transferEdges) {
+      if (edge.mode !== 'WALK') {
+        continue;
+      }
+      const durationSec = edge.avgDurationSec ?? null;
+      if (
+        durationSec === null ||
+        !Number.isFinite(durationSec) ||
+        durationSec <= 0
+      ) {
+        continue;
+      }
+      const fromKey = this.transferNodeKey(edge.from);
+      const toKey = this.transferNodeKey(edge.to);
+      if (!fromKey || !toKey) {
+        continue;
+      }
+      const ms = Math.round(durationSec * 1000);
+      walkTimeMs.set(`${fromKey}|${toKey}`, ms);
+      if (edge.bidirectional) {
+        walkTimeMs.set(`${toKey}|${fromKey}`, ms);
+      }
+    }
+
+    return {
+      personnelSitesById,
+      operationalPointsById,
+      walkTimeMs,
+    };
+  }
+
+  private buildResourceKindIndex(resources: Resource[]): Map<string, ResourceKind> {
+    const map = new Map<string, ResourceKind>();
+    resources.forEach((resource) => {
+      const id = `${resource.id ?? ''}`.trim();
+      if (!id) {
+        return;
+      }
+      map.set(id, resource.kind);
+    });
+    return map;
+  }
+
+  private resolveSolverOwners(
+    activity: Activity,
+    resourceKindById: Map<string, ResourceKind>,
+  ): ActivityParticipant[] {
+    const participants = activity.participants ?? [];
+    const preferred = participants.filter(
+      (p) => p.kind === 'personnel-service' || p.kind === 'vehicle-service',
+    );
+    if (preferred.length) {
+      return preferred;
+    }
+    const direct = participants.filter(
+      (p) => p.kind === 'personnel' || p.kind === 'vehicle',
+    );
+    if (direct.length) {
+      return direct;
+    }
+
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const map = attrs?.['service_by_owner'];
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      const fallbackOwners = Object.keys(map)
+        .map((ownerId) => ownerId.trim())
+        .filter((ownerId) => ownerId.length > 0)
+        .map((ownerId) => {
+          const kind = resourceKindById.get(ownerId);
+          return kind ? { resourceId: ownerId, kind } : null;
+        })
+        .filter((entry): entry is ActivityParticipant => entry !== null);
+      if (fallbackOwners.length) {
+        return fallbackOwners;
+      }
+    }
+
+    const serviceId = this.resolveServiceId(activity);
+    if (!serviceId) {
+      return [];
+    }
+    const ownerId = this.parseOwnerIdFromServiceId(serviceId);
+    if (!ownerId) {
+      return [];
+    }
+    const ownerKind = resourceKindById.get(ownerId);
+    if (!ownerKind) {
+      return [];
+    }
+    return [{ resourceId: ownerId, kind: ownerKind }];
+  }
+
+  private resolveActivityEndMs(activity: Activity, startMs: number): number {
+    const endMs = this.toMs(activity.end ?? activity.start);
+    if (endMs === null) {
+      return startMs;
+    }
+    return Math.max(startMs, endMs);
+  }
+
+  private resolveServiceId(activity: Activity): string | null {
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    if (direct) {
+      return direct;
+    }
+    return this.parseServiceIdFromManagedId(activity.id);
+  }
+
+  private utcDayKeyFromMs(ms: number): string {
+    const date = new Date(ms);
+    const y = date.getUTCFullYear();
+    const m = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getUTCDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private computeServiceId(
+    stageId: string,
+    ownerId: string,
+    dayKey: string,
+  ): string {
+    return `svc:${stageId}:${ownerId}:${dayKey}`;
+  }
+
+  private buildIndexedServiceId(
+    stageId: string,
+    ownerId: string,
+    dayKey: string,
+    index: number,
+  ): string {
+    const suffix = `${index}`;
+    return `svc:${stageId}:${ownerId}:${suffix}:${dayKey}`;
+  }
+
+  private parseDayKeyFromServiceId(serviceId: string): string | null {
+    const trimmed = (serviceId ?? '').trim();
+    if (!trimmed.startsWith('svc:')) {
+      return null;
+    }
+    const parts = trimmed.split(':');
+    const dayKey = parts[parts.length - 1] ?? '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(dayKey) ? dayKey : null;
+  }
+
+  private parseOwnerIdFromServiceId(serviceId: string): string | null {
+    const trimmed = (serviceId ?? '').trim();
+    if (!trimmed.startsWith('svc:')) {
+      return null;
+    }
+    const parts = trimmed.split(':');
+    const ownerId = parts[2] ?? '';
+    return ownerId ? ownerId : null;
+  }
+
+  private normalizeLocation(value: string | null | undefined): string | null {
+    const normalized = (value ?? '').trim();
+    if (!normalized) {
+      return null;
+    }
+    return normalized.toUpperCase();
+  }
+
+  private resolveOperationalPointId(
+    value: string | null | undefined,
+    context: SolverMasterDataContext,
+  ): string | null {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const normalized = this.normalizeLocation(trimmed);
+    if (!normalized) {
+      return null;
+    }
+    if (context.operationalPointsById.has(normalized)) {
+      return normalized;
+    }
+    const site = context.personnelSitesById.get(trimmed) ?? null;
+    if (site?.uniqueOpId) {
+      const opId = this.normalizeLocation(site.uniqueOpId);
+      if (opId) {
+        return opId;
+      }
+    }
+    const siteMatches = Array.from(context.personnelSitesById.entries()).filter(
+      ([, candidate]) => {
+        const siteName =
+          typeof candidate?.name === 'string' ? candidate.name : '';
+        return this.normalizeLocation(siteName) === normalized;
+      },
+    );
+    if (siteMatches.length === 1) {
+      const opId = this.normalizeLocation(siteMatches[0][1]?.uniqueOpId);
+      if (opId) {
+        return opId;
+      }
+    }
+    const matches = Array.from(context.operationalPointsById.entries()).filter(
+      ([, op]) => {
+        const opName = typeof op?.name === 'string' ? op.name : '';
+        return this.normalizeLocation(opName) === normalized;
+      },
+    );
+    if (matches.length === 1) {
+      return matches[0][0];
+    }
+    return null;
+  }
+
+  private transferNodeKey(node: TransferNode): string | null {
+    switch (node.kind) {
+      case 'OP': {
+        const ref = `${node.uniqueOpId ?? ''}`.trim();
+        return ref ? `OP:${ref.toUpperCase()}` : null;
+      }
+      case 'PERSONNEL_SITE': {
+        const ref = `${(node as any).siteId ?? ''}`.trim();
+        return ref ? `PERSONNEL_SITE:${ref}` : null;
+      }
+      case 'REPLACEMENT_STOP': {
+        const ref = `${(node as any).replacementStopId ?? ''}`.trim();
+        return ref ? `REPLACEMENT_STOP:${ref}` : null;
+      }
+    }
+  }
+
+  private lookupWalkTimeMs(
+    context: SolverMasterDataContext,
+    from: string,
+    to: string,
+  ): number | null {
+    const direct = context.walkTimeMs.get(`${from}|${to}`);
+    if (direct !== undefined) {
+      return direct;
+    }
+    const reverse = context.walkTimeMs.get(`${to}|${from}`);
+    return reverse !== undefined ? reverse : null;
+  }
+
+  private readStartLocation(activity: Activity): string | null {
+    const locId = `${activity.locationId ?? ''}`.trim();
+    if (locId) {
+      return locId;
+    }
+    const from = `${activity.from ?? ''}`.trim();
+    if (from) {
+      return from;
+    }
+    const label = `${activity.locationLabel ?? ''}`.trim();
+    if (label) {
+      return label;
+    }
+    const to = `${activity.to ?? ''}`.trim();
+    return to || null;
+  }
+
+  private readEndLocation(activity: Activity): string | null {
+    const locId = `${activity.locationId ?? ''}`.trim();
+    if (locId) {
+      return locId;
+    }
+    const to = `${activity.to ?? ''}`.trim();
+    if (to) {
+      return to;
+    }
+    const label = `${activity.locationLabel ?? ''}`.trim();
+    if (label) {
+      return label;
+    }
+    const from = `${activity.from ?? ''}`.trim();
+    return from || null;
+  }
+
+  private isServiceBoundary(activity: Activity): boolean {
+    const role = activity.serviceRole ?? null;
+    if (role === 'start' || role === 'end') {
+      return true;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    if (!attrs) {
+      return false;
+    }
+    return (
+      this.toBool(attrs['is_service_start']) ||
+      this.toBool(attrs['is_service_end'])
+    );
+  }
+
+  private addCleanupServiceIds(
+    serviceIds: Set<string>,
+    scopes: Set<string>,
+    snapshot: PlanningStageSnapshot,
+  ): void {
+    if (!scopes.size) {
+      return;
+    }
+    const stagePrefix = `svc:${snapshot.stageId}:`;
+    for (const activity of snapshot.activities) {
+      const serviceId = this.resolveServiceId(activity);
+      if (!serviceId || !serviceId.startsWith(stagePrefix)) {
+        continue;
+      }
+      const ownerId = this.parseOwnerIdFromServiceId(serviceId);
+      const dayKey = this.parseDayKeyFromServiceId(serviceId);
+      if (!ownerId || !dayKey) {
+        continue;
+      }
+      if (scopes.has(`${ownerId}|${dayKey}`)) {
+        serviceIds.add(serviceId);
+      }
+    }
   }
 
   private async requestSolver(
@@ -188,11 +734,11 @@ export class PlanningSolverService {
     return [];
   }
 
-  private solveLocally(
+  private async solveLocally(
     snapshot: PlanningStageSnapshot,
     ruleset: RulesetIR,
     candidateResult: PlanningCandidateBuildResult,
-  ): PlanningSolverResult {
+  ): Promise<PlanningSolverResult> {
     const selectedCandidates = [
       ...candidateResult.candidates.filter((c) => c.type === 'duty'),
       ...this.selectBestByService(
@@ -203,7 +749,7 @@ export class PlanningSolverService {
       ),
     ];
 
-    const result = this.buildUpsertsFromCandidates(
+    const result = await this.buildUpsertsFromCandidates(
       selectedCandidates,
       ruleset,
       snapshot,
@@ -219,6 +765,146 @@ export class PlanningSolverService {
       upserts: result.upserts,
       deletedIds: result.deletedIds,
       candidatesUsed: selectedCandidates,
+    };
+  }
+
+  private async buildUpsertsFromDutyGroups(
+    dutyGroups: PlanningSolverDutyGroup[],
+    _ruleset: RulesetIR,
+    snapshot: PlanningStageSnapshot,
+  ): Promise<{
+    upserts: Activity[];
+    deletedIds: string[];
+    candidatesUsed: PlanningCandidate[];
+  }> {
+    const activityById = new Map(
+      snapshot.activities.map((activity) => [activity.id, activity]),
+    );
+    const assignmentsByActivityId = new Map<string, Record<string, string>>();
+    const relevantActivityIds = new Set<string>();
+    const serviceIdsForCleanup = new Set<string>();
+    const candidatesUsed: PlanningCandidate[] = [];
+    const cleanupScopes = new Set<string>();
+
+    for (const group of dutyGroups) {
+      const rawOwnerId = `${group.ownerId ?? ''}`.trim();
+      const ownerId =
+        rawOwnerId || this.parseOwnerIdFromServiceId(group.groupId);
+      const ownerKind = group.ownerKind ?? null;
+      if (!ownerId || !ownerKind) {
+        continue;
+      }
+      const baseDayKey =
+        group.dayKey ?? this.parseDayKeyFromServiceId(group.groupId);
+      const baseServiceId =
+        group.groupId ||
+        (baseDayKey
+          ? this.computeServiceId(snapshot.stageId, ownerId, baseDayKey)
+          : '');
+      if (!baseServiceId) {
+        continue;
+      }
+      serviceIdsForCleanup.add(baseServiceId);
+      const duties = Array.isArray(group.duties) ? group.duties : [];
+      const useIndexed = duties.length > 1;
+
+      duties.forEach((activityIds, index) => {
+        const dutyIndex = index + 1;
+        const dutyActivities = activityIds
+          .map((id) => activityById.get(id))
+          .filter((entry): entry is Activity => !!entry);
+        if (!dutyActivities.length) {
+          return;
+        }
+        const dutyDayKey =
+          baseDayKey ?? this.resolveDayKeyFromActivities(dutyActivities);
+        if (!dutyDayKey) {
+          return;
+        }
+        const serviceId = useIndexed
+          ? this.buildIndexedServiceId(
+              snapshot.stageId,
+              ownerId,
+              dutyDayKey,
+              dutyIndex,
+            )
+          : baseServiceId;
+        if (!serviceId) {
+          return;
+        }
+        cleanupScopes.add(`${ownerId}|${dutyDayKey}`);
+        serviceIdsForCleanup.add(serviceId);
+
+        activityIds.forEach((activityId) => {
+          relevantActivityIds.add(activityId);
+          const map = assignmentsByActivityId.get(activityId) ?? {};
+          map[ownerId] = serviceId;
+          assignmentsByActivityId.set(activityId, map);
+        });
+
+        const stats = this.computeDutyStats(dutyActivities);
+        candidatesUsed.push({
+          id: `cand:ortools:${baseServiceId}:${dutyIndex}`,
+          templateId: 'ortools-duty',
+          type: 'duty',
+          params: {
+            ownerId,
+            ownerKind,
+            serviceId,
+            dayKey: dutyDayKey,
+            activityIds,
+            dutyStart: stats.dutyStart,
+            dutyEnd: stats.dutyEnd,
+            dutySpanMinutes: stats.dutySpanMinutes,
+            workMinutes: stats.workMinutes,
+            durationMinutes: stats.dutySpanMinutes,
+          },
+        });
+      });
+    }
+
+    if (!relevantActivityIds.size) {
+      return { upserts: [], deletedIds: [], candidatesUsed };
+    }
+
+    this.addCleanupServiceIds(
+      serviceIdsForCleanup,
+      cleanupScopes,
+      snapshot,
+    );
+
+    const relevant: Activity[] = [];
+    const seen = new Set<string>();
+    snapshot.activities.forEach((activity) => {
+      if (
+        relevantActivityIds.has(activity.id) ||
+        this.isManagedActivityForServices(activity, serviceIdsForCleanup)
+      ) {
+        if (!seen.has(activity.id)) {
+          const assignments = assignmentsByActivityId.get(activity.id);
+          relevant.push(
+            assignments
+              ? this.applyServiceAssignments(activity, assignments)
+              : activity,
+          );
+          seen.add(activity.id);
+        }
+      }
+    });
+
+    if (!relevant.length) {
+      return { upserts: [], deletedIds: [], candidatesUsed };
+    }
+
+    const result = await this.dutyAutopilot.apply(
+      snapshot.stageId,
+      snapshot.variantId,
+      relevant,
+    );
+    return {
+      upserts: result.upserts,
+      deletedIds: result.deletedIds,
+      candidatesUsed,
     };
   }
 
@@ -243,66 +929,199 @@ export class PlanningSolverService {
     return Array.from(byService.values());
   }
 
-  private buildUpsertsFromCandidates(
+  private async buildUpsertsFromCandidates(
     candidates: PlanningCandidate[],
     ruleset: RulesetIR,
     snapshot: PlanningStageSnapshot,
-  ): { upserts: Activity[]; deletedIds: string[] } {
+  ): Promise<{ upserts: Activity[]; deletedIds: string[] }> {
     const activityById = new Map(
       snapshot.activities.map((activity) => [activity.id, activity]),
     );
-    const activityUpdates = new Map<string, Activity>();
-    const boundaryUpserts: Activity[] = [];
+    const upsertsById = new Map<string, Activity>();
     const dutyCandidates = candidates.filter(
       (candidate) => candidate.type === 'duty',
     );
     const deletedIds = new Set<string>();
+    const handledServiceIds = new Set<string>();
 
     if (dutyCandidates.length) {
-      const boundaryTypeIndex = this.resolveBoundaryTypeIndex();
-      for (const candidate of dutyCandidates) {
-        const dutyResult = this.buildDutyUpserts(
-          candidate,
-          ruleset,
-          snapshot,
-          activityById,
-          boundaryTypeIndex,
-          activityUpdates,
+      const autopilotResult = await this.applyAutopilotForDuties(
+        dutyCandidates,
+        snapshot,
+      );
+      if (autopilotResult.upserts.length || autopilotResult.deletedIds.length) {
+        autopilotResult.upserts.forEach((activity) =>
+          upsertsById.set(activity.id, activity),
         );
-        boundaryUpserts.push(...dutyResult.boundaries);
+        autopilotResult.deletedIds.forEach((id) => deletedIds.add(id));
+        autopilotResult.serviceIds.forEach((id) => handledServiceIds.add(id));
+      } else {
+        const activityUpdates = new Map<string, Activity>();
+        const boundaryUpserts: Activity[] = [];
+        const boundaryTypeIndex = this.resolveBoundaryTypeIndex();
+        for (const candidate of dutyCandidates) {
+          const dutyResult = this.buildDutyUpserts(
+            candidate,
+            ruleset,
+            snapshot,
+            activityById,
+            boundaryTypeIndex,
+            activityUpdates,
+          );
+          boundaryUpserts.push(...dutyResult.boundaries);
+          const serviceId = this.readString(candidate.params, 'serviceId');
+          if (serviceId) {
+            handledServiceIds.add(serviceId);
+          }
+        }
+        boundaryUpserts.forEach((activity) =>
+          upsertsById.set(activity.id, activity),
+        );
+        activityUpdates.forEach((activity) =>
+          upsertsById.set(activity.id, activity),
+        );
       }
     }
 
-    const generated: Activity[] = [];
     candidates.forEach((candidate) => {
       if (candidate.type === 'break') {
+        const serviceId = this.readString(candidate.params, 'serviceId');
+        if (serviceId && handledServiceIds.has(serviceId)) {
+          return;
+        }
         const result = this.buildBreakMutation(candidate, ruleset, snapshot);
         if (result.upsert) {
-          generated.push(result.upsert);
+          upsertsById.set(result.upsert.id, result.upsert);
         }
         result.deleteIds.forEach((id) => deletedIds.add(id));
         return;
       }
       if (candidate.type === 'travel') {
+        const serviceId = this.readString(candidate.params, 'serviceId');
+        if (serviceId && handledServiceIds.has(serviceId)) {
+          return;
+        }
         const activity = this.buildActivityFromCandidate(
           candidate,
           ruleset,
           snapshot,
         );
         if (activity) {
-          generated.push(activity);
+          upsertsById.set(activity.id, activity);
         }
       }
     });
 
     return {
-      upserts: [
-        ...generated,
-        ...boundaryUpserts,
-        ...Array.from(activityUpdates.values()),
-      ],
+      upserts: Array.from(upsertsById.values()),
       deletedIds: Array.from(deletedIds),
     };
+  }
+
+  private async applyAutopilotForDuties(
+    dutyCandidates: PlanningCandidate[],
+    snapshot: PlanningStageSnapshot,
+  ): Promise<{
+    upserts: Activity[];
+    deletedIds: string[];
+    serviceIds: Set<string>;
+  }> {
+    const serviceIds = new Set<string>();
+    const activityIds = new Set<string>();
+    dutyCandidates.forEach((candidate) => {
+      const serviceId = this.readString(candidate.params, 'serviceId');
+      if (serviceId) {
+        serviceIds.add(serviceId);
+      }
+      this.readStringArray(candidate.params, 'activityIds').forEach((id) => {
+        activityIds.add(id);
+      });
+    });
+
+    if (!serviceIds.size || !activityIds.size) {
+      return { upserts: [], deletedIds: [], serviceIds };
+    }
+
+    const relevant: Activity[] = [];
+    const seen = new Set<string>();
+    snapshot.activities.forEach((activity) => {
+      if (
+        activityIds.has(activity.id) ||
+        this.isManagedActivityForServices(activity, serviceIds)
+      ) {
+        if (!seen.has(activity.id)) {
+          relevant.push(activity);
+          seen.add(activity.id);
+        }
+      }
+    });
+
+    if (!relevant.length) {
+      return { upserts: [], deletedIds: [], serviceIds };
+    }
+
+    const result = await this.dutyAutopilot.apply(
+      snapshot.stageId,
+      snapshot.variantId,
+      relevant,
+    );
+    return {
+      upserts: result.upserts,
+      deletedIds: result.deletedIds,
+      serviceIds,
+    };
+  }
+
+  private isManagedActivityForServices(
+    activity: Activity,
+    serviceIds: Set<string>,
+  ): boolean {
+    if (!this.isManagedId(activity.id)) {
+      return false;
+    }
+    const parsed = this.parseServiceIdFromManagedId(activity.id);
+    if (parsed && serviceIds.has(parsed)) {
+      return true;
+    }
+    const direct =
+      typeof activity.serviceId === 'string' ? activity.serviceId.trim() : '';
+    return direct ? serviceIds.has(direct) : false;
+  }
+
+  private isManagedId(id: string): boolean {
+    return (
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:')
+    );
+  }
+
+  private parseServiceIdFromManagedId(id: string): string | null {
+    if (id.startsWith('svcstart:')) {
+      return id.slice('svcstart:'.length) || null;
+    }
+    if (id.startsWith('svcend:')) {
+      return id.slice('svcend:'.length) || null;
+    }
+    const prefixList = ['svcbreak:', 'svcshortbreak:', 'svccommute:'];
+    for (const prefix of prefixList) {
+      if (!id.startsWith(prefix)) {
+        continue;
+      }
+      const rest = id.slice(prefix.length);
+      if (!rest) {
+        return null;
+      }
+      const idx = rest.indexOf(':');
+      if (idx === -1) {
+        return rest;
+      }
+      const serviceId = rest.slice(0, idx);
+      return serviceId || null;
+    }
+    return null;
   }
 
   private buildActivityFromCandidate(
@@ -834,6 +1653,86 @@ export class PlanningSolverService {
     return next;
   }
 
+  private applyServiceAssignments(
+    activity: Activity,
+    assignments: Record<string, string>,
+  ): Activity {
+    const nextAttrs: Record<string, unknown> = {
+      ...(activity.attributes ?? {}),
+    };
+    const serviceByOwner = this.ensureServiceByOwner(nextAttrs);
+    let changed = false;
+    Object.entries(assignments).forEach(([ownerId, serviceId]) => {
+      const entry = serviceByOwner[ownerId];
+      const current =
+        typeof entry?.serviceId === 'string' ? entry.serviceId : null;
+      if (current !== serviceId) {
+        serviceByOwner[ownerId] = { ...(entry ?? {}), serviceId };
+        changed = true;
+      }
+    });
+    if (!changed) {
+      return activity;
+    }
+    return { ...activity, attributes: nextAttrs };
+  }
+
+  private computeDutyStats(activities: Activity[]): {
+    dutyStart: string | null;
+    dutyEnd: string | null;
+    dutySpanMinutes: number;
+    workMinutes: number;
+  } {
+    let minStart: number | null = null;
+    let maxEnd: number | null = null;
+    let workMinutes = 0;
+    for (const activity of activities) {
+      const startMs = this.toMs(activity.start);
+      if (startMs === null) {
+        continue;
+      }
+      const endMs = this.resolveActivityEndMs(activity, startMs);
+      if (minStart === null || startMs < minStart) {
+        minStart = startMs;
+      }
+      if (maxEnd === null || endMs > maxEnd) {
+        maxEnd = endMs;
+      }
+      workMinutes += Math.max(0, Math.round((endMs - startMs) / 60000));
+    }
+    if (minStart === null || maxEnd === null) {
+      return {
+        dutyStart: null,
+        dutyEnd: null,
+        dutySpanMinutes: 0,
+        workMinutes: 0,
+      };
+    }
+    return {
+      dutyStart: new Date(minStart).toISOString(),
+      dutyEnd: new Date(maxEnd).toISOString(),
+      dutySpanMinutes: Math.max(0, Math.round((maxEnd - minStart) / 60000)),
+      workMinutes,
+    };
+  }
+
+  private resolveDayKeyFromActivities(activities: Activity[]): string | null {
+    let minStart: number | null = null;
+    for (const activity of activities) {
+      const startMs = this.toMs(activity.start);
+      if (startMs === null) {
+        continue;
+      }
+      if (minStart === null || startMs < minStart) {
+        minStart = startMs;
+      }
+    }
+    if (minStart === null) {
+      return null;
+    }
+    return this.utcDayKeyFromMs(minStart);
+  }
+
   private ensureServiceByOwner(
     attrs: Record<string, unknown>,
   ): Record<string, any> {
@@ -1028,6 +1927,31 @@ type ServiceBoundaryTypeIndex = {
   personnelEnd: string;
   vehicleStart: string;
   vehicleEnd: string;
+};
+
+type SolverGroupDraft = {
+  group: PlanningSolverGroup;
+  entries: SolverActivityEntry[];
+  activityIds: Set<string>;
+};
+
+type SolverActivityEntry = {
+  activity: Activity;
+  startMs: number;
+  endMs: number;
+};
+
+type SolverActivityMeta = SolverActivityEntry & {
+  startLocation: string | null;
+  endLocation: string | null;
+  startOpId: string | null;
+  endOpId: string | null;
+};
+
+type SolverMasterDataContext = {
+  personnelSitesById: Map<string, PersonnelSite>;
+  operationalPointsById: Map<string, OperationalPoint>;
+  walkTimeMs: Map<string, number>;
 };
 
 function normalizeUrl(value: string): string {
