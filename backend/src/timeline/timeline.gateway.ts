@@ -21,7 +21,26 @@ import type {
 import { ValidationService } from './validation.service';
 import { overlapsRange, servicesForActivity } from './timeline.helpers';
 
-@WebSocketGateway({ namespace: '/timeline' })
+const SOCKET_ALLOWED_ORIGINS = [
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$/,
+  /\.animeland\.de$/,
+  /^https:\/\/qnamic\.ortwein\.chat$/,
+];
+
+@WebSocketGateway({
+  namespace: '/timeline',
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      const isAllowed = SOCKET_ALLOWED_ORIGINS.some((pattern) => pattern.test(origin));
+      callback(isAllowed ? null : new Error('Origin not allowed by CORS'), isAllowed);
+    },
+    credentials: true,
+  },
+})
 @Injectable()
 export class TimelineGateway {
   @WebSocketServer()

@@ -257,6 +257,77 @@
   overflow: hidden;
 }
 
+.planning-live-editors {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.planning-live-editor {
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-left: 3px solid var(--planning-live-color, rgba(25, 118, 210, 0.7));
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planning-live-editor__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.88);
+}
+
+.planning-live-editor__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--planning-live-color, rgba(25, 118, 210, 0.7));
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+}
+
+.planning-live-editor__name {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.planning-live-editor__active {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.planning-live-editor__fields {
+  display: grid;
+  gap: 6px;
+}
+
+.planning-live-editor__field {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 0.74rem;
+  align-items: baseline;
+}
+
+.planning-live-editor__field-label {
+  color: rgba(15, 23, 42, 0.6);
+  font-weight: 500;
+}
+
+.planning-live-editor__field-value {
+  color: rgba(15, 23, 42, 0.85);
+  word-break: break-word;
+}
+
 .planning-status {
   display: flex;
   flex-direction: column;

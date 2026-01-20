@@ -4,15 +4,10 @@ import {
   Delete,
   Get,
   HttpCode,
-  MessageEvent,
   Param,
   Post,
   Put,
-  Query,
-  Sse,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { PlanWeekService } from './plan-week.service';
 import type {
   PlanWeekRolloutRequest,
@@ -99,14 +94,4 @@ export class PlanningBaseController {
     return this.planWeekService.rolloutTemplate(payload);
   }
 
-  @Sse('templates/events')
-  streamTemplateEvents(
-    @Query('templateId') templateId?: string,
-    @Query('userId') _userId?: string,
-    @Query('connectionId') _connectionId?: string,
-  ): Observable<MessageEvent> {
-    return this.planWeekService
-      .streamTemplateEvents(templateId)
-      .pipe(map((data) => ({ data })));
-  }
 }

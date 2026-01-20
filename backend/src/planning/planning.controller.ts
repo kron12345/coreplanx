@@ -3,16 +3,12 @@ import {
   BadRequestException,
   Controller,
   Get,
-  MessageEvent,
   Param,
   Post,
   Put,
   Query,
   Req,
-  Sse,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import type {
   ActivityFilters,
   ActivityMutationRequest,
@@ -266,38 +262,6 @@ export class PlanningController {
       payload,
       derivedYear ?? timetableYearLabel ?? null,
     );
-  }
-
-  @Sse(':stageId/events')
-  streamEvents(
-    @Param('stageId') stageId: string,
-    @Query('variantId') variantId?: string,
-    @Query('timetableYearLabel') timetableYearLabel?: string,
-    @Query('clientId') clientId?: string,
-    @Query('userId') userId?: string,
-    @Query('connectionId') connectionId?: string,
-  ): Observable<MessageEvent> {
-    const normalizedVariantId = normalizeVariantId(variantId);
-    const derivedYear =
-      deriveTimetableYearLabelFromVariantId(normalizedVariantId);
-    if (
-      derivedYear &&
-      timetableYearLabel &&
-      timetableYearLabel.trim() !== derivedYear
-    ) {
-      throw new BadRequestException(
-        `timetableYearLabel (${timetableYearLabel}) passt nicht zu variantId (${normalizedVariantId}).`,
-      );
-    }
-    return this.planningService
-      .streamStageEvents(
-        stageId,
-        normalizedVariantId,
-        userId ?? clientId,
-        connectionId,
-        derivedYear ?? timetableYearLabel ?? null,
-      )
-      .pipe(map((data) => ({ data })));
   }
 
   private normalizeResourceIds(

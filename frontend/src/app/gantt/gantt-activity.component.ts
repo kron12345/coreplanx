@@ -62,6 +62,11 @@ export class GanttActivityComponent {
   @Input() isPrimarySelection = false;
   @Input() roleIcon: string | null = null;
   @Input() roleLabel: string | null = null;
+  @Input() lockLabel: string | null = null;
+  @Input() lockColor: string | null = null;
+  @Input() sharedLabel: string | null = null;
+  @Input() sharedColor: string | null = null;
+  @Input() isSharedEditing = false;
   @Input() zIndex: number | null = null;
   @Input() serviceWorktimeMs: number | null = null;
   @Input({ required: true }) dragData!: GanttActivityDragData;
@@ -121,6 +126,13 @@ export class GanttActivityComponent {
         });
       });
     }
+    if (this.lockLabel) {
+      lines.push(`Bearbeitung: ${this.lockLabel}`);
+    }
+    if (this.sharedLabel) {
+      const label = this.sharedLabel.trim().length ? this.sharedLabel : 'Auswahl';
+      lines.push(`${this.isSharedEditing ? 'Bearbeitung' : 'Auswahl'}: ${label}`);
+    }
     if (this.showServiceWorktime) {
       lines.push(`Arbeitszeit: ${this.serviceWorktimeLabel}`);
     }
@@ -152,6 +164,12 @@ export class GanttActivityComponent {
           ? 'gantt-activity--selected'
           : 'gantt-activity--selected-secondary',
       );
+    }
+    if (this.sharedLabel || this.sharedColor) {
+      classes.push('gantt-activity--shared');
+      if (this.isSharedEditing) {
+        classes.push('gantt-activity--shared-editing');
+      }
     }
     if (this.widthPx < 80) {
       classes.push('gantt-activity--compact');
@@ -211,6 +229,17 @@ export class GanttActivityComponent {
     }
     const base = (this.activity?.title ?? '').trim();
     return base.length ? base : 'Aktivität';
+  }
+
+  get sharedBadgeLabel(): string {
+    const label = (this.sharedLabel ?? '').trim();
+    if (!label) {
+      return '';
+    }
+    if (label.length <= 12) {
+      return label;
+    }
+    return `${label.slice(0, 11)}...`;
   }
 
   get routeLabel(): string {

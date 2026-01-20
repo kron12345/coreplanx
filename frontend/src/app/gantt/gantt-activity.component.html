@@ -42,6 +42,7 @@
   [style.left.px]="leftPx"
   [style.width.px]="widthPx"
   [style.z-index]="zIndex ?? null"
+  [style.--gantt-shared-color]="sharedColor ?? null"
   [attr.aria-label]="ariaLabel"
   cdkOverlayOrigin
   #activityOrigin="cdkOverlayOrigin"
@@ -61,6 +62,11 @@
   (cdkDragEnded)="onDragEnded($event)"
   [class.gantt-activity--copy-mode]="dragMode === 'copy'"
 >
+  @if (sharedBadgeLabel) {
+    <span class="gantt-activity__shared-badge" [attr.title]="sharedLabel ?? null">
+      {{ sharedBadgeLabel }}
+    </span>
+  }
   @if (dragMode === 'copy') {
     <button
       type="button"

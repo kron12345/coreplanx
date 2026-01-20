@@ -8,6 +8,7 @@ import {
 import { Activity } from '../models/activity';
 import { ActivityParticipantCategory } from '../models/activity-ownership';
 import { CdkDragMove, CdkDragStart, CdkDragEnd, DragDropModule } from '@angular/cdk/drag-drop';
+import type { GanttCursorMarker } from './gantt.models';
 
 export interface GanttBar {
   id: string;
@@ -30,6 +31,11 @@ export interface GanttBar {
   roleLabel?: string | null;
   color?: string | null;
   serviceWorktimeMs?: number | null;
+  lockLabel?: string | null;
+  lockColor?: string | null;
+  sharedLabel?: string | null;
+  sharedColor?: string | null;
+  sharedEditing?: boolean;
 }
 
 export interface GanttBackgroundSegment {
@@ -62,6 +68,7 @@ export class GanttTimelineRowComponent {
   @Input() backgroundSegments: GanttBackgroundSegment[] = [];
   @Input() serviceRanges: GanttServiceRange[] = [];
   @Input() nowMarkerLeft: number | null = null;
+  @Input() cursorMarkers: GanttCursorMarker[] = [];
   @Input() zebra = false;
   @Input() viewMode: 'block' | 'detail' = 'detail';
 

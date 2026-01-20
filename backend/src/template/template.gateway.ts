@@ -23,7 +23,26 @@ import {
   servicesForActivity,
 } from '../timeline/timeline.helpers';
 
-@WebSocketGateway({ namespace: '/templates' })
+const SOCKET_ALLOWED_ORIGINS = [
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$/,
+  /\.animeland\.de$/,
+  /^https:\/\/qnamic\.ortwein\.chat$/,
+];
+
+@WebSocketGateway({
+  namespace: '/templates',
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      const isAllowed = SOCKET_ALLOWED_ORIGINS.some((pattern) => pattern.test(origin));
+      callback(isAllowed ? null : new Error('Origin not allowed by CORS'), isAllowed);
+    },
+    credentials: true,
+  },
+})
 @Injectable()
 export class TemplateGateway {
   @WebSocketServer()
@@ -131,6 +150,8 @@ export class TemplateGateway {
       windowEnd,
       'activity',
       stage,
+      undefined,
+      undefined,
     );
     return timeline.activities?.find((a) => a.id === activityId) ?? null;
   }

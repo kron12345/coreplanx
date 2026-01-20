@@ -110,6 +110,7 @@ export class PlanningSnapshotService {
       'activity',
       'base',
       variantId,
+      undefined,
     );
     const baseEntries = baseTimeline.activities ?? [];
     const baseActivities = this.mapTimelineActivities(baseEntries);

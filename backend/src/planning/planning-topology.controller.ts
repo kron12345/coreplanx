@@ -2,13 +2,9 @@ import {
   Body,
   Controller,
   Get,
-  MessageEvent,
   Post,
   Put,
-  Sse,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { PlanningService } from './planning.service';
 import type {
   OperationalPointListRequest,
@@ -137,10 +133,4 @@ export class PlanningTopologyController {
     return { ok: true };
   }
 
-  @Sse('import/events')
-  streamImportEvents(): Observable<MessageEvent> {
-    return this.planningService
-      .streamTopologyImportEvents()
-      .pipe(map((event) => ({ data: event })));
-  }
 }

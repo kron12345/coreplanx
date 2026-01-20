@@ -10,12 +10,12 @@ import type {
   ActivityValidationResponse,
 } from '../../core/api/activity-api.types';
 import { PlanningStageId } from './planning-stage.model';
-import { PlanningRealtimeService } from './planning-realtime.service';
+import { PlanningRealtimeService, type PlanningRealtimeEvent } from './planning-realtime.service';
 import { PlanningDebugService } from './planning-debug.service';
 import { ClientIdentityService } from '../../core/services/client-identity.service';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimelineApiService } from '../../core/api/timeline-api.service';
-import type { TemplatePeriod } from '../../core/api/timeline-api.types';
+import type { TemplatePeriod, TimelineActivityDto } from '../../core/api/timeline-api.types';
 import {
   PlanningResourceApiService,
   ResourceSnapshotDto,
@@ -27,6 +27,7 @@ import {
   cloneResourceSnapshot,
   cloneStageData,
   cloneTimelineRange,
+  convertIncomingTimelineRange,
   createEmptyStageData,
   diffActivities,
   diffResources,
@@ -120,6 +121,7 @@ export class PlanningDataService {
     api: this.api,
     debug: this.debug,
     identity: this.identity,
+    realtimeConnectionId: () => this.realtime.connectionId(),
     stageDataSignal: this.stageDataSignal,
     stageViewportSignal: this.stageViewportSignal,
     syncingActivityIdsSignal: this.syncingActivityIdsSignal,
@@ -135,9 +137,14 @@ export class PlanningDataService {
 
     effect((onCleanup) => {
       const context = this.currentApiContext();
-      // Base stage data comes from the template timeline; only operations uses realtime stage events.
-      const subs = STAGE_IDS.filter((stage) => stage !== 'base').map((stage) =>
-        this.realtime.events(stage, context).subscribe((event) => this.operations.handleRealtimeEvent(event)),
+      const subs = STAGE_IDS.map((stage) =>
+        this.realtime.events(stage, context).subscribe((event) => {
+          if (event.stageId === 'base') {
+            this.handleBaseRealtimeEvent(event);
+            return;
+          }
+          this.operations.handleRealtimeEvent(event);
+        }),
       );
       onCleanup(() => subs.forEach((sub) => sub.unsubscribe()));
     });
@@ -210,6 +217,28 @@ export class PlanningDataService {
       return;
     }
     this.operations.applyActivityMutation(stage, upserts, deleteIds);
+  }
+
+  private handleBaseRealtimeEvent(event: PlanningRealtimeEvent): void {
+    const connectionId = this.realtime.connectionId();
+    const userId = this.identity.userId();
+    if (event.sourceConnectionId && connectionId && event.sourceConnectionId === connectionId) {
+      return;
+    }
+    if (!event.sourceConnectionId && event.sourceClientId === userId) {
+      return;
+    }
+    if (event.scope === 'activities') {
+      const upserts = (event.upserts as unknown as TimelineActivityDto[]) ?? [];
+      const deleteIds = event.deleteIds ?? [];
+      upserts.forEach((activity) => this.base.applyTemplateActivity(activity));
+      deleteIds.forEach((id) => this.base.applyTemplateActivityDeletion(id));
+      return;
+    }
+    if (event.scope === 'timeline' && event.timelineRange) {
+      const range = convertIncomingTimelineRange(event.timelineRange);
+      this.base.setBaseTimelineRange(range);
+    }
   }
 
   stageResources(stage: PlanningStageId): Signal<Resource[]> {
@@ -596,7 +625,12 @@ export class PlanningDataService {
       return;
     }
     this.lastViewportSignature[stage] = viewport.signature;
-    this.operations.subscribeStageViewport(stage, viewport);
+    const templateId = stage === 'base' ? this.base.templateId() : null;
+    if (stage !== 'base' || templateId) {
+      this.realtime.subscribeViewport(stage, viewport.window, viewport.resourceIds, this.currentApiContext(), {
+        templateId,
+      });
+    }
     if (stage === 'base') {
       this.base.reloadBaseTimeline(viewport.window, viewport.resourceIds);
     } else {
@@ -606,7 +640,8 @@ export class PlanningDataService {
 
   private decorateClientRequestId(value?: string): string {
     const base = value && value.length > 0 ? value : `client-sync-${Date.now().toString(36)}`;
-    return `${this.identity.userId()}|${this.identity.connectionId()}|${base}`;
+    const connectionId = this.realtime.connectionId() ?? this.identity.connectionId();
+    return `${this.identity.userId()}|${connectionId}|${base}`;
   }
 
   private currentApiContext(): PlanningApiContext {

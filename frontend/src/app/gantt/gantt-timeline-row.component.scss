@@ -115,3 +115,29 @@
   background: linear-gradient(180deg, rgba(198, 40, 40, 0.9), rgba(239, 83, 80, 0.9));
   pointer-events: none;
 }
+
+.gantt-timeline-row__cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--gantt-cursor-color, rgba(59, 130, 246, 0.85));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.gantt-timeline-row__cursor-label {
+  position: absolute;
+  top: 6px;
+  left: 4px;
+  transform: translateX(-50%);
+  display: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  background: var(--gantt-cursor-color, rgba(59, 130, 246, 0.85));
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+}

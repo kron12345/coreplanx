@@ -7,7 +7,6 @@ import { AppModule } from './app.module';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
 import { OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
-import fastifySse from 'fastify-sse-v2';
 import yaml from 'js-yaml';
 
 async function bootstrap() {
@@ -16,7 +15,6 @@ async function bootstrap() {
     bodyLimit: 50 * 1024 * 1024,
     maxParamLength: 512,
   });
-  await fastifyAdapter.register(fastifySse);
   const app = await NestFactory.create(AppModule, fastifyAdapter);
   fastifyAdapter.getInstance().addHook('onRequest', (request, reply, done) => {
     const originalUrl = request.raw.url ?? '/';

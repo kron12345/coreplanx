@@ -1,3 +1,5 @@
+import type { ActivityDto } from '../timeline/timeline.types';
+
 export interface ActivityTemplateSet {
   id: string;
   name: string;
@@ -39,4 +41,16 @@ export interface TemplatePeriod {
   id: string;
   validFrom: string;
   validTo: string | null;
+}
+
+export type TemplateRealtimeScope = 'activities';
+
+export interface TemplateRealtimeEvent {
+  scope: TemplateRealtimeScope;
+  templateId: string;
+  variantId: string;
+  timetableYearLabel?: string | null;
+  upserts?: ActivityDto[];
+  deleteIds?: string[];
+  timestamp: string;
 }

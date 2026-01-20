@@ -5,7 +5,7 @@ import type { ActivityParticipantCategory } from '../models/activity-ownership';
 import { participantCategoryFromKind } from '../models/activity-ownership';
 import type { Resource } from '../models/resource';
 import type { TimeScaleService } from '../core/services/time-scale.service';
-import type { ActivityRepositionEventPayload } from './gantt.models';
+import type { ActivityDragPreviewPayload, ActivityRepositionEventPayload } from './gantt.models';
 import type { GanttActivityDragData } from './gantt-activity.component';
 import type { GanttDragStatus } from './gantt-status-bar.component';
 
@@ -63,6 +63,7 @@ export class GanttDragFacade {
       suppressNextTimelineClick: () => void;
       emitReposition: (payload: ActivityRepositionEventPayload) => void;
       emitCopy: (payload: ActivityRepositionEventPayload) => void;
+      emitDragPreview?: (payload: ActivityDragPreviewPayload) => void;
     },
   ) {}
 
@@ -124,6 +125,7 @@ export class GanttDragFacade {
     this.setDragOriginCell(sourceCell);
     this.applyDragHoverCell(sourceCell);
     this.setDragFeedback('info', 'Leistung wird verschoben …');
+    this.emitPreview('start');
   }
 
   handleDragMoved(event: CdkDragMove<GanttActivityDragData>): void {
@@ -250,12 +252,14 @@ export class GanttDragFacade {
       const verb = this.dragState.mode === 'copy' ? 'kopiert' : 'verschiebt';
       this.setDragFeedback('valid', `Loslassen ${verb} auf "${this.getResourceName(targetResourceId)}".`);
     }
+    this.emitPreview('move');
   }
 
   handleDragEnded(event: CdkDragEnd<GanttActivityDragData>): void {
     if (!this.dragState) {
       return;
     }
+    this.emitPreview('end');
     this.blockActivityEdit(this.dragState.activity.id);
     this.deps.host().classList.remove('gantt--dragging');
     this.applyDragHoverCell(null);
@@ -314,6 +318,34 @@ export class GanttDragFacade {
     }
     event.source.reset();
     this.dragState = null;
+  }
+
+  private emitPreview(state: ActivityDragPreviewPayload['state']): void {
+    if (!this.deps.emitDragPreview || !this.dragState) {
+      return;
+    }
+    const pending = this.dragState.pendingTarget;
+    const activity = this.dragState.activity;
+    const isValid =
+      state === 'start' ? true : state === 'end' ? false : !!pending;
+    const start = pending?.start ?? new Date(activity.start);
+    const end =
+      pending?.end ??
+      (this.dragState.hasEnd && activity.end ? new Date(activity.end) : null);
+    const payload: ActivityDragPreviewPayload = {
+      state,
+      activity,
+      start,
+      end,
+      targetResourceId: pending?.resourceId ?? this.dragState.sourceResourceId,
+      sourceResourceId: this.dragState.sourceResourceId,
+      participantCategory: this.dragState.participantCategory,
+      participantResourceId: this.dragState.participantResourceId,
+      isOwnerSlot: this.dragState.isOwnerSlot,
+      mode: this.dragState.mode,
+      isValid,
+    };
+    this.deps.emitDragPreview(payload);
   }
 
   private blockActivityEdit(activityId: string): void {

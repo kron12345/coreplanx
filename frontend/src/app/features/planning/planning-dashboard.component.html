@@ -106,7 +106,7 @@
         }
         @if (debugSseStatus(); as sseStatus) {
 	          <div class="planning-debug__status-card">
-	            <div class="planning-debug__status-label">SSE Basis (nicht genutzt)</div>
+	            <div class="planning-debug__status-label">Realtime Basis</div>
 	            <div
 	              class="planning-debug__status-value"
 	              [class.is-ok]="sseStatus.base.state === 'connected' || sseStatus.base.state === 'disabled'"
@@ -125,7 +125,7 @@
             }
           </div>
           <div class="planning-debug__status-card">
-            <div class="planning-debug__status-label">SSE Betrieb</div>
+            <div class="planning-debug__status-label">Realtime Betrieb</div>
             <div
               class="planning-debug__status-value"
               [class.is-ok]="sseStatus.operations.state === 'connected'"
@@ -142,6 +142,17 @@
                 Letzter Fehler: {{ formatDebugTimestamp(sseStatus.operations.lastErrorAt) }}
               </div>
             }
+          </div>
+        }
+        @if (presenceUsers(); as users) {
+          <div class="planning-debug__status-card">
+            <div class="planning-debug__status-label">Anwesend</div>
+            <div class="planning-debug__status-value">
+              {{ users.length }} Nutzer
+            </div>
+            <div class="planning-debug__status-meta">
+              {{ formatPresenceLabel(users) }}
+            </div>
           </div>
         }
         @if (debugBackendStreamStatus(); as backendStatus) {
@@ -646,8 +657,11 @@
                       <app-gantt
                         [resources]="boardResources(board)"
                         [activities]="boardActivities(board)"
-                        [previewActivities]="solverPreviewActivities()"
+                        [previewActivities]="ganttPreviewActivities()"
                         [pendingActivity]="boardPendingActivity(board)"
+                        [activityLocks]="activityLocks()"
+                        [activitySelections]="sharedActivitySelections()"
+                        [remoteCursors]="remoteCursors()"
                         [syncingActivityIds]="activeSyncingActivityIds()"
                         [timelineRange]="timelineRange()"
                         [periods]="currentPeriods()"
@@ -663,7 +677,9 @@
                         (activityEditRequested)="handleActivityEdit($event)"
                         (activityCopyRequested)="handleActivityCopy($event)"
                         (activityRepositionRequested)="handleActivityReposition($event)"
+                        (activityDragPreview)="handleActivityDragPreview($event)"
                         (activitySelectionToggle)="handleActivitySelectionToggle($event)"
+                        (cursorMoved)="handleCursorMoved($event)"
                         (removeResource)="removeResourceFromBoard(board.id, $event)"
                       >
                         <ng-container gantt-menu-actions>
@@ -1075,6 +1091,40 @@
             </div>
           }
 
+          @if (remoteEditorsForSelected().length > 0) {
+            <section class="planning-section planning-section--presence planning-side-panels__full">
+              <header class="planning-section__header">
+                <div class="planning-section__title">Live-Bearbeitung</div>
+                <div class="planning-section__subtitle">Aktuelle Eingaben im Team</div>
+              </header>
+              <div class="planning-live-editors">
+                @for (editor of remoteEditorsForSelected(); track editor.key) {
+                  <div class="planning-live-editor" [style.--planning-live-color]="editor.color ?? null">
+                    <div class="planning-live-editor__header">
+                      <span class="planning-live-editor__dot"></span>
+                      <span class="planning-live-editor__name">{{ editor.label }}</span>
+                      @if (editor.activeFieldLabel) {
+                        <span class="planning-live-editor__active">
+                          bearbeitet {{ editor.activeFieldLabel }}
+                        </span>
+                      }
+                    </div>
+                    @if (editor.fields.length > 0) {
+                      <div class="planning-live-editor__fields">
+                        @for (field of editor.fields; track field.key) {
+                          <div class="planning-live-editor__field">
+                            <span class="planning-live-editor__field-label">{{ field.label }}</span>
+                            <span class="planning-live-editor__field-value">{{ field.value }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
 	          <section class="planning-section planning-section--time planning-side-panels__full">
             <header class="planning-section__header">
               <div class="planning-section__title">Zeit</div>
@@ -1086,7 +1136,13 @@
               <div class="planning-attribute-grid planning-attribute-grid--time">
                 <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                   <mat-label>Start</mat-label>
-                  <input matInput type="datetime-local" formControlName="start" />
+                  <input
+                    matInput
+                    type="datetime-local"
+                    formControlName="start"
+                    (focus)="handleEditFieldFocus('start')"
+                    (blur)="handleEditFieldBlur('start')"
+                  />
                   @if (
                     activityForm.controls.start.invalid &&
                     (activityForm.controls.start.dirty || activityForm.controls.start.touched)
@@ -1101,14 +1157,22 @@
                       matInput
                       type="datetime-local"
                       formControlName="end"
-                      (focus)="markTimeSyncSource('end')"
+                      (focus)="markTimeSyncSource('end'); handleEditFieldFocus('end')"
+                      (blur)="handleEditFieldBlur('end')"
                     />
                   </mat-form-field>
                 }
                 @if (definitionHasField(selectedActivityDefinition(), 'from') && !isLocationFieldHidden(selectedCatalogOption(), 'from')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Von</mat-label>
-                    <input matInput formControlName="from" [matAutocomplete]="fromLocationAuto" autocomplete="off" />
+                    <input
+                      matInput
+                      formControlName="from"
+                      [matAutocomplete]="fromLocationAuto"
+                      autocomplete="off"
+                      (focus)="handleEditFieldFocus('from')"
+                      (blur)="handleEditFieldBlur('from')"
+                    />
                     @if (fromLocationSuggestion(); as suggestion) {
                       <button
                         mat-icon-button
@@ -1147,7 +1211,14 @@
                 @if (definitionHasField(selectedActivityDefinition(), 'to') && !isLocationFieldHidden(selectedCatalogOption(), 'to')) {
                   <mat-form-field appearance="outline" class="planning-attribute-grid__item">
                     <mat-label>Nach</mat-label>
-                    <input matInput formControlName="to" [matAutocomplete]="toLocationAuto" autocomplete="off" />
+                    <input
+                      matInput
+                      formControlName="to"
+                      [matAutocomplete]="toLocationAuto"
+                      autocomplete="off"
+                      (focus)="handleEditFieldFocus('to')"
+                      (blur)="handleEditFieldBlur('to')"
+                    />
                     @if (toLocationSuggestion(); as suggestion) {
                       <button
                         mat-icon-button
@@ -1196,7 +1267,8 @@
                       min="1"
                       step="5"
                       formControlName="durationMinutes"
-                      (focus)="markTimeSyncSource('duration')"
+                      (focus)="markTimeSyncSource('duration'); handleEditFieldFocus('durationMinutes')"
+                      (blur)="handleEditFieldBlur('durationMinutes')"
                     />
                     <span matTextSuffix>min</span>
                   </mat-form-field>
@@ -1208,7 +1280,10 @@
                     [class.planning-attribute-grid__item--span-2]="!shouldShowEndField(selectedActivityDefinition())"
                   >
                     <mat-label>{{ linkedServiceLabel() }}</mat-label>
-                    <mat-select formControlName="linkedServiceId">
+                    <mat-select
+                      formControlName="linkedServiceId"
+                      (openedChange)="handleEditFieldOpened('linkedServiceId', $event)"
+                    >
                       @if (!linkedServiceRequired()) {
                         <mat-option value="">Keine Verknüpfung</mat-option>
                       }
@@ -1366,7 +1441,13 @@
                 @if (definitionHasField(selectedActivityDefinition(), 'remark')) {
                   <mat-form-field appearance="outline" class="planning-type-editor__remark">
                     <mat-label>Bemerkung</mat-label>
-                    <textarea matInput rows="2" formControlName="remark"></textarea>
+                    <textarea
+                      matInput
+                      rows="2"
+                      formControlName="remark"
+                      (focus)="handleEditFieldFocus('remark')"
+                      (blur)="handleEditFieldBlur('remark')"
+                    ></textarea>
                   </mat-form-field>
                 }
               </div>

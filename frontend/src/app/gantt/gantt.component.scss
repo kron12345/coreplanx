@@ -80,6 +80,10 @@
   position: relative;
 }
 
+.gantt__viewport > .gantt__row:first-child .gantt-timeline-row__cursor-label {
+  display: inline-flex;
+}
+
 .gantt__row--group {
   height: 44px;
   background: rgba(13, 71, 161, 0.04);

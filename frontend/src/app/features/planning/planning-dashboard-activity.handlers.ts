@@ -78,14 +78,19 @@ export function buildActivityFromForm(
     ? { ...(selection.activity.attributes ?? {}), ...(buildAttributesFromCatalog(catalog) ?? {}) }
     : selection.activity.attributes;
   const cleanedAttributes =
-    isBreakType && mergedAttributes && typeof mergedAttributes === 'object' && !Array.isArray(mergedAttributes)
+    mergedAttributes && typeof mergedAttributes === 'object' && !Array.isArray(mergedAttributes)
       ? (() => {
           const attrs = { ...(mergedAttributes as Record<string, unknown>) };
-          delete attrs['is_service_start'];
-          delete attrs['is_service_end'];
-          if (attrs['activityKey'] && typeof attrs['activityKey'] === 'string' && attrs['activityKey'] !== desiredType) {
-            delete attrs['activityKey'];
-            delete attrs['templateId'];
+          if (isBreakType) {
+            delete attrs['is_service_start'];
+            delete attrs['is_service_end'];
+            if (attrs['activityKey'] && typeof attrs['activityKey'] === 'string' && attrs['activityKey'] !== desiredType) {
+              delete attrs['activityKey'];
+              delete attrs['templateId'];
+            }
+          } else {
+            delete attrs['is_break'];
+            delete attrs['is_short_break'];
           }
           return attrs;
         })()

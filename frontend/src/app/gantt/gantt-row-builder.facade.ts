@@ -9,6 +9,8 @@ import {
 import { LayerGroupService } from '../core/services/layer-group.service';
 import { TimeScaleService } from '../core/services/time-scale.service';
 import type {
+  ActivityLockInfo,
+  ActivitySelectionInfo,
   GanttGroupDefinition,
   PreparedActivity,
   PreparedActivitySlot,
@@ -48,6 +50,8 @@ export class GanttRowBuilderFacade {
       timeScale: TimeScaleService;
       layerGroups: LayerGroupService;
       activityTypeInfo: () => Record<string, { label: string; showRoute: boolean }>;
+      activityLockInfo?: (activityId: string) => ActivityLockInfo | null;
+      activitySelectionInfo?: (activityId: string) => ActivitySelectionInfo | null;
     },
   ) {}
 
@@ -196,6 +200,17 @@ export class GanttRowBuilderFacade {
           barLeft = Math.min(Math.max(0, barLeft), maxLeft);
         }
         const classes = this.resolveBarClasses(activity, slot.resourceId);
+        const lockInfo = this.deps.activityLockInfo?.(activity.id) ?? null;
+        if (lockInfo) {
+          classes.push('gantt-activity--locked');
+        }
+        const selectionInfo = this.deps.activitySelectionInfo?.(activity.id) ?? null;
+        if (selectionInfo) {
+          classes.push('gantt-activity--shared');
+          if (selectionInfo.isEditing) {
+            classes.push('gantt-activity--shared-editing');
+          }
+        }
         if (isMilestone) {
           classes.push('gantt-activity--milestone');
         }
@@ -282,6 +297,11 @@ export class GanttRowBuilderFacade {
           roleLabel: slot.iconLabel,
           isPreview,
           serviceWorktimeMs: this.extractServiceWorktimeMs(activity),
+          lockLabel: lockInfo?.label ?? null,
+          lockColor: lockInfo?.color ?? null,
+          sharedLabel: selectionInfo?.label ?? null,
+          sharedColor: selectionInfo?.color ?? null,
+          sharedEditing: selectionInfo?.isEditing ?? false,
         });
 
         if (isPreview) {
@@ -428,6 +448,7 @@ export class GanttRowBuilderFacade {
       if (attrs) {
         hash = this.updateHash(hash, attrs['draw_as'] ?? '');
         hash = this.updateHash(hash, attrs['layer_group'] ?? attrs['layer'] ?? '');
+        hash = this.updateHash(hash, attrs['ghost'] ?? '');
         hash = this.updateHash(hash, attrs['color'] ?? '');
         hash = this.updateHash(hash, attrs['bar_color'] ?? '');
         hash = this.updateHash(hash, attrs['display_color'] ?? '');
@@ -454,6 +475,27 @@ export class GanttRowBuilderFacade {
       const meta = activity.meta as Record<string, unknown> | undefined;
       if (meta) {
         hash = this.updateHash(hash, meta['service_worktime_ms'] ?? '');
+      }
+
+      if (this.deps.activityLockInfo) {
+        const lockInfo = this.deps.activityLockInfo(activity.id);
+        if (lockInfo) {
+          hash = this.updateHash(hash, lockInfo.label ?? '');
+          hash = this.updateHash(hash, lockInfo.color ?? '');
+        } else {
+          hash = this.updateHash(hash, 'lock:none');
+        }
+      }
+
+      if (this.deps.activitySelectionInfo) {
+        const selectionInfo = this.deps.activitySelectionInfo(activity.id);
+        if (selectionInfo) {
+          hash = this.updateHash(hash, selectionInfo.label ?? '');
+          hash = this.updateHash(hash, selectionInfo.color ?? '');
+          hash = this.updateHash(hash, selectionInfo.isEditing ? 'editing' : 'selected');
+        } else {
+          hash = this.updateHash(hash, 'selection:none');
+        }
       }
 
       if (pendingId && pendingId === activity.id) {
@@ -623,6 +665,10 @@ export class GanttRowBuilderFacade {
 
   private resolveBarClasses(activity: PreparedActivity, resourceId: string): string[] {
     const classes: string[] = [];
+    const attrMap = activity.attributes as Record<string, unknown> | undefined;
+    if (attrMap?.['ghost']) {
+      classes.push('gantt-activity--ghost');
+    }
     const serviceId = this.serviceIdForSlot(activity, resourceId);
     if (serviceId) {
       classes.push('gantt-activity--within-service');

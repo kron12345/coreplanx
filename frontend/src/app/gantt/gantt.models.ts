@@ -85,6 +85,39 @@ export interface ActivityRepositionEventPayload {
   isOwnerSlot?: boolean;
 }
 
+export interface ActivityDragPreviewPayload extends ActivityRepositionEventPayload {
+  state: 'start' | 'move' | 'end';
+  mode: 'move' | 'copy';
+  isValid: boolean;
+}
+
+export interface ActivityLockInfo {
+  label: string;
+  color?: string | null;
+}
+
+export interface ActivitySelectionInfo {
+  label: string;
+  color?: string | null;
+  isEditing?: boolean;
+}
+
+export interface GanttRemoteCursor {
+  id: string;
+  time: Date;
+  label?: string | null;
+  color?: string | null;
+  resourceId?: string | null;
+}
+
+export interface GanttCursorMarker {
+  id: string;
+  left: number;
+  label?: string | null;
+  color?: string | null;
+  resourceId?: string | null;
+}
+
 export interface ActivitySlotSelection {
   activityId: string;
   resourceId: string;

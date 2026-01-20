@@ -101,6 +101,7 @@ export class TemplateController {
     @Query('lod') lod: Lod = 'activity',
     @Query('stage') stage: 'base' | 'operations' = 'base',
     @Query('variantId') variantId?: string,
+    @Query('resourceIds') resourceIds?: string | string[],
   ): Promise<TimelineResponse> {
     if (!from || !to) {
       throw new Error('Query params "from" and "to" are required.');
@@ -112,6 +113,7 @@ export class TemplateController {
       lod,
       stage,
       variantId,
+      this.normalizeResourceIds(resourceIds),
     );
   }
 
@@ -188,5 +190,16 @@ export class TemplateController {
       targetVariantId: normalizedTargetVariantId,
       timetableYearLabel: derivedTargetYear ?? timetableYearLabel ?? null,
     });
+  }
+
+  private normalizeResourceIds(
+    value?: string | string[],
+  ): string[] | undefined {
+    if (!value) {
+      return undefined;
+    }
+    const raw = Array.isArray(value) ? value : value.split(',');
+    const cleaned = raw.map((entry) => entry.trim()).filter(Boolean);
+    return cleaned.length ? cleaned : undefined;
   }
 }

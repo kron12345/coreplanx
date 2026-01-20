@@ -32,6 +32,20 @@
       <div class="gantt-timeline-row__now" [style.left.px]="nowMarkerLeft"></div>
     }
 
+    @for (marker of cursorMarkers; track marker.id) {
+      @if (!marker.resourceId || marker.resourceId === resourceId) {
+        <div
+          class="gantt-timeline-row__cursor"
+          [style.left.px]="marker.left"
+          [style.--gantt-cursor-color]="marker.color ?? null"
+        >
+          @if (marker.label) {
+            <span class="gantt-timeline-row__cursor-label">{{ marker.label }}</span>
+          }
+        </div>
+      }
+    }
+
     <div class="gantt-timeline-row__activities">
       @for (bar of bars; track bar.id) {
         <app-gantt-activity
@@ -41,6 +55,7 @@
           [classes]="bar.classes ?? []"
           [zIndex]="bar.zIndex ?? null"
           [ngStyle]="bar.color ? {'background': bar.color, 'border-color': bar.color} : null"
+          [style.--gantt-lock-color]="bar.lockColor ?? null"
           [isSelected]="bar.selected ?? false"
           [isPrimarySelection]="bar.primarySelected ?? false"
           [displayMode]="viewMode"
@@ -51,6 +66,11 @@
           [isPreview]="bar.isPreview ?? false"
           [roleIcon]="bar.roleIcon ?? null"
           [roleLabel]="bar.roleLabel ?? null"
+          [lockLabel]="bar.lockLabel ?? null"
+          [lockColor]="bar.lockColor ?? null"
+          [sharedLabel]="bar.sharedLabel ?? null"
+          [sharedColor]="bar.sharedColor ?? null"
+          [isSharedEditing]="bar.sharedEditing ?? false"
           [serviceWorktimeMs]="bar.serviceWorktimeMs ?? null"
           [dragData]="{
             activity: bar.activity,

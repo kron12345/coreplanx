@@ -429,6 +429,28 @@ export class PlanningBaseDataController {
     });
   }
 
+  applyTemplateActivityDeletion(activityId: string): void {
+    const baseId = activityId.split('@')[0] ?? activityId;
+    this.deps.stageDataSignal.update((record) => {
+      const baseStage = record.base;
+      const filtered = baseStage.activities.filter((activity) => {
+        const candidateBase = activity.id.split('@')[0] ?? activity.id;
+        return activity.id !== activityId && candidateBase !== baseId;
+      });
+      if (filtered === baseStage.activities) {
+        return record;
+      }
+      return {
+        ...record,
+        base: {
+          ...baseStage,
+          activities: this.attachServiceWorktimeToBaseActivities(filtered),
+        },
+      };
+    });
+    this.lastBaseTimelineSignature = null;
+  }
+
   attachServiceWorktime(activities: Activity[]): Activity[] {
     return this.attachServiceWorktimeToBaseActivities(activities);
   }

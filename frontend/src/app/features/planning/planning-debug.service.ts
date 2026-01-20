@@ -56,8 +56,7 @@ export class PlanningDebugService {
   private readonly entriesSignal = signal<PlanningDebugLogEntry[]>([]);
   private readonly apiStatusSignal = signal<PlanningApiStatus>({ state: 'idle' });
   private readonly sseStatusSignal = signal<Record<PlanningStageId, PlanningSseStatus>>({
-    // Base stage does not rely on planning-stage SSE anymore (template timeline is the source of truth).
-    base: { state: 'disabled', message: 'Nicht genutzt' },
+    base: { state: 'idle' },
     operations: { state: 'idle' },
   });
   private readonly backendStreamStatusSignal = signal<PlanningBackendStreamStatus>({ state: 'idle' });
@@ -196,7 +195,7 @@ export class PlanningDebugService {
         lastConnectedAt: new Date().toISOString(),
       },
     }));
-    this.log('info', 'sse', 'SSE verbunden', { stageId, context });
+    this.log('info', 'sse', 'Realtime verbunden', { stageId, context });
   }
 
   reportSseEvent(stageId: PlanningStageId): void {

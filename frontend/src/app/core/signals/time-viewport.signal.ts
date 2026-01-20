@@ -70,7 +70,16 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
   );
 
   const viewStart = signal<Date>(initialStart);
-  const viewEnd = computed(() => new Date(viewStart().getTime() + rangeSignal()));
+  const effectiveRange = computed(() => {
+    const width = viewportWidthSignal();
+    const pxPerMs = pixelsPerMs();
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(pxPerMs) || pxPerMs <= 0) {
+      return rangeSignal();
+    }
+    // Prefer the actual visible range when the viewport width is known.
+    return Math.max(1, width / pxPerMs);
+  });
+  const viewEnd = computed(() => new Date(viewStart().getTime() + effectiveRange()));
   const pixelsPerMs = computed(() => {
     const range = rangeSignal();
     return interpolatePixelsPerMs(range);
@@ -123,14 +132,14 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
 
   function maintainCenter(center?: Date) {
     const target = center ?? viewCenter();
-    const halfRange = rangeSignal() / 2;
+    const halfRange = effectiveRange() / 2;
     const nextStart = new Date(target.getTime() - halfRange);
-    const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, rangeSignal());
+    const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, effectiveRange());
     setViewStartIfChanged(clamped);
   }
 
   function viewCenter(): Date {
-    return new Date(viewStart().getTime() + rangeSignal() / 2);
+    return new Date(viewStart().getTime() + effectiveRange() / 2);
   }
 
   function scrollBy(px: number) {
@@ -149,7 +158,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
     }
     const nextStartTime = timelineStart.getTime() + px / pxPerMs;
     const nextStart = new Date(nextStartTime);
-    const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, rangeSignal());
+    const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, effectiveRange());
     setViewStartIfChanged(clamped);
   }
 
@@ -164,7 +173,7 @@ export function createTimeViewport(options: TimeViewportOptions): TimeViewport {
   function shiftBy(deltaMs: number) {
     const currentStart = viewStart();
     const nextStart = new Date(currentStart.getTime() + deltaMs);
-    const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, rangeSignal());
+    const clamped = clampToTimeline(nextStart, timelineStart, timelineEnd, effectiveRange());
     setViewStartIfChanged(clamped);
   }
 

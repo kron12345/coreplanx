@@ -32,7 +32,6 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "dotenv": "^17.2.3",
-    "fastify-sse-v2": "^4.2.1",
     "fastify-static": "^4.6.1",
     "ajv": "^8.17.1",
     "js-yaml": "^4.1.1",

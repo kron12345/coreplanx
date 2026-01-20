@@ -8,12 +8,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { Observable, Subject } from 'rxjs';
 import { TemplateRepository } from './template.repository';
 import { TemplateTableUtil } from './template.util';
 import {
   ActivityTemplateSet,
   CreateTemplateSetPayload,
   UpdateTemplateSetPayload,
+  TemplateRealtimeEvent,
 } from './template.types';
 import {
   ActivityDto,
@@ -35,6 +37,7 @@ export class TemplateService {
   private readonly logger = new Logger(TemplateService.name);
   private readonly dbEnabled: boolean;
   private loggedDbWarning = false;
+  private readonly activityEvents = new Subject<TemplateRealtimeEvent>();
 
   constructor(
     private readonly repository: TemplateRepository,
@@ -62,6 +65,10 @@ export class TemplateService {
         'Database connection is required for templates.',
       );
     }
+  }
+
+  streamActivityEvents(): Observable<TemplateRealtimeEvent> {
+    return this.activityEvents.asObservable();
   }
 
   async listTemplateSets(
@@ -252,6 +259,13 @@ export class TemplateService {
     if (normalized.deletedId) {
       await this.repository.deleteActivity(set.tableName, normalized.deletedId);
     }
+    this.emitActivityEvent({
+      scope: 'activities',
+      templateId: set.id,
+      variantId: set.variantId,
+      timetableYearLabel: set.timetableYearLabel ?? null,
+      upserts: [saved],
+    });
     return saved;
   }
 
@@ -277,6 +291,13 @@ export class TemplateService {
     }
     const set = await this.getTemplateSet(templateId, variantId);
     await this.repository.deleteActivity(set.tableName, activityId);
+    this.emitActivityEvent({
+      scope: 'activities',
+      templateId: set.id,
+      variantId: set.variantId,
+      timetableYearLabel: set.timetableYearLabel ?? null,
+      deleteIds: [activityId],
+    });
   }
 
   async getTemplateTimeline(
@@ -286,6 +307,7 @@ export class TemplateService {
     lod: Lod,
     stage: 'base' | 'operations',
     variantId?: string,
+    resourceIds?: string[],
   ): Promise<TimelineResponse> {
     if (!this.dbEnabled) {
       if (!this.loggedDbWarning) {
@@ -300,18 +322,31 @@ export class TemplateService {
     }
     const set = await this.getTemplateSet(templateId, variantId);
     if (lod === 'activity') {
+      const normalizedResourceIds = (resourceIds ?? [])
+        .map((entry) => entry.trim())
+        .filter(Boolean);
       const activities = await this.repository.listActivities(
         set.tableName,
         from,
         to,
         stage,
-        stage === 'base',
+        true,
       );
+      const filtered =
+        stage === 'operations'
+          ? this.applyTemplateActivityFilters(activities, {
+              from,
+              to,
+              resourceIds: normalizedResourceIds,
+            })
+          : this.applyTemplateActivityFilters(activities, {
+              resourceIds: normalizedResourceIds,
+            });
       const enriched = await this.applyTemplateWorktimeCompliance(
         stage,
         set.variantId,
         set.id,
-        activities,
+        filtered,
       );
       return { lod, activities: enriched };
     }
@@ -322,6 +357,150 @@ export class TemplateService {
       stage,
     );
     return { lod, services };
+  }
+
+  private applyTemplateActivityFilters(
+    activities: ActivityDto[],
+    filters: { from?: string; to?: string; resourceIds?: string[] },
+  ): ActivityDto[] {
+    const parseIso = (value?: string) => {
+      if (!value) {
+        return undefined;
+      }
+      const ms = Date.parse(value);
+      return Number.isFinite(ms) ? ms : undefined;
+    };
+    const fromMs = parseIso(filters.from);
+    const toMs = parseIso(filters.to);
+    const resourceFilter = filters.resourceIds?.length
+      ? new Set(filters.resourceIds)
+      : undefined;
+
+    const filtered = activities.filter((activity) => {
+      if (resourceFilter) {
+        const assignments = activity.resourceAssignments ?? [];
+        const matchesResource = assignments.some((assignment) =>
+          resourceFilter.has(assignment.resourceId),
+        );
+        if (!matchesResource) {
+          return false;
+        }
+      }
+
+      const startMs = Date.parse(activity.start);
+      const endMs = activity.isOpenEnded || !activity.end
+        ? undefined
+        : Date.parse(activity.end ?? '');
+
+      if (fromMs !== undefined && endMs !== undefined && endMs <= fromMs) {
+        return false;
+      }
+
+      if (toMs !== undefined && startMs !== undefined && startMs >= toMs) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const hasWindow = !!filters.from || !!filters.to;
+    if (!hasWindow || filtered.length === 0) {
+      return filtered;
+    }
+
+    const serviceIds = new Set<string>();
+    const addServiceId = (value: unknown) => {
+      const id = typeof value === 'string' ? value.trim() : '';
+      if (id.startsWith('svc:') || id.startsWith('svcstart:') || id.startsWith('svcend:')) {
+        serviceIds.add(id);
+      } else if (id) {
+        serviceIds.add(id);
+      }
+    };
+    filtered.forEach((activity) => {
+      addServiceId(activity.serviceId);
+      const managedId = this.parseServiceIdFromManagedActivityId(activity.id);
+      if (managedId) {
+        serviceIds.add(managedId);
+      }
+      const attrs = activity.attributes as Record<string, unknown> | undefined;
+      const map = attrs?.['service_by_owner'];
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        Object.entries(map as Record<string, any>).forEach(
+          ([ownerId, entry]) => {
+            if (resourceFilter && !resourceFilter.has(ownerId)) {
+              return;
+            }
+            addServiceId(entry?.serviceId);
+          },
+        );
+      }
+    });
+    if (serviceIds.size === 0) {
+      return filtered;
+    }
+
+    const expanded = new Map<string, ActivityDto>();
+    filtered.forEach((activity) => expanded.set(activity.id, activity));
+    const isManagedServiceId = (id: string) =>
+      id.startsWith('svcstart:') ||
+      id.startsWith('svcend:') ||
+      id.startsWith('svcbreak:') ||
+      id.startsWith('svcshortbreak:') ||
+      id.startsWith('svccommute:');
+    activities.forEach((activity) => {
+      if (!isManagedServiceId(activity.id)) {
+        return;
+      }
+      if (!activity.serviceId) {
+        return;
+      }
+      if (!serviceIds.has(activity.serviceId)) {
+        return;
+      }
+      expanded.set(activity.id, activity);
+    });
+
+    return Array.from(expanded.values());
+  }
+
+  private parseServiceIdFromManagedActivityId(
+    id: string | null | undefined,
+  ): string | null {
+    const value = (id ?? '').trim();
+    if (!value) {
+      return null;
+    }
+    if (value.startsWith('svcstart:')) {
+      const serviceId = value.slice('svcstart:'.length).trim();
+      return serviceId.length ? serviceId : null;
+    }
+    if (value.startsWith('svcend:')) {
+      const serviceId = value.slice('svcend:'.length).trim();
+      return serviceId.length ? serviceId : null;
+    }
+    if (value.startsWith('svcbreak:')) {
+      const rest = value.slice('svcbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    if (value.startsWith('svcshortbreak:')) {
+      const rest = value.slice('svcshortbreak:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    if (value.startsWith('svccommute:')) {
+      const rest = value.slice('svccommute:'.length);
+      const idx = rest.lastIndexOf(':');
+      const serviceId = idx >= 0 ? rest.slice(0, idx) : rest;
+      const trimmed = serviceId.trim();
+      return trimmed.length ? trimmed : null;
+    }
+    return null;
   }
 
   private async applyTemplateWorktimeCompliance(
@@ -1060,5 +1239,14 @@ export class TemplateService {
       `Rolled out template ${templateId} to stage ${targetStage} with ${created.length} activities.`,
     );
     return created;
+  }
+
+  private emitActivityEvent(
+    event: Omit<TemplateRealtimeEvent, 'timestamp'>,
+  ): void {
+    this.activityEvents.next({
+      ...event,
+      timestamp: new Date().toISOString(),
+    });
   }
 }

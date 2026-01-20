@@ -43,9 +43,14 @@ import { LayerGroupService } from '../core/services/layer-group.service';
 import { TemplatePeriod } from '../core/api/timeline-api.types';
 import { GanttDragFacade } from './gantt-drag.facade';
 import type {
+  ActivityDragPreviewPayload,
+  ActivityLockInfo,
+  ActivitySelectionInfo,
   ActivityRepositionEventPayload,
   ActivitySelectionEventPayload,
   GanttDisplayRow,
+  GanttCursorMarker,
+  GanttRemoteCursor,
   PreparedActivity,
   PreparedActivitySlot,
 } from './gantt.models';
@@ -107,10 +112,14 @@ export class GanttComponent implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly layerGroups = inject(LayerGroupService);
   private readonly activityTypeInfoSignal = signal<Record<string, { label: string; showRoute: boolean }>>({});
+  private readonly activityLockMapSignal = signal<Map<string, ActivityLockInfo>>(new Map());
+  private readonly activitySelectionMapSignal = signal<Map<string, ActivitySelectionInfo>>(new Map());
   private readonly rowBuilder = new GanttRowBuilderFacade({
     timeScale: this.timeScale,
     layerGroups: this.layerGroups,
     activityTypeInfo: () => this.activityTypeInfoSignal(),
+    activityLockInfo: (activityId) => this.activityLockMapSignal().get(activityId) ?? null,
+    activitySelectionInfo: (activityId) => this.activitySelectionMapSignal().get(activityId) ?? null,
   });
   private readonly resourcesSignal = signal<Resource[]>([]);
   private readonly activitiesInputSignal = signal<Activity[]>([]);
@@ -129,10 +138,13 @@ export class GanttComponent implements AfterViewInit {
   private readonly syncingActivityIdsSignal = signal<ReadonlySet<string>>(new Set<string>());
   private readonly filterTerm = signal('');
   private readonly cursorTimeSignal = signal<Date | null>(null);
+  private readonly remoteCursorsSignal = signal<GanttRemoteCursor[]>([]);
   private readonly markingModeSignal = signal(false);
   private readonly expandedGroups = signal<Set<string>>(new Set());
   private suppressNextTimelineClick = false;
   private lastViewportSignature: string | null = null;
+  private lastViewportStartMs: number | null = null;
+  private lastViewportEndMs: number | null = null;
   private readonly viewportFacade = new GanttViewportFacade({
     timeScale: this.timeScale,
     host: () => this.hostElement.nativeElement,
@@ -173,6 +185,7 @@ export class GanttComponent implements AfterViewInit {
     },
     emitReposition: (payload) => this.activityRepositionRequested.emit(payload),
     emitCopy: (payload) => this.activityCopyRequested.emit(payload),
+    emitDragPreview: (payload) => this.activityDragPreview.emit(payload),
   });
 
   constructor() {
@@ -199,11 +212,26 @@ export class GanttComponent implements AfterViewInit {
       }
       const start = this.viewStart();
       const end = this.viewEnd();
+      const startMs = start.getTime();
+      const endMs = end.getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+        return;
+      }
+      if (this.lastViewportStartMs !== null && this.lastViewportEndMs !== null && startMs === this.lastViewportStartMs) {
+        const visibleRangeMs = Math.max(1, endMs - startMs);
+        const delta = Math.abs(endMs - this.lastViewportEndMs);
+        // Skip minor end shifts from layout jitter (e.g., scrollbar width changes).
+        if (delta < visibleRangeMs * 0.05) {
+          return;
+        }
+      }
       const signature = `${start.toISOString()}|${end.toISOString()}`;
       if (signature === this.lastViewportSignature) {
         return;
       }
       this.lastViewportSignature = signature;
+      this.lastViewportStartMs = startMs;
+      this.lastViewportEndMs = endMs;
       this.viewportChanged.emit({
         start: new Date(start),
         end: new Date(end),
@@ -235,7 +263,9 @@ export class GanttComponent implements AfterViewInit {
   @Output() activityEditRequested = new EventEmitter<{ resource: Resource; activity: Activity }>();
   @Output() activityRepositionRequested = new EventEmitter<ActivityRepositionEventPayload>();
   @Output() activityCopyRequested = new EventEmitter<ActivityRepositionEventPayload>();
+  @Output() activityDragPreview = new EventEmitter<ActivityDragPreviewPayload>();
   @Output() viewportChanged = new EventEmitter<{ start: Date; end: Date }>();
+  @Output() cursorMoved = new EventEmitter<{ time: Date | null; resourceId: string | null }>();
 
   @Input()
   set selectedActivityIds(value: string[] | null) {
@@ -270,6 +300,37 @@ export class GanttComponent implements AfterViewInit {
   @Input()
   set activityTypeInfo(value: Record<string, { label: string; showRoute: boolean }> | null) {
     this.activityTypeInfoSignal.set(value ?? {});
+  }
+
+  @Input()
+  set activityLocks(value: Map<string, ActivityLockInfo> | Record<string, ActivityLockInfo> | null) {
+    if (!value) {
+      this.activityLockMapSignal.set(new Map());
+      return;
+    }
+    if (value instanceof Map) {
+      this.activityLockMapSignal.set(value);
+      return;
+    }
+    this.activityLockMapSignal.set(new Map(Object.entries(value)));
+  }
+
+  @Input()
+  set activitySelections(value: Map<string, ActivitySelectionInfo> | Record<string, ActivitySelectionInfo> | null) {
+    if (!value) {
+      this.activitySelectionMapSignal.set(new Map());
+      return;
+    }
+    if (value instanceof Map) {
+      this.activitySelectionMapSignal.set(value);
+      return;
+    }
+    this.activitySelectionMapSignal.set(new Map(Object.entries(value)));
+  }
+
+  @Input()
+  set remoteCursors(value: GanttRemoteCursor[] | null) {
+    this.remoteCursorsSignal.set(value ?? []);
   }
 
   @Input({ required: true })
@@ -411,6 +472,8 @@ export class GanttComponent implements AfterViewInit {
     const expanded = this.expandedGroups();
     const rows: GanttDisplayRow[] = [];
     let resourceIndex = 0;
+    // Ensure lock updates invalidate the row cache.
+    this.activityLockMapSignal();
 
     const displaySelectedIds = this.displayedSelectionIds();
     const expandedResources: Resource[] = [];
@@ -583,6 +646,7 @@ export class GanttComponent implements AfterViewInit {
   );
   readonly totalActivityCount = computed(() => this.activitiesInputSignal().length);
   readonly cursorTime = computed(() => this.cursorTimeSignal());
+  readonly remoteCursorMarkers = computed(() => this.buildCursorMarkers());
   readonly filterText = computed(() => this.filterTerm());
   readonly hasRows = computed(() => this.rows().length > 0);
   readonly isViewportReady = computed(() => this.viewportReady());
@@ -719,15 +783,19 @@ export class GanttComponent implements AfterViewInit {
     if (!this.viewportReady()) {
       return;
     }
+    const resourceId = container?.dataset['resourceId'] ?? null;
     const cursorTime = this.viewportFacade.pointerTime(
       event.clientX,
       container ?? (event.currentTarget as HTMLElement | null),
     );
     this.cursorTimeSignal.set(cursorTime);
+    this.cursorMoved.emit({ time: cursorTime, resourceId });
   }
 
-  onTimelineMouseLeave() {
+  onTimelineMouseLeave(container?: HTMLElement | null) {
     this.cursorTimeSignal.set(null);
+    const resourceId = container?.dataset['resourceId'] ?? null;
+    this.cursorMoved.emit({ time: null, resourceId });
   }
 
   onGroupToggle(groupId: string) {
@@ -1093,5 +1161,40 @@ export class GanttComponent implements AfterViewInit {
       return px;
     }
     return 0;
+  }
+
+  private buildCursorMarkers(): GanttCursorMarker[] {
+    const cursors = this.remoteCursorsSignal();
+    if (cursors.length === 0) {
+      return [];
+    }
+    const start = this.timeScale.timelineStartDate();
+    const end = this.timeScale.timelineEndDate();
+    const startMs = start?.getTime?.() ?? NaN;
+    const endMs = end?.getTime?.() ?? NaN;
+    const contentWidth = this.timeScale.contentWidth();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return [];
+    }
+    const markers: GanttCursorMarker[] = [];
+    cursors.forEach((cursor) => {
+      const time = cursor.time instanceof Date ? cursor.time : new Date(cursor.time);
+      const timeMs = time?.getTime?.() ?? NaN;
+      if (!Number.isFinite(timeMs) || timeMs < startMs || timeMs > endMs) {
+        return;
+      }
+      const left = Math.round(this.timeScale.timeToPx(timeMs));
+      if (!Number.isFinite(left) || left < 0 || left > contentWidth) {
+        return;
+      }
+      markers.push({
+        id: cursor.id,
+        left,
+        label: cursor.label ?? null,
+        color: cursor.color ?? null,
+        resourceId: cursor.resourceId ?? null,
+      });
+    });
+    return markers;
   }
 }

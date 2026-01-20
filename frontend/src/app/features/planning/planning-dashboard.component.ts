@@ -11,11 +11,30 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
 import { PlanningDataService } from './planning-data.service';
 import { PlanningDebugService, type PlanningDebugLogScope, type PlanningDebugLogSource } from './planning-debug.service';
 import { PlanningDebugStreamService } from './planning-debug-stream.service';
+import {
+  PlanningRealtimeService,
+  type PlanningCursorUpdate,
+  type PlanningDragGhostEvent,
+  type PlanningEditSnapshot,
+  type PlanningEditUpdate,
+  type PlanningLockUpdate,
+  type PlanningPresenceSnapshot,
+  type PlanningPresenceUpdate,
+  type PlanningPresenceUser,
+  type PlanningSelectionSnapshot,
+  type PlanningSelectionUpdate,
+} from './planning-realtime.service';
 import { API_CONFIG } from '../../core/config/api-config';
 import { ClientIdentityService } from '../../core/services/client-identity.service';
 import type { PlanningTimelineRange } from './planning-data.types';
 import { Resource } from '../../models/resource';
 import { Activity, ActivityGroupRole, ServiceRole } from '../../models/activity';
+import type {
+  ActivityDragPreviewPayload,
+  ActivityLockInfo,
+  ActivitySelectionInfo,
+  GanttRemoteCursor,
+} from '../../gantt/gantt.models';
 import {
   ActivityParticipantCategory,
   getActivityOwnerByCategory,
@@ -177,6 +196,30 @@ type SelectionDetailRow = {
   to: string;
 };
 
+type SharedSelectionState = {
+  stageId: PlanningStageId;
+  activityIds: string[];
+  primaryId: string | null;
+  userId: string;
+  name?: string | null;
+  color?: string | null;
+  mode?: 'select' | 'edit';
+  sourceConnectionId?: string | null;
+  at?: string;
+};
+
+type SharedEditState = {
+  stageId: PlanningStageId;
+  activityId: string;
+  userId: string;
+  name?: string | null;
+  color?: string | null;
+  fields: Record<string, unknown>;
+  activeField: string | null;
+  sourceConnectionId?: string | null;
+  at?: string;
+};
+
 @Component({
     selector: 'app-planning-dashboard',
     imports: [
@@ -195,6 +238,7 @@ export class PlanningDashboardComponent {
   private readonly data = inject(PlanningDataService);
   private readonly debug = inject(PlanningDebugService);
   private readonly debugStream = inject(PlanningDebugStreamService);
+  private readonly realtime = inject(PlanningRealtimeService);
   private readonly apiConfig = inject(API_CONFIG);
   private readonly identity = inject(ClientIdentityService);
   private readonly route = inject(ActivatedRoute);
@@ -238,6 +282,66 @@ export class PlanningDashboardComponent {
   private readonly debugTopicFilterSignal = signal<string[]>([]);
   private readonly debugStreamTokenStorageKey = 'coreplanx-debug-stream-token';
   private readonly debugStreamTokenSignal = signal(this.loadDebugStreamToken());
+  private readonly presenceMapSignal = signal<Map<string, PlanningPresenceUser>>(new Map());
+  private readonly ghostMapSignal = signal<Record<PlanningStageId, Map<string, PlanningDragGhostEvent>>>({
+    base: new Map(),
+    operations: new Map(),
+  });
+  private readonly lockMapSignal = signal<Record<PlanningStageId, Map<string, PlanningLockUpdate>>>({
+    base: new Map(),
+    operations: new Map(),
+  });
+  private readonly cursorMapSignal = signal<Record<PlanningStageId, Map<string, PlanningCursorUpdate>>>({
+    base: new Map(),
+    operations: new Map(),
+  });
+  private readonly selectionMapSignal = signal<Record<PlanningStageId, Map<string, SharedSelectionState>>>({
+    base: new Map(),
+    operations: new Map(),
+  });
+  private readonly editMapSignal = signal<Record<PlanningStageId, Map<string, SharedEditState>>>({
+    base: new Map(),
+    operations: new Map(),
+  });
+  private readonly editFieldOrder = [
+    'type',
+    'start',
+    'end',
+    'durationMinutes',
+    'from',
+    'to',
+    'remark',
+    'linkedServiceId',
+  ];
+  private readonly editFieldLabels: Record<string, string> = {
+    type: 'Typ',
+    start: 'Start',
+    end: 'Ende',
+    durationMinutes: 'Dauer',
+    from: 'Von',
+    to: 'Nach',
+    remark: 'Bemerkung',
+    linkedServiceId: 'Dienst',
+  };
+  private lastSelectionSignature: string | null = null;
+  private lastSelectionStage: PlanningStageId | null = null;
+  private lastEditActivityId: string | null = null;
+  private lastEditStage: PlanningStageId | null = null;
+  private lastEditFormValue: Record<string, unknown> | null = null;
+  private pendingCursorPayload: {
+    stageId: PlanningStageId;
+    time: Date | null;
+    resourceId: string | null;
+  } | null = null;
+  private cursorSendHandle: number | null = null;
+  private lastDraftGhostState: {
+    stageId: PlanningStageId;
+    activityId: string;
+    resourceId: string;
+    start: string;
+    end: string | null;
+  } | null = null;
+  private lastDraftSignature: string | null = null;
   private readonly debugTimestampFormatter = new Intl.DateTimeFormat('de-DE', {
     dateStyle: 'short',
     timeStyle: 'medium',
@@ -414,6 +518,20 @@ export class PlanningDashboardComponent {
   protected readonly solverPreviewActivities = computed(() =>
     this.buildPreviewActivities(this.solverPreviewState()?.payload ?? null),
   );
+  protected readonly ghostPreviewActivities = computed(() =>
+    this.buildGhostActivities(this.activeStageSignal()),
+  );
+  protected readonly ganttPreviewActivities = computed(() => [
+    ...this.solverPreviewActivities(),
+    ...this.ghostPreviewActivities(),
+  ]);
+  protected readonly activityLocks = computed(() => this.buildActivityLocks(this.activeStageSignal()));
+  protected readonly sharedActivitySelections = computed(() =>
+    this.buildSharedActivitySelections(this.activeStageSignal()),
+  );
+  protected readonly remoteCursors = computed(() => this.buildRemoteCursors(this.activeStageSignal()));
+  protected readonly remoteEditorsForSelected = computed(() => this.buildRemoteEditorsForSelected());
+  protected readonly presenceUsers = computed(() => Array.from(this.presenceMapSignal().values()));
   protected readonly solverDrawerOpen = computed(() => this.solverDrawerOpenSignal());
   protected readonly debugDrawerOpen = computed(() => this.debugDrawerOpenSignal());
   protected readonly debugShowAll = computed(() => this.debugShowAllSignal());
@@ -708,6 +826,8 @@ export class PlanningDashboardComponent {
   >();
   private readonly lastViewportByBoard = new Map<string, PlanningTimelineRange>();
   private lastActivityErrorMessage: string | null = null;
+  private readonly dragPreviewThrottleMs = 80;
+  private lastDragPreviewAt = 0;
 
   @ViewChild('typeSearchInput') private readonly typeSearchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('typeMenuTrigger') private readonly typeMenuTrigger?: MatMenuTrigger;
@@ -855,6 +975,13 @@ export class PlanningDashboardComponent {
 
     this.destroyRef.onDestroy(() => {
       this.debugStream.disconnect();
+      if (this.cursorSendHandle !== null) {
+        if (typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(this.cursorSendHandle);
+        }
+        clearTimeout(this.cursorSendHandle);
+        this.cursorSendHandle = null;
+      }
     });
 
     effect(() => {
@@ -876,6 +1003,115 @@ export class PlanningDashboardComponent {
         return;
       }
       this.data.setStageViewport(stage, viewport, board.resourceIds);
+    });
+
+    this.realtime
+      .presence()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((payload) => this.applyPresencePayload(payload));
+
+    this.realtime
+      .dragGhosts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((payload) => this.applyDragGhostPayload(payload));
+
+    this.realtime
+      .locks()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((payload) => this.applyLockPayload(payload));
+
+    this.realtime
+      .cursor()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((payload) => this.applyCursorPayload(payload));
+
+    this.realtime
+      .selections()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((payload) => this.applySelectionPayload(payload));
+
+    this.realtime
+      .editUpdates()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((payload) => this.applyEditPayload(payload));
+
+    effect(() => {
+      const stage = this.activeStageSignal();
+      const activeBoardId = this.stageStore.stageState(stage)().activeBoardId ?? null;
+      this.realtime.updatePresence({ stageId: stage, boardId: activeBoardId });
+    });
+
+    effect(() => {
+      const stage = this.activeStageSignal();
+      const selectedIds = this.activitySelection.selectedActivityIds();
+      const selectionState = this.activitySelection.selectedActivityState();
+      const slot = this.activitySelection.selectedActivitySlot();
+      const editActivityId = selectionState?.activity?.id ?? null;
+      const primaryId = editActivityId ?? slot?.activityId ?? null;
+      const merged = new Set<string>(selectedIds);
+      if (editActivityId) {
+        merged.add(editActivityId);
+      }
+      const activityIds = Array.from(merged);
+      const signatureIds = [...activityIds].sort((a, b) => a.localeCompare(b));
+      const mode = editActivityId ? 'edit' : 'select';
+      const signature = `${stage}|${mode}|${primaryId ?? ''}|${signatureIds.join(',')}`;
+
+      if (this.lastSelectionStage && this.lastSelectionStage !== stage) {
+        this.realtime.sendSelection({
+          stageId: this.lastSelectionStage,
+          activityIds: [],
+          primaryId: null,
+          mode: 'select',
+        });
+      }
+
+      if (signature !== this.lastSelectionSignature) {
+        this.lastSelectionSignature = signature;
+        this.lastSelectionStage = stage;
+        this.realtime.sendSelection({
+          stageId: stage,
+          activityIds,
+          primaryId,
+          mode,
+        });
+      }
+    });
+
+    effect(() => {
+      const stage = this.activeStageSignal();
+      const selection = this.activitySelection.selectedActivityState();
+      const activityId = selection?.activity?.id ?? null;
+      if (this.lastEditActivityId && (activityId !== this.lastEditActivityId || stage !== this.lastEditStage)) {
+        this.realtime.sendEditUpdate({
+          stageId: this.lastEditStage ?? stage,
+          activityId: this.lastEditActivityId,
+          state: 'end',
+        });
+      }
+      if (activityId && (activityId !== this.lastEditActivityId || stage !== this.lastEditStage)) {
+        this.realtime.sendEditUpdate({
+          stageId: stage,
+          activityId,
+          state: 'start',
+        });
+      }
+      this.lastEditActivityId = activityId;
+      this.lastEditStage = stage;
+      if (!activityId) {
+        this.lastEditFormValue = null;
+      } else {
+        this.lastEditFormValue = this.activityForm.getRawValue() as Record<string, unknown>;
+      }
+    });
+
+    this.activityForm.valueChanges
+      .pipe(debounceTime(120), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => this.handleEditFormChange(value as Record<string, unknown>));
+
+    effect(() => {
+      const pending = this.pendingActivitySignal();
+      this.syncDraftGhost(pending);
     });
 
     this.data.setAutopilotSuppressed(true);
@@ -1900,7 +2136,13 @@ export class PlanningDashboardComponent {
 
   protected handleActivityCreate(event: { resource: Resource; start: Date }): void { this.activityHandlers.handleActivityCreate(event); }
 
-  protected handleActivityEdit(event: { resource: Resource; activity: Activity }): void { this.activityHandlers.handleActivityEdit(event); }
+  protected handleActivityEdit(event: { resource: Resource; activity: Activity }): void {
+    if (this.isGhostDraftActivity(event.activity)) {
+      this.handleGhostDraftEdit(event);
+      return;
+    }
+    this.activityHandlers.handleActivityEdit(event);
+  }
 
   protected handleActivitySelectionToggle(event: {
     resource: Resource;
@@ -1920,6 +2162,73 @@ export class PlanningDashboardComponent {
       this.selectionHandlers.clearSelectedActivity();
       this.selectionHandlers.toggleSelection(event);
     });
+  }
+
+  protected handleCursorMoved(payload: { time: Date | null; resourceId: string | null }): void {
+    const stageId = this.activeStageSignal();
+    this.pendingCursorPayload = {
+      stageId,
+      time: payload.time ? new Date(payload.time) : null,
+      resourceId: payload.resourceId ?? null,
+    };
+    if (this.cursorSendHandle !== null) {
+      return;
+    }
+    const flush = () => {
+      this.cursorSendHandle = null;
+      const next = this.pendingCursorPayload;
+      this.pendingCursorPayload = null;
+      if (!next) {
+        return;
+      }
+      this.realtime.sendCursor({
+        stageId: next.stageId,
+        userId: this.identity.userId(),
+        time: next.time ? next.time.toISOString() : null,
+        resourceId: next.resourceId ?? null,
+      });
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      this.cursorSendHandle = requestAnimationFrame(flush);
+    } else {
+      this.cursorSendHandle = setTimeout(flush, 60);
+    }
+  }
+
+  protected handleEditFieldFocus(field: string): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
+    this.realtime.sendEditUpdate({
+      stageId: this.activeStageSignal(),
+      activityId: selection.activity.id,
+      field,
+      value: this.readFormFieldValue(field),
+      state: 'focus',
+    });
+  }
+
+  protected handleEditFieldBlur(field: string): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return;
+    }
+    this.realtime.sendEditUpdate({
+      stageId: this.activeStageSignal(),
+      activityId: selection.activity.id,
+      field,
+      value: this.readFormFieldValue(field),
+      state: 'blur',
+    });
+  }
+
+  protected handleEditFieldOpened(field: string, opened: boolean): void {
+    if (opened) {
+      this.handleEditFieldFocus(field);
+    } else {
+      this.handleEditFieldBlur(field);
+    }
   }
 
   protected handleActivityReposition(event: {
@@ -1946,6 +2255,31 @@ export class PlanningDashboardComponent {
     isOwnerSlot?: boolean;
   }): void {
     this.selectionHandlers.handleCopy(event);
+  }
+
+  protected handleActivityDragPreview(event: ActivityDragPreviewPayload): void {
+    if (!event?.activity?.id) {
+      return;
+    }
+    if (event.state === 'move' && !event.isValid) {
+      return;
+    }
+    const now = Date.now();
+    if (event.state === 'move' && now - this.lastDragPreviewAt < this.dragPreviewThrottleMs) {
+      return;
+    }
+    this.lastDragPreviewAt = now;
+    this.realtime.sendDragGhost({
+      stageId: this.activeStageSignal(),
+      userId: this.identity.userId(),
+      activityId: event.activity.id,
+      resourceId: event.targetResourceId,
+      start: event.start.toISOString(),
+      end: event.end ? event.end.toISOString() : null,
+      mode: event.mode,
+      state: event.state,
+      isValid: event.isValid,
+    });
   }
 
   protected clearActivitySelection(): void { this.selectionHandlers.clearActivitySelection(); }
@@ -2423,6 +2757,862 @@ export class PlanningDashboardComponent {
     return shouldShowEndField(definition);
   }
 
+  private applyPresencePayload(
+    payload: PlanningPresenceSnapshot | PlanningPresenceUpdate | null | undefined,
+  ): void {
+    if (!payload) {
+      return;
+    }
+    if (Array.isArray((payload as PlanningPresenceSnapshot).users)) {
+      const snapshot = payload as PlanningPresenceSnapshot;
+      const map = new Map<string, PlanningPresenceUser>();
+      snapshot.users.forEach((user) => {
+        if (!user?.userId) {
+          return;
+        }
+        map.set(user.userId, {
+          userId: user.userId,
+          name: user.name ?? null,
+          color: user.color ?? null,
+          tabCount: user.tabCount ?? 0,
+        });
+      });
+      this.presenceMapSignal.set(map);
+      return;
+    }
+    const update = payload as PlanningPresenceUpdate;
+    if (!update.userId) {
+      return;
+    }
+    this.presenceMapSignal.update((current) => {
+      const next = new Map(current);
+      const existing = next.get(update.userId);
+      const nextCount =
+        typeof update.tabCount === 'number' ? update.tabCount : existing?.tabCount ?? 1;
+      if (nextCount <= 0) {
+        next.delete(update.userId);
+        return next;
+      }
+      next.set(update.userId, {
+        userId: update.userId,
+        name: update.name ?? existing?.name ?? null,
+        color: update.color ?? existing?.color ?? null,
+        tabCount: nextCount,
+      });
+      return next;
+    });
+  }
+
+  private applyDragGhostPayload(payload: PlanningDragGhostEvent | null | undefined): void {
+    if (!payload?.stageId) {
+      return;
+    }
+    const connectionId = this.realtime.connectionId();
+    if (payload.sourceConnectionId && connectionId && payload.sourceConnectionId === connectionId) {
+      return;
+    }
+    const key =
+      payload.mode === 'create'
+        ? payload.activityId
+        : payload.sourceConnectionId ?? payload.userId ?? payload.activityId;
+    if (!key) {
+      return;
+    }
+    const shouldRemove = payload.state === 'end' || payload.isValid === false;
+    this.ghostMapSignal.update((current) => {
+      const nextStageMap = new Map(current[payload.stageId] ?? []);
+      if (shouldRemove) {
+        nextStageMap.delete(key);
+      } else {
+        nextStageMap.set(key, this.enrichGhostPayload(payload));
+      }
+      return {
+        ...current,
+        [payload.stageId]: nextStageMap,
+      };
+    });
+  }
+
+  private applyLockPayload(payload: PlanningLockUpdate | null | undefined): void {
+    if (!payload?.stageId || !payload.activityId) {
+      return;
+    }
+    if (payload.userId && payload.userId === this.identity.userId()) {
+      return;
+    }
+    this.lockMapSignal.update((current) => {
+      const nextStageMap = new Map(current[payload.stageId] ?? []);
+      if (payload.state === 'released') {
+        nextStageMap.delete(payload.activityId);
+      } else {
+        nextStageMap.set(payload.activityId, this.enrichLockPayload(payload));
+      }
+      return {
+        ...current,
+        [payload.stageId]: nextStageMap,
+      };
+    });
+  }
+
+  private applyCursorPayload(payload: PlanningCursorUpdate | null | undefined): void {
+    if (!payload?.stageId) {
+      return;
+    }
+    const connectionId = this.realtime.connectionId();
+    if (payload.sourceConnectionId && connectionId && payload.sourceConnectionId === connectionId) {
+      return;
+    }
+    const key = payload.sourceConnectionId ?? payload.userId ?? null;
+    if (!key) {
+      return;
+    }
+    const shouldRemove = !payload.time;
+    this.cursorMapSignal.update((current) => {
+      const nextStageMap = new Map(current[payload.stageId] ?? []);
+      if (shouldRemove) {
+        nextStageMap.delete(key);
+      } else {
+        nextStageMap.set(key, this.enrichCursorPayload(payload));
+      }
+      return {
+        ...current,
+        [payload.stageId]: nextStageMap,
+      };
+    });
+  }
+
+  private applySelectionPayload(
+    payload: PlanningSelectionSnapshot | PlanningSelectionUpdate | null | undefined,
+  ): void {
+    if (!payload) {
+      return;
+    }
+    const connectionId = this.realtime.connectionId();
+    if (Array.isArray((payload as PlanningSelectionSnapshot).selections)) {
+      const snapshot = payload as PlanningSelectionSnapshot;
+      const base = new Map<string, SharedSelectionState>();
+      const operations = new Map<string, SharedSelectionState>();
+      snapshot.selections.forEach((entry) => {
+        if (!entry?.stageId) {
+          return;
+        }
+        if (entry.sourceConnectionId && connectionId && entry.sourceConnectionId === connectionId) {
+          return;
+        }
+        const key = entry.sourceConnectionId ?? entry.userId ?? null;
+        if (!key) {
+          return;
+        }
+        const map = entry.stageId === 'base' ? base : operations;
+        map.set(key, this.enrichSelectionPayload(entry));
+      });
+      this.selectionMapSignal.set({ base, operations });
+      return;
+    }
+    const update = payload as PlanningSelectionUpdate;
+    if (!update.stageId) {
+      return;
+    }
+    if (update.sourceConnectionId && connectionId && update.sourceConnectionId === connectionId) {
+      return;
+    }
+    const key = update.sourceConnectionId ?? update.userId ?? null;
+    if (!key) {
+      return;
+    }
+    const shouldRemove = (!update.activityIds || update.activityIds.length === 0) && !update.primaryId;
+    this.selectionMapSignal.update((current) => {
+      const nextStageMap = new Map(current[update.stageId] ?? []);
+      if (shouldRemove) {
+        nextStageMap.delete(key);
+      } else {
+        nextStageMap.set(key, this.enrichSelectionPayload(update));
+      }
+      return {
+        ...current,
+        [update.stageId]: nextStageMap,
+      };
+    });
+  }
+
+  private applyEditPayload(
+    payload: PlanningEditSnapshot | PlanningEditUpdate | null | undefined,
+  ): void {
+    if (!payload) {
+      return;
+    }
+    const connectionId = this.realtime.connectionId();
+    if (Array.isArray((payload as PlanningEditSnapshot).edits)) {
+      const snapshot = payload as PlanningEditSnapshot;
+      const base = new Map<string, SharedEditState>();
+      const operations = new Map<string, SharedEditState>();
+      snapshot.edits.forEach((entry) => {
+        if (!entry?.stageId || !entry.activityId) {
+          return;
+        }
+        if (entry.sourceConnectionId && connectionId && entry.sourceConnectionId === connectionId) {
+          return;
+        }
+        const key = entry.sourceConnectionId ?? entry.userId ?? null;
+        if (!key) {
+          return;
+        }
+        const map = entry.stageId === 'base' ? base : operations;
+        map.set(
+          key,
+          this.enrichEditPayload({
+            stageId: entry.stageId,
+            activityId: entry.activityId,
+            userId: entry.userId ?? key,
+            name: entry.name ?? null,
+            color: entry.color ?? null,
+            fields: entry.fields ?? {},
+            activeField: entry.field ?? null,
+            sourceConnectionId: entry.sourceConnectionId ?? null,
+            at: entry.at ?? undefined,
+          }),
+        );
+      });
+      this.editMapSignal.set({ base, operations });
+      return;
+    }
+    const update = payload as PlanningEditUpdate;
+    if (!update.stageId || !update.activityId) {
+      return;
+    }
+    if (update.sourceConnectionId && connectionId && update.sourceConnectionId === connectionId) {
+      return;
+    }
+    const key = update.sourceConnectionId ?? update.userId ?? null;
+    if (!key) {
+      return;
+    }
+    this.editMapSignal.update((current) => {
+      const nextStageMap = new Map(current[update.stageId] ?? []);
+      if (update.state === 'end') {
+        nextStageMap.delete(key);
+      } else {
+        const existing = nextStageMap.get(key);
+        const fields = { ...(existing?.fields ?? {}) };
+        if (update.fields && Object.keys(update.fields).length > 0) {
+          Object.assign(fields, update.fields);
+        } else if (update.field) {
+          fields[update.field] = update.value ?? null;
+        }
+        const activeField = update.state === 'blur' ? null : update.field ?? existing?.activeField ?? null;
+        nextStageMap.set(
+          key,
+          this.enrichEditPayload({
+            stageId: update.stageId,
+            activityId: update.activityId,
+            userId: update.userId ?? existing?.userId ?? key,
+            name: update.name ?? existing?.name ?? null,
+            color: update.color ?? existing?.color ?? null,
+            fields,
+            activeField,
+            sourceConnectionId: update.sourceConnectionId ?? existing?.sourceConnectionId ?? null,
+            at: update.at ?? existing?.at ?? undefined,
+          }),
+        );
+      }
+      return {
+        ...current,
+        [update.stageId]: nextStageMap,
+      };
+    });
+  }
+
+  private handleEditFormChange(value: Record<string, unknown>): void {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      this.lastEditFormValue = value;
+      return;
+    }
+    if (!this.activityForm.dirty) {
+      this.lastEditFormValue = value;
+      return;
+    }
+    const previous = this.lastEditFormValue ?? {};
+    const updates: Array<{ field: string; value: unknown }> = [];
+    this.editFieldOrder.forEach((field) => {
+      const before = this.normalizeEditValue(previous[field]);
+      const after = this.normalizeEditValue(value[field]);
+      if (before !== after) {
+        updates.push({ field, value: value[field] ?? null });
+      }
+    });
+    if (updates.length === 0) {
+      this.lastEditFormValue = value;
+      return;
+    }
+    const stageId = this.activeStageSignal();
+    const activityId = selection.activity.id;
+    updates.forEach((update) => {
+      this.realtime.sendEditUpdate({
+        stageId,
+        activityId,
+        field: update.field,
+        value: update.value,
+        state: 'change',
+      });
+    });
+    this.lastEditFormValue = value;
+  }
+
+  private syncDraftGhost(pending: PendingActivityState | null): void {
+    if (!pending?.activity) {
+      this.clearDraftGhost();
+      return;
+    }
+    const stageId = pending.stage;
+    const activity = pending.activity;
+    if (!activity?.id || !activity.start) {
+      return;
+    }
+    const resourceId =
+      this.activityOwnerId(activity) ?? activity.participants?.[0]?.resourceId ?? null;
+    if (!resourceId) {
+      return;
+    }
+    if (
+      this.lastDraftGhostState &&
+      (this.lastDraftGhostState.activityId !== activity.id ||
+        this.lastDraftGhostState.stageId !== stageId)
+    ) {
+      this.clearDraftGhost();
+    }
+    const signature = this.buildDraftSignature(stageId, activity);
+    if (signature === this.lastDraftSignature) {
+      return;
+    }
+    const state = this.lastDraftGhostState ? 'move' : 'start';
+    this.realtime.sendDragGhost({
+      stageId,
+      userId: this.identity.userId(),
+      activityId: activity.id,
+      resourceId,
+      start: activity.start,
+      end: activity.end ?? null,
+      mode: 'create',
+      state,
+      isValid: true,
+      draftActivity: this.buildDraftGhostActivity(activity),
+    });
+    this.lastDraftGhostState = {
+      stageId,
+      activityId: activity.id,
+      resourceId,
+      start: activity.start,
+      end: activity.end ?? null,
+    };
+    this.lastDraftSignature = signature;
+  }
+
+  private clearDraftGhost(): void {
+    if (!this.lastDraftGhostState) {
+      return;
+    }
+    this.realtime.sendDragGhost({
+      stageId: this.lastDraftGhostState.stageId,
+      userId: this.identity.userId(),
+      activityId: this.lastDraftGhostState.activityId,
+      resourceId: this.lastDraftGhostState.resourceId,
+      start: this.lastDraftGhostState.start,
+      end: this.lastDraftGhostState.end ?? null,
+      mode: 'create',
+      state: 'end',
+      isValid: true,
+    });
+    this.lastDraftGhostState = null;
+    this.lastDraftSignature = null;
+  }
+
+  private buildDraftSignature(stageId: PlanningStageId, activity: Activity): string {
+    const participants = activity.participants ?? [];
+    const participantsKey = participants
+      .map((participant) =>
+        `${participant.resourceId}|${participant.kind}|${participant.role ?? ''}`,
+      )
+      .sort()
+      .join(';');
+    const attrs =
+      activity.attributes && typeof activity.attributes === 'object' && !Array.isArray(activity.attributes)
+        ? JSON.stringify(activity.attributes)
+        : '';
+    return [
+      stageId,
+      activity.id,
+      activity.start,
+      activity.end ?? '',
+      activity.type ?? '',
+      activity.title ?? '',
+      activity.from ?? '',
+      activity.to ?? '',
+      activity.remark ?? '',
+      activity.serviceId ?? '',
+      activity.serviceCategory ?? '',
+      activity.serviceRole ?? '',
+      activity.locationId ?? '',
+      activity.locationLabel ?? '',
+      participantsKey,
+      attrs,
+    ].join('|');
+  }
+
+  private buildDraftGhostActivity(activity: Activity): Activity {
+    return this.stripGhostAttributes(activity);
+  }
+
+  private stripGhostAttributes(activity: Activity): Activity {
+    const attrs = activity.attributes;
+    if (!attrs || typeof attrs !== 'object' || Array.isArray(attrs)) {
+      return activity;
+    }
+    const next = { ...(attrs as Record<string, unknown>) };
+    delete next['ghost'];
+    Object.keys(next).forEach((key) => {
+      if (key.startsWith('ghost_') || key.startsWith('draft_')) {
+        delete next[key];
+      }
+    });
+    if (Object.keys(next).length === 0) {
+      return { ...activity, attributes: undefined };
+    }
+    return { ...activity, attributes: next };
+  }
+
+  private readFormFieldValue(field: string): unknown {
+    const control = this.activityForm.get(field);
+    return control ? control.value : null;
+  }
+
+  private enrichGhostPayload(payload: PlanningDragGhostEvent): PlanningDragGhostEvent {
+    if (payload.name && payload.color) {
+      return payload;
+    }
+    const presence = this.presenceMapSignal().get(payload.userId);
+    if (!presence) {
+      return payload;
+    }
+    return {
+      ...payload,
+      name: payload.name ?? presence.name ?? null,
+      color: payload.color ?? presence.color ?? null,
+    };
+  }
+
+  private enrichLockPayload(payload: PlanningLockUpdate): PlanningLockUpdate {
+    if (payload.name && payload.color) {
+      return payload;
+    }
+    const presence = this.presenceMapSignal().get(payload.userId);
+    if (!presence) {
+      return payload;
+    }
+    return {
+      ...payload,
+      name: payload.name ?? presence.name ?? null,
+      color: payload.color ?? presence.color ?? null,
+    };
+  }
+
+  private enrichCursorPayload(payload: PlanningCursorUpdate): PlanningCursorUpdate {
+    if (payload.name && payload.color) {
+      return payload;
+    }
+    const presence = this.presenceMapSignal().get(payload.userId);
+    if (!presence) {
+      return payload;
+    }
+    return {
+      ...payload,
+      name: payload.name ?? presence.name ?? null,
+      color: payload.color ?? presence.color ?? null,
+    };
+  }
+
+  private enrichSelectionPayload(payload: PlanningSelectionUpdate): SharedSelectionState {
+    const presence = payload.userId ? this.presenceMapSignal().get(payload.userId) : null;
+    return {
+      stageId: payload.stageId,
+      activityIds: Array.isArray(payload.activityIds) ? payload.activityIds : [],
+      primaryId: payload.primaryId ?? null,
+      userId: payload.userId ?? presence?.userId ?? 'unknown',
+      name: payload.name ?? presence?.name ?? null,
+      color: payload.color ?? presence?.color ?? null,
+      mode: payload.mode ?? 'select',
+      sourceConnectionId: payload.sourceConnectionId ?? null,
+      at: payload.at ?? undefined,
+    };
+  }
+
+  private enrichEditPayload(payload: SharedEditState): SharedEditState {
+    if (payload.name && payload.color) {
+      return payload;
+    }
+    const presence = this.presenceMapSignal().get(payload.userId);
+    if (!presence) {
+      return payload;
+    }
+    return {
+      ...payload,
+      name: payload.name ?? presence.name ?? null,
+      color: payload.color ?? presence.color ?? null,
+    };
+  }
+
+  private normalizeEditValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value.toString() : '';
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  private buildSharedActivitySelections(stage: PlanningStageId): Map<string, ActivitySelectionInfo> {
+    const selections = this.selectionMapSignal()[stage];
+    const edits = this.editMapSignal()[stage];
+    if ((!selections || selections.size === 0) && (!edits || edits.size === 0)) {
+      return new Map();
+    }
+    const aggregate = new Map<
+      string,
+      {
+        label: string;
+        color: string | null;
+        isEditing: boolean;
+        count: number;
+        primaryLabel: string;
+        primaryColor: string | null;
+      }
+    >();
+
+    const addEntry = (activityId: string, label: string, color: string | null, isEditing: boolean) => {
+      const safeLabel = label.trim().length ? label.trim() : 'Nutzer';
+      const existing = aggregate.get(activityId);
+      if (!existing) {
+        aggregate.set(activityId, {
+          label: safeLabel,
+          color,
+          isEditing,
+          count: 1,
+          primaryLabel: safeLabel,
+          primaryColor: color,
+        });
+        return;
+      }
+      existing.count += 1;
+      if (isEditing && !existing.isEditing) {
+        existing.isEditing = true;
+        existing.primaryLabel = safeLabel;
+        existing.primaryColor = color;
+      }
+      existing.label =
+        existing.count > 1 ? `${existing.primaryLabel} +${existing.count - 1}` : existing.primaryLabel;
+      existing.color = existing.primaryColor;
+      aggregate.set(activityId, existing);
+    };
+
+    selections?.forEach((entry) => {
+      const ids = Array.isArray(entry.activityIds) ? entry.activityIds : [];
+      const primaryId = entry.primaryId ?? null;
+      const label = entry.name ?? entry.userId ?? 'Nutzer';
+      const color = entry.color ?? null;
+      const mode = entry.mode ?? 'select';
+      const activityIds = ids.length ? [...ids] : [];
+      if (primaryId && !activityIds.includes(primaryId)) {
+        activityIds.push(primaryId);
+      }
+      activityIds.forEach((id) => {
+        if (!id) {
+          return;
+        }
+        const isEditing = mode === 'edit' && primaryId === id;
+        addEntry(id, label, color, isEditing);
+      });
+    });
+
+    edits?.forEach((entry) => {
+      if (!entry.activityId) {
+        return;
+      }
+      const label = entry.name ?? entry.userId ?? 'Bearbeitung';
+      addEntry(entry.activityId, label, entry.color ?? null, true);
+    });
+
+    const result = new Map<string, ActivitySelectionInfo>();
+    aggregate.forEach((entry, activityId) => {
+      result.set(activityId, {
+        label: entry.label,
+        color: entry.color ?? null,
+        isEditing: entry.isEditing,
+      });
+    });
+    return result;
+  }
+
+  private buildRemoteCursors(stage: PlanningStageId): GanttRemoteCursor[] {
+    const cursors = this.cursorMapSignal()[stage];
+    if (!cursors || cursors.size === 0) {
+      return [];
+    }
+    const list: GanttRemoteCursor[] = [];
+    cursors.forEach((cursor, key) => {
+      if (!cursor?.time) {
+        return;
+      }
+      const time = new Date(cursor.time);
+      if (!Number.isFinite(time.getTime())) {
+        return;
+      }
+      const label = (cursor.name ?? cursor.userId ?? '').trim();
+      list.push({
+        id: key,
+        time,
+        label: label.length ? label : undefined,
+        color: cursor.color ?? null,
+        resourceId: cursor.resourceId ?? null,
+      });
+    });
+    return list.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
+  }
+
+  private buildRemoteEditorsForSelected(): Array<{
+    key: string;
+    label: string;
+    color: string | null;
+    activeFieldLabel: string | null;
+    fields: Array<{ key: string; label: string; value: string }>;
+  }> {
+    const selection = this.activitySelection.selectedActivityState();
+    if (!selection) {
+      return [];
+    }
+    const edits = this.editMapSignal()[this.activeStageSignal()];
+    if (!edits || edits.size === 0) {
+      return [];
+    }
+    const activityId = selection.activity.id;
+    const entries: Array<{
+      key: string;
+      label: string;
+      color: string | null;
+      activeFieldLabel: string | null;
+      fields: Array<{ key: string; label: string; value: string }>;
+    }> = [];
+    edits.forEach((entry, key) => {
+      if (entry.activityId !== activityId) {
+        return;
+      }
+      const label = (entry.name ?? entry.userId ?? 'Nutzer').trim();
+      entries.push({
+        key,
+        label: label.length ? label : 'Nutzer',
+        color: entry.color ?? null,
+        activeFieldLabel: entry.activeField ? this.formatEditFieldLabel(entry.activeField) : null,
+        fields: this.formatEditFields(entry.fields ?? {}),
+      });
+    });
+    return entries.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  private formatEditFields(fields: Record<string, unknown>): Array<{ key: string; label: string; value: string }> {
+    const keys = Object.keys(fields);
+    if (keys.length === 0) {
+      return [];
+    }
+    const ordered = [
+      ...this.editFieldOrder.filter((field) => keys.includes(field)),
+      ...keys.filter((field) => !this.editFieldOrder.includes(field)),
+    ];
+    return ordered.map((field) => ({
+      key: field,
+      label: this.formatEditFieldLabel(field),
+      value: this.formatEditFieldValue(field, fields[field]),
+    }));
+  }
+
+  private formatEditFieldLabel(field: string): string {
+    return this.editFieldLabels[field] ?? field;
+  }
+
+  private formatEditFieldValue(field: string, value: unknown): string {
+    if (value === null || value === undefined || value === '') {
+      return '—';
+    }
+    if (field === 'durationMinutes') {
+      const num = typeof value === 'number' ? value : Number.parseFloat(String(value));
+      if (Number.isFinite(num)) {
+        return `${num} min`;
+      }
+    }
+    if (field === 'start' || field === 'end') {
+      if (typeof value === 'string') {
+        const parsed = fromLocalDateTime(value);
+        if (parsed && Number.isFinite(parsed.getTime())) {
+          return this.selectionTimeFormatter.format(parsed);
+        }
+      }
+      if (value instanceof Date && Number.isFinite(value.getTime())) {
+        return this.selectionTimeFormatter.format(value);
+      }
+    }
+    if (typeof value === 'string') {
+      return value.trim().length ? value.trim() : '—';
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value.toString() : '—';
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  private buildGhostActivities(stage: PlanningStageId): Activity[] {
+    const ghostMap = this.ghostMapSignal()[stage];
+    if (!ghostMap || ghostMap.size === 0) {
+      return [];
+    }
+    const resources = this.stageResourceSignals[stage]();
+    if (resources.length === 0) {
+      return [];
+    }
+    const resourceMap = new Map(resources.map((resource) => [resource.id, resource]));
+    const result: Activity[] = [];
+    ghostMap.forEach((ghost, key) => {
+      if (!ghost?.start || !ghost.activityId || ghost.state === 'end' || ghost.isValid === false) {
+        return;
+      }
+      const draft = ghost.draftActivity ?? null;
+      const ownerId =
+        ghost.resourceId ?? (draft ? this.activityOwnerId(draft) : null) ?? null;
+      const resource = ownerId ? resourceMap.get(ownerId) : null;
+      if (!resource) {
+        return;
+      }
+      const label = `${draft?.title ?? ghost.name ?? ghost.userId ?? 'Bearbeitung'}`.trim();
+      const isDraft = ghost.mode === 'create';
+      const ghostId = isDraft ? ghost.activityId : `ghost:${ghost.activityId}:${key}`;
+      const participants =
+        draft?.participants && draft.participants.length
+          ? draft.participants
+          : [{ resourceId: resource.id, kind: resource.kind }];
+      const draftAttributes =
+        draft?.attributes && typeof draft.attributes === 'object' && !Array.isArray(draft.attributes)
+          ? draft.attributes
+          : null;
+      result.push({
+        ...(draft ?? {}),
+        id: ghostId,
+        title: label.length ? label : 'Bearbeitung',
+        start: draft?.start ?? ghost.start,
+        end: draft?.end ?? ghost.end ?? null,
+        participants,
+        attributes: {
+          ...(draftAttributes ?? {}),
+          ghost: true,
+          ghost_user: ghost.userId,
+          ghost_name: ghost.name ?? null,
+          ghost_color: ghost.color ?? null,
+          ghost_activity_id: ghost.activityId,
+          ghost_key: key,
+          ghost_mode: ghost.mode ?? null,
+        },
+      });
+    });
+    return result;
+  }
+
+  private isGhostDraftActivity(activity: Activity): boolean {
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    if (!attrs || attrs['ghost'] !== true) {
+      return false;
+    }
+    const mode = typeof attrs['ghost_mode'] === 'string' ? attrs['ghost_mode'] : null;
+    return mode === 'create';
+  }
+
+  private handleGhostDraftEdit(event: { resource: Resource; activity: Activity }): void {
+    const stage = this.activeStageSignal();
+    const entry = this.resolveGhostEntry(stage, event.activity);
+    if (!entry || entry.mode !== 'create') {
+      return;
+    }
+    const draft = entry.draftActivity ?? event.activity;
+    const cleaned = this.stripGhostAttributes(draft);
+    const resourceId = entry.resourceId ?? this.activityOwnerId(cleaned) ?? event.resource.id;
+    const resource =
+      this.stageResourceSignals[stage]().find((item) => item.id === resourceId) ?? event.resource;
+    this.confirmDiscardActivityEdits(() => {
+      this.pendingActivityOriginal.set(cleaned);
+      this.pendingFacade.startPendingActivity(stage, resource, cleaned);
+    });
+  }
+
+  private resolveGhostEntry(
+    stage: PlanningStageId,
+    activity: Activity,
+  ): PlanningDragGhostEvent | null {
+    const ghostMap = this.ghostMapSignal()[stage];
+    if (!ghostMap || ghostMap.size === 0) {
+      return null;
+    }
+    const attrs = activity.attributes as Record<string, unknown> | undefined;
+    const ghostKey = typeof attrs?.['ghost_key'] === 'string' ? attrs['ghost_key'] : null;
+    const ghostActivityId =
+      typeof attrs?.['ghost_activity_id'] === 'string' ? attrs['ghost_activity_id'] : null;
+    if (ghostKey && ghostMap.has(ghostKey)) {
+      const entry = ghostMap.get(ghostKey) ?? null;
+      if (!entry) {
+        return null;
+      }
+      if (!ghostActivityId || entry.activityId === ghostActivityId) {
+        return entry;
+      }
+    }
+    if (ghostActivityId) {
+      for (const entry of ghostMap.values()) {
+        if (entry.activityId === ghostActivityId) {
+          return entry;
+        }
+      }
+    }
+    return null;
+  }
+
+  private buildActivityLocks(stage: PlanningStageId): Map<string, ActivityLockInfo> {
+    const locks = this.lockMapSignal()[stage];
+    if (!locks || locks.size === 0) {
+      return new Map();
+    }
+    const map = new Map<string, ActivityLockInfo>();
+    locks.forEach((lock, activityId) => {
+      if (!lock || lock.state !== 'locked') {
+        return;
+      }
+      const label = (lock.name ?? lock.userId ?? '').trim();
+      if (!label) {
+        return;
+      }
+      map.set(activityId, {
+        label,
+        color: lock.color ?? null,
+      });
+    });
+    return map;
+  }
+
   private normalizeActivityList(list: Activity[]): Activity[] {
     return normalizeActivityList(list, {
       catalogMap: () => this.activityCatalogOptionMap(),
@@ -2724,6 +3914,20 @@ export class PlanningDashboardComponent {
       return 'Fehler';
     }
     return 'Warte';
+  }
+
+  protected formatPresenceLabel(users: PlanningPresenceUser[]): string {
+    if (!users.length) {
+      return '—';
+    }
+    const entries = [...users].sort((a, b) => (a.name ?? a.userId).localeCompare(b.name ?? b.userId));
+    return entries
+      .map((user) => {
+        const label = user.name?.trim().length ? user.name.trim() : user.userId;
+        const count = user.tabCount > 1 ? ` (${user.tabCount})` : '';
+        return `${label}${count}`;
+      })
+      .join(', ');
   }
 
   protected formatDebugContext(context?: Record<string, unknown>): string | null {

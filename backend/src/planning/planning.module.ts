@@ -34,6 +34,7 @@ import { PlanningOptimizationService } from './planning-optimization.service';
 import { PlanningSolverService } from './planning-solver.service';
 import { PlanningAdminController } from './planning-admin.controller';
 import { PlanningAdminService } from './planning-admin.service';
+import { PlanningGanttGateway } from './planning-gantt.gateway';
 
 @Module({
   imports: [forwardRef(() => TemplateModule), DebugModule],
@@ -51,6 +52,7 @@ import { PlanningAdminService } from './planning-admin.service';
     PlanningOptimizationController,
   ],
   providers: [
+    PlanningGanttGateway,
     PlanningService,
     PlanningStageService,
     PlanningMasterDataService,

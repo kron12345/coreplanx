@@ -350,6 +350,7 @@ export class PlanningOptimizationService {
         'activity',
         'base',
         variantId,
+        undefined,
       );
       templateActivities = this.mapTimelineActivities(
         timeline.activities ?? [],

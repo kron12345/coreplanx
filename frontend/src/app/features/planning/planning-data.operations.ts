@@ -69,6 +69,7 @@ export class PlanningOperationsDataController {
       api: ActivityApiService;
       debug: PlanningDebugService;
       identity: ClientIdentityService;
+      realtimeConnectionId?: () => string | null;
       stageDataSignal: WritableSignalLike<Record<PlanningStageId, PlanningStageData>>;
       stageViewportSignal: WritableSignalLike<StageViewportMap>;
       syncingActivityIdsSignal: WritableSignalLike<Record<PlanningStageId, ReadonlySet<string>>>;
@@ -202,7 +203,7 @@ export class PlanningOperationsDataController {
     if (!event) {
       return;
     }
-    const connectionId = this.deps.identity.connectionId();
+    const connectionId = this.deps.realtimeConnectionId?.() ?? this.deps.identity.connectionId();
     const userId = this.deps.identity.userId();
     if (event.sourceConnectionId && event.sourceConnectionId === connectionId) {
       return;
