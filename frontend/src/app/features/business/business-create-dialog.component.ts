@@ -88,7 +88,7 @@ export class BusinessCreateDialogComponent {
 
   save(): void {
     if (this.mode.value === 'template') {
-      this.saveFromTemplate();
+      void this.saveFromTemplate();
       return;
     }
 
@@ -114,7 +114,7 @@ export class BusinessCreateDialogComponent {
     this.dialogRef.close(payload);
   }
 
-  private saveFromTemplate() {
+  private async saveFromTemplate() {
     if (this.templateForm.invalid) {
       this.templateForm.markAllAsTouched();
       return;
@@ -124,7 +124,7 @@ export class BusinessCreateDialogComponent {
     const note = value.note?.trim() || undefined;
     const linked = value.linkedOrderItemId ? [value.linkedOrderItemId] : undefined;
     try {
-      this.templateService.instantiateTemplate(value.templateId!, {
+      await this.templateService.instantiateTemplate(value.templateId!, {
         targetDate,
         note,
         linkedOrderItemIds: linked,

@@ -53,8 +53,8 @@ export class BusinessTemplatePanelComponent {
     });
   }
 
-  instantiateTemplate(templateId: string) {
-    const business = this.templateService.instantiateTemplate(templateId, {
+  async instantiateTemplate(templateId: string) {
+    const business = await this.templateService.instantiateTemplate(templateId, {
       targetDate: new Date(),
     });
     this.snackBar.open(`Geschäft "${business.title}" erstellt.`, 'OK', { duration: 2000 });
@@ -89,7 +89,7 @@ export class BusinessTemplatePanelComponent {
     if (!confirmed) {
       return;
     }
-    this.templateService.deleteCustomPhaseTemplate(phaseId);
+    void this.templateService.deleteCustomPhaseTemplate(phaseId);
     this.snackBar.open('Phase gelöscht.', 'OK', { duration: 2000 });
   }
 

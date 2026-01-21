@@ -28,7 +28,7 @@ export class BusinessCreateFromTemplateComponent {
     note: ['', Validators.maxLength(280)],
   });
 
-  submit(): void {
+  async submit(): Promise<void> {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -39,7 +39,7 @@ export class BusinessCreateFromTemplateComponent {
     const note = value.note?.trim();
     const linked = value.linkedOrderItemId ? [value.linkedOrderItemId] : undefined;
     try {
-      this.templateService.instantiateTemplate(templateId, {
+      await this.templateService.instantiateTemplate(templateId, {
         targetDate,
         note,
         linkedOrderItemIds: linked,

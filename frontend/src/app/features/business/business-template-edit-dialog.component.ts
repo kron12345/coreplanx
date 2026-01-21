@@ -146,14 +146,14 @@ export class BusinessTemplateEditDialogComponent {
     });
   }
 
-  save(): void {
+  async save(): Promise<void> {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
     const value = this.form.value;
     const tags = this.normalizeTags(value.tags ?? '');
-    const success = this.templateService.updateTemplate(this.data.template.id, {
+    const success = await this.templateService.updateTemplate(this.data.template.id, {
       title: value.title?.trim(),
       description: value.description?.trim(),
       instructions: value.instructions?.trim()?.length ? value.instructions.trim() : undefined,

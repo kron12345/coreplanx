@@ -1,4 +1,5 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import {
   ScheduleTemplate,
   ScheduleTemplateCategory,
@@ -6,7 +7,7 @@ import {
   ScheduleTemplateStatus,
   ScheduleTemplateStop,
 } from '../models/schedule-template.model';
-import { MOCK_SCHEDULE_TEMPLATES } from '../mock/mock-schedule-templates.mock';
+import { ScheduleTemplateApiService } from '../api/schedule-template-api.service';
 
 export interface ScheduleTemplateFilters {
   search: string;
@@ -50,8 +51,8 @@ export interface CreateScheduleTemplatePayload {
   responsibleRu: string;
   category: ScheduleTemplateCategory;
   status: ScheduleTemplateStatus;
-  startDate: Date;
-  endDate?: Date | null;
+  startDate: string | Date;
+  endDate?: string | Date | null;
   tags?: string[];
   recurrence?: {
     startTime: string;
@@ -65,9 +66,9 @@ export interface CreateScheduleTemplatePayload {
 
 @Injectable({ providedIn: 'root' })
 export class ScheduleTemplateService {
-  private readonly _templates = signal<ScheduleTemplate[]>(
-    MOCK_SCHEDULE_TEMPLATES,
-  );
+  private readonly api = inject(ScheduleTemplateApiService);
+  private readonly _templates = signal<ScheduleTemplate[]>([]);
+  private readonly loading = signal(false);
   private readonly _filters = signal<ScheduleTemplateFilters>({
     search: '',
     status: 'all',
@@ -136,7 +137,9 @@ export class ScheduleTemplateService {
       .sort((a, b) => this.sortTemplates(a, b, sort));
   });
 
-  constructor() {}
+  constructor() {
+    void this.loadFromApi();
+  }
 
   setFilters(patch: Partial<ScheduleTemplateFilters>) {
     this._filters.update((current) => ({ ...current, ...patch }));
@@ -160,64 +163,51 @@ export class ScheduleTemplateService {
     return this.templateIndex().get(id);
   }
 
-  createTemplate(payload: CreateScheduleTemplatePayload): ScheduleTemplate {
-    const id = this.generateTemplateId();
-    const now = new Date().toISOString();
-    const stops = payload.stops.map((stop, index) =>
-      this.createStopFromPayload(id, index, stop),
-    );
-    const template: ScheduleTemplate = {
-      id,
-      title: payload.title,
-      description: payload.description,
-      trainNumber: payload.trainNumber,
-      responsibleRu: payload.responsibleRu,
-      category: payload.category,
-      status: payload.status,
-      tags: payload.tags?.length ? Array.from(new Set(payload.tags)) : undefined,
-      validity: {
-        startDate: payload.startDate.toISOString().slice(0, 10),
-        endDate: payload.endDate
-          ? payload.endDate.toISOString().slice(0, 10)
-          : undefined,
-      },
-      createdAt: now,
-      updatedAt: now,
-      recurrence: undefined,
-      stops,
-      composition: payload.composition,
-    };
-
-    this._templates.update((templates) => [template, ...templates]);
-    return template;
+  async loadFromApi(force = false): Promise<void> {
+    if (this.loading() && !force) {
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const templates = await this.fetchAllTemplates();
+      this._templates.set(templates);
+    } catch (error) {
+      console.warn(
+        '[ScheduleTemplateService] Failed to load templates from backend',
+        error,
+      );
+    } finally {
+      this.loading.set(false);
+    }
   }
 
-  updateTemplateFromPayload(templateId: string, payload: CreateScheduleTemplatePayload): void {
-    const stops = payload.stops.map((stop, index) =>
-      this.createStopFromPayload(templateId, index, stop),
-    );
-    this.updateTemplate(templateId, {
-      title: payload.title,
-      description: payload.description,
-      trainNumber: payload.trainNumber,
-      responsibleRu: payload.responsibleRu,
-      category: payload.category,
-      status: payload.status,
-      tags: payload.tags?.length ? Array.from(new Set(payload.tags)) : undefined,
-      validity: {
-        startDate: payload.startDate.toISOString().slice(0, 10),
-        endDate: payload.endDate ? payload.endDate.toISOString().slice(0, 10) : undefined,
-      },
-      recurrence: undefined,
-      stops,
-      composition: payload.composition,
-    });
+  async createTemplate(
+    payload: CreateScheduleTemplatePayload,
+  ): Promise<ScheduleTemplate> {
+    const created = await firstValueFrom(this.api.createTemplate(payload));
+    this.replaceTemplate(created, true);
+    return created;
   }
 
-  updateTemplate(
+  async updateTemplateFromPayload(
+    templateId: string,
+    payload: CreateScheduleTemplatePayload,
+  ): Promise<ScheduleTemplate | undefined> {
+    const updated = await firstValueFrom(
+      this.api.updateTemplate(templateId, payload),
+    );
+    this.replaceTemplate(updated);
+    return updated;
+  }
+
+  async updateTemplate(
     templateId: string,
     patch: Partial<Omit<ScheduleTemplate, 'id' | 'createdAt'>>,
-  ) {
+  ): Promise<void> {
+    const payload = this.toUpdatePayload(patch);
+    if (!Object.keys(payload).length) {
+      return;
+    }
     this._templates.update((templates) =>
       templates.map((template) =>
         template.id === templateId
@@ -229,6 +219,14 @@ export class ScheduleTemplateService {
           : template,
       ),
     );
+    try {
+      const updated = await firstValueFrom(
+        this.api.updateTemplate(templateId, payload),
+      );
+      this.replaceTemplate(updated);
+    } catch (error) {
+      console.warn('[ScheduleTemplateService] Failed to update template', error);
+    }
   }
 
   stopsWithTimeline(template: ScheduleTemplate) {
@@ -237,6 +235,105 @@ export class ScheduleTemplateService {
       arrivalLabel: this.windowLabel(stop.arrival),
       departureLabel: this.windowLabel(stop.departure),
     }));
+  }
+
+  private async fetchAllTemplates(): Promise<ScheduleTemplate[]> {
+    const templates: ScheduleTemplate[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const response = await firstValueFrom(
+        this.api.searchTemplates({ page, pageSize: 200 }),
+      );
+      templates.push(...(response.templates ?? []));
+      hasMore = response.hasMore;
+      page += 1;
+      if (!response.pageSize) {
+        break;
+      }
+    }
+    return templates;
+  }
+
+  private replaceTemplate(template: ScheduleTemplate, prepend = false): void {
+    this._templates.update((templates) => {
+      const index = templates.findIndex((entry) => entry.id === template.id);
+      if (index === -1) {
+        return prepend ? [template, ...templates] : [...templates, template];
+      }
+      const next = [...templates];
+      next[index] = template;
+      return next;
+    });
+  }
+
+  private toUpdatePayload(
+    patch: Partial<Omit<ScheduleTemplate, 'id' | 'createdAt'>>,
+  ): Partial<CreateScheduleTemplatePayload> {
+    const payload: Partial<CreateScheduleTemplatePayload> = {};
+    if (patch.title !== undefined) {
+      payload.title = patch.title;
+    }
+    if (patch.description !== undefined) {
+      payload.description = patch.description;
+    }
+    if (patch.trainNumber !== undefined) {
+      payload.trainNumber = patch.trainNumber;
+    }
+    if (patch.responsibleRu !== undefined) {
+      payload.responsibleRu = patch.responsibleRu;
+    }
+    if (patch.status !== undefined) {
+      payload.status = patch.status;
+    }
+    if (patch.category !== undefined) {
+      payload.category = patch.category;
+    }
+    if (patch.tags !== undefined) {
+      payload.tags = this.normalizeTags(patch.tags);
+    }
+    if (patch.validity) {
+      payload.startDate = patch.validity.startDate;
+      payload.endDate = patch.validity.endDate ?? null;
+    }
+    if (patch.recurrence !== undefined) {
+      payload.recurrence = patch.recurrence;
+    }
+    if (patch.stops !== undefined) {
+      payload.stops = patch.stops.map((stop) => this.toStopPayload(stop));
+    }
+    if (patch.composition !== undefined) {
+      payload.composition = patch.composition;
+    }
+    return payload;
+  }
+
+  private toStopPayload(
+    stop: ScheduleTemplateStop,
+  ): CreateScheduleTemplateStopPayload {
+    return {
+      type: stop.type,
+      locationCode: stop.locationCode,
+      locationName: stop.locationName,
+      countryCode: stop.countryCode,
+      arrivalEarliest: stop.arrival?.earliest,
+      arrivalLatest: stop.arrival?.latest,
+      departureEarliest: stop.departure?.earliest,
+      departureLatest: stop.departure?.latest,
+      offsetDays: stop.offsetDays,
+      dwellMinutes: stop.dwellMinutes,
+      activities: stop.activities ?? [],
+      platformWish: stop.platformWish,
+      notes: stop.notes,
+    };
+  }
+
+  private normalizeTags(tags?: string[]): string[] | undefined {
+    if (!tags?.length) {
+      return undefined;
+    }
+    const cleaned = tags.map((tag) => tag.trim()).filter(Boolean);
+    return cleaned.length ? Array.from(new Set(cleaned)) : undefined;
   }
 
   private windowLabel(
@@ -344,8 +441,4 @@ export class ScheduleTemplateService {
     return `${h}:${m}`;
   }
 
-  private generateTemplateId(): string {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    return `TPL-${timestamp}`;
-  }
 }

@@ -1,4 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { Order, OrderProcessStatus } from '../models/order.model';
 import {
   OrderItem,
@@ -6,7 +7,7 @@ import {
   InternalProcessingStatus,
 } from '../models/order-item.model';
 import { TimetablePhase } from '../models/timetable.model';
-import { MOCK_ORDERS } from '../mock/mock-orders.mock';
+import { OrderApiService, OrderUpsertPayload } from '../api/order-api.service';
 import {
   CreatePlansFromTemplatePayload,
   PlanModificationStopInput,
@@ -33,7 +34,6 @@ import {
   OrderTtrPhaseMeta,
   TTR_PHASE_META,
 } from './orders/order-filters.model';
-import { parseSearchTokens } from './orders/order-filter.utils';
 import { detectFilterStorage, persistFilters, restoreFilters } from './orders/order-filter.storage';
 import { OrderVariantsManager, OrderVariantMergeResult } from './orders/order-variants.manager';
 import { OrderPlanLinkManager } from './orders/order-plan-link.manager';
@@ -68,7 +68,6 @@ import {
   normalizeItemsAfterChange,
 } from './orders/order-normalize.utils';
 import { OrderFilterEngine } from './orders/order-filter.engine';
-import { matchesOrder } from './orders/order-search.utils';
 import { OrderStoreHelper } from './orders/order-store.utils';
 import {
   generateItemId,
@@ -254,9 +253,21 @@ export interface SplitOrderItemPayload {
 
 @Injectable({ providedIn: 'root' })
 export class OrderService {
-  private readonly _orders = signal<Order[]>(MOCK_ORDERS);
+  private readonly _orders = signal<Order[]>([]);
   private readonly _filters = signal<OrderFilters>({ ...DEFAULT_ORDER_FILTERS });
   private readonly browserStorage = detectFilterStorage();
+  private readonly loading = signal(false);
+  private readonly hasMore = signal(false);
+  private readonly total = signal(0);
+  private readonly pageSize = signal(30);
+  private readonly currentPage = signal(1);
+  private fetchToken = 0;
+  private readonly orderItemsLoaded = new Set<string>();
+  private readonly orderItemsLoading = new Set<string>();
+  private orderItemsFetchToken = 0;
+  private readonly orderItemsPageSize = 200;
+  private readonly pendingSaves = new Map<string, Order>();
+  private persistTimer: number | null = null;
   private readonly variants: OrderVariantsManager;
   private readonly planLinks: OrderPlanLinkManager;
   private readonly planHub: OrderPlanHubHelper;
@@ -273,31 +284,18 @@ export class OrderService {
   constructor(
     private readonly trainPlanService: TrainPlanService,
     private readonly customerService: CustomerService,
+    private readonly orderApi: OrderApiService,
     private readonly timetableService: TimetableService,
     private readonly trafficPeriodService: TrafficPeriodService,
     private readonly timetableYearService: TimetableYearService,
     private readonly timetableHubService: TimetableHubService,
   ) {
-    const bootstrapTimetableYearHelper = new OrderTimetableYearHelper(
-      this.trafficPeriodService,
-      this.timetableYearService,
-      () => this._orders(),
-    );
-    this._orders.set(
-      this._orders().map((order) =>
-        initializeOrder(order, {
-          customerService: this.customerService,
-          timetableYearService: this.timetableYearService,
-          getItemTimetableYear: (item) => bootstrapTimetableYearHelper.getItemTimetableYear(item),
-        }),
-      ),
-    );
     const restoredFilters = restoreFilters(this.browserStorage);
     if (restoredFilters) {
       this._filters.set(restoredFilters);
     }
     this.store = new OrderStoreHelper({
-      setOrders: (updater) => this._orders.update(updater),
+      setOrders: (updater) => this.updateOrders(updater),
       timetableYearService: this.timetableYearService,
     });
     const factories = this.initializeFactories();
@@ -311,8 +309,7 @@ export class OrderService {
     this.planFactory = factories.planFactory;
     this.variants = new OrderVariantsManager({
       trainPlanService: this.trainPlanService,
-      updateOrder: (orderId, updater) =>
-        this._orders.update((orders) => orders.map((ord) => (ord.id === orderId ? updater(ord) : ord))),
+      updateOrder: (orderId, updater) => this.updateOrder(orderId, updater),
       appendItems: (orderId, items) => this.appendItems(orderId, items),
       markSimulationMerged: (orderId, simId, targetId, status) =>
         this.markSimulationMerged(orderId, simId, targetId, status),
@@ -358,10 +355,15 @@ export class OrderService {
         ),
       findItemById: (id) => this.getOrderItemById(id),
     });
+
+    void this.refreshOrders();
   }
 
   readonly filters = computed(() => this._filters());
   readonly orders = computed(() => this._orders());
+  readonly totalCount = computed(() => this.total());
+  readonly hasMoreOrders = computed(() => this.hasMore());
+  readonly isLoading = computed(() => this.loading());
   readonly orderItems = computed(() =>
     this._orders().flatMap((order) =>
       order.items.map((item) => ({
@@ -390,36 +392,165 @@ export class OrderService {
     return { reference, map };
   });
 
-  readonly filteredOrders = computed(() => {
-    const filters = this._filters();
-    const searchTokens = parseSearchTokens(filters.search);
-    const itemFiltersActive =
-      filters.timeRange !== 'all' ||
-      filters.trainStatus !== 'all' ||
-      filters.businessStatus !== 'all' ||
-      filters.internalStatus !== 'all' ||
-      filters.trainNumber.trim() !== '' ||
-      filters.timetableYearLabel !== 'all' ||
-      filters.ttrPhase !== 'all' ||
-      Boolean(filters.fpRangeStart) ||
-      Boolean(filters.fpRangeEnd) ||
-      Boolean(filters.linkedBusinessId);
+  readonly filteredOrders = computed(() => this._orders());
 
-    return this._orders().filter((order) => {
-      if (
-        !matchesOrder(order, filters, searchTokens, {
-          getItemTimetableYear: (item) => this.timetableYearHelper.getItemTimetableYear(item),
-        })
-      ) {
-        return false;
+  async refreshOrders(force = false): Promise<void> {
+    if (this.loading() && !force) {
+      return;
+    }
+    this.currentPage.set(1);
+    await this.fetchOrders(1, false);
+  }
+
+  async loadMoreOrders(): Promise<void> {
+    if (this.loading() || !this.hasMore()) {
+      return;
+    }
+    await this.fetchOrders(this.currentPage() + 1, true);
+  }
+
+  async ensureOrderItemsLoaded(orderId: string): Promise<void> {
+    if (this.orderItemsLoaded.has(orderId) || this.orderItemsLoading.has(orderId)) {
+      return;
+    }
+    const order = this.getOrderById(orderId);
+    if (!order) {
+      return;
+    }
+    const requestToken = this.orderItemsFetchToken;
+    this.orderItemsLoading.add(orderId);
+    try {
+      const items = await this.fetchAllOrderItems(orderId, requestToken);
+      if (requestToken !== this.orderItemsFetchToken) {
+        return;
       }
-      const filteredItems = this.filterItemsForOrder(order);
-      if (itemFiltersActive && filteredItems.length === 0) {
-        return false;
+      this._orders.update((orders) =>
+        orders.map((entry) =>
+          entry.id === orderId ? { ...entry, items } : entry,
+        ),
+      );
+      items.forEach((item) =>
+        this.syncTimetableCalendarArtifacts(item.generatedTimetableRefId),
+      );
+      this.orderItemsLoaded.add(orderId);
+    } catch (error) {
+      console.warn('[OrderService] Failed to load order items from backend', error);
+    } finally {
+      this.orderItemsLoading.delete(orderId);
+    }
+  }
+
+  private async fetchOrders(page: number, append: boolean): Promise<void> {
+    if (this.loading()) {
+      return;
+    }
+    this.loading.set(true);
+    const requestId = (this.fetchToken += 1);
+    try {
+      const response = await firstValueFrom(
+        this.orderApi.searchOrders({
+          filters: this._filters(),
+          page,
+          pageSize: this.pageSize(),
+        }),
+      );
+      if (requestId !== this.fetchToken) {
+        return;
       }
-      return true;
-    });
-  });
+      const orders = (response.orders ?? []).map((order) =>
+        this.normalizeOrderFromApi(order),
+      );
+      this.total.set(response.total ?? orders.length);
+      this.hasMore.set(Boolean(response.hasMore));
+      this.currentPage.set(response.page ?? page);
+      this._orders.update((current) =>
+        append ? this.appendOrders(current, orders) : orders,
+      );
+      this.syncCalendarArtifactsForOrders(orders);
+    } catch (error) {
+      console.warn('[OrderService] Failed to load orders from backend', error);
+    } finally {
+      if (requestId === this.fetchToken) {
+        this.loading.set(false);
+      }
+    }
+  }
+
+  private async fetchAllOrderItems(orderId: string, requestToken: number): Promise<OrderItem[]> {
+    const items: OrderItem[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const response = await firstValueFrom(
+        this.orderApi.searchOrderItems(orderId, {
+          filters: this._filters(),
+          page,
+          pageSize: this.orderItemsPageSize,
+        }),
+      );
+      if (requestToken !== this.orderItemsFetchToken) {
+        return [];
+      }
+      const pageItems = (response.items ?? []).map((item) =>
+        this.normalizeOrderItem(item),
+      );
+      items.push(...pageItems);
+      hasMore = Boolean(response.hasMore);
+      page += 1;
+      if (!response.pageSize) {
+        break;
+      }
+    }
+    return items;
+  }
+
+  private appendOrders(current: Order[], incoming: Order[]): Order[] {
+    if (!incoming.length) {
+      return current;
+    }
+    const existingIds = new Set(current.map((order) => order.id));
+    const additions = incoming.filter((order) => !existingIds.has(order.id));
+    return [...current, ...additions];
+  }
+
+  private normalizeOrderFromApi(order: Order): Order {
+    const items = (order.items ?? []).map((item) =>
+      this.normalizeOrderItem(item),
+    );
+    return initializeOrder(
+      {
+        ...order,
+        items,
+      },
+      {
+        customerService: this.customerService,
+        timetableYearService: this.timetableYearService,
+        getItemTimetableYear: (item) =>
+          this.timetableYearHelper.getItemTimetableYear(item),
+      },
+    );
+  }
+
+  private normalizeOrderItem(item: OrderItem): OrderItem {
+    const validity = Array.isArray(item.validity)
+      ? (item.validity as OrderItemValiditySegment[])
+      : undefined;
+    return {
+      ...item,
+      validity,
+      tags: item.tags?.length ? item.tags : undefined,
+      linkedBusinessIds: item.linkedBusinessIds ?? [],
+      versionPath: item.versionPath ?? [],
+    };
+  }
+
+  private syncCalendarArtifactsForOrders(orders: Order[]): void {
+    orders.forEach((order) =>
+      order.items.forEach((item) =>
+        this.syncTimetableCalendarArtifacts(item.generatedTimetableRefId),
+      ),
+    );
+  }
 
   setFilter(patch: Partial<OrderFilters>) {
     this._filters.update((f) => {
@@ -427,6 +558,8 @@ export class OrderService {
       persistFilters(this.browserStorage, next);
       return next;
     });
+    this.resetOrderItemCache();
+    void this.refreshOrders();
   }
 
   clearLinkedBusinessFilter(): void {
@@ -435,6 +568,51 @@ export class OrderService {
       persistFilters(this.browserStorage, next);
       return next;
     });
+    this.resetOrderItemCache();
+    void this.refreshOrders();
+  }
+
+  private resetOrderItemCache(): void {
+    this.orderItemsLoaded.clear();
+    this.orderItemsLoading.clear();
+    this.orderItemsFetchToken += 1;
+  }
+
+  private updateOrders(
+    updater: (orders: Order[]) => Order[],
+    options: { persist?: boolean } = {},
+  ): void {
+    const changedIds: string[] = [];
+    this._orders.update((orders) => {
+      const next = updater(orders);
+      const previousById = new Map(orders.map((order) => [order.id, order]));
+      next.forEach((order) => {
+        const previous = previousById.get(order.id);
+        if (!previous || previous !== order) {
+          changedIds.push(order.id);
+        }
+      });
+      return next;
+    });
+    if (options.persist !== false) {
+      this.queuePersistOrders(changedIds);
+    }
+  }
+
+  private updateOrder(orderId: string, updater: (order: Order) => Order): void {
+    let updated = false;
+    this.updateOrders((orders) =>
+      orders.map((order) => {
+        if (order.id !== orderId) {
+          return order;
+        }
+        updated = true;
+        return updater(order);
+      }),
+    );
+    if (!updated) {
+      throw new Error(`Auftrag ${orderId} wurde nicht gefunden.`);
+    }
   }
 
   hasActiveFilters(snapshot: OrderFilters = this._filters()): boolean {
@@ -470,9 +648,48 @@ export class OrderService {
     return undefined;
   }
 
+  private queuePersistOrders(orderIds: Iterable<string>): void {
+    const ids = Array.from(orderIds);
+    if (!ids.length) {
+      return;
+    }
+    ids.forEach((id) => {
+      const order = this.getOrderById(id);
+      if (order) {
+        this.pendingSaves.set(id, order);
+      }
+    });
+    if (this.persistTimer !== null) {
+      return;
+    }
+    this.persistTimer = window.setTimeout(() => {
+      this.persistTimer = null;
+      void this.flushPersistQueue();
+    }, 400);
+  }
+
+  private async flushPersistQueue(): Promise<void> {
+    if (!this.pendingSaves.size) {
+      return;
+    }
+    const entries = Array.from(this.pendingSaves.values());
+    this.pendingSaves.clear();
+    for (const order of entries) {
+      await this.persistOrder(order);
+    }
+  }
+
+  private async persistOrder(order: Order): Promise<void> {
+    try {
+      const payload = this.toOrderPayload(order);
+      await firstValueFrom(this.orderApi.upsertOrder(order.id, payload));
+    } catch (error) {
+      console.warn('[OrderService] Failed to persist order', error);
+    }
+  }
+
   filterItemsForOrder(order: Order): OrderItem[] {
-    const filters = this._filters();
-    return this.filterEngine.filterItemsForOrder(order, filters);
+    return order.items;
   }
 
   getItemReferenceDate(
@@ -523,7 +740,7 @@ export class OrderService {
       processStatus: 'auftrag',
     };
 
-    this._orders.update((orders) => [order, ...orders]);
+    this.updateOrders((orders) => [order, ...orders]);
     return order;
   }
 
@@ -701,6 +918,32 @@ export class OrderService {
     this.statusManager.submitOrderItems(orderId, itemIds);
   }
 
+  private toOrderPayload(order: Order): OrderUpsertPayload {
+    return {
+      order: {
+        id: order.id,
+        name: order.name,
+        customerId: order.customerId,
+        customer: order.customer,
+        tags: order.tags,
+        comment: order.comment,
+        timetableYearLabel: order.timetableYearLabel,
+        processStatus: order.processStatus,
+      },
+      items: order.items.map((item) => this.toOrderItemPayload(item)),
+    };
+  }
+
+  private toOrderItemPayload(item: OrderItem): OrderItem {
+    return {
+      ...item,
+      tags: item.tags?.length ? item.tags : undefined,
+      linkedBusinessIds: item.linkedBusinessIds ?? [],
+      validity: item.validity?.length ? item.validity : undefined,
+      versionPath: item.versionPath ?? [],
+    };
+  }
+
   private appendItems(orderId: string, items: OrderItem[]) {
     this.store.appendItems(orderId, items);
   }
@@ -793,7 +1036,7 @@ export class OrderService {
     });
 
     const itemSplitManager = new OrderItemSplitManager({
-      updateOrders: (updater) => this._orders.update(updater),
+      updateOrders: (updater) => this.updateOrders(updater),
       getOrderById: (orderId) => this.getOrderById(orderId),
       trafficPeriodService: this.trafficPeriodService,
       timetableYearService: this.timetableYearService,
@@ -802,7 +1045,7 @@ export class OrderService {
     });
 
     const statusManager = new OrderStatusManager({
-      updateOrders: (updater) => this._orders.update(updater),
+      updateOrders: (updater) => this.updateOrders(updater),
       updateItem: (itemId, updater) => this.updateItem(itemId, updater),
       getOrderById: (orderId) => this.getOrderById(orderId),
       ordersProvider: () => this._orders(),
@@ -815,7 +1058,7 @@ export class OrderService {
     const linkingHelper = new OrderLinkingHelper((itemId, updater) => this.updateItem(itemId, updater));
 
     const planModificationManager = new OrderPlanModificationManager({
-      updateOrders: (updater) => this._orders.update(updater),
+      updateOrders: (updater) => this.updateOrders(updater),
       getOrderById: (orderId) => this.getOrderById(orderId),
       trainPlanService: this.trainPlanService,
       timetableFactory,

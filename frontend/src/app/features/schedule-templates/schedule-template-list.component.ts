@@ -163,9 +163,12 @@ export class ScheduleTemplateListComponent {
         return;
       }
       if (result.mode === 'edit') {
-        this.templateService.updateTemplateFromPayload(result.templateId, result.payload);
+        void this.templateService.updateTemplateFromPayload(
+          result.templateId,
+          result.payload,
+        );
       } else {
-        this.templateService.createTemplate(result.payload);
+        void this.templateService.createTemplate(result.payload);
       }
     });
   }

@@ -2,7 +2,9 @@
   <section class="orders-hero">
     <div class="orders-hero__body">
       <div class="orders-hero__lead">
-        <p class="orders-hero__eyebrow">Pipeline · {{ heroMetrics().totalOrders }} aktiv</p>
+        <p class="orders-hero__eyebrow">
+          Pipeline · {{ orders().length }} von {{ totalOrders() }} aktiv
+        </p>
         <h1>Aufträge</h1>
         <p class="orders-hero__subtitle">
           {{ heroMetrics().totalOrders }} Aufträge mit {{ heroMetrics().totalItems }} Positionen ·
@@ -251,7 +253,7 @@
               <span>Aktive Filter</span>
               <span class="filter-count">
                 <mat-icon>list_alt</mat-icon>
-                {{ orders().length }} Ergebnisse
+                {{ orders().length }} von {{ totalOrders() }} Ergebnisse
               </span>
             </div>
           </div>
@@ -493,6 +495,13 @@
           }
         }
       </div>
+      @if (!isViewTransitioning() && hasMoreOrders()) {
+        <div class="load-more">
+          <button mat-stroked-button color="primary" type="button" (click)="loadMoreOrders()">
+            Mehr laden ({{ orders().length }}/{{ totalOrders() }})
+          </button>
+        </div>
+      }
     }
   </div>
 </div>

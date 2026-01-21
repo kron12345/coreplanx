@@ -22,7 +22,10 @@
   </mat-tab>
   @if (showAdminTab) {
     <mat-tab label="Admin">
-      <app-planning-admin-settings></app-planning-admin-settings>
+      <div class="admin-stack">
+        <app-planning-admin-settings></app-planning-admin-settings>
+        <app-order-management-admin-settings></app-order-management-admin-settings>
+      </div>
     </mat-tab>
   }
 </mat-tab-group>

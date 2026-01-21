@@ -17,16 +17,16 @@ export class TtrBusinessAutomationService {
     effect(() => {
       const snapshot = this.orderService.itemTtrPhaseIndex();
       snapshot.map.forEach((phase, itemId) => {
-        this.handlePhaseChange(itemId, phase, snapshot.reference);
+        void this.handlePhaseChange(itemId, phase, snapshot.reference);
       });
     });
   }
 
-  private handlePhaseChange(
+  private async handlePhaseChange(
     itemId: string,
     phase: OrderTtrPhase,
     reference: OrderTimelineReference,
-  ) {
+  ): Promise<void> {
     if (phase === 'unknown') {
       return;
     }
@@ -68,7 +68,7 @@ export class TtrBusinessAutomationService {
       const ids = new Set(existing.linkedOrderItemIds ?? []);
       if (!ids.has(itemId)) {
         ids.add(itemId);
-        this.businessService.setLinkedOrderItems(existing.id, Array.from(ids) as string[]);
+        await this.businessService.setLinkedOrderItems(existing.id, Array.from(ids) as string[]);
         this.templateService.logAutomationRun(
           `phase-${definition.id}`,
           templateId,
@@ -79,7 +79,7 @@ export class TtrBusinessAutomationService {
       return;
     }
 
-    const business = this.templateService.instantiateTemplate(templateId, {
+    const business = await this.templateService.instantiateTemplate(templateId, {
       targetDate,
       linkedOrderItemIds: [itemId],
       customTitle: `${definition.template.title} · ${definition.label}`,

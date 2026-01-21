@@ -130,6 +130,14 @@ export class OrderCardComponent {
         this.autoExpandedByFilter.set(false);
       }
     });
+
+    effect(() => {
+      const order = this.orderSignal();
+      if (!order || !this.expanded()) {
+        return;
+      }
+      void this.orderService.ensureOrderItemsLoaded(order.id);
+    });
   }
 
   openPositionDialog(event: MouseEvent) {
@@ -149,14 +157,7 @@ export class OrderCardComponent {
       return [];
     }
     const provided = this.itemsSignal();
-    const base = provided ?? this.orderService.filterItemsForOrder(order);
-    const filters = this.filters();
-    if (filters.businessStatus === 'all') {
-      return base;
-    }
-    return base.filter((item) =>
-      this.itemMatchesBusinessStatus(item, filters.businessStatus as BusinessStatus),
-    );
+    return provided ?? this.orderService.filterItemsForOrder(order);
   }
 
   toggleSelectionMode(event: MouseEvent) {
@@ -641,18 +642,6 @@ export class OrderCardComponent {
 
   private stripStatusPrefix(value: string): string {
     return value.startsWith('status-') ? value.slice('status-'.length) : value;
-  }
-
-  private itemMatchesBusinessStatus(
-    item: OrderItem,
-    status: BusinessStatus,
-  ): boolean {
-    const ids = item.linkedBusinessIds ?? [];
-    if (!ids.length) {
-      return false;
-    }
-    const businesses = this.businessService.getByIds(ids);
-    return businesses.some((b) => b.status === status);
   }
 
   isPhaseActive(status: string): boolean {

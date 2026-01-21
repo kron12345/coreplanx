@@ -83,9 +83,12 @@ export class ScheduleTemplateHubComponent {
         return;
       }
       if (result.mode === 'edit') {
-        this.scheduleService.updateTemplateFromPayload(result.templateId, result.payload);
+        void this.scheduleService.updateTemplateFromPayload(
+          result.templateId,
+          result.payload,
+        );
       } else {
-        this.scheduleService.createTemplate(result.payload);
+        void this.scheduleService.createTemplate(result.payload);
       }
     });
   }

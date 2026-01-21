@@ -1,0 +1,1058 @@
+customers:
+  - id: cust-db-001
+    name: DB Fernverkehr
+    customerNumber: C-90001
+    projectNumber: P-23-ICE
+    address: Europa-Allee 78, 60486 Frankfurt
+    notes: Rahmenvertrag fuer Fernverkehrstrassen, jaehrliche Abrufe.
+    contacts:
+      - id: dbf-contact-1
+        name: Andrea Fuchs
+        role: Projektleitung
+        email: andrea.fuchs@dbfernverkehr.de
+        phone: +49 69 1234 5678
+      - id: dbf-contact-2
+        name: Silvan Lauterbach
+        role: Disposition
+        email: silvan.lauterbach@dbfernverkehr.de
+        phone: +49 69 9876 5432
+  - id: cust-sbb-001
+    name: SBB Personenverkehr
+    customerNumber: C-74015
+    projectNumber: P-24-CH-Sprinter
+    address: Zollstrasse 60, 8005 Zuerich
+    notes: Projekt mit Fokus auf Nachtverbindungen, monatliche Statuscalls.
+    contacts:
+      - id: sbb-contact-1
+        name: Nora Widmer
+        role: Key Account
+        email: nora.widmer@sbb.ch
+        phone: +41 44 123 45 67
+  - id: cust-cargon-001
+    name: CargoNet Europe
+    customerNumber: C-30122
+    projectNumber: P-22-Freight-Nord
+    address: Brynsveien 5, 0667 Oslo
+    notes: Bedarfsgerechte Trassen, Fokus auf nordeuropaeische Relationen.
+    contacts:
+      - id: cne-contact-1
+        name: Mats Odegard
+        role: Operations
+        email: mats.odegard@cargoneteu.com
+        phone: +47 21 98 76 54
+      - id: cne-contact-2
+        name: Lena Bostroem
+        role: Commercial
+        email: lena.bostrom@cargoneteu.com
+businesses:
+  - id: BUS-ICE-01
+    title: TTT Abstimmung ICE 1501
+    description: Abstimmen der Splitting-Zeiten mit InfraGO und Koeln Hbf.
+    createdAt: '2030-01-04T09:15:00'
+    dueDate: '2030-02-01T15:00:00'
+    status: in_arbeit
+    assignment:
+      type: group
+      name: Fernverkehr Betrieb
+    documents:
+      - id: BUS-ICE-01-DOC-1
+        name: TTT-Angebot.pdf
+        url: '#'
+      - id: BUS-ICE-01-DOC-2
+        name: Splitting-Checkliste.xlsx
+        url: '#'
+    linkedOrderItemIds:
+      - ORD-2030-001-OP-001
+      - ORD-2030-001-OP-002
+    tags:
+      - DE-Nord
+      - Rollout
+      - HighImpact
+  - id: BUS-RE-01
+    title: RVK Bern - Zuerich
+    description: Rahmenvertragskapazitaet pruefen und Abnahme dokumentieren.
+    createdAt: '2030-01-10T08:00:00'
+    dueDate: '2030-01-20T17:00:00'
+    status: neu
+    assignment:
+      type: person
+      name: Luca Nef
+    linkedOrderItemIds:
+      - ORD-2030-002-OP-001
+    tags:
+      - CH
+      - Pitch
+      - Premiumkunde
+  - id: BUS-CARGO-01
+    title: Korridor Night Slot Basel
+    description: Sperrzeiten Basel RB abstimmen und Ersatzfenster kommunizieren.
+    createdAt: '2030-01-12T12:30:00'
+    dueDate: '2030-02-05T09:00:00'
+    status: pausiert
+    assignment:
+      type: group
+      name: CargoNet Dispatch
+    linkedOrderItemIds:
+      - ORD-2030-003-OP-001
+    tags:
+      - Basel
+      - Nacht
+      - Escalation
+orders:
+  - id: ORD-2030-001
+    name: ICE Sprinter Berlin - Koeln/Bremen
+    customerId: cust-db-001
+    tags:
+      - ICE
+      - Fluegelzug
+      - TTT
+    comment: Fluegelzugkonzept inkl. Splitting in Hannover. Varianten und Aufgaben laufen direkt gegen den Fahrplanmanager.
+    timetableYearLabel: 2029/30
+    processStatus: planung
+    customerLabel: DB Fernverkehr
+  - id: ORD-2030-002
+    name: RE Zuerich - Bern 2030
+    customerId: cust-sbb-001
+    tags:
+      - RegionalExpress
+      - RVK
+    timetableYearLabel: 2029/30
+    processStatus: produktion
+    customerLabel: SBB Personenverkehr
+  - id: ORD-2030-003
+    name: Gueterkorridor Rotterdam - Basel
+    customerId: cust-cargon-001
+    tags:
+      - Gueterverkehr
+      - Nacht
+    timetableYearLabel: 2029/30
+    processStatus: auftrag
+    customerLabel: CargoNet Europe
+  - id: ORD-TTR-DEMO
+    name: Demo - Automations- und Phasen-Playground
+    tags:
+      - '#demo'
+      - '#automation'
+      - '#ttr'
+    comment: Diese Auftraege decken alle TTR-Phasen ab und dienen als Spielwiese fuer Automationsregeln.
+    timetableYearLabel: 2026/27
+    processStatus: abrechnung_nachbereitung
+    customerLabel: Demo EVU Sued
+orderItems:
+  - id: ORD-2030-001-OP-001
+    name: ICE 1501 Baseline
+    type: Fahrplan
+    start: '2030-04-01T06:05:00'
+    end: '2030-04-01T10:12:00'
+    responsible: FV Planung Ost
+    fromLocation: Berlin Hbf (tief)
+    toLocation: Koeln/Bremen
+    trafficPeriodId: TPER-2030-ICE
+    linkedTemplateId: TPL-ICE-FLGL
+    linkedTrainPlanId: TP-2030-ICE-0001
+    linkedBusinessIds:
+      - BUS-ICE-01
+    validity:
+      - startDate: '2030-04-01'
+        endDate: '2030-07-31'
+    versionPath:
+      - 1
+    generatedTimetableRefId: TT-2030-ICE-001A
+    timetablePhase: path_request
+    internalStatus: beantragt
+    variantType: productive
+    variantGroupId: ORD-2030-001-OP-001
+    timetableYearLabel: 2029/30
+    originalTimetable:
+      refTrainId: TT-2030-ICE-001A
+      title: ICE 1501 Berlin Hbf -> Koeln Hbf
+      trainNumber: ICE 1501
+      calendar:
+        validFrom: '2030-04-01'
+        validTo: '2030-10-31'
+        daysBitmap: '1111100'
+      stops:
+        - sequence: 1
+          locationName: Berlin Hbf (tief)
+          departureTime: '06:05'
+        - sequence: 2
+          locationName: Wolfsburg Hbf
+          arrivalTime: '07:18'
+          departureTime: '07:20'
+        - sequence: 3
+          locationName: Hannover Hbf
+          arrivalTime: '07:58'
+          departureTime: '08:10'
+        - sequence: 4
+          locationName: Koeln Hbf
+          arrivalTime: '10:12'
+        - sequence: 5
+          locationName: Bremen Hbf
+          arrivalTime: '09:58'
+    orderId: ORD-2030-001
+  - id: ORD-2030-001-OP-002
+    name: ICE 1501A Koeln-Teil - Version 1.1
+    type: Fahrplan
+    parentItemId: ORD-2030-001-OP-001
+    start: '2030-08-01T06:05:00'
+    end: '2030-08-01T10:05:00'
+    responsible: FV Planung West
+    deviation: TTT-Angebot mit geaenderter Splittingzeit
+    fromLocation: Berlin Hbf (tief)
+    toLocation: Koeln Hbf
+    trafficPeriodId: TPER-2030-ICE
+    linkedTemplateId: TPL-ICE-FLGL
+    linkedTrainPlanId: TP-2030-ICE-0002
+    linkedBusinessIds:
+      - BUS-ICE-01
+    validity:
+      - startDate: '2030-08-01'
+        endDate: '2031-03-31'
+    versionPath:
+      - 1
+      - 1
+    generatedTimetableRefId: TT-2030-ICE-001B
+    timetablePhase: offer
+    internalStatus: in_bearbeitung
+    variantType: productive
+    variantGroupId: ORD-2030-001-OP-001
+    timetableYearLabel: 2029/30
+    originalTimetable:
+      refTrainId: TT-2030-ICE-001A
+      title: ICE 1501 Ursprung
+      trainNumber: ICE 1501
+      calendar:
+        validFrom: '2030-04-01'
+        validTo: '2030-10-31'
+        daysBitmap: '1111100'
+      stops:
+        - sequence: 1
+          locationName: Berlin Hbf (tief)
+          departureTime: '06:05'
+        - sequence: 2
+          locationName: Hannover Hbf
+          arrivalTime: '07:58'
+          departureTime: '08:10'
+        - sequence: 3
+          locationName: Koeln Hbf
+          arrivalTime: '10:12'
+    orderId: ORD-2030-001
+  - id: ORD-2030-001-OP-001-SIM
+    name: ICE 1501 Baseline - Simulation A
+    type: Fahrplan
+    start: '2030-04-01T06:05:00'
+    end: '2030-04-01T10:00:00'
+    responsible: FV Planung Ost
+    fromLocation: Berlin Hbf (tief)
+    toLocation: Koeln Hbf
+    trafficPeriodId: TPER-2030-ICE
+    linkedTemplateId: TPL-ICE-FLGL
+    linkedTrainPlanId: TP-2030-ICE-0001-SIM
+    linkedBusinessIds:
+      - BUS-ICE-01
+    validity:
+      - startDate: '2030-04-01'
+        endDate: '2030-06-30'
+    versionPath:
+      - 1
+      - 1
+    timetablePhase: bedarf
+    variantType: simulation
+    variantOfItemId: ORD-2030-001-OP-001
+    variantGroupId: ORD-2030-001-OP-001
+    variantLabel: Simulation A
+    simulationId: SIM-2029-A
+    simulationLabel: Simulation A - Kurzkonzept FV 2029/30
+    mergeStatus: open
+    timetableYearLabel: 2029/30
+    orderId: ORD-2030-001
+  - id: ORD-2030-001-OP-003
+    name: Betriebsbegleitung Koeln
+    type: Leistung
+    serviceType: Betriebsbegleitung
+    fromLocation: Koeln Hbf
+    toLocation: Hannover Hbf
+    start: '2030-04-01T05:30:00'
+    end: '2030-04-01T12:00:00'
+    responsible: InfraGO Leitstelle
+    validity:
+      - startDate: '2030-04-01'
+        endDate: '2030-05-31'
+    versionPath:
+      - 1
+    trafficPeriodId: TPER-2030-SERVICE-KOELN
+    timetableYearLabel: 2029/30
+    internalStatus: freigegeben
+    orderId: ORD-2030-001
+  - id: ORD-2030-002-OP-001
+    name: RE Zuerich - Bern Grundtakt
+    type: Fahrplan
+    start: '2030-01-01T07:05:00'
+    end: '2030-01-01T08:28:00'
+    responsible: SBB Fahrplan ZH
+    fromLocation: Zuerich HB
+    toLocation: Bern
+    trafficPeriodId: TPER-2030-REGIO
+    linkedTemplateId: TPL-REGIO-ZH-BE
+    linkedTrainPlanId: TP-2030-REG-0001
+    linkedBusinessIds:
+      - BUS-RE-01
+    validity:
+      - startDate: '2030-01-01'
+        endDate: '2030-12-31'
+    versionPath:
+      - 1
+    generatedTimetableRefId: TT-2030-RE-0101
+    timetablePhase: operational
+    internalStatus: abgeschlossen
+    timetableYearLabel: 2029/30
+    originalTimetable:
+      refTrainId: TT-2030-RE-0101
+      title: RE Zuerich HB -> Bern
+      trainNumber: RE 520
+      calendar:
+        validFrom: '2030-01-01'
+        validTo: '2030-12-31'
+        daysBitmap: '1111111'
+      stops:
+        - sequence: 1
+          locationName: Zuerich HB
+          departureTime: '07:05'
+        - sequence: 2
+          locationName: Aarau
+          arrivalTime: '07:36'
+          departureTime: '07:37'
+        - sequence: 3
+          locationName: Olten
+          arrivalTime: '07:55'
+          departureTime: '07:57'
+        - sequence: 4
+          locationName: Bern
+          arrivalTime: '08:28'
+    orderId: ORD-2030-002
+  - id: ORD-2030-002-OP-002
+    name: RE Zuerich - Bern Ersatzlage Bauphase
+    type: Fahrplan
+    parentItemId: ORD-2030-002-OP-001
+    start: '2030-05-15T07:05:00'
+    end: '2030-05-15T08:40:00'
+    responsible: SBB Fahrplan ZH
+    deviation: Verlaengerte Fahrzeit wegen Bern Ost Gleisbau
+    fromLocation: Zuerich HB
+    toLocation: Bern
+    trafficPeriodId: TPER-2030-REGIO
+    linkedTemplateId: TPL-REGIO-ZH-BE
+    validity:
+      - startDate: '2030-05-15'
+        endDate: '2030-06-15'
+    versionPath:
+      - 1
+      - 1
+    generatedTimetableRefId: TT-2030-RE-0102
+    timetablePhase: contract
+    internalStatus: freigegeben
+    timetableYearLabel: 2029/30
+    originalTimetable:
+      refTrainId: TT-2030-RE-0101
+      title: RE Zuerich HB -> Bern (Original)
+      trainNumber: RE 520
+      calendar:
+        validFrom: '2030-01-01'
+        validTo: '2030-12-31'
+        daysBitmap: '1111111'
+      stops:
+        - sequence: 1
+          locationName: Zuerich HB
+          departureTime: '07:05'
+        - sequence: 2
+          locationName: Bern
+          arrivalTime: '08:28'
+    orderId: ORD-2030-002
+  - id: ORD-2030-003-OP-001
+    name: DGS Rotterdam - Basel Nachtkorridor
+    type: Fahrplan
+    start: '2030-03-01T22:15:00'
+    end: '2030-03-02T06:05:00'
+    responsible: CargoNet Dispatch
+    fromLocation: Rotterdam Maasvlakte
+    toLocation: Basel RB
+    trafficPeriodId: TPER-2030-CARGO
+    linkedTemplateId: TPL-CARGO-RB
+    linkedTrainPlanId: TP-2030-CARGO-0001
+    linkedBusinessIds:
+      - BUS-CARGO-01
+    validity:
+      - startDate: '2030-03-01'
+        endDate: '2030-12-31'
+    versionPath:
+      - 1
+    generatedTimetableRefId: TT-2030-CARGO-7001
+    timetablePhase: bedarf
+    internalStatus: in_bearbeitung
+    timetableYearLabel: 2029/30
+    originalTimetable:
+      refTrainId: TT-2030-CARGO-7001
+      title: DGS Rotterdam -> Basel
+      trainNumber: DGS 94701
+      calendar:
+        validFrom: '2030-03-01'
+        validTo: '2030-12-31'
+        daysBitmap: '1111100'
+      stops:
+        - sequence: 1
+          locationName: Rotterdam Maasvlakte
+          departureTime: '22:15'
+        - sequence: 2
+          locationName: Koeln Eifeltor
+          arrivalTime: '02:05'
+          departureTime: '02:25'
+        - sequence: 3
+          locationName: Basel RB
+          arrivalTime: '06:05'
+    orderId: ORD-2030-003
+  - id: ORD-2030-003-OP-002
+    name: Baulogistik Ersatzfenster Basel
+    type: Leistung
+    serviceType: Baulogistik
+    fromLocation: Basel RB
+    toLocation: Basel Bad Rbf
+    start: '2030-04-01T20:00:00'
+    end: '2030-04-02T04:00:00'
+    responsible: InfraGO Nord
+    validity:
+      - startDate: '2030-04-01'
+        endDate: '2030-05-31'
+    versionPath:
+      - 1
+    trafficPeriodId: TPER-2030-BAULOG-BSL
+    timetableYearLabel: 2029/30
+    internalStatus: in_bearbeitung
+    orderId: ORD-2030-003
+  - id: ORD-TTR-DEMO-OP-001
+    name: Kapazitaetsworkshop Metropolregion
+    type: Leistung
+    serviceType: Workshop
+    fromLocation: Berlin
+    toLocation: Berlin
+    start: '2026-12-07T09:00:00'
+    end: '2026-12-07T11:30:00'
+    responsible: Planung Hauptstadt
+    tags:
+      - '#capacity'
+      - '#vorlauf'
+    validity:
+      - startDate: '2026-12-07'
+        endDate: '2026-12-08'
+    timetablePhase: bedarf
+    deviation: Strategische Abstimmung mit Infra.
+    internalStatus: in_bearbeitung
+    orderId: ORD-TTR-DEMO
+  - id: ORD-TTR-DEMO-OP-002
+    name: Jahresbestellung Sprinter Nord
+    type: Fahrplan
+    start: '2026-09-08T05:40:00'
+    end: '2026-09-08T09:05:00'
+    responsible: Fernverkehr Nord
+    tags:
+      - '#annual'
+      - '#sprinter'
+    validity:
+      - startDate: '2026-09-08'
+        endDate: '2026-12-07'
+    timetablePhase: path_request
+    linkedTemplateId: TPL-DEMO-ANNUAL
+    internalStatus: beantragt
+    orderId: ORD-TTR-DEMO
+  - id: ORD-TTR-DEMO-OP-003
+    name: Final Offer Prueflauf
+    type: Fahrplan
+    start: '2026-06-20T06:15:00'
+    end: '2026-06-20T08:55:00'
+    responsible: Fernverkehr Mitte
+    tags:
+      - '#offer'
+      - '#entscheid'
+    validity:
+      - startDate: '2026-06-20'
+        endDate: '2026-08-04'
+    timetablePhase: offer
+    deviation: TTT-Angebot mit +3 min Ankunft.
+    internalStatus: freigegeben
+    orderId: ORD-TTR-DEMO
+  - id: ORD-TTR-DEMO-OP-004
+    name: Rolling Planning Verstaerker
+    type: Fahrplan
+    start: '2026-03-02T07:10:00'
+    end: '2026-03-02T10:02:00'
+    responsible: Operations Sued
+    tags:
+      - '#rolling'
+      - '#verstaerker'
+    validity:
+      - startDate: '2026-03-02'
+        endDate: '2026-03-16'
+    timetablePhase: contract
+    deviation: Zusaetzliche Wochenendlage.
+    internalStatus: abgeschlossen
+    orderId: ORD-TTR-DEMO
+  - id: ORD-TTR-DEMO-OP-005
+    name: Short-Term Zusatzfahrt
+    type: Fahrplan
+    start: '2026-02-02T04:55:00'
+    end: '2026-02-02T07:12:00'
+    responsible: Dispo West
+    tags:
+      - '#str'
+      - '#kurzfrist'
+    validity:
+      - startDate: '2026-02-02'
+        endDate: '2026-02-09'
+    timetablePhase: operational
+    deviation: 'Ausloeser: Baustelle Rheinbruecke.'
+    internalStatus: in_bearbeitung
+    orderId: ORD-TTR-DEMO
+  - id: ORD-TTR-DEMO-OP-006
+    name: Ad-hoc Ersatzfahrt
+    type: Fahrplan
+    start: '2026-01-23T18:10:00'
+    end: '2026-01-23T21:05:00'
+    responsible: Leitstelle Koeln
+    tags:
+      - '#adhoc'
+      - '#stoerung'
+    validity:
+      - startDate: '2026-01-23'
+        endDate: '2026-01-24'
+    timetablePhase: operational
+    deviation: Fahrzeugtausch wegen Defekt.
+    internalStatus: ueberarbeiten
+    orderId: ORD-TTR-DEMO
+  - id: ORD-TTR-DEMO-OP-007
+    name: Baukoordinations-Taskforce
+    type: Leistung
+    serviceType: Baukoordination
+    fromLocation: Stuttgart
+    toLocation: Stuttgart
+    start: '2026-01-11T08:00:00'
+    end: '2026-01-11T12:00:00'
+    responsible: Infra Suedwest
+    tags:
+      - '#operational'
+      - '#nachlauf'
+    validity:
+      - startDate: '2026-01-11'
+        endDate: '2026-01-16'
+    timetablePhase: archived
+    internalStatus: abgeschlossen
+    orderId: ORD-TTR-DEMO
+scheduleTemplates:
+  - id: TPL-ICE-FLGL
+    title: ICE Fluegelzug Berlin - Koeln/Bremen
+    description: Template zur automatischen Generierung der Fluegelzuege ICE 1501/1501B inkl. Splitting in Hannover.
+    trainNumber: ICE 1501
+    responsibleRu: DB Fernverkehr Planung
+    status: active
+    category: Fernverkehr
+    tags:
+      - Fluegelzug
+      - TTT
+    validity:
+      startDate: '2030-04-01'
+      endDate: '2030-12-31'
+    createdAt: '2029-10-05T10:15:00'
+    updatedAt: '2030-01-04T08:20:00'
+    recurrence:
+      startTime: '05:45'
+      endTime: '10:30'
+      intervalMinutes: 60
+      days:
+        - Mo
+        - Di
+        - Mi
+        - Do
+        - Fr
+    stops:
+      - id: TPL-ICE-FLGL-STOP-001
+        sequence: 1
+        type: origin
+        locationCode: BERLIN_HBF
+        locationName: Berlin Hbf (tief)
+        countryCode: DE
+        departure:
+          earliest: '05:50'
+          latest: '06:05'
+        activities:
+          - '0001'
+      - id: TPL-ICE-FLGL-STOP-002
+        sequence: 2
+        type: intermediate
+        locationCode: WOLFSBURG
+        locationName: Wolfsburg Hbf
+        countryCode: DE
+        arrival:
+          earliest: '07:10'
+          latest: '07:18'
+        departure:
+          earliest: '07:12'
+          latest: '07:20'
+        activities:
+          - '0001'
+      - id: TPL-ICE-FLGL-STOP-003
+        sequence: 3
+        type: intermediate
+        locationCode: HANNOVER_HBF
+        locationName: Hannover Hbf
+        countryCode: DE
+        arrival:
+          earliest: '07:50'
+          latest: '07:58'
+        departure:
+          earliest: '08:05'
+          latest: '08:10'
+        activities:
+          - '0020'
+          - '9500'
+        notes: Fluegelung in Koeln/Bremen-Set
+      - id: TPL-ICE-FLGL-STOP-004
+        sequence: 4
+        type: destination
+        locationCode: KOELN_HBF
+        locationName: Koeln Hbf
+        countryCode: DE
+        arrival:
+          earliest: '10:00'
+          latest: '10:10'
+        activities:
+          - '0001'
+      - id: TPL-ICE-FLGL-STOP-005
+        sequence: 5
+        type: destination
+        locationCode: BREMEN_HBF
+        locationName: Bremen Hbf
+        countryCode: DE
+        arrival:
+          earliest: '09:40'
+          latest: '09:55'
+        activities:
+          - '0001'
+    composition:
+      base:
+        - type: BR 412 (ICE 4)
+          count: 1
+          label: Koeln-Teil
+          note: 13-teilig
+        - type: BR 407 (Velaro D)
+          count: 1
+          label: Bremen-Teil
+          note: 8-teilig
+      changes:
+        - stopIndex: 3
+          action: detach
+          vehicles:
+            - type: BR 407 (Velaro D)
+              count: 1
+          note: Bremen-Fluegel faehrt als ICE 1501B weiter.
+  - id: TPL-REGIO-ZH-BE
+    title: RE Zuerich - Bern Takt 2030
+    description: Regional-Express mit optionalem Zusatzzug Olten - Bern.
+    trainNumber: RE 520
+    responsibleRu: SBB Personenverkehr
+    status: active
+    category: RegionalExpress
+    tags:
+      - Pendler
+      - SBB
+    validity:
+      startDate: '2030-01-01'
+    createdAt: '2029-09-20T07:00:00'
+    updatedAt: '2030-01-07T09:30:00'
+    recurrence:
+      startTime: '05:00'
+      endTime: '23:00'
+      intervalMinutes: 60
+      days:
+        - Mo
+        - Di
+        - Mi
+        - Do
+        - Fr
+        - Sa
+    stops:
+      - id: TPL-REGIO-ZH-BE-STOP-001
+        sequence: 1
+        type: origin
+        locationCode: ZURICH_HB
+        locationName: Zuerich HB
+        countryCode: CH
+        departure:
+          earliest: '05:05'
+          latest: '05:10'
+        activities:
+          - '0001'
+      - id: TPL-REGIO-ZH-BE-STOP-002
+        sequence: 2
+        type: intermediate
+        locationCode: AARAU
+        locationName: Aarau
+        countryCode: CH
+        arrival:
+          earliest: '05:36'
+          latest: '05:40'
+        departure:
+          earliest: '05:37'
+          latest: '05:41'
+        activities:
+          - '0001'
+      - id: TPL-REGIO-ZH-BE-STOP-003
+        sequence: 3
+        type: destination
+        locationCode: BERN
+        locationName: Bern
+        countryCode: CH
+        arrival:
+          earliest: '06:20'
+          latest: '06:25'
+        activities:
+          - '0001'
+    composition:
+      base:
+        - type: RABe 511 (KISS)
+          count: 1
+          note: Stammzug Zuerich - Bern
+      changes:
+        - stopIndex: 2
+          action: attach
+          vehicles:
+            - type: RABe 511 (KISS)
+              count: 1
+              label: Verstaerker
+          note: Optionaler Zusatzzug wird in Aarau beigegeben.
+        - stopIndex: 3
+          action: detach
+          vehicles:
+            - type: RABe 511 (KISS)
+              count: 1
+              label: Verstaerker
+          note: Verstaerker endet in Bern.
+  - id: TPL-S1-BAS-OLT
+    title: S1 Basel - Olten (Demo)
+    description: Taktfahrplan der S-Bahn-Linie S1 gemaess RailML-Demo-Datei.
+    trainNumber: S1
+    responsibleRu: SBB S-Bahn Basel
+    status: active
+    category: S-Bahn
+    tags:
+      - RailML
+      - Demo
+      - S-Bahn
+    validity:
+      startDate: '2026-01-01'
+      endDate: '2026-12-31'
+    createdAt: '2025-12-01T08:00:00'
+    updatedAt: '2026-01-10T10:00:00'
+    recurrence:
+      startTime: '05:00'
+      endTime: '23:45'
+      intervalMinutes: 15
+      days:
+        - Mo
+        - Di
+        - Mi
+        - Do
+        - Fr
+        - Sa
+        - So
+    stops:
+      - id: TPL-S1-BAS-OLT-STOP-001
+        sequence: 1
+        type: origin
+        locationCode: BAS
+        locationName: Basel SBB
+        countryCode: CH
+        departure:
+          earliest: '05:00'
+          latest: '05:02'
+        activities:
+          - '0001'
+      - id: TPL-S1-BAS-OLT-STOP-002
+        sequence: 2
+        type: intermediate
+        locationCode: MUT
+        locationName: Muttenz
+        countryCode: CH
+        arrival:
+          earliest: '05:06'
+          latest: '05:07'
+        departure:
+          earliest: '05:07'
+          latest: '05:08'
+        activities:
+          - '0001'
+      - id: TPL-S1-BAS-OLT-STOP-003
+        sequence: 3
+        type: intermediate
+        locationCode: PRA
+        locationName: Pratteln
+        countryCode: CH
+        arrival:
+          earliest: '05:11'
+          latest: '05:12'
+        departure:
+          earliest: '05:12'
+          latest: '05:13'
+        activities:
+          - '0001'
+      - id: TPL-S1-BAS-OLT-STOP-004
+        sequence: 4
+        type: intermediate
+        locationCode: LIE
+        locationName: Liestal
+        countryCode: CH
+        arrival:
+          earliest: '05:20'
+          latest: '05:21'
+        departure:
+          earliest: '05:21'
+          latest: '05:22'
+        activities:
+          - '0001'
+      - id: TPL-S1-BAS-OLT-STOP-005
+        sequence: 5
+        type: intermediate
+        locationCode: SIS
+        locationName: Sissach
+        countryCode: CH
+        arrival:
+          earliest: '05:28'
+          latest: '05:29'
+        departure:
+          earliest: '05:29'
+          latest: '05:30'
+        activities:
+          - '0001'
+      - id: TPL-S1-BAS-OLT-STOP-006
+        sequence: 6
+        type: destination
+        locationCode: OLT
+        locationName: Olten
+        countryCode: CH
+        arrival:
+          earliest: '05:39'
+          latest: '05:40'
+        activities:
+          - '0001'
+    composition:
+      base:
+        - type: RABe 521
+          count: 1
+          note: Stammkomposition
+      changes:
+        - stopIndex: 2
+          action: attach
+          vehicles:
+            - type: RABe 521
+              count: 1
+          note: Verstaerkung fuer Berufsverkehr ab Muttenz.
+        - stopIndex: 5
+          action: detach
+          vehicles:
+            - type: RABe 521
+              count: 1
+          note: Verstaerker endet in Sissach.
+  - id: TPL-S1-OLT-BAS
+    title: S1 Olten - Basel (Demo)
+    description: Rueckrichtung der S-Bahn-Linie S1 zur RailML-Demo.
+    trainNumber: S1
+    responsibleRu: SBB S-Bahn Basel
+    status: active
+    category: S-Bahn
+    tags:
+      - RailML
+      - Demo
+      - S-Bahn
+    validity:
+      startDate: '2026-01-01'
+      endDate: '2026-12-31'
+    createdAt: '2025-12-01T08:05:00'
+    updatedAt: '2026-01-10T10:05:00'
+    recurrence:
+      startTime: '05:00'
+      endTime: '23:45'
+      intervalMinutes: 15
+      days:
+        - Mo
+        - Di
+        - Mi
+        - Do
+        - Fr
+        - Sa
+        - So
+    stops:
+      - id: TPL-S1-OLT-BAS-STOP-001
+        sequence: 1
+        type: origin
+        locationCode: OLT
+        locationName: Olten
+        countryCode: CH
+        departure:
+          earliest: '05:00'
+          latest: '05:02'
+        activities:
+          - '0001'
+      - id: TPL-S1-OLT-BAS-STOP-002
+        sequence: 2
+        type: intermediate
+        locationCode: SIS
+        locationName: Sissach
+        countryCode: CH
+        arrival:
+          earliest: '05:10'
+          latest: '05:11'
+        departure:
+          earliest: '05:11'
+          latest: '05:12'
+        activities:
+          - '0001'
+      - id: TPL-S1-OLT-BAS-STOP-003
+        sequence: 3
+        type: intermediate
+        locationCode: LIE
+        locationName: Liestal
+        countryCode: CH
+        arrival:
+          earliest: '05:18'
+          latest: '05:19'
+        departure:
+          earliest: '05:19'
+          latest: '05:20'
+        activities:
+          - '0001'
+      - id: TPL-S1-OLT-BAS-STOP-004
+        sequence: 4
+        type: intermediate
+        locationCode: PRA
+        locationName: Pratteln
+        countryCode: CH
+        arrival:
+          earliest: '05:27'
+          latest: '05:28'
+        departure:
+          earliest: '05:28'
+          latest: '05:29'
+        activities:
+          - '0001'
+      - id: TPL-S1-OLT-BAS-STOP-005
+        sequence: 5
+        type: intermediate
+        locationCode: MUT
+        locationName: Muttenz
+        countryCode: CH
+        arrival:
+          earliest: '05:32'
+          latest: '05:33'
+        departure:
+          earliest: '05:33'
+          latest: '05:34'
+        activities:
+          - '0001'
+      - id: TPL-S1-OLT-BAS-STOP-006
+        sequence: 6
+        type: destination
+        locationCode: BAS
+        locationName: Basel SBB
+        countryCode: CH
+        arrival:
+          earliest: '05:42'
+          latest: '05:44'
+        activities:
+          - '0001'
+    composition:
+      base:
+        - type: RABe 521
+          count: 1
+      changes:
+        - stopIndex: 2
+          action: attach
+          vehicles:
+            - type: RABe 521
+              count: 1
+          note: Verstaerker kuppelt in Sissach fuer die Fahrt nach Basel.
+        - stopIndex: 6
+          action: detach
+          vehicles:
+            - type: RABe 521
+              count: 1
+          note: Verstaerkung wird in Basel wieder getrennt.
+  - id: TPL-CARGO-RB
+    title: Cargo Rotterdam - Basel
+    description: Nachtkorridor fuer gemischte Gueterzuege inkl. optionaler Zwischenhalte in Koeln Eifeltor.
+    trainNumber: DGS 93xxx
+    responsibleRu: CargoNet Dispatch
+    status: draft
+    category: Gueterverkehr
+    validity:
+      startDate: '2030-03-01'
+      endDate: '2030-12-31'
+    createdAt: '2029-12-05T21:00:00'
+    updatedAt: '2030-01-09T06:45:00'
+    stops:
+      - id: TPL-CARGO-RB-STOP-001
+        sequence: 1
+        type: origin
+        locationCode: ROTTERDAM_MAAS
+        locationName: Rotterdam Maasvlakte
+        countryCode: NL
+        departure:
+          earliest: '21:30'
+          latest: '21:45'
+        activities:
+          - '9001'
+      - id: TPL-CARGO-RB-STOP-002
+        sequence: 2
+        type: intermediate
+        locationCode: KOELN_EIFELTOR
+        locationName: Koeln Eifeltor
+        countryCode: DE
+        arrival:
+          earliest: '01:45'
+          latest: '02:10'
+        departure:
+          earliest: '02:00'
+          latest: '02:20'
+        activities:
+          - '9001'
+          - '9501'
+      - id: TPL-CARGO-RB-STOP-003
+        sequence: 3
+        type: destination
+        locationCode: BASEL_RB
+        locationName: Basel RB
+        countryCode: CH
+        arrival:
+          earliest: '05:30'
+          latest: '06:00'
+        activities:
+          - '9001'
+    composition:
+      base:
+        - type: BR 189
+          count: 2
+          note: Doppeltraktion
+        - type: Sggrss Containertragwagen
+          count: 24
+          note: 40-ft-High-Cube
+        - type: Shimmns Stahlcoilwagen
+          count: 8
+      changes:
+        - stopIndex: 2
+          action: detach
+          vehicles:
+            - type: Shimmns Stahlcoilwagen
+              count: 4
+          note: Teilentladung in Koeln Eifeltor.
+        - stopIndex: 2
+          action: attach
+          vehicles:
+            - type: Sggrss Containertragwagen
+              count: 6
+          note: Neuer Containerblock Richtung Basel.

@@ -619,7 +619,7 @@
           @if (!isViewTransitioning() && hasMoreBusinesses()) {
             <div class="load-more">
               <button mat-stroked-button color="primary" type="button" (click)="loadMoreBusinesses()">
-                Mehr laden ({{ visibleBusinesses().length }}/{{ businesses().length }})
+                Mehr laden ({{ visibleBusinesses().length }}/{{ totalBusinesses() }})
               </button>
             </div>
           }

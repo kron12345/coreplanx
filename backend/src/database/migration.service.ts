@@ -240,6 +240,23 @@ export class MigrationService implements OnModuleInit {
       // Variant/year metadata
       'planning_variant',
       'timetable_year',
+      // Order management
+      'business_automation_executions',
+      'business_phase_conditions',
+      'business_phase_templates',
+      'business_templates',
+      'business_order_items',
+      'businesses',
+      'order_items',
+      'orders',
+      'schedule_template_stops',
+      'schedule_templates',
+      'traffic_period_rules',
+      'traffic_period_versions',
+      'traffic_periods',
+      'train_plan_versions',
+      'train_plans',
+      'customers',
       this.tableName,
     ];
 

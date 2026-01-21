@@ -162,7 +162,7 @@ export class CustomerListComponent {
     this.contacts.removeAt(index);
   }
 
-  submit() {
+  async submit() {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -193,18 +193,18 @@ export class CustomerListComponent {
       contacts,
     };
 
-    this.customerService.createCustomer(payload);
+    await this.customerService.createCustomer(payload);
     this.resetForm();
   }
 
-  deleteCustomer(customer: Customer) {
+  async deleteCustomer(customer: Customer) {
     const confirmDeletion = window.confirm(
       `Soll der Kunde "${customer.name}" wirklich gelöscht werden? Verknüpfte Aufträge verlieren die Zuordnung.`,
     );
     if (!confirmDeletion) {
       return;
     }
-    this.customerService.deleteCustomer(customer.id);
+    await this.customerService.deleteCustomer(customer.id);
     this.orderService.removeCustomerAssignments(customer.id);
   }
 

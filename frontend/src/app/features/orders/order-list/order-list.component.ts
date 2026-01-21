@@ -22,7 +22,6 @@ import { Order } from '../../../core/models/order.model';
 import { OrderItem } from '../../../core/models/order-item.model';
 import { BusinessStatus } from '../../../core/models/business.model';
 import { TimetablePhase } from '../../../core/models/timetable.model';
-import { BusinessService } from '../../../core/services/business.service';
 import { FilterBarComponent } from '../../filters/filter-bar/filter-bar.component';
 import { OrderCardComponent } from '../order-card/order-card.component';
 import { OrderCreateDialogComponent } from '../order-create-dialog.component';
@@ -58,7 +57,6 @@ import type {
 })
 export class OrderListComponent {
   private readonly store = inject(OrderService);
-  private readonly businessService = inject(BusinessService);
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
@@ -71,6 +69,9 @@ export class OrderListComponent {
   readonly templatePanelOpen = signal(false);
 
   readonly orders = computed(() => this.filteredOrders());
+  readonly totalOrders = computed(() => this.store.totalCount());
+  readonly hasMoreOrders = computed(() => this.store.hasMoreOrders());
+  readonly isLoading = computed(() => this.store.isLoading());
   readonly filters = computed(() => this.store.filters());
   readonly heroMetrics = computed(() => this.computeHeroMetrics());
   readonly tagStats = computed(() => this.computeTagStats());
@@ -215,6 +216,10 @@ export class OrderListComponent {
       width: '760px',
       maxWidth: '95vw',
     });
+  }
+
+  loadMoreOrders(): void {
+    void this.store.loadMoreOrders();
   }
 
   trackByOrderId(_: number, entry: { order: Order }): string {
@@ -414,23 +419,7 @@ export class OrderListComponent {
   }
 
   private filteredItems(order: Order): OrderItem[] {
-    const filters = this.store.filters();
-    const base = this.store.filterItemsForOrder(order);
-    if (filters.businessStatus === 'all') {
-      return base;
-    }
-    return base.filter((item) =>
-      this.itemMatchesBusinessStatus(item, filters.businessStatus as BusinessStatus),
-    );
-  }
-
-  private itemMatchesBusinessStatus(item: OrderItem, status: BusinessStatus): boolean {
-    const businessIds = item.linkedBusinessIds ?? [];
-    if (!businessIds.length) {
-      return false;
-    }
-    const businesses = this.businessService.getByIds(businessIds);
-    return businesses.some((business) => business.status === status);
+    return this.store.filterItemsForOrder(order);
   }
 
   private computeHeroMetrics(): OrderHeroMetrics {

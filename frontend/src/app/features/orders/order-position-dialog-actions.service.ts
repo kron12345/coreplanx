@@ -3,6 +3,7 @@ import { CreatePlanOrderItemsPayload, CreateServiceOrderItemPayload, ImportedRai
 import { Order } from '../../core/models/order.model';
 import { OrderItem } from '../../core/models/order-item.model';
 import { BusinessTemplateService } from '../../core/services/business-template.service';
+import { BusinessService } from '../../core/services/business.service';
 import { TrafficPeriodRulePayload, TrafficPeriodService } from '../../core/services/traffic-period.service';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { PlanModificationStopInput } from '../../core/services/train-plan.service';
@@ -24,6 +25,7 @@ export class OrderPositionDialogActionsService {
     private readonly trafficPeriodService: TrafficPeriodService,
     private readonly timetableYearService: TimetableYearService,
     private readonly businessTemplateService: BusinessTemplateService,
+    private readonly businessService: BusinessService,
     private readonly railmlService: OrderPositionRailmlService,
   ) {}
 
@@ -584,6 +586,10 @@ export class OrderPositionDialogActionsService {
         return null;
       }
       items.forEach((item) => this.orderService.linkBusinessToItem(businessId, item.id));
+      const existing = this.businessService.getById(businessId);
+      const linked = new Set(existing?.linkedOrderItemIds ?? []);
+      items.forEach((item) => linked.add(item.id));
+      void this.businessService.setLinkedOrderItems(businessId, Array.from(linked));
       return null;
     }
     const templateId = businessForm.controls.templateId.value?.trim();
@@ -596,19 +602,25 @@ export class OrderPositionDialogActionsService {
       if (targetDate && Number.isNaN(targetDate.getTime())) {
         throw new Error('Das Zieldatum für das Geschäft ist ungültig.');
       }
-      const business = this.businessTemplateService.instantiateTemplate(templateId, {
-        targetDate,
-        note: businessForm.controls.note.value?.trim() || undefined,
-        customTitle: businessForm.controls.customTitle.value?.trim() || undefined,
-        linkedOrderItemIds: items.map((item) => item.id),
-      });
-      if (businessForm.controls.enableAutomations.value) {
-        const automationIds = businessForm.controls.automationRuleIds.value ?? [];
-        this.businessTemplateService.triggerAutomationsForTemplate(templateId, business.id, {
-          automationIds: automationIds.length ? automationIds : undefined,
+      void this.businessTemplateService
+        .instantiateTemplate(templateId, {
+          targetDate,
+          note: businessForm.controls.note.value?.trim() || undefined,
+          customTitle: businessForm.controls.customTitle.value?.trim() || undefined,
           linkedOrderItemIds: items.map((item) => item.id),
+        })
+        .then((business) => {
+          if (businessForm.controls.enableAutomations.value) {
+            const automationIds = businessForm.controls.automationRuleIds.value ?? [];
+            this.businessTemplateService.triggerAutomationsForTemplate(templateId, business.id, {
+              automationIds: automationIds.length ? automationIds : undefined,
+              linkedOrderItemIds: items.map((item) => item.id),
+            });
+          }
+        })
+        .catch((error) => {
+          console.warn('[OrderPositionDialogActions] Business template failed', error);
         });
-      }
       return null;
     } catch (error) {
       return error instanceof Error

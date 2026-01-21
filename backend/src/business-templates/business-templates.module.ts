@@ -1,0 +1,12 @@
+import { Module } from '@nestjs/common';
+import { PrismaModule } from '../prisma/prisma.module';
+import { BusinessTemplatesController } from './business-templates.controller';
+import { BusinessTemplatesService } from './business-templates.service';
+import { BusinessTemplatesRepository } from './business-templates.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [BusinessTemplatesController],
+  providers: [BusinessTemplatesService, BusinessTemplatesRepository],
+})
+export class BusinessTemplatesModule {}

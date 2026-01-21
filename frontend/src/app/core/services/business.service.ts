@@ -1,12 +1,13 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import {
   Business,
   BusinessAssignment,
   BusinessDocument,
   BusinessStatus,
 } from '../models/business.model';
-import { MOCK_BUSINESSES } from '../mock/mock-businesses.mock';
 import { OrderService } from './order.service';
+import { BusinessApiService } from '../api/business-api.service';
 
 export type BusinessDueDateFilter =
   | 'all'
@@ -46,6 +47,10 @@ type ParsedSearchTokens = {
   status?: BusinessStatus;
 };
 
+type BusinessPatch = Partial<Omit<Business, 'id' | 'dueDate'>> & {
+  dueDate?: string | Date | null;
+};
+
 export type BusinessSortField = 'dueDate' | 'createdAt' | 'status' | 'title';
 
 export interface BusinessSort {
@@ -65,9 +70,16 @@ export interface CreateBusinessPayload {
 
 @Injectable({ providedIn: 'root' })
 export class BusinessService {
-  private readonly _businesses = signal<Business[]>(MOCK_BUSINESSES);
+  private readonly api = inject(BusinessApiService);
+  private readonly _businesses = signal<Business[]>([]);
   private readonly _filters = signal<BusinessFilters>({ ...DEFAULT_BUSINESS_FILTERS });
   private readonly _sort = signal<BusinessSort>({ ...DEFAULT_BUSINESS_SORT });
+  private readonly loading = signal(false);
+  private readonly hasMore = signal(true);
+  private readonly total = signal(0);
+  private readonly pageSize = 30;
+  private currentPage = 1;
+  private fetchToken = 0;
   private readonly browserStorage = this.detectStorage();
   private readonly businessIndex = computed(() => {
     const entries = this._businesses().map((business) => [business.id, business] as const);
@@ -75,17 +87,12 @@ export class BusinessService {
   });
 
   readonly businesses = computed(() => this._businesses());
+  readonly totalCount = computed(() => this.total());
+  readonly hasMoreBusinesses = computed(() => this.hasMore());
+  readonly isLoading = computed(() => this.loading());
   readonly filters = computed(() => this._filters());
   readonly sort = computed(() => this._sort());
-  readonly filteredBusinesses = computed(() => {
-    const filters = this._filters();
-    const sort = this._sort();
-    const now = new Date();
-    const searchTokens = this.parseSearchTokens(filters.search);
-    return this._businesses()
-      .filter((business) => this.matchesFilters(business, filters, now, searchTokens))
-      .sort((a, b) => this.sortBusinesses(a, b, sort));
-  });
+  readonly filteredBusinesses = computed(() => this._businesses());
   readonly assignments = computed(() =>
     Array.from(
       new Map(
@@ -106,6 +113,7 @@ export class BusinessService {
     if (restoredSort) {
       this._sort.set(restoredSort);
     }
+    void this.refreshBusinesses();
   }
 
   getById(id: string): Business | undefined {
@@ -133,64 +141,88 @@ export class BusinessService {
       this.persistFilters(next);
       return next;
     });
+    void this.refreshBusinesses();
   }
 
   resetFilters() {
     this._filters.set({ ...DEFAULT_BUSINESS_FILTERS });
     this.persistFilters(this._filters());
+    void this.refreshBusinesses();
   }
 
   setSort(sort: BusinessSort) {
     this._sort.set(sort);
     this.persistSort(sort);
+    void this.refreshBusinesses();
   }
 
-  createBusiness(payload: CreateBusinessPayload): Business {
-    const id = this.generateBusinessId();
+  async createBusiness(payload: CreateBusinessPayload): Promise<Business> {
     const linkedIds = payload.linkedOrderItemIds ?? [];
-    const newBusiness: Business = {
-      id,
-      title: payload.title,
-      description: payload.description,
-      createdAt: new Date().toISOString(),
-      dueDate: payload.dueDate ? payload.dueDate.toISOString() : undefined,
-      status: 'neu',
-      assignment: payload.assignment,
-      documents: payload.documents,
-      linkedOrderItemIds: linkedIds.length ? [...new Set(linkedIds)] : undefined,
-      tags: payload.tags?.length ? [...new Set(payload.tags)] : undefined,
-    };
-
-    this._businesses.update((businesses) => [newBusiness, ...businesses]);
-    linkedIds.forEach((itemId) =>
-      this.orderService.linkBusinessToItem(id, itemId),
+    const normalizedTags = this.normalizeTagList(payload.tags);
+    const created = await firstValueFrom(
+      this.api.createBusiness({
+        title: payload.title,
+        description: payload.description,
+        dueDate: payload.dueDate ? payload.dueDate.toISOString() : null,
+        status: 'neu',
+        assignment: payload.assignment,
+        documents: payload.documents,
+        linkedOrderItemIds: linkedIds.length ? linkedIds : undefined,
+        tags: normalizedTags,
+      }),
     );
-    return newBusiness;
+    this.replaceBusiness(created, true);
+    linkedIds.forEach((itemId) =>
+      this.orderService.linkBusinessToItem(created.id, itemId),
+    );
+    return created;
   }
 
-  updateBusiness(businessId: string, patch: Partial<Omit<Business, 'id'>>) {
+  async updateBusiness(
+    businessId: string,
+    patch: BusinessPatch,
+  ): Promise<void> {
+    const payload = this.toUpdatePayload(patch);
+    if (!Object.keys(payload).length) {
+      return;
+    }
+    const { dueDate, ...rest } = patch;
+    const localPatch: Partial<Omit<Business, 'id'>> = { ...rest };
+    if (dueDate !== undefined) {
+      const normalized = dueDate instanceof Date ? dueDate.toISOString() : dueDate;
+      if (normalized === null) {
+        delete localPatch.dueDate;
+      } else {
+        localPatch.dueDate = normalized;
+      }
+    }
     this._businesses.update((businesses) =>
       businesses.map((business) =>
-        business.id === businessId ? { ...business, ...patch } : business,
+        business.id === businessId ? { ...business, ...localPatch } : business,
       ),
     );
+    try {
+      const updated = await firstValueFrom(
+        this.api.updateBusiness(businessId, payload),
+      );
+      this.replaceBusiness(updated);
+    } catch (error) {
+      console.warn('[BusinessService] Failed to update business', error);
+    }
   }
 
-  updateStatus(businessId: string, status: BusinessStatus) {
-    this.updateBusiness(businessId, { status });
+  async updateStatus(businessId: string, status: BusinessStatus): Promise<void> {
+    await this.updateBusiness(businessId, { status });
   }
 
-  updateTags(businessId: string, tags: string[]) {
-    const cleaned = tags
-      .map((tag) => tag.trim())
-      .filter((tag) => !!tag);
-    const unique = Array.from(new Set(cleaned));
-    this.updateBusiness(businessId, {
-      tags: unique.length ? unique : undefined,
+  async updateTags(businessId: string, tags: string[]): Promise<void> {
+    const normalized = this.normalizeTagList(tags);
+    await this.updateBusiness(businessId, {
+      tags: normalized?.length ? normalized : undefined,
     });
   }
 
-  setLinkedOrderItems(businessId: string, itemIds: string[]) {
+  async setLinkedOrderItems(businessId: string, itemIds: string[]): Promise<void> {
     const business = this._businesses().find((b) => b.id === businessId);
     if (!business) {
       return;
@@ -221,9 +253,19 @@ export class BusinessService {
     toUnlink.forEach((itemId) =>
       this.orderService.unlinkBusinessFromItem(businessId, itemId),
     );
+
+    try {
+      await firstValueFrom(
+        this.api.updateBusiness(businessId, {
+          linkedOrderItemIds: nextIds.length ? nextIds : [],
+        }),
+      );
+    } catch (error) {
+      console.warn('[BusinessService] Failed to update linked order items', error);
+    }
   }
 
-  deleteBusiness(businessId: string): void {
+  async deleteBusiness(businessId: string): Promise<void> {
     const business = this._businesses().find((b) => b.id === businessId);
     if (!business) {
       return;
@@ -235,6 +277,144 @@ export class BusinessService {
     linked.forEach((itemId) =>
       this.orderService.unlinkBusinessFromItem(businessId, itemId),
     );
+    try {
+      await firstValueFrom(this.api.deleteBusiness(businessId));
+    } catch (error) {
+      console.warn('[BusinessService] Failed to delete business', error);
+    }
+  }
+
+  async refreshBusinesses(force = false): Promise<void> {
+    if (this.loading() && !force) {
+      return;
+    }
+    this.currentPage = 1;
+    await this.fetchBusinesses(this.currentPage, false);
+  }
+
+  async loadMoreBusinesses(): Promise<void> {
+    if (this.loading() || !this.hasMore()) {
+      return;
+    }
+    await this.fetchBusinesses(this.currentPage + 1, true);
+  }
+
+  private async fetchBusinesses(page: number, append: boolean): Promise<void> {
+    if (this.loading()) {
+      return;
+    }
+    this.loading.set(true);
+    const requestId = (this.fetchToken += 1);
+    try {
+      const response = await firstValueFrom(
+        this.api.searchBusinesses({
+          filters: this._filters(),
+          sort: this._sort(),
+          page,
+          pageSize: this.pageSize,
+        }),
+      );
+      if (requestId !== this.fetchToken) {
+        return;
+      }
+      const businesses = response.businesses ?? [];
+      this.total.set(response.total ?? businesses.length);
+      this.hasMore.set(Boolean(response.hasMore));
+      this.currentPage = response.page ?? page;
+      this._businesses.update((current) =>
+        append ? this.appendBusinesses(current, businesses) : businesses,
+      );
+    } catch (error) {
+      console.warn('[BusinessService] Failed to load businesses', error);
+    } finally {
+      if (requestId === this.fetchToken) {
+        this.loading.set(false);
+      }
+    }
+  }
+
+  private appendBusinesses(current: Business[], next: Business[]): Business[] {
+    if (!next.length) {
+      return current;
+    }
+    const existingIds = new Set(current.map((business) => business.id));
+    const additions = next.filter((business) => !existingIds.has(business.id));
+    return [...current, ...additions];
+  }
+
+  private replaceBusiness(business: Business, prepend = false): void {
+    this._businesses.update((businesses) => {
+      const index = businesses.findIndex((entry) => entry.id === business.id);
+      if (index === -1) {
+        return prepend ? [business, ...businesses] : [...businesses, business];
+      }
+      const next = [...businesses];
+      next[index] = business;
+      return next;
+    });
+  }
+
+  private toUpdatePayload(
+    patch: BusinessPatch,
+  ): {
+    title?: string;
+    description?: string;
+    dueDate?: string | null;
+    status?: BusinessStatus;
+    assignment?: BusinessAssignment;
+    documents?: BusinessDocument[];
+    linkedOrderItemIds?: string[];
+    tags?: string[];
+  } {
+    const payload: {
+      title?: string;
+      description?: string;
+      dueDate?: string | null;
+      status?: BusinessStatus;
+      assignment?: BusinessAssignment;
+      documents?: BusinessDocument[];
+      linkedOrderItemIds?: string[];
+      tags?: string[];
+    } = {};
+
+    if (patch.title !== undefined) {
+      payload.title = patch.title;
+    }
+    if (patch.description !== undefined) {
+      payload.description = patch.description;
+    }
+    if (patch.dueDate !== undefined) {
+      payload.dueDate =
+        patch.dueDate instanceof Date
+          ? patch.dueDate.toISOString()
+          : patch.dueDate ?? null;
+    }
+    if (patch.status !== undefined) {
+      payload.status = patch.status;
+    }
+    if (patch.assignment !== undefined) {
+      payload.assignment = patch.assignment;
+    }
+    if (patch.documents !== undefined) {
+      payload.documents = patch.documents;
+    }
+    if (patch.linkedOrderItemIds !== undefined) {
+      payload.linkedOrderItemIds = patch.linkedOrderItemIds;
+    }
+    if (patch.tags !== undefined) {
+      payload.tags = this.normalizeTagList(patch.tags);
+    }
+    return payload;
+  }
+
+  private normalizeTagList(tags?: string[]): string[] | undefined {
+    if (!tags?.length) {
+      return undefined;
+    }
+    const cleaned = tags
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length);
+    return cleaned.length ? Array.from(new Set(cleaned)) : undefined;
   }
 
   private matchesFilters(
@@ -408,11 +588,6 @@ export class BusinessService {
     }
     start.setHours(0, 0, 0, 0);
     return start;
-  }
-
-  private generateBusinessId(): string {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    return `G-${timestamp}`;
   }
 
   private parseSearchTokens(search: string): ParsedSearchTokens {

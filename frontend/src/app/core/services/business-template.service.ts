@@ -1,4 +1,5 @@
-import { Injectable, computed, effect, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { BusinessService, CreateBusinessPayload } from './business.service';
 import {
   AutomationCondition,
@@ -15,9 +16,9 @@ import {
 } from '../config/ttr-phase-template.config';
 import { OrderTimelineReference, OrderTtrPhase } from './order.service';
 import { BusinessAssignment } from '../models/business.model';
+import { BusinessTemplateApiService } from '../api/business-template-api.service';
 
 const PHASE_AUTOMATION_STORAGE_KEY = 'business.phaseAutomation.v1';
-const TEMPLATE_STORAGE_KEY = 'business.templates.store.v1';
 const PHASE_WINDOW_STORAGE_KEY = 'business.phaseWindows.v1';
 const CUSTOM_PHASE_STORAGE_KEY = 'business.customPhases.v1';
 const PHASE_CONDITION_STORAGE_KEY = 'business.phaseConditions.v1';
@@ -25,6 +26,7 @@ const TEMPLATE_TAG_PREFIX = 'template:';
 
 @Injectable({ providedIn: 'root' })
 export class BusinessTemplateService {
+  private readonly api = inject(BusinessTemplateApiService);
   private readonly browserStorage = this.detectStorage();
   private readonly _phaseConditionOverrides = signal<Record<string, AutomationCondition[]>>(
     this.restorePhaseConditions(),
@@ -36,11 +38,12 @@ export class BusinessTemplateService {
     this.restorePhaseWindows(),
   );
   private readonly _customPhases = signal<PhaseTemplateDefinition[]>(this.restoreCustomPhases());
-  private readonly _templates = signal<BusinessTemplate[]>(this.restoreTemplates());
+  private readonly _templates = signal<BusinessTemplate[]>(this.buildLocalTemplates());
   private readonly _phaseAutomation = signal<Record<string, boolean>>(
     this.restorePhaseAutomation(),
   );
   private readonly _executions = signal<BusinessAutomationExecution[]>([]);
+  private readonly loading = signal(false);
 
   readonly templates = computed(() => this._templates());
   readonly automationRules = computed(() => this.buildAutomationRules());
@@ -51,10 +54,6 @@ export class BusinessTemplateService {
     effect(() => {
       const state = this._phaseAutomation();
       this.persistPhaseAutomation(state);
-    });
-    effect(() => {
-      const templates = this._templates();
-      this.persistTemplates(templates);
     });
     effect(() => {
       const windows = this._phaseWindowOverrides();
@@ -68,6 +67,7 @@ export class BusinessTemplateService {
       const conditions = this._phaseConditionOverrides();
       this.persistPhaseConditions(conditions);
     });
+    void this.loadFromApi();
   }
 
   getTemplateById(id: string): BusinessTemplate | undefined {
@@ -115,7 +115,10 @@ export class BusinessTemplateService {
       .slice(0, 5);
   }
 
-  instantiateTemplate(templateId: string, context: BusinessTemplateContext = {}) {
+  async instantiateTemplate(
+    templateId: string,
+    context: BusinessTemplateContext = {},
+  ): ReturnType<BusinessService['createBusiness']> {
     const template = this.getTemplateById(templateId);
     if (!template) {
       throw new Error('Vorlage nicht gefunden.');
@@ -141,31 +144,25 @@ export class BusinessTemplateService {
     return this.businessService.createBusiness(payload);
   }
 
-  createTemplate(payload: CreateBusinessTemplatePayload) {
-    const template: BusinessTemplate = {
-      id: this.generateTemplateId(),
-      title: payload.title,
-      description: payload.description,
-      instructions: payload.instructions,
+  async createTemplate(payload: CreateBusinessTemplatePayload): Promise<BusinessTemplate> {
+    const normalizedPayload: CreateBusinessTemplatePayload = {
+      ...payload,
       tags: this.normalizeTags(payload.tags ?? []),
-      category: payload.category ?? 'Custom',
-      recommendedAssignment: payload.assignment,
       dueRule: {
         ...payload.dueRule,
         label:
           payload.dueRule.label ??
           this.formatOffsetLabel(payload.dueRule.anchor, payload.dueRule.offsetDays),
       },
-      defaultLeadTimeDays: payload.defaultLeadTimeDays,
-      automationHint: payload.automationHint,
-      steps: payload.steps,
-      parameterHints: payload.parameterHints,
     };
-    this._templates.update((entries) => [template, ...entries]);
+    const template = await firstValueFrom(
+      this.api.createTemplate(normalizedPayload),
+    );
+    this.replaceTemplate(template, true);
     return template;
   }
 
-  updateTemplate(
+  async updateTemplate(
     templateId: string,
     patch: Partial<
       Pick<
@@ -173,8 +170,9 @@ export class BusinessTemplateService {
         'title' | 'description' | 'instructions' | 'recommendedAssignment' | 'tags'
       >
     >,
-  ) {
+  ): Promise<boolean> {
     let hasChanges = false;
+    let snapshot: BusinessTemplate | undefined;
     this._templates.update((templates) =>
       templates.map((template) => {
         if (template.id !== templateId) {
@@ -184,7 +182,7 @@ export class BusinessTemplateService {
         const nextAssignment = patch.recommendedAssignment
           ? { ...template.recommendedAssignment, ...patch.recommendedAssignment }
           : template.recommendedAssignment;
-        return {
+        const next = {
           ...template,
           title: patch.title ?? template.title,
           description: patch.description ?? template.description,
@@ -192,12 +190,26 @@ export class BusinessTemplateService {
           recommendedAssignment: nextAssignment,
           tags: patch.tags ? this.normalizeTags(patch.tags) : template.tags,
         };
+        snapshot = next;
+        return next;
       }),
     );
-    return hasChanges;
+    if (!hasChanges) {
+      return false;
+    }
+    const payload = this.toUpdatePayload(patch, snapshot);
+    try {
+      const updated = await firstValueFrom(
+        this.api.updateTemplate(templateId, payload),
+      );
+      this.replaceTemplate(updated);
+    } catch (error) {
+      console.warn('[BusinessTemplateService] Failed to update template', error);
+    }
+    return true;
   }
 
-  createCustomPhaseTemplate(payload: {
+  async createCustomPhaseTemplate(payload: {
     label: string;
     summary: string;
     timelineReference: OrderTimelineReference | 'fpYear';
@@ -205,8 +217,8 @@ export class BusinessTemplateService {
     autoCreate?: boolean;
     template: CreateBusinessTemplatePayload;
     conditions?: AutomationCondition[];
-  }): PhaseTemplateDefinition {
-    const template = this.createTemplate(payload.template);
+  }): Promise<PhaseTemplateDefinition> {
+    const template = await this.createTemplate(payload.template);
     const baseId = this.slugify(payload.label);
     const uniqueId = this.ensureUniquePhaseId(baseId);
     const conditions = this.normalizeConditions(payload.conditions ?? []);
@@ -224,7 +236,7 @@ export class BusinessTemplateService {
     return definition;
   }
 
-  deleteCustomPhaseTemplate(phaseId: string): void {
+  async deleteCustomPhaseTemplate(phaseId: string): Promise<void> {
     const current = this._customPhases();
     const target = current.find((entry) => entry.id === phaseId);
     if (!target) {
@@ -256,6 +268,11 @@ export class BusinessTemplateService {
       return next;
     });
     this.removeTemplate(target.template.id);
+    try {
+      await firstValueFrom(this.api.deleteTemplate(target.template.id));
+    } catch (error) {
+      console.warn('[BusinessTemplateService] Failed to delete template', error);
+    }
   }
 
   triggerAutomationsForTemplate(
@@ -306,24 +323,10 @@ export class BusinessTemplateService {
     }));
   }
 
-  private restoreTemplates(): BusinessTemplate[] {
+  private buildLocalTemplates(): BusinessTemplate[] {
     const base = this.buildConfigTemplates();
-    if (!this.browserStorage) {
-      return base;
-    }
-    try {
-      const raw = this.browserStorage.getItem(TEMPLATE_STORAGE_KEY);
-      if (!raw) {
-        return base;
-      }
-      const parsed = JSON.parse(raw) as BusinessTemplate[];
-      const map = new Map<string, BusinessTemplate>();
-      base.forEach((tpl) => map.set(tpl.id, tpl));
-      parsed.forEach((tpl) => map.set(tpl.id, tpl));
-      return Array.from(map.values());
-    } catch {
-      return base;
-    }
+    const customTemplates = this._customPhases().map((phase) => phase.template);
+    return this.mergeTemplates(base, customTemplates);
   }
 
   private getPhaseDefinitions(): PhaseTemplateDefinition[] {
@@ -502,17 +505,6 @@ export class BusinessTemplateService {
     this._executions.update((entries) => [execution, ...entries].slice(0, 50));
   }
 
-  private persistTemplates(templates: BusinessTemplate[]) {
-    if (!this.browserStorage) {
-      return;
-    }
-    try {
-      this.browserStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
-    } catch {
-      // ignore persistence errors
-    }
-  }
-
   private restorePhaseWindows(): Record<
     string,
     { window: PhaseWindowConfig; timelineReference?: OrderTimelineReference | 'fpYear' }
@@ -605,10 +597,6 @@ export class BusinessTemplateService {
     return `${abs} Tage ${direction} ${anchorLabel}`;
   }
 
-  private generateTemplateId(): string {
-    return `tpl-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
   private generateExecutionId(): string {
     return `exec-${Math.random().toString(36).slice(2, 10)}`;
   }
@@ -636,6 +624,112 @@ export class BusinessTemplateService {
         value: condition.value?.trim() ?? '',
       }))
       .filter((condition) => condition.value.length);
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loading() && !force) {
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const templates = await this.fetchAllTemplates();
+      const localTemplates = this.buildLocalTemplates();
+      const merged = this.mergeTemplates(localTemplates, templates);
+      this._templates.set(merged);
+      this.syncCustomPhaseTemplates(merged);
+    } catch (error) {
+      console.warn(
+        '[BusinessTemplateService] Failed to load templates from backend',
+        error,
+      );
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private async fetchAllTemplates(): Promise<BusinessTemplate[]> {
+    const templates: BusinessTemplate[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const response = await firstValueFrom(
+        this.api.searchTemplates({ page, pageSize: 200 }),
+      );
+      templates.push(...(response.templates ?? []));
+      hasMore = response.hasMore;
+      page += 1;
+      if (!response.pageSize) {
+        break;
+      }
+    }
+    return templates;
+  }
+
+  private mergeTemplates(
+    base: BusinessTemplate[],
+    next: BusinessTemplate[],
+  ): BusinessTemplate[] {
+    const map = new Map<string, BusinessTemplate>();
+    base.forEach((template) => map.set(template.id, template));
+    next.forEach((template) => map.set(template.id, template));
+    return Array.from(map.values());
+  }
+
+  private syncCustomPhaseTemplates(templates: BusinessTemplate[]): void {
+    const map = new Map(templates.map((template) => [template.id, template] as const));
+    this._customPhases.update((phases) =>
+      phases.map((phase) => {
+        const updated = map.get(phase.template.id);
+        return updated ? { ...phase, template: updated } : phase;
+      }),
+    );
+  }
+
+  private replaceTemplate(template: BusinessTemplate, prepend = false): void {
+    this._templates.update((templates) => {
+      const next = templates.filter((entry) => entry.id !== template.id);
+      if (prepend) {
+        return [template, ...next];
+      }
+      return [...next, template];
+    });
+    this._customPhases.update((phases) =>
+      phases.map((phase) =>
+        phase.template.id === template.id ? { ...phase, template } : phase,
+      ),
+    );
+  }
+
+  private toUpdatePayload(
+    patch: Partial<
+      Pick<
+        BusinessTemplate,
+        'title' | 'description' | 'instructions' | 'recommendedAssignment' | 'tags'
+      >
+    >,
+    snapshot?: BusinessTemplate,
+  ): Partial<CreateBusinessTemplatePayload> {
+    const payload: Partial<CreateBusinessTemplatePayload> = {};
+    if (patch.title !== undefined) {
+      payload.title = patch.title;
+    }
+    if (patch.description !== undefined) {
+      payload.description = patch.description;
+    }
+    if (patch.instructions !== undefined) {
+      payload.instructions = patch.instructions;
+    }
+    if (patch.tags !== undefined) {
+      payload.tags = this.normalizeTags(patch.tags);
+    }
+    if (patch.recommendedAssignment !== undefined) {
+      const assignment = snapshot?.recommendedAssignment ?? patch.recommendedAssignment;
+      payload.assignment = {
+        type: assignment.type,
+        name: assignment.name,
+      };
+    }
+    return payload;
   }
 
   private removeTemplate(templateId: string): void {

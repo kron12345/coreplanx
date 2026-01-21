@@ -9,6 +9,7 @@ import { LayerGroupSettingsComponent } from './layer-group-settings.component';
 import { PlanningRuleSettingsComponent } from './planning-rule-settings.component';
 import { PlanningSettingsComponent } from './planning-settings.component';
 import { PlanningAdminSettingsComponent } from './planning-admin-settings.component';
+import { OrderManagementAdminSettingsComponent } from './order-management-admin-settings.component';
 import { AssistantUiContextService } from '../../core/services/assistant-ui-context.service';
 import { environment } from '../../../environments/environment';
 
@@ -36,6 +37,7 @@ const SETTINGS_TABS = [
         PlanningRuleSettingsComponent,
         PlanningSettingsComponent,
         PlanningAdminSettingsComponent,
+        OrderManagementAdminSettingsComponent,
     ],
     templateUrl: './custom-attribute-settings.component.html',
     styleUrl: './custom-attribute-settings.component.scss',

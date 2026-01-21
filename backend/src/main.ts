@@ -13,7 +13,9 @@ async function bootstrap() {
   const apiPrefix = 'api/v1';
   const fastifyAdapter = new FastifyAdapter({
     bodyLimit: 50 * 1024 * 1024,
-    maxParamLength: 512,
+    routerOptions: {
+      maxParamLength: 512,
+    },
   });
   const app = await NestFactory.create(AppModule, fastifyAdapter);
   fastifyAdapter.getInstance().addHook('onRequest', (request, reply, done) => {

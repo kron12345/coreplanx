@@ -1,6 +1,7 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { Customer, CustomerContact } from '../models/customer.model';
-import { MOCK_CUSTOMERS } from '../mock/mock-customers.mock';
+import { CustomerApiService } from '../api/customer-api.service';
 
 export interface CreateCustomerPayload {
   name: string;
@@ -13,9 +14,16 @@ export interface CreateCustomerPayload {
 
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
-  private readonly _customers = signal<Customer[]>(MOCK_CUSTOMERS);
+  private readonly api = inject(CustomerApiService);
+  private readonly _customers = signal<Customer[]>([]);
+  private readonly loading = signal(false);
 
   readonly customers = computed(() => this._customers());
+  readonly isLoading = computed(() => this.loading());
+
+  constructor() {
+    void this.loadFromApi();
+  }
 
   getById(id: string | undefined): Customer | undefined {
     if (!id) {
@@ -41,24 +49,33 @@ export class CustomerService {
     );
   }
 
-  createCustomer(payload: CreateCustomerPayload): Customer {
-    const customer: Customer = {
-      id: this.generateId(payload.name, payload.customerNumber),
-      name: payload.name.trim(),
-      customerNumber: payload.customerNumber.trim(),
-      projectNumber: payload.projectNumber?.trim() || undefined,
-      address: payload.address?.trim() || undefined,
-      notes: payload.notes?.trim() || undefined,
-      contacts: this.normalizeContacts(payload.contacts),
-    };
-    this._customers.update((customers) => [customer, ...customers]);
+  async createCustomer(payload: CreateCustomerPayload): Promise<Customer> {
+    const customer = await firstValueFrom(
+      this.api.createCustomer({
+        name: payload.name.trim(),
+        customerNumber: payload.customerNumber.trim(),
+        projectNumber: payload.projectNumber?.trim() || undefined,
+        address: payload.address?.trim() || undefined,
+        notes: payload.notes?.trim() || undefined,
+        contacts: this.normalizeContacts(payload.contacts),
+      }),
+    );
+    this.replaceCustomer(customer, true);
     return customer;
   }
 
-  deleteCustomer(id: string) {
+  async deleteCustomer(id: string): Promise<void> {
+    if (!this._customers().some((customer) => customer.id === id)) {
+      return;
+    }
     this._customers.update((customers) =>
       customers.filter((customer) => customer.id !== id),
     );
+    try {
+      await firstValueFrom(this.api.deleteCustomer(id));
+    } catch (error) {
+      console.warn('[CustomerService] Failed to delete customer', error);
+    }
   }
 
   private normalizeContacts(
@@ -79,18 +96,53 @@ export class CustomerService {
       .filter((contact) => contact.name.length || contact.email || contact.phone);
   }
 
-  private generateId(name: string, customerNumber: string): string {
-    const slug = `${name}-${customerNumber}`
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-      .slice(0, 32);
-    const random = Math.random().toString(36).slice(2, 6);
-    return `cust-${slug || 'new'}-${random}`;
-  }
-
   private generateContactId(index: number): string {
     const random = Math.random().toString(36).slice(2, 6);
     return `contact-${index}-${random}`;
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loading() && !force) {
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const customers = await this.fetchAllCustomers();
+      this._customers.set(customers);
+    } catch (error) {
+      console.warn('[CustomerService] Failed to load customers', error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private async fetchAllCustomers(): Promise<Customer[]> {
+    const customers: Customer[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const response = await firstValueFrom(
+        this.api.searchCustomers({ page, pageSize: 200 }),
+      );
+      customers.push(...(response.customers ?? []));
+      hasMore = response.hasMore;
+      page += 1;
+      if (!response.pageSize) {
+        break;
+      }
+    }
+    return customers;
+  }
+
+  private replaceCustomer(customer: Customer, prepend = false): void {
+    this._customers.update((customers) => {
+      const index = customers.findIndex((entry) => entry.id === customer.id);
+      if (index === -1) {
+        return prepend ? [customer, ...customers] : [...customers, customer];
+      }
+      const next = [...customers];
+      next[index] = customer;
+      return next;
+    });
   }
 }

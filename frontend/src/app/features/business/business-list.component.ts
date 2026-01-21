@@ -50,7 +50,6 @@ import { BusinessInsightsComponent } from './business-insights.component';
 import {
   BUSINESS_DUE_DATE_LABEL_LOOKUP,
   BUSINESS_DUE_DATE_PRESET_OPTIONS,
-  BUSINESS_PAGE_SIZE,
   BUSINESS_SORT_OPTIONS,
   BUSINESS_STATUS_LABEL_LOOKUP,
   BUSINESS_STATUS_LABELS,
@@ -132,14 +131,9 @@ export class BusinessListComponent {
   readonly filters = computed(() => this.businessService.filters());
   readonly sort = computed(() => this.businessService.sort());
   readonly businesses = computed(() => this.businessService.filteredBusinesses());
-  readonly totalBusinesses = computed(() => this.businessService.businesses().length);
-  private readonly visibleCount = signal(BUSINESS_PAGE_SIZE);
-  readonly visibleBusinesses = computed(() =>
-    this.businesses().slice(0, this.visibleCount()),
-  );
-  readonly hasMoreBusinesses = computed(
-    () => this.visibleCount() < this.businesses().length,
-  );
+  readonly totalBusinesses = computed(() => this.businessService.totalCount());
+  readonly visibleBusinesses = computed(() => this.businesses());
+  readonly hasMoreBusinesses = computed(() => this.businessService.hasMoreBusinesses());
   readonly detailJumpVisible = signal(false);
   readonly orderItemOptions = computed<OrderItemOption[]>(() =>
     this.orderService.orderItemOptions(),
@@ -300,13 +294,6 @@ export class BusinessListComponent {
     });
 
     effect(() => {
-      // Reset sichtbare Ergebnisse bei Filter-/Sort-Änderungen
-      this.businesses();
-      this.sort();
-      this.visibleCount.set(BUSINESS_PAGE_SIZE);
-    });
-
-    effect(() => {
       persistBusinessFilterPresets(this.presetStorageKey, this.savedPresets());
     });
 
@@ -337,7 +324,7 @@ export class BusinessListComponent {
 
     dialogRef.afterClosed().subscribe((result) => {
       if (result) {
-        this.businessService.createBusiness(result);
+        void this.businessService.createBusiness(result);
       }
     });
   }
@@ -405,11 +392,7 @@ export class BusinessListComponent {
     if (!this.hasMoreBusinesses()) {
       return;
     }
-    const next = Math.min(
-      this.visibleCount() + BUSINESS_PAGE_SIZE,
-      this.businesses().length,
-    );
-    this.visibleCount.set(next);
+    void this.businessService.loadMoreBusinesses();
   }
 
   saveCurrentFilterPreset(): void {
@@ -570,13 +553,13 @@ export class BusinessListComponent {
     if (existing.some((entry) => entry.toLowerCase() === value.toLowerCase())) {
       return;
     }
-    this.businessService.updateTags(business.id, [...existing, value]);
+    void this.businessService.updateTags(business.id, [...existing, value]);
   }
 
   removeTagFromBusiness(business: Business, tag: string): void {
     const existing = business.tags ?? [];
     const next = existing.filter((entry) => entry !== tag);
-    this.businessService.updateTags(business.id, next);
+    void this.businessService.updateTags(business.id, next);
   }
 
   tagCount(tag: string): number {
@@ -629,7 +612,7 @@ export class BusinessListComponent {
       return;
     }
     this.startViewTransition();
-    this.bulkSelection().forEach((id) => this.businessService.updateStatus(id, status));
+    this.bulkSelection().forEach((id) => void this.businessService.updateStatus(id, status));
     this.clearBulkSelection();
   }
 
@@ -827,7 +810,7 @@ export class BusinessListComponent {
   }
 
   onStatusChange(id: string, status: BusinessStatus): void {
-    this.businessService.updateStatus(id, status);
+    void this.businessService.updateStatus(id, status);
   }
 
   removeLinkedItem(id: string, itemId: string): void {
@@ -835,7 +818,7 @@ export class BusinessListComponent {
       .businesses()
       .find((business) => business.id === id)?.linkedOrderItemIds ?? [];
     const next = current.filter((existing) => existing !== itemId);
-    this.businessService.setLinkedOrderItems(id, next);
+    void this.businessService.setLinkedOrderItems(id, next);
   }
 
   deleteBusiness(business: Business): void {
@@ -844,7 +827,7 @@ export class BusinessListComponent {
       return;
     }
     this.startViewTransition();
-    this.businessService.deleteBusiness(business.id);
+    void this.businessService.deleteBusiness(business.id);
     if (this.selectedBusinessId() === business.id) {
       this.selectedBusinessId.set(null);
     }
@@ -867,7 +850,7 @@ export class BusinessListComponent {
       if (!selection) {
         return;
       }
-      this.businessService.setLinkedOrderItems(business.id, selection);
+      void this.businessService.setLinkedOrderItems(business.id, selection);
     });
   }
 

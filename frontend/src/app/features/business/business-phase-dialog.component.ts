@@ -156,7 +156,7 @@ export class BusinessPhaseDialogComponent {
     return group.controls.id.value;
   }
 
-  save(): void {
+  async save(): Promise<void> {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -172,32 +172,37 @@ export class BusinessPhaseDialogComponent {
       window.bucket = 'year';
     }
 
-    this.templateService.createCustomPhaseTemplate({
-      label: value.label!.trim(),
-      summary: value.summary!.trim(),
-      timelineReference,
-      window,
-      autoCreate: value.autoCreate ?? false,
-      conditions: this.buildConditionPayload(),
-      template: {
-        title: value.title!.trim(),
-        description: value.description!.trim(),
-        instructions: value.instructions?.trim(),
-        assignment: {
-          type: value.assignmentType,
-          name: value.assignmentName!.trim(),
+    try {
+      await this.templateService.createCustomPhaseTemplate({
+        label: value.label!.trim(),
+        summary: value.summary!.trim(),
+        timelineReference,
+        window,
+        autoCreate: value.autoCreate ?? false,
+        conditions: this.buildConditionPayload(),
+        template: {
+          title: value.title!.trim(),
+          description: value.description!.trim(),
+          instructions: value.instructions?.trim(),
+          assignment: {
+            type: value.assignmentType,
+            name: value.assignmentName!.trim(),
+          },
+          tags: this.normalizeTags(value.tags ?? ''),
+          dueRule: {
+            anchor: value.dueAnchor,
+            offsetDays: Number(value.dueOffset),
+            label: this.buildDueLabel(value.dueAnchor, Number(value.dueOffset)),
+          },
+          defaultLeadTimeDays: Math.abs(Number(value.dueOffset)),
         },
-        tags: this.normalizeTags(value.tags ?? ''),
-        dueRule: {
-          anchor: value.dueAnchor,
-          offsetDays: Number(value.dueOffset),
-          label: this.buildDueLabel(value.dueAnchor, Number(value.dueOffset)),
-        },
-        defaultLeadTimeDays: Math.abs(Number(value.dueOffset)),
-      },
-    });
-    this.snackBar.open('Eigene Phase gespeichert.', 'OK', { duration: 2000 });
-    this.dialogRef.close(true);
+      });
+      this.snackBar.open('Eigene Phase gespeichert.', 'OK', { duration: 2000 });
+      this.dialogRef.close(true);
+    } catch (error) {
+      console.warn('[BusinessPhaseDialog] Failed to save phase', error);
+      this.snackBar.open('Phase konnte nicht gespeichert werden.', 'OK', { duration: 3000 });
+    }
   }
 
   cancel(): void {

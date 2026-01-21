@@ -505,34 +505,43 @@ export class OrderPositionDialogComponent {
     });
 
     dialogRef.afterClosed().subscribe((result) => {
-      if (!result) {
-        return;
-      }
-
-      let template: ScheduleTemplate | undefined;
-      if (result.mode === 'edit') {
-        this.templateService.updateTemplateFromPayload(result.templateId, result.payload);
-        template = this.templateService.getById(result.templateId);
-      } else {
-        template = this.templateService.createTemplate(result.payload);
-      }
-      if (!template) {
-        return;
-      }
-
-      this.planForm.controls.templateId.setValue(template.id);
-      if (!this.planForm.controls.namePrefix.value) {
-        this.planForm.controls.namePrefix.setValue(template.title);
-      }
-      if (!this.planForm.controls.responsible.value) {
-        this.planForm.controls.responsible.setValue(template.responsibleRu);
-      }
-      this.errorMessage.set(null);
-      const currentTrains = this.importedTrains();
-      if (currentTrains.length) {
-        this.importedTrains.set(this.applyTemplateMatching(currentTrains));
-      }
+      void this.applyTemplateDialogResult(result);
     });
+  }
+
+  private async applyTemplateDialogResult(
+    result: ScheduleTemplateDialogResult | undefined,
+  ): Promise<void> {
+    if (!result) {
+      return;
+    }
+
+    let template: ScheduleTemplate | undefined;
+    if (result.mode === 'edit') {
+      template = await this.templateService.updateTemplateFromPayload(
+        result.templateId,
+        result.payload,
+      );
+      template = template ?? this.templateService.getById(result.templateId);
+    } else {
+      template = await this.templateService.createTemplate(result.payload);
+    }
+    if (!template) {
+      return;
+    }
+
+    this.planForm.controls.templateId.setValue(template.id);
+    if (!this.planForm.controls.namePrefix.value) {
+      this.planForm.controls.namePrefix.setValue(template.title);
+    }
+    if (!this.planForm.controls.responsible.value) {
+      this.planForm.controls.responsible.setValue(template.responsibleRu);
+    }
+    this.errorMessage.set(null);
+    const currentTrains = this.importedTrains();
+    if (currentTrains.length) {
+      this.importedTrains.set(this.applyTemplateMatching(currentTrains));
+    }
   }
 
   openManualPlanAssembly() {

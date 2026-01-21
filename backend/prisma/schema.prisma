@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id             String   @id @db.Text
+  name           String   @db.Text
+  customerNumber String   @map("customer_number") @db.Text
+  projectNumber  String?  @map("project_number") @db.Text
+  address        String?  @db.Text
+  contacts       Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  orders Order[]
+
+  @@map("customers")
+}
+
+model Order {
+  id                String      @id @db.Text
+  name              String      @db.Text
+  customerId        String?     @map("customer_id") @db.Text
+  customerLabel     String?     @map("customer_label") @db.Text
+  comment           String?     @db.Text
+  tags              String[]    @default([]) @db.Text
+  timetableYearLabel String?    @map("timetable_year_label") @db.Text
+  processStatus     String?     @map("process_status") @db.Text
+  version           Int         @default(1)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer?  @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+
+  @@map("orders")
+}
+
+model ScheduleTemplate {
+  id            String   @id @db.Text
+  title         String   @db.Text
+  description   String?  @db.Text
+  trainNumber   String   @map("train_number") @db.Text
+  responsibleRu String   @map("responsible_ru") @db.Text
+  status        String   @db.Text
+  category      String   @db.Text
+  tags          String[] @default([]) @db.Text
+  validityStart DateTime @map("validity_start") @db.Date
+  validityEnd   DateTime? @map("validity_end") @db.Date
+  recurrence    Json?    @db.JsonB
+  composition   Json?    @db.JsonB
+  version       Int      @default(1)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  stops ScheduleTemplateStop[]
+  orderItems OrderItem[]
+
+  @@map("schedule_templates")
+}
+
+model ScheduleTemplateStop {
+  id              String   @id @db.Text
+  templateId      String   @map("template_id") @db.Text
+  sequence        Int
+  type            String   @db.Text
+  locationCode    String   @map("location_code") @db.Text
+  locationName    String   @map("location_name") @db.Text
+  countryCode     String?  @map("country_code") @db.Text
+  arrivalEarliest String?  @map("arrival_earliest") @db.Text
+  arrivalLatest   String?  @map("arrival_latest") @db.Text
+  departureEarliest String? @map("departure_earliest") @db.Text
+  departureLatest String?  @map("departure_latest") @db.Text
+  offsetDays      Int?     @map("offset_days")
+  dwellMinutes    Int?     @map("dwell_minutes")
+  activities      String[] @default([]) @db.Text
+  platformWish    String?  @map("platform_wish") @db.Text
+  notes           String?  @db.Text
+
+  template ScheduleTemplate @relation(fields: [templateId], references: [id])
+
+  @@map("schedule_template_stops")
+}
+
+model BusinessTemplate {
+  id                        String   @id @db.Text
+  title                     String   @db.Text
+  description               String   @db.Text
+  instructions              String?  @db.Text
+  tags                      String[] @default([]) @db.Text
+  category                  String   @db.Text
+  recommendedAssignmentType String   @map("recommended_assignment_type") @db.Text
+  recommendedAssignmentName String   @map("recommended_assignment_name") @db.Text
+  dueRuleAnchor             String   @map("due_rule_anchor") @db.Text
+  dueRuleOffsetDays         Int      @map("due_rule_offset_days")
+  dueRuleLabel              String   @map("due_rule_label") @db.Text
+  defaultLeadTimeDays       Int      @map("default_lead_time_days")
+  automationHint            String?  @map("automation_hint") @db.Text
+  steps                     Json?    @db.JsonB
+  parameterHints            String[]  @default([]) @map("parameter_hints") @db.Text
+  version                   Int      @default(1)
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  phases      BusinessPhaseTemplate[]
+  executions  BusinessAutomationExecution[]
+
+  @@map("business_templates")
+}
+
+model BusinessPhaseTemplate {
+  id                 String   @id @db.Text
+  templateId         String   @map("template_id") @db.Text
+  label              String   @db.Text
+  summary            String   @db.Text
+  timelineReference  String   @map("timeline_reference") @db.Text
+  windowUnit         String   @map("window_unit") @db.Text
+  windowStart        Int      @map("window_start")
+  windowEnd          Int      @map("window_end")
+  windowBucket       String   @map("window_bucket") @db.Text
+  windowLabel        String   @map("window_label") @db.Text
+  sourcePhase        String?  @map("source_phase") @db.Text
+  autoCreate         Boolean  @default(false) @map("auto_create")
+  automationEnabled  Boolean  @default(true) @map("automation_enabled")
+  isCustom           Boolean  @default(false) @map("is_custom")
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  template   BusinessTemplate @relation(fields: [templateId], references: [id])
+  conditions BusinessPhaseCondition[]
+
+  @@map("business_phase_templates")
+}
+
+model BusinessPhaseCondition {
+  id         String @id @db.Text
+  phaseId    String @map("phase_id") @db.Text
+  field      String @db.Text
+  operator   String @db.Text
+  value      String @db.Text
+  orderIndex Int    @default(0) @map("order_index")
+
+  phase BusinessPhaseTemplate @relation(fields: [phaseId], references: [id])
+
+  @@map("business_phase_conditions")
+}
+
+model Business {
+  id             String   @id @db.Text
+  title          String   @db.Text
+  description    String   @db.Text
+  status         String   @db.Text
+  assignmentType String   @map("assignment_type") @db.Text
+  assignmentName String   @map("assignment_name") @db.Text
+  dueDate        DateTime? @map("due_date") @db.Timestamptz(6)
+  documents      Json?    @db.JsonB
+  tags           String[] @default([]) @db.Text
+  version        Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  orderLinks BusinessOrderItem[]
+
+  @@map("businesses")
+}
+
+model TrafficPeriod {
+  id                 String   @id @db.Text
+  name               String   @db.Text
+  type               String   @db.Text
+  description        String?  @db.Text
+  responsible        String?  @db.Text
+  timetableYearLabel String?  @map("timetable_year_label") @db.Text
+  tags               String[] @default([]) @db.Text
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  rules        TrafficPeriodRule[]
+  trainPlans   TrainPlan[]
+  orderItems   OrderItem[]
+  versions     TrafficPeriodVersion[]
+
+  @@map("traffic_periods")
+}
+
+model TrafficPeriodRule {
+  id             String   @id @db.Text
+  periodId       String   @map("period_id") @db.Text
+  name           String   @db.Text
+  description    String?  @db.Text
+  daysBitmap     String   @map("days_bitmap") @db.Text
+  validityStart  DateTime @map("validity_start") @db.Date
+  validityEnd    DateTime? @map("validity_end") @db.Date
+  includesHolidays Boolean? @map("includes_holidays")
+  excludesDates  Json?    @map("excludes_dates") @db.JsonB
+  includesDates  Json?    @map("includes_dates") @db.JsonB
+  variantType    String?  @map("variant_type") @db.Text
+  appliesTo      String?  @map("applies_to") @db.Text
+  variantNumber  String?  @map("variant_number") @db.Text
+  reason         String?  @db.Text
+  isPrimary      Boolean? @map("is_primary")
+
+  period TrafficPeriod @relation(fields: [periodId], references: [id])
+
+  @@map("traffic_period_rules")
+}
+
+model TrainPlan {
+  id                String   @id @db.Text
+  title             String   @db.Text
+  description       String?  @db.Text
+  trainNumber       String   @map("train_number") @db.Text
+  status            String   @db.Text
+  responsibleRu     String   @map("responsible_ru") @db.Text
+  participants      Json?    @db.JsonB
+  calendarValidFrom DateTime @map("calendar_valid_from") @db.Date
+  calendarValidTo   DateTime? @map("calendar_valid_to") @db.Date
+  calendarDaysBitmap String  @map("calendar_days_bitmap") @db.Text
+  trafficPeriodId   String?  @map("traffic_period_id") @db.Text
+  referencePlanId   String?  @map("reference_plan_id") @db.Text
+  stops             Json     @default("[]") @db.JsonB
+  technical         Json?    @db.JsonB
+  routeMetadata     Json?    @map("route_metadata") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  sourceType        String   @map("source_type") @db.Text
+  sourceName        String   @map("source_name") @db.Text
+  sourceTemplateId  String?  @map("source_template_id") @db.Text
+  sourceSystemId    String?  @map("source_system_id") @db.Text
+  linkedOrderItemId String?  @map("linked_order_item_id") @db.Text
+  notes             String?  @db.Text
+  rollingStock      Json?    @map("rolling_stock") @db.JsonB
+  planVariantType   String?  @map("plan_variant_type") @db.Text
+  variantOfPlanId   String?  @map("variant_of_plan_id") @db.Text
+  variantLabel      String?  @map("variant_label") @db.Text
+  simulationId      String?  @map("simulation_id") @db.Text
+  simulationLabel   String?  @map("simulation_label") @db.Text
+  version           Int      @default(1)
+
+  trafficPeriod  TrafficPeriod? @relation(fields: [trafficPeriodId], references: [id])
+  linkedOrderItem OrderItem? @relation("TrainPlanPrimaryOrderItem", fields: [linkedOrderItemId], references: [id])
+  versions       TrainPlanVersion[]
+  linkedItems    OrderItem[] @relation("OrderItemLinkedTrainPlan")
+
+  @@map("train_plans")
+}
+
+model OrderItem {
+  id                   String   @id @db.Text
+  orderId              String   @map("order_id") @db.Text
+  name                 String   @db.Text
+  type                 String   @db.Text
+  tags                 String[] @default([]) @db.Text
+  start                DateTime? @db.Timestamptz(6)
+  end                  DateTime? @map("end") @db.Timestamptz(6)
+  responsible          String?  @db.Text
+  deviation            String?  @db.Text
+  serviceType          String?  @map("service_type") @db.Text
+  fromLocation         String?  @map("from_location") @db.Text
+  toLocation           String?  @map("to_location") @db.Text
+  validity             Json?    @db.JsonB
+  parentItemId         String?  @map("parent_item_id") @db.Text
+  versionPath          Int[]   @default([]) @map("version_path")
+  generatedTimetableRefId String? @map("generated_timetable_ref_id") @db.Text
+  timetablePhase       String?  @map("timetable_phase") @db.Text
+  internalStatus       String?  @map("internal_status") @db.Text
+  timetableYearLabel   String?  @map("timetable_year_label") @db.Text
+  trafficPeriodId      String?  @map("traffic_period_id") @db.Text
+  linkedTemplateId     String?  @map("linked_template_id") @db.Text
+  linkedTrainPlanId    String?  @map("linked_train_plan_id") @db.Text
+  variantType          String?  @map("variant_type") @db.Text
+  variantOfItemId      String?  @map("variant_of_item_id") @db.Text
+  variantGroupId       String?  @map("variant_group_id") @db.Text
+  variantLabel         String?  @map("variant_label") @db.Text
+  simulationId         String?  @map("simulation_id") @db.Text
+  simulationLabel      String?  @map("simulation_label") @db.Text
+  mergeStatus          String?  @map("merge_status") @db.Text
+  mergeTargetId        String?  @map("merge_target_id") @db.Text
+  originalTimetable    Json?    @map("original_timetable") @db.JsonB
+  version              Int      @default(1)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  order          Order            @relation(fields: [orderId], references: [id])
+  trafficPeriod  TrafficPeriod?   @relation(fields: [trafficPeriodId], references: [id])
+  linkedTemplate ScheduleTemplate? @relation(fields: [linkedTemplateId], references: [id])
+  linkedTrainPlan TrainPlan?      @relation("OrderItemLinkedTrainPlan", fields: [linkedTrainPlanId], references: [id])
+  primaryTrainPlans TrainPlan[]   @relation("TrainPlanPrimaryOrderItem")
+  parentItem     OrderItem?       @relation("OrderItemParent", fields: [parentItemId], references: [id])
+  childItems     OrderItem[]      @relation("OrderItemParent")
+  variantOfItem  OrderItem?       @relation("OrderItemVariant", fields: [variantOfItemId], references: [id])
+  variantItems   OrderItem[]      @relation("OrderItemVariant")
+  businessLinks  BusinessOrderItem[]
+
+  @@map("order_items")
+}
+
+model BusinessOrderItem {
+  businessId  String   @map("business_id") @db.Text
+  orderItemId String   @map("order_item_id") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id])
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@id([businessId, orderItemId])
+  @@map("business_order_items")
+}
+
+model TrainPlanVersion {
+  id           String   @id @db.Text
+  trainPlanId  String   @map("train_plan_id") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String?  @map("created_by") @db.Text
+  reason       String?  @db.Text
+  snapshot     Json     @db.JsonB
+
+  trainPlan TrainPlan @relation(fields: [trainPlanId], references: [id])
+
+  @@map("train_plan_versions")
+}
+
+model TrafficPeriodVersion {
+  id              String   @id @db.Text
+  trafficPeriodId String   @map("traffic_period_id") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       String?  @map("created_by") @db.Text
+  reason          String?  @db.Text
+  snapshot        Json     @db.JsonB
+
+  trafficPeriod TrafficPeriod @relation(fields: [trafficPeriodId], references: [id])
+
+  @@map("traffic_period_versions")
+}
+
+model BusinessAutomationExecution {
+  id         String   @id @db.Text
+  ruleId     String   @map("rule_id") @db.Text
+  templateId String   @map("template_id") @db.Text
+  businessId String?  @map("business_id") @db.Text
+  status     String   @db.Text
+  timestamp  DateTime @db.Timestamptz(6)
+  message    String   @db.Text
+
+  template BusinessTemplate @relation(fields: [templateId], references: [id])
+
+  @@map("business_automation_executions")
+}

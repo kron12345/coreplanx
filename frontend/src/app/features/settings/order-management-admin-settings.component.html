@@ -1,0 +1,99 @@
+<section class="order-admin">
+  <header class="order-admin__header">
+    <div class="order-admin__title">
+      <h2>Auftragsmanagement Admin</h2>
+      <p>Entwicklungs-Tools fuer Kunden, Geschaefte und Auftraege.</p>
+    </div>
+    <div class="order-admin__actions">
+      <mat-form-field appearance="outline" class="order-admin__field">
+        <mat-label>Bestaetigung</mat-label>
+        <input matInput [(ngModel)]="confirmation" placeholder="DELETE" />
+        <mat-hint>Nur in Dev verfuegbar</mat-hint>
+      </mat-form-field>
+      <button mat-stroked-button (click)="reload()" [disabled]="loading() || busy()">
+        Neu laden
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+
+  @if (error()) {
+    <mat-card class="order-admin__error">{{ error() }}</mat-card>
+  }
+
+  <div class="order-admin__grid">
+    <mat-card class="order-admin__card">
+      <div class="order-admin__card-header">
+        <h3>Bestand</h3>
+        <span class="order-admin__meta">
+          Stand {{ summary()?.generatedAt ?? '—' }}
+        </span>
+      </div>
+      <div class="order-admin__summary">
+        <div class="order-admin__summary-row">
+          <span>Kunden</span>
+          <strong>{{ totals().customers }}</strong>
+        </div>
+        <div class="order-admin__summary-row">
+          <span>Geschaefte</span>
+          <strong>{{ totals().businesses }}</strong>
+        </div>
+        <div class="order-admin__summary-row">
+          <span>Fahrplanvorlagen</span>
+          <strong>{{ totals().scheduleTemplates }}</strong>
+        </div>
+        <div class="order-admin__summary-row">
+          <span>Auftraege</span>
+          <strong>{{ totals().orders }}</strong>
+        </div>
+        <div class="order-admin__summary-row">
+          <span>Positionen</span>
+          <strong>{{ totals().orderItems }}</strong>
+        </div>
+      </div>
+    </mat-card>
+
+    <mat-card class="order-admin__card order-admin__danger">
+      <div class="order-admin__card-header">
+        <h3>Reset</h3>
+      </div>
+      <p class="order-admin__hint">
+        Bestaetige mit <strong>DELETE</strong>, bevor du Daten loeschst oder Mockdaten laedst.
+      </p>
+      <div class="order-admin__clear-actions">
+        <button
+          mat-flat-button
+          color="warn"
+          (click)="clearData()"
+          [disabled]="!canExecute()"
+        >
+          Daten loeschen
+        </button>
+        <button
+          mat-flat-button
+          color="primary"
+          (click)="seedData()"
+          [disabled]="!canExecute()"
+        >
+          Loeschen + Mockdaten laden
+        </button>
+      </div>
+    </mat-card>
+
+    @if (warnings().length) {
+      <mat-card class="order-admin__card order-admin__warn">
+        <div class="order-admin__card-header">
+          <h3>Hinweise</h3>
+        </div>
+        <ul class="order-admin__warnings">
+          @for (note of warnings(); track note) {
+            <li>{{ note }}</li>
+          }
+        </ul>
+      </mat-card>
+    }
+  </div>
+</section>
