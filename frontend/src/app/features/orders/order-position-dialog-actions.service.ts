@@ -108,13 +108,13 @@ export class OrderPositionDialogActionsService {
     return null;
   }
 
-  createManualPlanItem(options: {
+  async createManualPlanItem(options: {
     order: Order;
     manualPlanForm: ManualPlanForm;
     businessForm: BusinessForm;
     stops: PlanModificationStopInput[];
     composition: ScheduleTemplate['composition'] | undefined;
-  }): string | null {
+  }): Promise<string | null> {
     const stops = options.stops;
     if (!stops?.length) {
       return 'Bitte zuerst einen Fahrplan zusammenstellen.';
@@ -168,7 +168,7 @@ export class OrderPositionDialogActionsService {
         simulationId: options.manualPlanForm.controls.simulationId.value || undefined,
         simulationLabel: options.manualPlanForm.controls.simulationLabel.value || undefined,
       };
-      const item = this.orderService.addManualPlanOrderItem(payload);
+      const item = await this.orderService.addManualPlanOrderItem(payload);
       const businessLinkError = this.applyBusinessLink([item], options.businessForm);
       if (businessLinkError) {
         return businessLinkError;
@@ -180,14 +180,14 @@ export class OrderPositionDialogActionsService {
     return null;
   }
 
-  createImportedPlanItems(options: {
+  async createImportedPlanItems(options: {
     order: Order;
     trains: ImportedRailMlTrain[];
     selectedTrainIds: Set<string>;
     importOptionsForm: ImportOptionsForm;
     businessForm: BusinessForm;
     composition: ScheduleTemplate['composition'] | undefined;
-  }): string | null {
+  }): Promise<string | null> {
     const trains = options.trains;
     const selected = options.selectedTrainIds;
     if (!trains.length || !selected.size) {
@@ -256,14 +256,14 @@ export class OrderPositionDialogActionsService {
       const groupRootIds = new Map<string, string>();
 
       const createdItems: OrderItem[] = [];
-      orderedPayloads.forEach(({ train, trafficPeriodId }) => {
+      for (const { train, trafficPeriodId } of orderedPayloads) {
         let parentItemId: string | undefined;
         if (train.variantOf) {
           parentItemId =
             createdItemIds.get(train.variantOf) ??
             (train.groupId ? groupRootIds.get(train.groupId) : undefined);
         }
-        const item = this.orderService.addImportedPlanOrderItem({
+        const item = await this.orderService.addImportedPlanOrderItem({
           orderId: options.order.id,
           train,
           trafficPeriodId,
@@ -284,7 +284,7 @@ export class OrderPositionDialogActionsService {
           groupRootIds.set(train.groupId ?? train.id, item.id);
         }
         createdItems.push(item);
-      });
+      }
 
       const businessLinkError = this.applyBusinessLink(createdItems, options.businessForm);
       if (businessLinkError) {
@@ -297,12 +297,12 @@ export class OrderPositionDialogActionsService {
     return null;
   }
 
-  createPlanItems(options: {
+  async createPlanItems(options: {
     order: Order;
     planForm: PlanForm;
     businessForm: BusinessForm;
     composition: ScheduleTemplate['composition'] | undefined;
-  }): string | null {
+  }): Promise<string | null> {
     const value = options.planForm.getRawValue();
     const selectedDates = this.resolveCalendarDates(value.calendarDates, value.calendarExclusions);
     if (!selectedDates.length) {
@@ -385,7 +385,7 @@ export class OrderPositionDialogActionsService {
     }
 
     try {
-      const items = this.orderService.addPlanOrderItems(planPayload);
+      const items = await this.orderService.addPlanOrderItems(planPayload);
       if (!items.length) {
         return 'Es konnten keine Auftragspositionen erzeugt werden.';
       }

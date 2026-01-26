@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import {
   TrafficPeriod,
   TrafficPeriodRule,
@@ -6,9 +7,9 @@ import {
   TrafficPeriodVariantType,
   TrafficPeriodVariantScope,
 } from '../models/traffic-period.model';
-import { MOCK_TRAFFIC_PERIODS } from '../mock/mock-traffic-periods.mock';
 import { TimetableYearBounds } from '../models/timetable-year.model';
 import { TimetableYearService } from './timetable-year.service';
+import { TrafficPeriodApiService } from '../api/traffic-period-api.service';
 
 export interface TrafficPeriodFilters {
   search: string;
@@ -59,8 +60,11 @@ export interface RailMlTrafficPeriodPayload {
 
 @Injectable({ providedIn: 'root' })
 export class TrafficPeriodService {
+  private readonly api = inject(TrafficPeriodApiService);
   private readonly timetableYear = inject(TimetableYearService);
-  private readonly _periods = signal<TrafficPeriod[]>(MOCK_TRAFFIC_PERIODS);
+  private readonly _periods = signal<TrafficPeriod[]>([]);
+  private readonly loadingSignal = signal(false);
+  private readonly errorSignal = signal<string | null>(null);
   private readonly _filters = signal<TrafficPeriodFilters>({
     search: '',
     type: 'all',
@@ -79,6 +83,8 @@ export class TrafficPeriodService {
   readonly periods = computed(() => this._periods());
   readonly filters = computed(() => this._filters());
   readonly sort = computed(() => this._sort());
+  readonly loading = computed(() => this.loadingSignal());
+  readonly error = computed(() => this.errorSignal());
 
   readonly tags = computed(() =>
     Array.from(
@@ -113,6 +119,31 @@ export class TrafficPeriodService {
       })
       .sort((a, b) => this.sortPeriods(a, b, sort));
   });
+
+  constructor() {
+    void this.loadFromApi();
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loadingSignal() && !force) {
+      return;
+    }
+    this.loadingSignal.set(true);
+    try {
+      const periods = await firstValueFrom(this.api.listPeriods());
+      this._periods.set(periods ?? []);
+      this.errorSignal.set(null);
+    } catch (error) {
+      console.warn('[TrafficPeriodService] Failed to load traffic periods', error);
+      this.errorSignal.set('Kalender konnten nicht geladen werden.');
+    } finally {
+      this.loadingSignal.set(false);
+    }
+  }
 
   setFilters(patch: Partial<TrafficPeriodFilters>) {
     this._filters.update((current) => ({ ...current, ...patch }));
@@ -177,6 +208,7 @@ export class TrafficPeriodService {
     };
 
     this._periods.update((periods) => [period, ...periods]);
+    void this.persistPeriod(period);
     return id;
   }
 
@@ -250,6 +282,10 @@ export class TrafficPeriodService {
         } satisfies TrafficPeriod;
       }),
     );
+    const updated = this.getById(periodId);
+    if (updated) {
+      void this.persistPeriod(updated);
+    }
   }
 
   ensureRailMlPeriod(payload: RailMlTrafficPeriodPayload): TrafficPeriod {
@@ -299,6 +335,7 @@ export class TrafficPeriodService {
     };
 
     this._periods.update((periods) => [period, ...periods]);
+    void this.persistPeriod(period);
     return period;
   }
 
@@ -306,6 +343,29 @@ export class TrafficPeriodService {
     this._periods.update((periods) =>
       periods.filter((period) => period.id !== periodId),
     );
+    void this.deletePeriodRemote(periodId);
+  }
+
+  private async persistPeriod(period: TrafficPeriod): Promise<void> {
+    try {
+      await firstValueFrom(this.api.upsertPeriod(period));
+      await this.loadFromApi(true);
+    } catch (error) {
+      console.warn('[TrafficPeriodService] Failed to persist period', error);
+    }
+  }
+
+  private async deletePeriodRemote(periodId: string): Promise<void> {
+    const trimmed = periodId?.trim();
+    if (!trimmed) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.deletePeriod(trimmed));
+      await this.loadFromApi(true);
+    } catch (error) {
+      console.warn('[TrafficPeriodService] Failed to delete period', error);
+    }
   }
 
   private generateId(): string {
@@ -441,6 +501,10 @@ export class TrafficPeriodService {
         };
       }),
     );
+    const updated = this.getById(periodId);
+    if (updated) {
+      void this.persistPeriod(updated);
+    }
   }
 
   addVariantRule(
@@ -504,6 +568,10 @@ export class TrafficPeriodService {
           : entry,
       ),
     );
+    const updated = this.getById(periodId);
+    if (updated) {
+      void this.persistPeriod(updated);
+    }
   }
 
   private resolveTimetableYear(

@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
+import { DatabaseService } from '../database/database.service';
 import { VariantPartitionService } from '../database/variant-partition.service';
+import { deriveTimetableYearLabelFromVariantId } from '../shared/variant-scope';
 import type {
   PlanningRule,
   PlanningRuleKind,
@@ -112,6 +114,7 @@ export class PlanningRuleService {
   constructor(
     private readonly repository: PlanningRuleRepository,
     private readonly partitions: VariantPartitionService,
+    private readonly database: DatabaseService,
   ) {
     this.loadDefaultDutyRules();
   }
@@ -133,6 +136,7 @@ export class PlanningRuleService {
     }
 
     await this.partitions.ensurePlanningPartitions(variantId);
+    await this.ensureStageRow(stageId, variantId);
     await this.repository.insertDefaults(
       stageId,
       variantId,
@@ -155,6 +159,7 @@ export class PlanningRuleService {
       throw new Error('Rules mutation requires a database');
     }
     await this.partitions.ensurePlanningPartitions(variantId);
+    await this.ensureStageRow(stageId, variantId);
 
     const normalizedUpserts: PlanningRule[] = [];
     const derivedDeleteIds: string[] = [];
@@ -198,6 +203,7 @@ export class PlanningRuleService {
       return rules;
     }
     await this.partitions.ensurePlanningPartitions(variantId);
+    await this.ensureStageRow(stageId, variantId);
 
     await this.repository.deleteAllRules(stageId, variantId);
     const defaults = this.materializeDefaults(stageId, variantId);
@@ -688,6 +694,48 @@ export class PlanningRuleService {
       return null;
     }
     return Array.from(new Set(filtered));
+  }
+
+  private async ensureStageRow(stageId: StageId, variantId: string): Promise<void> {
+    if (!this.database.enabled) {
+      return;
+    }
+    const normalizedVariant = variantId.trim();
+    if (!normalizedVariant) {
+      return;
+    }
+    const exists = await this.database.query<{ id: string }>(
+      `
+        SELECT stage_id as id
+        FROM planning_stage
+        WHERE stage_id = $1 AND variant_id = $2
+        LIMIT 1
+      `,
+      [stageId, normalizedVariant],
+    );
+    if (exists.rows.length) {
+      return;
+    }
+
+    const now = new Date();
+    const timelineStart = now.toISOString();
+    const timelineEnd = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
+    const timetableYearLabel = deriveTimetableYearLabelFromVariantId(normalizedVariant);
+    await this.database.query(
+      `
+        INSERT INTO planning_stage (stage_id, variant_id, timetable_year_label, version, timeline_start, timeline_end)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (stage_id, variant_id) DO NOTHING
+      `,
+      [
+        stageId,
+        normalizedVariant,
+        timetableYearLabel ?? null,
+        timelineStart,
+        timelineStart,
+        timelineEnd,
+      ],
+    );
   }
 
   private resolveDutyRulesDir(): string | null {

@@ -17,6 +17,8 @@ import { ScheduleTemplatesModule } from './schedule-templates/schedule-templates
 import { BusinessTemplatesModule } from './business-templates/business-templates.module';
 import { OrderManagementAdminModule } from './order-management-admin/order-management-admin.module';
 import { OrderManagementRealtimeModule } from './order-management-realtime/order-management-realtime.module';
+import { TrainPlansModule } from './train-plans/train-plans.module';
+import { TrafficPeriodsModule } from './traffic-periods/traffic-periods.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { OrderManagementRealtimeModule } from './order-management-realtime/order
     BusinessTemplatesModule,
     OrderManagementAdminModule,
     OrderManagementRealtimeModule,
+    TrainPlansModule,
+    TrafficPeriodsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

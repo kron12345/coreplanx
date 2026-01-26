@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { OrderItemRecord, OrdersRepository } from './orders.repository';
 import {
@@ -21,10 +21,35 @@ import {
   normalizeFilters,
   parseSearchTokens,
 } from './orders.filters';
+import { TimetableService } from '../timetable/timetable.service';
+import { buildProductiveVariantId } from '../shared/variant-scope';
+import type { TrainRun, TrainSegment } from '../planning/planning.types';
+
+type OrderTimetableSnapshot = {
+  refTrainId?: string;
+  title?: string;
+  trainNumber?: string;
+  calendar?: {
+    validFrom?: string;
+    validTo?: string;
+    daysBitmap?: string;
+  };
+  stops?: Array<{
+    sequence?: number;
+    locationName?: string;
+    arrivalTime?: string;
+    departureTime?: string;
+  }>;
+};
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly repository: OrdersRepository) {}
+  private readonly logger = new Logger(OrdersService.name);
+
+  constructor(
+    private readonly repository: OrdersRepository,
+    private readonly timetableService: TimetableService,
+  ) {}
 
   async searchOrders(
     payload: OrdersSearchRequest,
@@ -133,6 +158,7 @@ export class OrdersService {
       : null;
 
     const record = await this.repository.upsertOrder(orderData, items);
+    await this.syncPlanningTimetables(record, orderData.timetableYearLabel);
     return this.mapOrder(record, record.items);
   }
 
@@ -352,6 +378,12 @@ export class OrdersService {
       throw new BadRequestException(`order item ${payload.id} type is required.`);
     }
 
+    const generatedRef =
+      payload.generatedTimetableRefId?.trim() || null;
+    const linkedPlanId =
+      payload.linkedTrainPlanId?.trim() ||
+      (payload.type === 'Fahrplan' ? generatedRef : null);
+
     return {
       data: {
         id: payload.id,
@@ -369,13 +401,13 @@ export class OrdersService {
         validity: this.normalizeJsonInput(payload.validity),
         parentItemId: payload.parentItemId ?? null,
         versionPath: payload.versionPath ?? [],
-        generatedTimetableRefId: payload.generatedTimetableRefId ?? null,
+        generatedTimetableRefId: generatedRef,
         timetablePhase: payload.timetablePhase ?? null,
         internalStatus: payload.internalStatus ?? null,
         timetableYearLabel: payload.timetableYearLabel ?? null,
         trafficPeriodId: payload.trafficPeriodId ?? null,
         linkedTemplateId: payload.linkedTemplateId ?? null,
-        linkedTrainPlanId: payload.linkedTrainPlanId ?? null,
+        linkedTrainPlanId: linkedPlanId,
         variantType: payload.variantType ?? null,
         variantOfItemId: payload.variantOfItemId ?? null,
         variantGroupId: payload.variantGroupId ?? null,
@@ -427,6 +459,313 @@ export class OrdersService {
       return Prisma.DbNull;
     }
     return value as Prisma.InputJsonValue;
+  }
+
+  private async syncPlanningTimetables(
+    record: { items: OrderItemRecord[] },
+    orderYearLabel: string | null,
+  ): Promise<void> {
+    const items = record.items.filter((item) => item.type === 'Fahrplan');
+    if (!items.length) {
+      return;
+    }
+
+    const updates = new Map<
+      string,
+      { runs: Map<string, TrainRun>; segmentsByRun: Map<string, TrainSegment[]> }
+    >();
+
+    items.forEach((item) => {
+      const snapshot = this.readTimetableSnapshot(item.originalTimetable);
+      const refId =
+        item.generatedTimetableRefId?.trim() ||
+        snapshot?.refTrainId?.trim() ||
+        '';
+      if (!refId) {
+        return;
+      }
+
+      const yearLabel =
+        item.timetableYearLabel?.trim() ||
+        orderYearLabel?.trim() ||
+        this.deriveTimetableYearLabelFromDate(
+          this.resolveReferenceDate(item, snapshot),
+        );
+      const variantId =
+        item.variantType === 'simulation' && item.simulationId?.trim()
+          ? item.simulationId.trim()
+          : yearLabel
+            ? buildProductiveVariantId(yearLabel)
+            : 'default';
+
+      const run = this.buildTrainRun(item, snapshot, refId);
+      const segments = this.buildTrainSegments(item, snapshot, refId);
+
+      const entry =
+        updates.get(variantId) ?? {
+          runs: new Map<string, TrainRun>(),
+          segmentsByRun: new Map<string, TrainSegment[]>(),
+        };
+      entry.runs.set(run.id, run);
+      if (segments.length) {
+        entry.segmentsByRun.set(run.id, segments);
+      }
+      updates.set(variantId, entry);
+    });
+
+    for (const [variantId, entry] of updates.entries()) {
+      const snapshot = await this.timetableService.getSnapshot(variantId, 'base');
+      const runsMap = new Map(
+        (snapshot.trainRuns ?? []).map((run) => [run.id, run] as const),
+      );
+      entry.runs.forEach((run, id) => runsMap.set(id, run));
+
+      let segments = snapshot.trainSegments ?? [];
+      if (entry.segmentsByRun.size) {
+        const updatedRunIds = new Set(entry.segmentsByRun.keys());
+        segments = segments.filter((seg) => !updatedRunIds.has(seg.trainRunId));
+        entry.segmentsByRun.forEach((list) => segments.push(...list));
+      }
+
+      try {
+        await this.timetableService.replaceSnapshot({
+          variantId,
+          stageId: 'base',
+          trainRuns: Array.from(runsMap.values()),
+          trainSegments: segments,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Failed to sync planning timetable for variant ${variantId}`,
+          (error as Error).stack ?? String(error),
+        );
+      }
+    }
+  }
+
+  private readTimetableSnapshot(
+    value: unknown,
+  ): OrderTimetableSnapshot | null {
+    if (
+      value === null ||
+      value === undefined ||
+      value === Prisma.DbNull ||
+      value === Prisma.JsonNull
+    ) {
+      return null;
+    }
+    if (typeof value !== 'object') {
+      return null;
+    }
+    return value as OrderTimetableSnapshot;
+  }
+
+  private buildTrainRun(
+    item: OrderItemRecord,
+    snapshot: OrderTimetableSnapshot | null,
+    refId: string,
+  ): TrainRun {
+    const trainNumber =
+      snapshot?.trainNumber?.trim() || item.name || refId;
+    return {
+      id: refId,
+      trainNumber,
+      timetableId: refId,
+      attributes: {
+        orderItemId: item.id,
+        title: snapshot?.title ?? item.name,
+      },
+    };
+  }
+
+  private buildTrainSegments(
+    item: OrderItemRecord,
+    snapshot: OrderTimetableSnapshot | null,
+    refId: string,
+  ): TrainSegment[] {
+    const stops = this.normalizeStops(snapshot?.stops);
+    if (stops.length < 2) {
+      return [];
+    }
+
+    const baseDate = this.resolveReferenceDate(item, snapshot);
+    const stopTimes = this.buildStopTimes(stops, item, baseDate);
+    const locationIds = stops.map((stop, index) =>
+      this.normalizeLocationId(stop.locationName, index),
+    );
+
+    return stops.slice(0, -1).map((_, index) => {
+      const start = stopTimes[index];
+      const end = stopTimes[index + 1] ?? start;
+      return {
+        id: `${refId}-SEG-${String(index + 1).padStart(3, '0')}`,
+        trainRunId: refId,
+        sectionIndex: index + 1,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        fromLocationId: locationIds[index],
+        toLocationId: locationIds[index + 1] ?? locationIds[index],
+      };
+    });
+  }
+
+  private normalizeStops(
+    stops: OrderTimetableSnapshot['stops'] | undefined,
+  ): NonNullable<OrderTimetableSnapshot['stops']> {
+    if (!stops?.length) {
+      return [];
+    }
+    return [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  }
+
+  private normalizeLocationId(
+    value: string | undefined,
+    index: number,
+  ): string {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+    return `LOC-${String(index + 1).padStart(3, '0')}`;
+  }
+
+  private buildStopTimes(
+    stops: NonNullable<OrderTimetableSnapshot['stops']>,
+    item: OrderItemRecord,
+    baseDate: Date,
+  ): Date[] {
+    const firstFallback = item.start ? new Date(item.start) : null;
+    const lastFallback = item.end ? new Date(item.end) : null;
+
+    let dayOffset = 0;
+    let previousMinutes: number | null = null;
+    const result: Date[] = [];
+    const lastIndex = stops.length - 1;
+
+    stops.forEach((stop, index) => {
+      const timeStr = stop.departureTime ?? stop.arrivalTime ?? null;
+      const minutes = this.parseTimeToMinutes(timeStr);
+      if (minutes !== null) {
+        if (previousMinutes !== null && minutes < previousMinutes) {
+          dayOffset += 1;
+        }
+        previousMinutes = minutes;
+        result.push(this.buildUtcDate(baseDate, dayOffset, minutes));
+        return;
+      }
+
+      if (index === 0 && firstFallback) {
+        result.push(firstFallback);
+        previousMinutes = this.minutesFromDate(firstFallback);
+        return;
+      }
+      if (index === lastIndex && lastFallback) {
+        result.push(lastFallback);
+        previousMinutes = this.minutesFromDate(lastFallback);
+        return;
+      }
+      const fallback = result[result.length - 1] ?? baseDate;
+      result.push(fallback);
+    });
+
+    return result;
+  }
+
+  private parseTimeToMinutes(value: string | null): number | null {
+    if (!value) {
+      return null;
+    }
+    const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+    if (!match) {
+      return null;
+    }
+    const hours = Number.parseInt(match[1], 10);
+    const minutes = Number.parseInt(match[2], 10);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      return null;
+    }
+    if (hours < 0 || hours > 47 || minutes < 0 || minutes > 59) {
+      return null;
+    }
+    return hours * 60 + minutes;
+  }
+
+  private minutesFromDate(date: Date): number {
+    return date.getUTCHours() * 60 + date.getUTCMinutes();
+  }
+
+  private buildUtcDate(baseDate: Date, dayOffset: number, minutes: number): Date {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return new Date(
+      Date.UTC(
+        baseDate.getUTCFullYear(),
+        baseDate.getUTCMonth(),
+        baseDate.getUTCDate() + dayOffset,
+        hours,
+        mins,
+        0,
+      ),
+    );
+  }
+
+  private resolveReferenceDate(
+    item: OrderItemRecord,
+    snapshot: OrderTimetableSnapshot | null,
+  ): Date {
+    return (
+      this.parseDateOnly(snapshot?.calendar?.validFrom) ??
+      this.parseDateOnly(item.start) ??
+      this.parseDateOnly(item.end) ??
+      new Date()
+    );
+  }
+
+  private parseDateOnly(value?: string | Date | null): Date | null {
+    if (!value) {
+      return null;
+    }
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) {
+        return null;
+      }
+      const iso = value.toISOString().slice(0, 10);
+      return new Date(`${iso}T00:00:00Z`);
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const iso = value.trim().slice(0, 10);
+    if (!iso) {
+      return null;
+    }
+    const parsed = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed;
+  }
+
+  private deriveTimetableYearLabelFromDate(date: Date): string {
+    const year = date.getUTCFullYear();
+    const startThis = this.buildYearStart(year);
+    if (date >= startThis) {
+      return this.formatYearLabel(year);
+    }
+    return this.formatYearLabel(year - 1);
+  }
+
+  private formatYearLabel(startYear: number): string {
+    const next = (startYear + 1) % 100;
+    return `${startYear}/${String(next).padStart(2, '0')}`;
+  }
+
+  private buildYearStart(decemberYear: number): Date {
+    const date = new Date(Date.UTC(decemberYear, 11, 10, 0, 0, 0, 0));
+    while (date.getUTCDay() !== 0) {
+      date.setUTCDate(date.getUTCDate() + 1);
+    }
+    return date;
   }
 
   private generateOrderId(): string {

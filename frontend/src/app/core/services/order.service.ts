@@ -485,11 +485,11 @@ export class OrderService {
           entry.id === orderId ? { ...entry, items } : entry,
         ),
       );
+      this.timetableService.upsertFromOrderItems(items);
+      this.timetableHubService.refreshFromTimetables();
       items.forEach((item) =>
         this.syncTimetableCalendarArtifacts(item.generatedTimetableRefId),
       );
-      this.timetableService.upsertFromOrderItems(items);
-      this.timetableHubService.refreshFromTimetables();
       this.orderItemsLoaded.add(orderId);
     } catch (error) {
       console.warn('[OrderService] Failed to load order items from backend', error);
@@ -526,8 +526,8 @@ export class OrderService {
       this._orders.update((current) =>
         append ? this.appendOrders(current, orders) : orders,
       );
-      this.syncCalendarArtifactsForOrders(orders);
       this.syncTimetablesFromOrders(orders);
+      this.syncCalendarArtifactsForOrders(orders);
     } catch (error) {
       console.warn('[OrderService] Failed to load orders from backend', error);
     } finally {
@@ -854,15 +854,15 @@ export class OrderService {
     return item;
   }
 
-  addPlanOrderItems(payload: CreatePlanOrderItemsPayload) {
+  async addPlanOrderItems(payload: CreatePlanOrderItemsPayload): Promise<OrderItem[]> {
     return this.planFactory.addPlanOrderItems(payload);
   }
 
-  addManualPlanOrderItem(payload: CreateManualPlanOrderItemPayload): OrderItem {
+  async addManualPlanOrderItem(payload: CreateManualPlanOrderItemPayload): Promise<OrderItem> {
     return this.planFactory.addManualPlanOrderItem(payload);
   }
 
-  addImportedPlanOrderItem(payload: CreateImportedPlanOrderItemPayload): OrderItem {
+  async addImportedPlanOrderItem(payload: CreateImportedPlanOrderItemPayload): Promise<OrderItem> {
     return this.planFactory.addImportedPlanOrderItem(payload);
   }
 
@@ -928,8 +928,8 @@ export class OrderService {
     return ensureItemDefaults(updatedItem);
   }
 
-  createPlanVersionFromSplit(parent: OrderItem, child: OrderItem): void {
-    this.planModificationManager.createPlanVersionFromSplit(parent, child);
+  async createPlanVersionFromSplit(parent: OrderItem, child: OrderItem): Promise<void> {
+    await this.planModificationManager.createPlanVersionFromSplit(parent, child);
   }
 
   linkBusinessToItem(businessId: string, itemId: string) {
@@ -976,7 +976,7 @@ export class OrderService {
     this.planLinks.unlinkTrainPlanFromItem(planId, itemId);
   }
 
-  createSimulationVariant(orderId: string, itemId: string, label?: string): OrderItem | null {
+  async createSimulationVariant(orderId: string, itemId: string, label?: string): Promise<OrderItem | null> {
     return this.variants.createSimulationVariant(orderId, itemId, label);
   }
 
@@ -984,7 +984,7 @@ export class OrderService {
     return this.variants.promoteSimulationToProductive(orderId, variantItemId);
   }
 
-  mergeSimulationIntoProductive(orderId: string, simulationItemId: string): OrderVariantMergeResult {
+  async mergeSimulationIntoProductive(orderId: string, simulationItemId: string): Promise<OrderVariantMergeResult> {
     return this.variants.mergeSimulationIntoProductive(orderId, simulationItemId);
   }
 

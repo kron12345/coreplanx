@@ -580,7 +580,7 @@ export class OrderPositionDialogComponent {
     this.dialogRef.close();
   }
 
-  save() {
+  async save() {
     this.errorMessage.set(null);
 
     const mode = this.mode();
@@ -621,7 +621,7 @@ export class OrderPositionDialogComponent {
         return;
       }
       const composition = this.buildCompositionPayload();
-      const error = this.actionsService.createPlanItems({
+      const error = await this.actionsService.createPlanItems({
         order: this.order,
         planForm: this.planForm,
         businessForm: this.businessForm,
@@ -658,7 +658,7 @@ export class OrderPositionDialogComponent {
         return;
       }
       const composition = this.buildCompositionPayload();
-      const error = this.actionsService.createManualPlanItem({
+      const error = await this.actionsService.createManualPlanItem({
         order: this.order,
         manualPlanForm: this.manualPlanForm,
         businessForm: this.businessForm,
@@ -685,7 +685,7 @@ export class OrderPositionDialogComponent {
       return;
     }
     const composition = this.buildCompositionPayload();
-    const error = this.actionsService.createImportedPlanItems({
+    const error = await this.actionsService.createImportedPlanItems({
       order: this.order,
       trains: this.importedTrains(),
       selectedTrainIds: this.selectedTrainIds(),

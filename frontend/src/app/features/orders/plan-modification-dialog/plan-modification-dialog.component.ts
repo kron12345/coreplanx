@@ -416,7 +416,7 @@ export class PlanModificationDialogComponent {
     this.dialogRef.close();
   }
 
-  submit() {
+  async submit() {
     this.errorMessage.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -449,7 +449,7 @@ export class PlanModificationDialogComponent {
       const technical = this.buildTechnicalPayload(value);
       const routeMetadata = this.buildRouteMetadataPayload(value);
 
-      const newPlan = this.trainPlanService.createPlanModification({
+      const newPlan = await this.trainPlanService.createPlanModification({
         originalPlanId: this.plan.id,
         title: value.title.trim(),
         trainNumber: value.trainNumber.trim(),

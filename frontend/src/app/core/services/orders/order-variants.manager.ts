@@ -31,7 +31,7 @@ interface OrderVariantDeps {
 export class OrderVariantsManager {
   constructor(private readonly deps: OrderVariantDeps) {}
 
-  createSimulationVariant(orderId: string, itemId: string, label?: string): OrderItem | null {
+  async createSimulationVariant(orderId: string, itemId: string, label?: string): Promise<OrderItem | null> {
     const order = this.deps.getOrderById(orderId);
     if (!order) {
       throw new Error('Auftrag nicht gefunden.');
@@ -48,7 +48,7 @@ export class OrderVariantsManager {
 
     let clonedPlanId: string | undefined;
     if (baseItem.linkedTrainPlanId) {
-      const clone = this.deps.trainPlanService.createPlanVariant(
+      const clone = await this.deps.trainPlanService.createPlanVariant(
         baseItem.linkedTrainPlanId,
         'simulation',
         variantLabel,
@@ -118,7 +118,7 @@ export class OrderVariantsManager {
     return promoted;
   }
 
-  mergeSimulationIntoProductive(orderId: string, simulationItemId: string): OrderVariantMergeResult {
+  async mergeSimulationIntoProductive(orderId: string, simulationItemId: string): Promise<OrderVariantMergeResult> {
     const order = this.deps.getOrderById(orderId);
     if (!order) {
       throw new Error('Auftrag nicht gefunden.');
@@ -130,28 +130,28 @@ export class OrderVariantsManager {
 
     const base = findProductiveBase(order, sim);
     if (!base) {
-      const created = this.copySimulationAsProductive(orderId, sim);
+      const created = await this.copySimulationAsProductive(orderId, sim);
       this.deps.markSimulationMerged(orderId, sim.id, created.id, 'applied');
       return { type: 'created', target: created };
     }
 
     const phase = base.timetablePhase ?? 'bedarf';
     if (phase === 'bedarf') {
-      const updated = this.updateProductiveFromSimulation(orderId, base, sim);
+      const updated = await this.updateProductiveFromSimulation(orderId, base, sim);
       this.deps.markSimulationMerged(orderId, sim.id, updated.id, 'applied');
       return { type: 'updated', target: updated };
     }
 
-    const modification = this.createModificationFromSimulation(orderId, base, sim);
+    const modification = await this.createModificationFromSimulation(orderId, base, sim);
     this.deps.markSimulationMerged(orderId, sim.id, modification.id, 'proposed');
     return { type: 'modification', target: modification };
   }
 
-  private updateProductiveFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): OrderItem {
+  private async updateProductiveFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): Promise<OrderItem> {
     let updatedItem: OrderItem | null = null;
     let clonedPlan: TrainPlan | null = null;
     if (simulation.linkedTrainPlanId) {
-      const clone = this.deps.trainPlanService.createPlanVariant(
+      const clone = await this.deps.trainPlanService.createPlanVariant(
         simulation.linkedTrainPlanId,
         'productive',
         base.variantLabel ?? 'Produktiv',
@@ -180,14 +180,14 @@ export class OrderVariantsManager {
     return updatedItem;
   }
 
-  private createModificationFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): OrderItem {
+  private async createModificationFromSimulation(orderId: string, base: OrderItem, simulation: OrderItem): Promise<OrderItem> {
     const plan = base.linkedTrainPlanId ? this.deps.trainPlanService.getById(base.linkedTrainPlanId) : null;
     const simPlan = simulation.linkedTrainPlanId
       ? this.deps.trainPlanService.getById(simulation.linkedTrainPlanId)
       : null;
     let modificationPlanId: string | undefined;
     if (plan && simPlan) {
-      const mod = this.deps.trainPlanService.createPlanModification({
+      const mod = await this.deps.trainPlanService.createPlanModification({
         originalPlanId: plan.id,
         title: simPlan.title,
         trainNumber: simPlan.trainNumber,
@@ -240,10 +240,10 @@ export class OrderVariantsManager {
     return newItem;
   }
 
-  private copySimulationAsProductive(orderId: string, simulation: OrderItem): OrderItem {
+  private async copySimulationAsProductive(orderId: string, simulation: OrderItem): Promise<OrderItem> {
     let clonedPlanId: string | undefined;
     if (simulation.linkedTrainPlanId) {
-      const clone = this.deps.trainPlanService.createPlanVariant(
+      const clone = await this.deps.trainPlanService.createPlanVariant(
         simulation.linkedTrainPlanId,
         'productive',
         simulation.variantLabel ?? 'Produktiv',

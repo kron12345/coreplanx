@@ -239,12 +239,12 @@ export class OrderItemListComponent {
       width: '520px',
       data: { timetableYearLabel: yearLabel ?? '', selectedId: null, allowProductive: false },
     });
-    dialogRef.afterClosed().subscribe((result) => {
+    dialogRef.afterClosed().subscribe(async (result) => {
       if (!result) {
         return;
       }
       try {
-        this.orderService.createSimulationVariant(this.orderId, item.id, result.simulationLabel);
+        await this.orderService.createSimulationVariant(this.orderId, item.id, result.simulationLabel);
       } catch (error) {
         console.error(error);
       }

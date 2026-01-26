@@ -60,7 +60,7 @@ export class OrderPlanModificationManager {
     }
   }
 
-  createPlanVersionFromSplit(parent: OrderItem, child: OrderItem): void {
+  async createPlanVersionFromSplit(parent: OrderItem, child: OrderItem): Promise<void> {
     const basePlanId = parent.linkedTrainPlanId ?? child.linkedTrainPlanId;
     if (!basePlanId) {
       return;
@@ -86,7 +86,7 @@ export class OrderPlanModificationManager {
       notes: stop.notes,
     }));
 
-    const plan = this.deps.trainPlanService.createPlanModification({
+    const plan = await this.deps.trainPlanService.createPlanModification({
       originalPlanId: basePlan.id,
       title: child.name ?? basePlan.title,
       trainNumber: basePlan.trainNumber,
@@ -107,4 +107,3 @@ export class OrderPlanModificationManager {
   }
 
 }
-import { extractPlanEnd, extractPlanStart } from './order-plan.utils';

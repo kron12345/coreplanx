@@ -1,4 +1,5 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import {
   TrainPlan,
   TrainPlanCalendar,
@@ -8,14 +9,10 @@ import {
   TrainPlanTechnicalData,
   TrainPlanRouteMetadata,
 } from '../models/train-plan.model';
-import { MOCK_TRAIN_PLANS } from '../mock/mock-train-plans.mock';
-import { ScheduleTemplateService, CreateScheduleTemplateStopPayload } from './schedule-template.service';
-import { ScheduleTemplate, ScheduleTemplateStop } from '../models/schedule-template.model';
-import type {
-  TimetableRollingStock,
-  TimetableRollingStockOperation,
-} from '../models/timetable.model';
-import { TrafficPeriodService } from './traffic-period.service';
+import { TrainPlanApiService } from '../api/train-plan-api.service';
+import { CreateScheduleTemplateStopPayload } from './schedule-template.service';
+import type { TimetableRollingStock } from '../models/timetable.model';
+import type { ScheduleTemplate } from '../models/schedule-template.model';
 
 export interface TrainPlanFilters {
   search: string;
@@ -52,7 +49,7 @@ export interface CreateManualPlanPayload {
   trainNumber: string;
   responsibleRu: string;
   departure: string; // ISO datetime
-  stops: (CreateScheduleTemplateStopPayload | ScheduleTemplateStop)[];
+  stops: CreateScheduleTemplateStopPayload[];
   sourceName?: string;
   notes?: string;
   templateId?: string;
@@ -87,6 +84,12 @@ export interface CreatePlanModificationPayload {
   simulationLabel?: string;
 }
 
+export interface CreatePlanVariantPayload {
+  originalPlanId: string;
+  type: 'productive' | 'simulation';
+  label?: string;
+}
+
 export interface PlanModificationStopInput {
   sequence: number;
   type: TrainPlanStop['type'];
@@ -105,7 +108,10 @@ export interface PlanModificationStopInput {
 
 @Injectable({ providedIn: 'root' })
 export class TrainPlanService {
-  private readonly _plans = signal<TrainPlan[]>(MOCK_TRAIN_PLANS);
+  private readonly api = inject(TrainPlanApiService);
+  private readonly _plans = signal<TrainPlan[]>([]);
+  private readonly loadingSignal = signal(false);
+  private readonly errorSignal = signal<string | null>(null);
   private readonly _filters = signal<TrainPlanFilters>({
     search: '',
     status: 'all',
@@ -124,6 +130,8 @@ export class TrainPlanService {
   readonly plans = computed(() => this._plans());
   readonly filters = computed(() => this._filters());
   readonly sort = computed(() => this._sort());
+  readonly loading = computed(() => this.loadingSignal());
+  readonly error = computed(() => this.errorSignal());
 
   readonly responsibleRus = computed(() =>
     Array.from(
@@ -163,10 +171,30 @@ export class TrainPlanService {
       .sort((a, b) => this.sortPlans(a, b, sort));
   });
 
-  constructor(
-    private readonly scheduleTemplateService: ScheduleTemplateService,
-    private readonly trafficPeriodService: TrafficPeriodService,
-  ) {}
+  constructor() {
+    void this.loadFromApi();
+  }
+
+  async refresh(): Promise<void> {
+    await this.loadFromApi(true);
+  }
+
+  private async loadFromApi(force = false): Promise<void> {
+    if (this.loadingSignal() && !force) {
+      return;
+    }
+    this.loadingSignal.set(true);
+    try {
+      const plans = await firstValueFrom(this.api.listPlans());
+      this._plans.set(plans ?? []);
+      this.errorSignal.set(null);
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to load plans', error);
+      this.errorSignal.set('Fahrpläne konnten nicht geladen werden.');
+    } finally {
+      this.loadingSignal.set(false);
+    }
+  }
 
   setFilters(patch: Partial<TrainPlanFilters>) {
     this._filters.update((current) => ({ ...current, ...patch }));
@@ -191,6 +219,10 @@ export class TrainPlanService {
         plan.id === planId ? { ...plan, linkedOrderItemId: itemId } : plan,
       ),
     );
+    const updated = this.getById(planId);
+    if (updated) {
+      void this.persistPlan(updated);
+    }
   }
 
   unlinkOrderItem(planId: string) {
@@ -199,6 +231,10 @@ export class TrainPlanService {
         plan.id === planId ? { ...plan, linkedOrderItemId: undefined } : plan,
       ),
     );
+    const updated = this.getById(planId);
+    if (updated) {
+      void this.persistPlan(updated);
+    }
   }
 
   assignTrafficPeriod(planId: string, trafficPeriodId: string): TrainPlan | undefined {
@@ -212,285 +248,86 @@ export class TrainPlanService {
         return updatedPlan;
       }),
     );
+    if (updatedPlan) {
+      void this.persistPlan(updatedPlan);
+    }
     return updatedPlan;
   }
 
-  createPlansFromTemplate(
+  async createPlansFromTemplate(
     payload: CreatePlansFromTemplatePayload,
-  ): TrainPlan[] {
-    const template = this.scheduleTemplateService.getById(payload.templateId);
-    if (!template) {
-      throw new Error('Vorlage nicht gefunden');
+  ): Promise<TrainPlan[]> {
+    try {
+      const plans = await firstValueFrom(this.api.createFromTemplate(payload));
+      this._plans.update((existing) => [...plans, ...existing]);
+      await this.loadFromApi(true);
+      return plans;
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to create plans from template', error);
+      throw error instanceof Error ? error : new Error('Fahrpläne konnten nicht erstellt werden.');
     }
-    const templateEntity = template as NonNullable<
-      ReturnType<ScheduleTemplateService['getById']>
-    >;
-
-    const dates = this.resolveCalendarDates(
-      payload.calendarDates,
-      payload.trafficPeriodId,
-    );
-
-    if (!dates.length) {
-      throw new Error('Referenzkalender enthält keine aktiven Tage');
-    }
-
-    const startMinutes = this.parseTimeToMinutes(payload.startTime);
-    if (startMinutes === undefined) {
-      throw new Error('Ungültige Startzeit');
-    }
-
-    const interval = Math.max(1, payload.intervalMinutes);
-    const departuresPerDay = Math.max(1, payload.departuresPerDay);
-
-    const calendarRange = {
-      start: dates[0],
-      end: dates[dates.length - 1] ?? dates[0],
-    };
-    const baseDate = dates[0];
-    const nowIso = new Date().toISOString();
-    const planOffsets: number[] = [];
-    const composition = payload.composition ?? template.composition;
-    const variantInfo = {
-      planVariantType: payload.planVariantType ?? 'productive',
-      variantOfPlanId: payload.variantOfPlanId,
-      variantLabel: payload.variantLabel,
-      simulationId: payload.simulationId,
-      simulationLabel: payload.simulationLabel,
-    };
-
-    let minutesWithinDay = startMinutes;
-    for (let i = 0; i < departuresPerDay; i++) {
-      if (minutesWithinDay >= 24 * 60) {
-        break;
-      }
-      planOffsets.push(minutesWithinDay);
-      minutesWithinDay += interval;
-    }
-
-    if (!planOffsets.length) {
-      throw new Error('Keine Fahrpläne konnten erzeugt werden');
-    }
-
-    const plans = planOffsets.map((offsetMinutes, sequenceIndex) => {
-      const departureDate = this.buildDateTime(baseDate, offsetMinutes);
-      const trainNumberOverride = this.resolveTrainNumberOverride(
-        payload.trainNumberStart,
-        payload.trainNumberInterval,
-        sequenceIndex,
-      );
-
-      return this.buildPlanFromTemplate(
-        templateEntity,
-        payload.trafficPeriodId,
-        departureDate,
-        sequenceIndex,
-        payload.responsibleRu ?? template.responsibleRu,
-        nowIso,
-        trainNumberOverride,
-        calendarRange,
-        composition,
-        variantInfo,
-      );
-    });
-
-    if (!plans.length) {
-      throw new Error('Keine Fahrpläne konnten erzeugt werden');
-    }
-
-    this._plans.update((existing) => [...plans, ...existing]);
-    return plans;
   }
 
-  createManualPlan(payload: CreateManualPlanPayload): TrainPlan {
-    const departureDate = new Date(payload.departure);
-    if (Number.isNaN(departureDate.getTime())) {
-      throw new Error('Ungültige Abfahrtszeit für den Fahrplan.');
+  async createManualPlan(payload: CreateManualPlanPayload): Promise<TrainPlan> {
+    try {
+      const plan = await firstValueFrom(this.api.createManual(payload));
+      this._plans.update((plans) => [plan, ...plans]);
+      await this.loadFromApi(true);
+      return plan;
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to create manual plan', error);
+      throw error instanceof Error ? error : new Error('Fahrplan konnte nicht erstellt werden.');
     }
-
-    const templateId = payload.templateId ?? `TMP-${Date.now().toString(36).toUpperCase()}`;
-    const stops = payload.stops.map((stop, index) =>
-      this.toTemplateStop(templateId, index, stop),
-    );
-
-    if (!stops.length) {
-      throw new Error('Der Fahrplan benötigt mindestens einen Halt.');
-    }
-
-    const planStops = this.buildStops(stops, departureDate);
-    if (!planStops.length) {
-      throw new Error('Die Haltestellen enthalten keine gültigen Zeiten.');
-    }
-
-    const rollingStock = this.buildRollingStockFromComposition(
-      payload.composition,
-      planStops,
-      `${payload.title} – Fahrzeuge`,
-    );
-
-    const planId = this.generatePlanId();
-    const timestamp = new Date().toISOString();
-    const defaultDate = departureDate.toISOString().slice(0, 10);
-    const validFrom = payload.validFrom ?? defaultDate;
-    const validTo = payload.validTo ?? validFrom;
-    const daysBitmap =
-      payload.daysBitmap && /^[01]{7}$/.test(payload.daysBitmap)
-        ? payload.daysBitmap
-        : '1111111';
-
-    const plan: TrainPlan = {
-      id: planId,
-      title: payload.title,
-      trainNumber: payload.trainNumber,
-      pathRequestId: `PR-${planId}`,
-      pathId: undefined,
-      caseReference: undefined,
-      status: 'not_ordered',
-      responsibleRu: payload.responsibleRu,
-      calendar: {
-        validFrom,
-        validTo,
-        daysBitmap,
-      },
-      trafficPeriodId: payload.trafficPeriodId ?? undefined,
-      stops: planStops,
-      technical: {
-        trainType: 'Passenger',
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      source: {
-        type: 'external',
-        name: payload.sourceName ?? payload.title,
-        templateId,
-      },
-      linkedOrderItemId: undefined,
-      notes: payload.notes,
-      rollingStock,
-      planVariantType: payload.planVariantType ?? 'productive',
-      variantOfPlanId: payload.variantOfPlanId,
-      variantLabel: payload.variantLabel,
-      simulationId: payload.simulationId,
-      simulationLabel: payload.simulationLabel,
-    } satisfies TrainPlan;
-
-    this._plans.update((plans) => [plan, ...plans]);
-    return plan;
   }
 
-  createPlanModification(payload: CreatePlanModificationPayload): TrainPlan {
-    const original = this.getById(payload.originalPlanId);
-    if (!original) {
-      throw new Error('Originalfahrplan nicht gefunden.');
+  async createPlanModification(payload: CreatePlanModificationPayload): Promise<TrainPlan> {
+    try {
+      const plan = await firstValueFrom(this.api.createModification(payload));
+      this._plans.update((plans) => [plan, ...plans]);
+      await this.loadFromApi(true);
+      return plan;
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to create plan modification', error);
+      throw error instanceof Error ? error : new Error('Fahrplan konnte nicht aktualisiert werden.');
     }
+  }
 
-    const timestamp = new Date().toISOString();
-    const newPlanId = this.generatePlanId();
-    const sourceStops = payload.stops?.length
-      ? payload.stops
-      : original.stops.map((stop) => ({
-          sequence: stop.sequence,
-          type: stop.type,
-          locationCode: stop.locationCode,
-          locationName: stop.locationName,
-          countryCode: stop.countryCode,
-          arrivalTime: stop.arrivalTime,
-          departureTime: stop.departureTime,
-          arrivalOffsetDays: stop.arrivalOffsetDays,
-          departureOffsetDays: stop.departureOffsetDays,
-          dwellMinutes: stop.dwellMinutes,
-          activities: [...stop.activities],
-          platform: stop.platform,
-          notes: stop.notes,
-        } satisfies PlanModificationStopInput));
-
-    const clonedStops: TrainPlanStop[] = sourceStops
-      .sort((a, b) => a.sequence - b.sequence)
-      .map((stop, index) => ({
-        id: `${newPlanId}-STOP-${String(index + 1).padStart(3, '0')}`,
-        sequence: index + 1,
-        type: stop.type,
-        locationCode: stop.locationCode,
-        locationName: stop.locationName,
-        countryCode: stop.countryCode,
-        arrivalTime: stop.arrivalTime,
-        departureTime: stop.departureTime,
-        arrivalOffsetDays: stop.arrivalOffsetDays,
-        departureOffsetDays: stop.departureOffsetDays,
-        dwellMinutes: stop.dwellMinutes,
-        activities: stop.activities,
-        platform: stop.platform,
-        notes: stop.notes,
+  async createPlanVariant(originalPlanId: string, type: 'productive' | 'simulation', label?: string): Promise<TrainPlan> {
+    try {
+      const plan = await firstValueFrom(this.api.createVariant({
+        originalPlanId,
+        type,
+        label,
       }));
-
-    const plan: TrainPlan = {
-      ...original,
-      id: newPlanId,
-      title: payload.title,
-      trainNumber: payload.trainNumber,
-      pathRequestId: `PR-${newPlanId}`,
-      status: 'modification_request',
-      responsibleRu: payload.responsibleRu,
-      calendar: {
-        validFrom: payload.calendar.validFrom,
-        validTo: payload.calendar.validTo,
-        daysBitmap: payload.calendar.daysBitmap,
-      },
-      trafficPeriodId: payload.trafficPeriodId ?? undefined,
-      referencePlanId: original.referencePlanId ?? original.id,
-      stops: clonedStops,
-      technical: payload.technical ?? original.technical,
-      routeMetadata: payload.routeMetadata ?? original.routeMetadata,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      linkedOrderItemId: undefined,
-      notes: payload.notes ?? original.notes,
-      rollingStock: payload.rollingStock ?? original.rollingStock,
-      planVariantType: payload.planVariantType ?? original.planVariantType ?? 'productive',
-      variantOfPlanId: payload.variantOfPlanId ?? original.variantOfPlanId,
-      variantLabel: payload.variantLabel ?? original.variantLabel,
-      simulationId: payload.simulationId ?? original.simulationId,
-      simulationLabel: payload.simulationLabel ?? original.simulationLabel,
-    } satisfies TrainPlan;
-
-    this._plans.update((plans) => [plan, ...plans]);
-    return plan;
-  }
-
-  createPlanVariant(originalPlanId: string, type: 'productive' | 'simulation', label?: string): TrainPlan {
-    const original = this.getById(originalPlanId);
-    if (!original) {
-      throw new Error('Originalfahrplan nicht gefunden.');
+      this._plans.update((plans) => [plan, ...plans]);
+      await this.loadFromApi(true);
+      return plan;
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to create plan variant', error);
+      throw error instanceof Error ? error : new Error('Variante konnte nicht erstellt werden.');
     }
-    const timestamp = new Date().toISOString();
-    const newPlanId = this.generatePlanId();
-    const clonedStops = original.stops.map((stop, index) => ({
-      ...stop,
-      id: `${newPlanId}-STOP-${String(index + 1).padStart(3, '0')}`,
-    }));
-
-    const plan: TrainPlan = {
-      ...original,
-      id: newPlanId,
-      pathRequestId: `PR-${newPlanId}`,
-      status: 'not_ordered',
-      linkedOrderItemId: undefined,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      stops: clonedStops,
-      planVariantType: type,
-      variantOfPlanId: original.id,
-      variantLabel: label ?? (type === 'simulation' ? 'Simulation' : 'Produktiv'),
-      simulationId: original.simulationId,
-      simulationLabel: original.simulationLabel,
-    };
-
-    this._plans.update((plans) => [plan, ...plans]);
-    return plan;
   }
 
   getById(id: string): TrainPlan | undefined {
     return this.planIndex().get(id);
+  }
+
+  private async persistPlans(plans: TrainPlan[]): Promise<void> {
+    try {
+      await Promise.all(plans.map((plan) => firstValueFrom(this.api.upsertPlan(plan))));
+      await this.loadFromApi(true);
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to persist plans', error);
+    }
+  }
+
+  private async persistPlan(plan: TrainPlan): Promise<void> {
+    try {
+      await firstValueFrom(this.api.upsertPlan(plan));
+      await this.loadFromApi(true);
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to persist plan', error);
+    }
   }
 
   private sortPlans(a: TrainPlan, b: TrainPlan, sort: TrainPlanSort) {
@@ -526,333 +363,5 @@ export class TrainPlanService {
           direction
         );
     }
-  }
-
-  private buildPlanFromTemplate(
-    template: ScheduleTemplate,
-    trafficPeriodId: string | undefined,
-    departureDate: Date,
-    sequence: number,
-    responsibleRu: string,
-    timestamp: string,
-    trainNumberOverride?: string,
-    calendarRange?: { start: string; end: string },
-    compositionOverride?: ScheduleTemplate['composition'],
-    variant?: {
-      planVariantType?: 'productive' | 'simulation';
-      variantOfPlanId?: string;
-      variantLabel?: string;
-      simulationId?: string;
-      simulationLabel?: string;
-    },
-  ): TrainPlan {
-    const planId = this.generatePlanId();
-    const trainNumber =
-      trainNumberOverride ?? this.generateTrainNumber(template.trainNumber, sequence);
-    const stops = this.buildStops(template.stops, departureDate);
-    const rollingStock = this.buildRollingStockFromComposition(
-      compositionOverride ?? template.composition,
-      stops,
-      `${template.title} – Fahrzeuge`,
-    );
-    const calendarStart = calendarRange?.start ?? departureDate.toISOString().slice(0, 10);
-    const calendarEnd = calendarRange?.end ?? calendarStart;
-
-    return {
-      id: planId,
-      title: `${template.title} ${calendarStart} ${this.formatTimeLabel(departureDate)}`,
-      trainNumber,
-      pathRequestId: `PR-${planId}`,
-      pathId: undefined,
-      caseReference: undefined,
-      status: 'not_ordered',
-      responsibleRu,
-      calendar: {
-        validFrom: calendarStart,
-        validTo: calendarEnd,
-        daysBitmap: '1111111',
-      },
-      trafficPeriodId,
-      stops,
-      technical: {
-        trainType: 'Passenger',
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      source: {
-        type: 'rollout',
-        name: template.title,
-        templateId: template.id,
-      },
-      linkedOrderItemId: undefined,
-      notes: undefined,
-      rollingStock,
-      planVariantType: variant?.planVariantType ?? 'productive',
-      variantOfPlanId: variant?.variantOfPlanId,
-      variantLabel: variant?.variantLabel,
-      simulationId: variant?.simulationId,
-      simulationLabel: variant?.simulationLabel,
-    } satisfies TrainPlan;
-  }
-
-  private buildRollingStockFromComposition(
-    composition: ScheduleTemplate['composition'] | undefined,
-    stops: TrainPlanStop[],
-    designation?: string,
-  ): TimetableRollingStock | undefined {
-    if (!composition?.base?.length) {
-      return undefined;
-    }
-
-    const segments = composition.base.map((unit, index) => ({
-      position: index + 1,
-      vehicleTypeId: unit.type,
-      count: unit.count,
-      setId: `SET-${index + 1}`,
-      setLabel: unit.label ?? unit.type,
-      remarks: unit.note ?? undefined,
-    }));
-
-    const operations =
-      composition.changes?.map<TimetableRollingStockOperation | null>((change, opIndex) => {
-        const stop = stops.find((entry) => entry.sequence === change.stopIndex);
-        const stopId = stop?.id;
-        if (!stopId) {
-          return null;
-        }
-        const vehicleLabel = change.vehicles
-          .map((vehicle) => `${vehicle.count}× ${vehicle.type}`)
-          .join(', ');
-        return {
-          stopId,
-          type: change.action === 'attach' ? 'join' : 'split',
-          setIds: [`SET-${opIndex + 1}`],
-          remarks: change.note ?? vehicleLabel,
-        };
-      }) ?? [];
-    const normalizedOperations = operations.filter(
-      (entry): entry is TimetableRollingStockOperation => !!entry,
-    );
-
-    const remarks =
-      composition.changes?.length
-        ? composition.changes
-            .map((change) => this.describeCompositionChange(change, stops))
-            .filter((summary): summary is string => !!summary)
-            .join(' | ')
-        : undefined;
-
-    return {
-      designation: designation ?? 'Fahrzeuge',
-      remarks,
-      segments,
-      operations: normalizedOperations.length ? normalizedOperations : undefined,
-    };
-  }
-
-  private describeCompositionChange(
-    change: NonNullable<ScheduleTemplate['composition']>['changes'][number],
-    stops: TrainPlanStop[],
-  ): string | undefined {
-    if (!change.vehicles.length) {
-      return undefined;
-    }
-    const stop = stops.find((entry) => entry.sequence === change.stopIndex);
-    const stopLabel = stop?.locationName ?? `Halt ${change.stopIndex}`;
-    const actionLabel = change.action === 'attach' ? 'Ankuppeln' : 'Abkuppeln';
-    const vehicles = change.vehicles
-      .map((vehicle) => `${vehicle.count}× ${vehicle.type}`)
-      .join(', ');
-    const note = change.note ? ` – ${change.note}` : '';
-    return `${actionLabel}: ${vehicles} @ ${stopLabel}${note}`;
-  }
-
-  private resolveCalendarDates(
-    overrideDates: string[] | undefined,
-    trafficPeriodId: string | undefined,
-  ): string[] {
-    if (overrideDates?.length) {
-      return Array.from(
-        new Set(
-          overrideDates
-            .map((date) => date?.trim())
-            .filter((date): date is string => !!date),
-        ),
-      ).sort();
-    }
-
-    if (!trafficPeriodId) {
-      return [];
-    }
-
-    const period = this.trafficPeriodService.getById(trafficPeriodId);
-    if (!period) {
-      throw new Error('Referenzkalender nicht gefunden');
-    }
-
-    return Array.from(
-      new Set(period.rules.flatMap((rule) => rule.includesDates ?? [])),
-    )
-      .filter((date): date is string => !!date)
-      .sort();
-  }
-
-  private toTemplateStop(
-    templateId: string,
-    index: number,
-    stop: CreateScheduleTemplateStopPayload | ScheduleTemplateStop,
-  ): ScheduleTemplateStop {
-    if ('id' in stop && 'sequence' in stop) {
-      return stop as ScheduleTemplateStop;
-    }
-
-    const payload = stop as CreateScheduleTemplateStopPayload;
-    return {
-      id: `${templateId}-ST-${String(index + 1).padStart(3, '0')}`,
-      sequence: index + 1,
-      type: payload.type,
-      locationCode: payload.locationCode,
-      locationName: payload.locationName,
-      countryCode: payload.countryCode,
-      arrival:
-        payload.arrivalEarliest || payload.arrivalLatest
-          ? {
-              earliest: payload.arrivalEarliest,
-              latest: payload.arrivalLatest,
-            }
-          : undefined,
-      departure:
-        payload.departureEarliest || payload.departureLatest
-          ? {
-              earliest: payload.departureEarliest,
-              latest: payload.departureLatest,
-            }
-          : undefined,
-      offsetDays: payload.offsetDays,
-      dwellMinutes: payload.dwellMinutes,
-      activities:
-        payload.activities && payload.activities.length
-          ? payload.activities
-          : ['0001'],
-      platformWish: payload.platformWish,
-      notes: payload.notes,
-    } satisfies ScheduleTemplateStop;
-  }
-
-  private buildStops(stops: ScheduleTemplateStop[], departureDate: Date) {
-    const baseMinutes = this.extractReferenceMinutes(stops) ?? 0;
-    return stops.map((stop) => {
-      const arrivalMinutes = this.extractTime(stop.arrival?.earliest ?? stop.arrival?.latest);
-      const departureMinutes = this.extractTime(
-        stop.departure?.earliest ?? stop.departure?.latest,
-      );
-
-      const arrival =
-        arrivalMinutes !== undefined
-          ? this.addMinutes(departureDate, arrivalMinutes - baseMinutes)
-          : undefined;
-      const departure =
-        departureMinutes !== undefined
-          ? this.addMinutes(departureDate, departureMinutes - baseMinutes)
-          : undefined;
-
-      return {
-        id: this.generateStopId(stop, arrival ?? departure ?? departureDate),
-        sequence: stop.sequence,
-        type: stop.type,
-        locationCode: stop.locationCode,
-        locationName: stop.locationName,
-        countryCode: stop.countryCode,
-        arrivalTime: arrival ? arrival.toISOString() : undefined,
-        departureTime: departure ? departure.toISOString() : undefined,
-        arrivalOffsetDays: arrival ? this.offsetDays(departureDate, arrival) : undefined,
-        departureOffsetDays: departure
-          ? this.offsetDays(departureDate, departure)
-          : undefined,
-        dwellMinutes: stop.dwellMinutes,
-        activities: stop.activities,
-        platform: stop.platformWish,
-        notes: stop.notes,
-      } satisfies TrainPlan['stops'][number];
-    });
-  }
-
-  private extractReferenceMinutes(stops: ScheduleTemplateStop[]): number | undefined {
-    for (const stop of stops) {
-      const time = this.extractTime(stop.departure?.earliest ?? stop.arrival?.earliest);
-      if (time !== undefined) {
-        return time;
-      }
-    }
-    return undefined;
-  }
-
-  private extractTime(time: string | undefined): number | undefined {
-    if (!time) {
-      return undefined;
-    }
-    return this.parseTimeToMinutes(time);
-  }
-
-  private parseTimeToMinutes(time: string): number | undefined {
-    const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(time);
-    if (!match) {
-      return undefined;
-    }
-    const hours = Number.parseInt(match[1], 10);
-    const minutes = Number.parseInt(match[2], 10);
-    return hours * 60 + minutes;
-  }
-
-  private buildDateTime(dateIso: string, minutes: number): Date {
-    const [year, month, day] = dateIso.split('-').map(Number);
-    const result = new Date(year, month - 1, day, 0, 0, 0, 0);
-    result.setMinutes(minutes);
-    return result;
-  }
-
-  private addMinutes(reference: Date, delta: number): Date {
-    const result = new Date(reference.getTime());
-    result.setMinutes(result.getMinutes() + delta);
-    return result;
-  }
-
-  private offsetDays(base: Date, target: Date): number | undefined {
-    const diff = target.getTime() - base.getTime();
-    const days = Math.round(diff / 86400000);
-    return days === 0 ? undefined : days;
-  }
-
-  private generatePlanId(): string {
-    return `TP-${Date.now().toString(36).toUpperCase()}-${Math.random()
-      .toString(36)
-      .slice(2, 6)
-      .toUpperCase()}`;
-  }
-
-  private generateTrainNumber(base: string, sequence: number): string {
-    const suffix = (sequence + 1).toString().padStart(3, '0');
-    return `${base}-${suffix}`;
-  }
-
-  private resolveTrainNumberOverride(
-    start?: number,
-    interval?: number,
-    sequenceIndex = 0,
-  ): string | undefined {
-    if (typeof start !== 'number' || Number.isNaN(start)) {
-      return undefined;
-    }
-    const step = Math.max(1, interval ?? 1);
-    const value = start + sequenceIndex * step;
-    return value.toString();
-  }
-
-  private generateStopId(stop: ScheduleTemplateStop, date: Date): string {
-    return `${stop.locationCode}-${date.getTime()}`;
-  }
-
-  private formatTimeLabel(date: Date): string {
-    return date.toTimeString().slice(0, 5);
   }
 }

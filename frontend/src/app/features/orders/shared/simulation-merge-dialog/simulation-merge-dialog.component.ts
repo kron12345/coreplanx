@@ -93,9 +93,9 @@ export class SimulationMergeDialogComponent {
     return entries;
   }
 
-  merge(): void {
+  async merge(): Promise<void> {
     try {
-      const result = this.orderService.mergeSimulationIntoProductive(this.orderId, this.simulation.id);
+      const result = await this.orderService.mergeSimulationIntoProductive(this.orderId, this.simulation.id);
       this.dialogRef.close({ type: result.type, targetId: result.target.id });
     } catch (error) {
       console.error(error);

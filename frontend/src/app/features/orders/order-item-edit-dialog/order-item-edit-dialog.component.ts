@@ -457,7 +457,7 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
     this.dialogRef.close();
   }
 
-  submit() {
+  async submit() {
     this.errorMessage.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -534,7 +534,7 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
       const result = this.orderService.splitOrderItem(payload);
       const linkedManually = this.handlePostSplitAdjustments(result.created, value);
       if (this.isPlanItem && this.shouldCreateVersion() && !linkedManually) {
-        this.orderService.createPlanVersionFromSplit(result.original, result.created);
+        await this.orderService.createPlanVersionFromSplit(result.original, result.created);
       }
       this.dialogRef.close(result);
     } catch (error) {

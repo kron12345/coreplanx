@@ -283,14 +283,14 @@ export class OrderCardComponent {
         allowProductive: false,
       },
     });
-    dialogRef.afterClosed().subscribe((result) => {
+    dialogRef.afterClosed().subscribe(async (result) => {
       if (!result) {
         return;
       }
       let created = 0;
-      candidates.forEach((item) => {
+      for (const item of candidates) {
         try {
-          const variant = this.orderService.createSimulationVariant(
+          const variant = await this.orderService.createSimulationVariant(
             this.order.id,
             item.id,
             result.simulationLabel,
@@ -301,7 +301,7 @@ export class OrderCardComponent {
         } catch (error) {
           console.error(error);
         }
-      });
+      }
       this.snackBar.open(
         `${created} Position(en) in die Simulation „${result.simulationLabel}“ kopiert.`,
         'OK',
@@ -310,7 +310,7 @@ export class OrderCardComponent {
     });
   }
 
-  bulkMergeSimulations(event?: MouseEvent): void {
+  async bulkMergeSimulations(event?: MouseEvent): Promise<void> {
     event?.stopPropagation();
     const sims = this.selectedSimulationItems();
     if (!sims.length) {
@@ -322,9 +322,9 @@ export class OrderCardComponent {
     let updated = 0;
     let created = 0;
     let modifications = 0;
-    sims.forEach((sim) => {
+    for (const sim of sims) {
       try {
-        const result = this.orderService.mergeSimulationIntoProductive(this.order.id, sim.id);
+        const result = await this.orderService.mergeSimulationIntoProductive(this.order.id, sim.id);
         if (result.type === 'updated') {
           updated += 1;
         } else if (result.type === 'created') {
@@ -335,7 +335,7 @@ export class OrderCardComponent {
       } catch (error) {
         console.error(error);
       }
-    });
+    }
     this.snackBar.open(
       `Abgleich abgeschlossen: ${updated} aktualisiert, ${created} neu, ${modifications} als Modifikation.`,
       'OK',

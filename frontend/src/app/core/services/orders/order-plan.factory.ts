@@ -11,7 +11,7 @@ import { CreateScheduleTemplateStopPayload } from '../schedule-template.service'
 import { TrainPlanService, CreatePlansFromTemplatePayload, PlanModificationStopInput } from '../train-plan.service';
 import { TimetableService } from '../timetable.service';
 import { TimetableYearService } from '../timetable-year.service';
-import { normalizeCalendarDates, normalizeTimetableYearLabel, toTimetableStops, extractPlanStart, extractPlanEnd } from './order-plan.utils';
+import { normalizeCalendarDates, normalizeTimetableYearLabel } from './order-plan.utils';
 import { timetableYearFromPlan } from './order-timetable.utils';
 import { normalizeTags } from './order-item.utils';
 import { buildDaysBitmapFromValidity, resolveEffectiveValidity, resolveValiditySegments } from './order-validity.utils';
@@ -34,7 +34,7 @@ export class OrderPlanFactory {
 
   constructor(private readonly deps: PlanFactoryDeps) {}
 
-  addPlanOrderItems(payload: CreatePlanOrderItemsPayload): OrderItem[] {
+  async addPlanOrderItems(payload: CreatePlanOrderItemsPayload): Promise<OrderItem[]> {
     const {
       orderId,
       namePrefix,
@@ -57,7 +57,7 @@ export class OrderPlanFactory {
       planTrafficPeriodId = this.createTrafficPeriodForPlanDates(effectiveCalendarDates);
     }
 
-    const plans = this.deps.trainPlanService.createPlansFromTemplate({
+    const plans = await this.deps.trainPlanService.createPlansFromTemplate({
       ...planConfig,
       calendarDates: effectiveCalendarDates ?? planConfig.calendarDates,
       trafficPeriodId: planTrafficPeriodId,
@@ -115,7 +115,7 @@ export class OrderPlanFactory {
     return items;
   }
 
-  addManualPlanOrderItem(payload: CreateManualPlanOrderItemPayload): OrderItem {
+  async addManualPlanOrderItem(payload: CreateManualPlanOrderItemPayload): Promise<OrderItem> {
     if (!payload.stops.length) {
       throw new Error('Der Fahrplan benötigt mindestens einen Halt.');
     }
@@ -130,7 +130,7 @@ export class OrderPlanFactory {
         ? payload.name.trim()
         : `Manueller Fahrplan ${payload.trainNumber}`;
 
-    const plan = this.deps.trainPlanService.createManualPlan({
+    const plan = await this.deps.trainPlanService.createManualPlan({
       title,
       trainNumber: payload.trainNumber,
       responsibleRu: responsible,
@@ -179,7 +179,7 @@ export class OrderPlanFactory {
     return enriched;
   }
 
-  addImportedPlanOrderItem(payload: CreateImportedPlanOrderItemPayload): OrderItem {
+  async addImportedPlanOrderItem(payload: CreateImportedPlanOrderItemPayload): Promise<OrderItem> {
     const departureIso = payload.train.departureIso;
     if (!departureIso) {
       throw new Error(`Zug ${payload.train.name} enthält keine Abfahrtszeit.`);
@@ -197,7 +197,7 @@ export class OrderPlanFactory {
     }));
     const daysBitmap = buildDaysBitmapFromValidity(dateSegments, validFrom, validTo);
 
-    const plan = this.deps.trainPlanService.createManualPlan({
+    const plan = await this.deps.trainPlanService.createManualPlan({
       title: payload.train.name,
       trainNumber: payload.train.number,
       responsibleRu: responsible,
