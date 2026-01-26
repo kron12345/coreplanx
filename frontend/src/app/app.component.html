@@ -1,98 +1,217 @@
-<div class="layout">
-  <mat-toolbar class="toolbar" color="primary">
-    <div class="toolbar-brand">
-      <img class="brand-logo" src="coreplanx-logo.svg" alt="CorePlanX" />
-      <div class="toolbar-brand-text">
-        <span class="brand-title">{{ brandTitle }}</span>
-        <small class="brand-subtitle">{{ brandSubtitle() }}</small>
+<mat-drawer-container class="app-shell">
+  <mat-drawer
+    class="debug-drawer"
+    position="end"
+    mode="over"
+    [opened]="debugDrawerOpen()"
+    (closedStart)="closeDebugDrawer()"
+  >
+    <div class="debug-drawer__header">
+      <div>
+        <div class="debug-drawer__title">Status & Logs</div>
+        <div class="debug-drawer__subtitle">{{ sectionTitle() }} · {{ pageTitle() }}</div>
+      </div>
+      <button mat-icon-button type="button" (click)="closeDebugDrawer()" aria-label="Logs schließen">
+        <mat-icon fontIcon="close"></mat-icon>
+      </button>
+    </div>
+    <div class="debug-drawer__body">
+      <div class="debug-status">
+        <div class="debug-status__row">
+          <span>Backend-Stream</span>
+          <span class="debug-status__value" [class.is-ok]="debugConnectionState() === 'ok'" [class.is-error]="debugConnectionState() === 'error'">
+            {{ debugConnectionLabel() }}
+          </span>
+        </div>
+      </div>
+      <div class="debug-controls">
+        <mat-slide-toggle
+          [checked]="debugBackendStreamEnabled()"
+          (change)="toggleDebugStream($event.checked)"
+        >
+          Backend-Stream aktivieren
+        </mat-slide-toggle>
+        <mat-slide-toggle
+          [checked]="debugShowAll()"
+          (change)="toggleDebugShowAll($event.checked)"
+        >
+          Alle Topics anzeigen
+        </mat-slide-toggle>
+        <mat-form-field appearance="outline" class="debug-token">
+          <mat-label>Stream-Token (optional)</mat-label>
+          <input
+            matInput
+            [value]="debugStreamToken()"
+            (input)="updateDebugStreamToken($any($event.target).value)"
+            autocomplete="off"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="debug-filter">
+          <mat-label>Suche</mat-label>
+          <input
+            matInput
+            [value]="debugFilterQuery()"
+            (input)="updateDebugFilterQuery($any($event.target).value)"
+            autocomplete="off"
+          />
+        </mat-form-field>
+      </div>
+      <div class="debug-topics">
+        <span class="debug-topics__label">Topics</span>
+        <div class="debug-topics__list">
+          @for (topic of debugTopicOptions; track topic) {
+            <button
+              type="button"
+              class="debug-topic"
+              [class.is-active]="debugTopicFilters().includes(topic)"
+              (click)="toggleDebugTopicFilter(topic)"
+            >
+              {{ topic }}
+            </button>
+          }
+        </div>
+      </div>
+      <div class="debug-logs">
+        <div class="debug-logs__header">
+          <span>{{ debugLogEntries().length }} Logeinträge</span>
+          <button mat-stroked-button type="button" (click)="clearDebugLogs()">Leeren</button>
+        </div>
+        @if (debugLogEntries().length === 0) {
+          <div class="debug-logs__empty">Keine Logeinträge.</div>
+        } @else {
+          @for (entry of debugLogEntries(); track entry.id) {
+            <div class="debug-log-entry" [class.is-warn]="entry.level === 'warn'" [class.is-error]="entry.level === 'error'">
+              <div class="debug-log-entry__meta">
+                <span class="debug-log-entry__tag">{{ entry.level }}</span>
+                @if (entry.topic) {
+                  <span class="debug-log-entry__tag">{{ entry.topic }}</span>
+                }
+                <span class="debug-log-entry__time">{{ formatDebugTimestamp(entry.timestamp) }}</span>
+              </div>
+              <div class="debug-log-entry__message">{{ entry.message }}</div>
+              @if (formatDebugContext(entry.context); as contextText) {
+                <pre class="debug-log-entry__context">{{ contextText }}</pre>
+              }
+            </div>
+          }
+        }
       </div>
     </div>
-    <nav class="primary-nav">
-      <button
-        mat-button
-        type="button"
-        [class.active]="section() === 'manager'"
-        [matMenuTriggerFor]="managerNavMenu"
-        #managerMenuTrigger="matMenuTrigger"
-        (mouseenter)="managerMenuTrigger.openMenu()"
-      >
-        Auftragsmanager
-        <mat-icon fontIcon="expand_more"></mat-icon>
-      </button>
-      <button
-        mat-button
-        type="button"
-        [class.active]="section() === 'planning'"
-        [matMenuTriggerFor]="planningNavMenu"
-        #planningMenuTrigger="matMenuTrigger"
-        (mouseenter)="planningMenuTrigger.openMenu()"
-      >
-        Planung
-        <mat-icon fontIcon="expand_more"></mat-icon>
-      </button>
-      <a mat-button routerLink="/fahrplanmanager" [class.active]="section() === 'timetable'">
-        Fahrplanmanager
-      </a>
-      <a mat-button routerLink="/master-data" [class.active]="section() === 'master-data'">
-        Stammdaten
-      </a>
-      <a mat-button routerLink="/settings" [class.active]="section() === 'settings'">
-        Einstellungen
-      </a>
-    </nav>
-    <span class="spacer"></span>
-    <app-assistant-command />
-    <button mat-icon-button matTooltip="Benachrichtigungen">
-      <mat-icon>notifications</mat-icon>
-    </button>
-    <button mat-icon-button matTooltip="Profil">
-      <mat-icon>account_circle</mat-icon>
-    </button>
-    <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Weitere Optionen">
-      <mat-icon>more_vert</mat-icon>
-    </button>
-  </mat-toolbar>
+  </mat-drawer>
+  <mat-drawer-content>
+    <div class="layout">
+      <mat-toolbar class="toolbar" color="primary">
+        <div class="toolbar-brand">
+          <img class="brand-logo" src="coreplanx-logo.svg" alt="CorePlanX" />
+          <div class="toolbar-brand-text">
+            <span class="brand-title">{{ brandTitle }}</span>
+            <small class="brand-subtitle">{{ brandSubtitle() }}</small>
+          </div>
+        </div>
+        <nav class="primary-nav">
+          <button
+            mat-button
+            type="button"
+            [class.active]="section() === 'manager'"
+            [matMenuTriggerFor]="managerNavMenu"
+            #managerMenuTrigger="matMenuTrigger"
+            (mouseenter)="managerMenuTrigger.openMenu()"
+          >
+            Auftragsmanager
+            <mat-icon fontIcon="expand_more"></mat-icon>
+          </button>
+          <button
+            mat-button
+            type="button"
+            [class.active]="section() === 'planning'"
+            [matMenuTriggerFor]="planningNavMenu"
+            #planningMenuTrigger="matMenuTrigger"
+            (mouseenter)="planningMenuTrigger.openMenu()"
+          >
+            Planung
+            <mat-icon fontIcon="expand_more"></mat-icon>
+          </button>
+          <a mat-button routerLink="/fahrplanmanager" [class.active]="section() === 'timetable'">
+            Fahrplanmanager
+          </a>
+          <a mat-button routerLink="/master-data" [class.active]="section() === 'master-data'">
+            Stammdaten
+          </a>
+          <a mat-button routerLink="/settings" [class.active]="section() === 'settings'">
+            Einstellungen
+          </a>
+        </nav>
+        <span class="spacer"></span>
+        <button
+          type="button"
+          class="toolbar-debug"
+          (click)="toggleDebugDrawer()"
+          [class.is-ok]="debugConnectionState() === 'ok'"
+          [class.is-warn]="debugConnectionState() === 'warn'"
+          [class.is-error]="debugConnectionState() === 'error'"
+          matTooltip="Status & Logs öffnen"
+        >
+          <mat-icon fontIcon="sensors"></mat-icon>
+          <span>Logs</span>
+          <span class="toolbar-debug__label">{{ debugConnectionLabel() }}</span>
+          @if (debugAlertCount() > 0) {
+            <span class="toolbar-debug__count">{{ debugAlertCount() }}</span>
+          }
+        </button>
+        <app-assistant-command />
+        <button mat-icon-button matTooltip="Benachrichtigungen">
+          <mat-icon>notifications</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Profil">
+          <mat-icon>account_circle</mat-icon>
+        </button>
+        <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Weitere Optionen">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+      </mat-toolbar>
 
-  <div class="page" [class.page--wide]="section() === 'manager'" [style.--app-shell-offset]="'64px'">
-    <router-outlet />
-  </div>
+      <div class="page" [class.page--wide]="section() === 'manager'" [style.--app-shell-offset]="'64px'">
+        <router-outlet />
+      </div>
 
-  <mat-menu #menu="matMenu">
-    <button mat-menu-item routerLink="/settings">
-      <mat-icon>settings</mat-icon>Einstellungen
-    </button>
-    <button mat-menu-item disabled>
-      <mat-icon>help_outline</mat-icon>Hilfe
-    </button>
-  </mat-menu>
+      <mat-menu #menu="matMenu">
+        <button mat-menu-item routerLink="/settings">
+          <mat-icon>settings</mat-icon>Einstellungen
+        </button>
+        <button mat-menu-item disabled>
+          <mat-icon>help_outline</mat-icon>Hilfe
+        </button>
+      </mat-menu>
 
-  <mat-menu #managerNavMenu="matMenu">
-    <button mat-menu-item routerLink="/" [routerLinkActive]="['active']" [routerLinkActiveOptions]="{ exact: true }">
-      <mat-icon>list_alt</mat-icon>Aufträge
-    </button>
-    <button mat-menu-item routerLink="/customers" routerLinkActive="active">
-      <mat-icon>groups</mat-icon>Kunden
-    </button>
-    <button mat-menu-item routerLink="/businesses" routerLinkActive="active">
-      <mat-icon>work_outline</mat-icon>Geschäfte
-    </button>
-    <button mat-menu-item routerLink="/templates" routerLinkActive="active">
-      <mat-icon>schema</mat-icon>Vorlagen
-    </button>
-    <button mat-menu-item routerLink="/plans" routerLinkActive="active">
-      <mat-icon>archive</mat-icon>Fahrplanarchiv
-    </button>
-  </mat-menu>
+      <mat-menu #managerNavMenu="matMenu">
+        <button mat-menu-item routerLink="/" [routerLinkActive]="['active']" [routerLinkActiveOptions]="{ exact: true }">
+          <mat-icon>list_alt</mat-icon>Aufträge
+        </button>
+        <button mat-menu-item routerLink="/customers" routerLinkActive="active">
+          <mat-icon>groups</mat-icon>Kunden
+        </button>
+        <button mat-menu-item routerLink="/businesses" routerLinkActive="active">
+          <mat-icon>work_outline</mat-icon>Geschäfte
+        </button>
+        <button mat-menu-item routerLink="/templates" routerLinkActive="active">
+          <mat-icon>schema</mat-icon>Vorlagen
+        </button>
+        <button mat-menu-item routerLink="/plans" routerLinkActive="active">
+          <mat-icon>archive</mat-icon>Fahrplanarchiv
+        </button>
+      </mat-menu>
 
-  <mat-menu #planningNavMenu="matMenu">
-    <button mat-menu-item routerLink="/planning" [queryParams]="{ stage: 'base' }">
-      <mat-icon>layers</mat-icon>Basisplanung
-    </button>
-    <button mat-menu-item routerLink="/planning" [queryParams]="{ stage: 'operations' }">
-      <mat-icon>precision_manufacturing</mat-icon>Betriebsplanung
-    </button>
-    <button mat-menu-item routerLink="/planning" [queryParams]="{ stage: 'dispatch' }">
-      <mat-icon>support_agent</mat-icon>Disposition
-    </button>
-  </mat-menu>
-</div>
+      <mat-menu #planningNavMenu="matMenu">
+        <button mat-menu-item routerLink="/planning" [queryParams]="{ stage: 'base' }">
+          <mat-icon>layers</mat-icon>Basisplanung
+        </button>
+        <button mat-menu-item routerLink="/planning" [queryParams]="{ stage: 'operations' }">
+          <mat-icon>precision_manufacturing</mat-icon>Betriebsplanung
+        </button>
+        <button mat-menu-item routerLink="/planning" [queryParams]="{ stage: 'dispatch' }">
+          <mat-icon>support_agent</mat-icon>Disposition
+        </button>
+      </mat-menu>
+    </div>
+  </mat-drawer-content>
+</mat-drawer-container>

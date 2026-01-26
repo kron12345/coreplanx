@@ -56,9 +56,9 @@ export class OrderManagementAdminSettingsComponent {
 
   protected confirmation = '';
 
-  protected readonly canExecute = computed(() => {
+  protected canExecute(): boolean {
     return this.confirmation.trim().toUpperCase() === 'DELETE' && !this.busy();
-  });
+  }
 
   constructor() {
     this.reload();

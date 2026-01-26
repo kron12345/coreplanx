@@ -3,6 +3,7 @@ export type DebugLogTopic =
   | 'planning'
   | 'solver'
   | 'assistant'
+  | 'orders'
   | 'db'
   | 'rules'
   | 'system';

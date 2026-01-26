@@ -21,7 +21,15 @@ export class PlanningDebugStreamService {
   private readonly identity = inject(ClientIdentityService);
   private readonly debug = inject(PlanningDebugService);
   private eventSource: EventSource | null = null;
-  private readonly defaultTopics = ['planning', 'solver', 'assistant', 'db', 'rules'];
+  private readonly defaultTopics = [
+    'planning',
+    'solver',
+    'assistant',
+    'orders',
+    'db',
+    'rules',
+    'system',
+  ];
 
   connect(options?: {
     topics?: string[];

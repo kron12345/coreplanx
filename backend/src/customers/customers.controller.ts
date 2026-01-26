@@ -1,5 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post } from '@nestjs/common';
 import { CustomersService } from './customers.service';
+import { OrderManagementRealtimeService } from '../order-management-realtime/order-management-realtime.service';
+import { parseClientRequestId } from '../shared/client-context';
 import type {
   CreateCustomerPayload,
   CustomerDto,
@@ -9,7 +11,10 @@ import type {
 
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly realtime: OrderManagementRealtimeService,
+  ) {}
 
   @Post('search')
   searchCustomers(
@@ -19,10 +24,20 @@ export class CustomersController {
   }
 
   @Post()
-  createCustomer(
+  async createCustomer(
     @Body() payload: CreateCustomerPayload,
+    @Headers('x-client-request-id') clientRequestId?: string,
   ): Promise<CustomerDto> {
-    return this.customersService.createCustomer(payload);
+    const customer = await this.customersService.createCustomer(payload);
+    this.realtime.emitEvent({
+      scope: 'customers',
+      entityType: 'customer',
+      entityId: customer.id,
+      action: 'upsert',
+      payload: customer,
+      sourceConnectionId: parseClientRequestId(clientRequestId).connectionId,
+    });
+    return customer;
   }
 
   @Get(':customerId')
@@ -33,9 +48,17 @@ export class CustomersController {
   }
 
   @Delete(':customerId')
-  deleteCustomer(
+  async deleteCustomer(
     @Param('customerId') customerId: string,
+    @Headers('x-client-request-id') clientRequestId?: string,
   ): Promise<void> {
-    return this.customersService.deleteCustomer(customerId);
+    await this.customersService.deleteCustomer(customerId);
+    this.realtime.emitEvent({
+      scope: 'customers',
+      entityType: 'customer',
+      entityId: customerId,
+      action: 'delete',
+      sourceConnectionId: parseClientRequestId(clientRequestId).connectionId,
+    });
   }
 }

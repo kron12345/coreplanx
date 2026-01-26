@@ -6,10 +6,19 @@
     </div>
   } @else {
     @for (it of orderedItems; track it.id) {
+      @let remoteSelectionEntries = remoteSelections(it);
+      @let remoteEditEntries = remoteEdits(it);
+      @let remoteCursorEntries = remoteCursors(it);
       <div
         class="item"
         [attr.id]="'order-item-' + it.id"
-        [ngClass]="[versionDepthClass(it), highlightItemId === it.id ? 'item--highlight' : '']"
+        [ngClass]="[
+          versionDepthClass(it),
+          highlightItemId === it.id ? 'item--highlight' : '',
+          remotePresenceClass(remoteSelectionEntries, remoteEditEntries, remoteCursorEntries)
+        ]"
+        (mouseenter)="onItemHover(it)"
+        (mouseleave)="onItemLeave()"
       >
         <div class="left">
           @if (bulkSelectionEnabled) {
@@ -27,6 +36,34 @@
               </mat-chip>
             }
           </div>
+          @if (remoteSelectionEntries.length || remoteEditEntries.length || remoteCursorEntries.length) {
+            <div class="remote-presence">
+              @for (entry of remoteEditEntries; track trackRemoteEntry($index, entry)) {
+                <span
+                  class="remote-dot remote-dot--edit"
+                  [style.background]="entry.color ?? null"
+                  matTooltip="{{ entry.name ?? entry.userId }} · {{ entry.field ?? 'bearbeitet' }}"
+                  matTooltipShowDelay="200"
+                ></span>
+              }
+              @for (entry of remoteSelectionEntries; track trackRemoteEntry($index, entry)) {
+                <span
+                  class="remote-dot remote-dot--select"
+                  [style.background]="entry.color ?? null"
+                  matTooltip="{{ entry.name ?? entry.userId }} · markiert"
+                  matTooltipShowDelay="200"
+                ></span>
+              }
+              @for (entry of remoteCursorEntries; track trackRemoteEntry($index, entry)) {
+                <span
+                  class="remote-dot remote-dot--hover"
+                  [style.background]="entry.color ?? null"
+                  matTooltip="{{ entry.name ?? entry.userId }} · aktiv"
+                  matTooltipShowDelay="200"
+                ></span>
+              }
+            </div>
+          }
           @if (isChildVersion(it) && parentVersionLabel(it)) {
             <div class="version-parent">
               <mat-icon inline>subdirectory_arrow_right</mat-icon>

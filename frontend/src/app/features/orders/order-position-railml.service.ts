@@ -1,18 +1,15 @@
 import { Injectable } from '@angular/core';
 import { TrafficPeriodVariantType } from '../../core/models/traffic-period.model';
-import {
-  TrafficPeriodRulePayload,
-  TrafficPeriodService,
-} from '../../core/services/traffic-period.service';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { ImportedRailMlStop, ImportedRailMlTrain } from '../../core/services/order.service';
 import { RailMlOperatingPeriod, RailMlTimetablePeriod } from './order-position-dialog.models';
 
 @Injectable({ providedIn: 'root' })
 export class OrderPositionRailmlService {
+  private periodCounter = 0;
+
   constructor(
     private readonly timetableYearService: TimetableYearService,
-    private readonly trafficPeriodService: TrafficPeriodService,
   ) {}
 
   parseRailMl(xml: string): ImportedRailMlTrain[] {
@@ -45,7 +42,6 @@ export class OrderPositionRailmlService {
 
   ensureCalendarsForImportedTrains(
     trains: ImportedRailMlTrain[],
-    buildArchiveGroupTags: (groupId: string, label?: string, origin?: string) => string[],
   ): Map<string, string> {
     const periodMap = new Map<string, string>();
     if (!trains.length) {
@@ -60,34 +56,11 @@ export class OrderPositionRailmlService {
     });
 
     groups.forEach((groupTrains, groupId) => {
-      const normalizedGroup = this.prepareGroupedCalendars(groupTrains);
-      const rules = this.buildGroupTrafficPeriodRules(normalizedGroup);
-      if (!rules.length) {
-        return;
-      }
-      const baseTrain =
-        normalizedGroup.find((train) => !train.variantOf) ?? normalizedGroup[0];
-      const yearBounds = baseTrain?.timetableYearLabel
-        ? this.timetableYearService.getYearByLabel(baseTrain.timetableYearLabel)
-        : this.timetableYearService.ensureDatesWithinSameYear(
-            rules.flatMap((rule) => rule.selectedDates),
-          );
+      const periodId = this.generatePeriodId();
+      const baseTrain = groupTrains.find((train) => !train.variantOf) ?? groupTrains[0];
       const periodName = `${baseTrain?.name ?? groupId} Referenzkalender`;
-      const tags = buildArchiveGroupTags(
-        `import:${groupId}`,
-        baseTrain?.name ?? groupId,
-        'import',
-      );
-      const periodId = this.trafficPeriodService.createPeriod({
-        name: periodName,
-        type: 'standard',
-        year: yearBounds.startYear,
-        timetableYearLabel: yearBounds.label,
-        rules,
-        tags,
-      });
       periodMap.set(groupId, periodId);
-      normalizedGroup.forEach((train) => {
+      groupTrains.forEach((train) => {
         train.trafficPeriodId = periodId;
         train.trafficPeriodName = periodName;
         train.trafficPeriodSourceId = groupId;
@@ -95,6 +68,13 @@ export class OrderPositionRailmlService {
     });
 
     return periodMap;
+  }
+
+  private generatePeriodId(): string {
+    const ts = Date.now().toString(36).toUpperCase();
+    this.periodCounter = (this.periodCounter + 1) % 1679616; // 36^4 combinations
+    const suffix = this.periodCounter.toString(36).toUpperCase().padStart(4, '0');
+    return `TPER-${ts}${suffix}`;
   }
 
   private resolveOperatingDates(
@@ -497,110 +477,4 @@ export class OrderPositionRailmlService {
     ).sort();
   }
 
-  private buildGroupTrafficPeriodRules(
-    trains: ImportedRailMlTrain[],
-  ): TrafficPeriodRulePayload[] {
-    if (!trains.length) {
-      return [];
-    }
-    const sorted = [...trains].sort((a, b) => {
-      if (!a.variantOf && b.variantOf) {
-        return -1;
-      }
-      if (a.variantOf && !b.variantOf) {
-        return 1;
-      }
-      return (a.name ?? a.id).localeCompare(b.name ?? b.id);
-    });
-
-    let variantCounter = 1;
-    const rules: TrafficPeriodRulePayload[] = [];
-
-    sorted.forEach((train) => {
-      const variantType =
-        train.calendarVariantType ?? (train.variantOf ? 'special_day' : 'series');
-      const dates =
-        (train.calendarDates && train.calendarDates.length
-          ? train.calendarDates
-          : this.fallbackDatesFromTrain(train)) ?? [];
-      if (!dates.length) {
-        return;
-      }
-      const yearInfo = this.timetableYearService.ensureDatesWithinSameYear(dates);
-      train.timetableYearLabel = train.timetableYearLabel ?? yearInfo.label;
-      const label =
-        train.calendarLabel ??
-        train.variantLabel ??
-        train.name ??
-        (train.variantOf ? `Variante ${variantCounter}` : 'Hauptlage');
-      const variantNumber =
-        variantType === 'series' ? '00' : String(variantCounter++).padStart(2, '0');
-      rules.push({
-        name: label,
-        year: yearInfo.startYear,
-        selectedDates: dates,
-        variantType,
-        appliesTo: 'both',
-        variantNumber,
-        primary: !train.variantOf,
-      });
-    });
-
-    return rules;
-  }
-
-  private fallbackDatesFromTrain(train: ImportedRailMlTrain): string[] {
-    if (train.departureIso) {
-      return [train.departureIso.slice(0, 10)];
-    }
-    return [];
-  }
-
-  private prepareGroupedCalendars(trains: ImportedRailMlTrain[]): ImportedRailMlTrain[] {
-    if (!trains.length) {
-      return trains;
-    }
-    let referenceYear: string | null = null;
-    trains.forEach((train) => {
-      if (!train.calendarDates?.length) {
-        return;
-      }
-      const yearInfo = this.timetableYearService.ensureDatesWithinSameYear(train.calendarDates);
-      train.timetableYearLabel = yearInfo.label;
-      if (referenceYear && referenceYear !== yearInfo.label) {
-        throw new Error(
-          `Die Variante "${train.name}" gehört zum Fahrplanjahr ${yearInfo.label}, erwartet wurde ${referenceYear}. Bitte RailML pro Jahr importieren.`,
-        );
-      }
-      referenceYear = referenceYear ?? yearInfo.label;
-    });
-
-    const baseTrain = trains.find((train) => !train.variantOf) ?? trains[0];
-    const baseDates = this.normalizeCalendarDates(baseTrain.calendarDates ?? []);
-    if (baseDates.length) {
-      const baseYear = this.timetableYearService.ensureDatesWithinSameYear(baseDates);
-      referenceYear = referenceYear ?? baseYear.label;
-      if (referenceYear !== baseYear.label) {
-        throw new Error(
-          `Die Hauptlage "${baseTrain.name}" gehört zum Fahrplanjahr ${baseYear.label}, erwartet wurde ${referenceYear}.`,
-        );
-      }
-      baseTrain.timetableYearLabel = baseYear.label;
-    } else if (referenceYear) {
-      baseTrain.timetableYearLabel = referenceYear;
-    }
-
-    const variantDates = new Set(
-      trains
-        .filter((train) => !!train.variantOf)
-        .flatMap((train) => this.normalizeCalendarDates(train.calendarDates ?? [])),
-    );
-    if (variantDates.size && baseDates.length) {
-      baseTrain.calendarDates = baseDates.filter((date) => !variantDates.has(date));
-    } else if (!baseTrain.calendarDates?.length && baseDates.length) {
-      baseTrain.calendarDates = baseDates;
-    }
-    baseTrain.calendarVariantType = 'series';
-    return trains;
-  }
 }

@@ -276,7 +276,7 @@ export class PlanningRealtimeService {
     if (this.socket) {
       return this.socket;
     }
-    const base = this.config.baseUrl.replace(/\/$/, '');
+    const base = this.socketBaseUrl();
     const socket = io(`${base}/planning-gantt`, {
       withCredentials: true,
       autoConnect: true,
@@ -338,6 +338,15 @@ export class PlanningRealtimeService {
     this.subscribedStages.forEach((stageId) => {
       this.debug.reportSseError(stageId, 'Realtime Verbindung fehlgeschlagen', error);
     });
+  }
+
+  private socketBaseUrl(): string {
+    const base = this.config.baseUrl.replace(/\/$/, '');
+    const match = base.match(/^(.*)\/api(?:\/v\d+)?$/);
+    if (match) {
+      return match[1] || '';
+    }
+    return base;
   }
 
   private ensureSession(context?: PlanningApiContext): void {

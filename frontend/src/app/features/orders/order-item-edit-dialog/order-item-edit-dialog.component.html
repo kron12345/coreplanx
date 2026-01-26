@@ -47,6 +47,50 @@
     </section>
   }
 
+  @if (remoteEdits().length) {
+    <section class="collaboration-panel">
+      <div class="collaboration-panel__header">
+        <mat-icon>group</mat-icon>
+        Live-Bearbeitung
+      </div>
+      <div class="collaboration-panel__body">
+        @for (entry of remoteEdits(); track trackRemoteEdit($index, entry)) {
+          @let fields = editFields(entry);
+          <div class="collaboration-entry">
+            <span class="collaboration-dot" [style.background]="entry.color ?? null"></span>
+            <div class="collaboration-entry__body">
+              <div class="collaboration-entry__title">
+                <span>{{ entry.name ?? entry.userId }}</span>
+                @if (entry.field) {
+                  <span class="collaboration-entry__active">
+                    bearbeitet {{ fieldLabel(entry.field) }}
+                  </span>
+                }
+              </div>
+              @if (fields.length) {
+                <div class="collaboration-entry__fields">
+                  @for (field of fields; track field.key) {
+                    <div
+                      class="collaboration-field"
+                      [class.collaboration-field--active]="field.active"
+                    >
+                      <span class="collaboration-field__label">{{ field.label }}</span>
+                      <span class="collaboration-field__value">
+                        {{ formatEditValue(field.value) || '—' }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <span class="collaboration-entry__hint">Dialog geöffnet</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
   <form [formGroup]="form" class="form">
     <mat-accordion class="edit-accordion">
       <mat-expansion-panel [expanded]="true">

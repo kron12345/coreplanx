@@ -605,6 +605,27 @@
         }
       }
 
+      &__loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: #f7f9fc;
+        white-space: nowrap;
+
+        mat-progress-spinner {
+          --mdc-circular-progress-active-indicator-color: #f7f9fc;
+          height: 16px;
+          width: 16px;
+        }
+      }
+
       &__quick-actions {
         display: flex;
         flex-wrap: wrap;

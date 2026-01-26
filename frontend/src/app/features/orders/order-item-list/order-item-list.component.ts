@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
 import {
@@ -31,6 +31,14 @@ import {
   SimulationAssignDialogComponent,
   SimulationAssignDialogResult,
 } from '../shared/simulation-assign-dialog/simulation-assign-dialog.component';
+import {
+  OrderManagementCollaborationService,
+} from '../../../core/services/order-management-collaboration.service';
+import {
+  OrderManagementCursorUpdate,
+  OrderManagementEditUpdate,
+  OrderManagementSelectionUpdate,
+} from '../../../core/services/order-management-realtime.service';
 
 @Component({
     selector: 'app-order-item-list',
@@ -41,6 +49,7 @@ import {
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderItemListComponent {
+  private readonly collaboration = inject(OrderManagementCollaborationService);
   @Input({ required: true }) items!: OrderItem[];
   @Input({ required: true }) orderId!: string;
   @Input() bulkSelectionEnabled = false;
@@ -158,6 +167,53 @@ export class OrderItemListComponent {
     private readonly orderService: OrderService,
     private readonly datePipe: DatePipe,
   ) {}
+
+  remoteSelections(item: OrderItem): OrderManagementSelectionUpdate[] {
+    return this.collaboration.selectionsFor('orderItem', item.id);
+  }
+
+  remoteEdits(item: OrderItem): OrderManagementEditUpdate[] {
+    return this.collaboration.editsFor('orderItem', item.id);
+  }
+
+  remoteCursors(item: OrderItem): OrderManagementCursorUpdate[] {
+    return this.collaboration.cursorsFor('orderItem', item.id);
+  }
+
+  remotePresenceClass(
+    selections: OrderManagementSelectionUpdate[],
+    edits: OrderManagementEditUpdate[],
+    cursors: OrderManagementCursorUpdate[],
+  ): string {
+    if (edits.length) {
+      return 'item--remote-edit';
+    }
+    if (selections.length) {
+      return 'item--remote';
+    }
+    if (cursors.length) {
+      return 'item--remote-hover';
+    }
+    return '';
+  }
+
+  onItemHover(item: OrderItem): void {
+    this.collaboration.sendCursor({
+      entityType: 'orderItem',
+      entityId: item.id,
+    });
+  }
+
+  onItemLeave(): void {
+    this.collaboration.sendCursor({
+      entityType: 'orderItem',
+      entityId: null,
+    });
+  }
+
+  trackRemoteEntry(_: number, entry: { sourceConnectionId?: string | null; userId?: string | null }): string {
+    return entry.sourceConnectionId ?? entry.userId ?? `${_}`;
+  }
 
   businessesForItem(item: OrderItem): Business[] {
     return this.businessService.getByIds(item.linkedBusinessIds ?? []);

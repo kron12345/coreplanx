@@ -8,6 +8,8 @@ import {
   ScheduleTemplateStop,
 } from '../models/schedule-template.model';
 import { ScheduleTemplateApiService } from '../api/schedule-template-api.service';
+import { OrderManagementRealtimeEvent, OrderManagementRealtimeService } from './order-management-realtime.service';
+import { ClientIdentityService } from './client-identity.service';
 
 export interface ScheduleTemplateFilters {
   search: string;
@@ -67,6 +69,8 @@ export interface CreateScheduleTemplatePayload {
 @Injectable({ providedIn: 'root' })
 export class ScheduleTemplateService {
   private readonly api = inject(ScheduleTemplateApiService);
+  private readonly realtime = inject(OrderManagementRealtimeService);
+  private readonly identity = inject(ClientIdentityService);
   private readonly _templates = signal<ScheduleTemplate[]>([]);
   private readonly loading = signal(false);
   private readonly _filters = signal<ScheduleTemplateFilters>({
@@ -139,6 +143,41 @@ export class ScheduleTemplateService {
 
   constructor() {
     void this.loadFromApi();
+    this.realtime.events().subscribe((event) => this.handleRealtimeEvent(event));
+  }
+
+  private handleRealtimeEvent(event: OrderManagementRealtimeEvent): void {
+    if (event.scope !== 'templates' || event.entityType !== 'scheduleTemplate') {
+      return;
+    }
+    if (
+      event.sourceConnectionId &&
+      event.sourceConnectionId === this.identity.connectionId()
+    ) {
+      return;
+    }
+    if (event.action === 'delete') {
+      this.removeTemplateFromStore(event.entityId);
+      return;
+    }
+    if (event.action === 'upsert' && event.payload) {
+      this.applyRealtimeTemplate(event.payload as ScheduleTemplate);
+    }
+  }
+
+  private applyRealtimeTemplate(template: ScheduleTemplate): void {
+    const exists = this.templateIndex().has(template.id);
+    if (!exists) {
+      void this.loadFromApi(true);
+      return;
+    }
+    this.replaceTemplate(template);
+  }
+
+  private removeTemplateFromStore(templateId: string): void {
+    this._templates.update((entries) =>
+      entries.filter((entry) => entry.id !== templateId),
+    );
   }
 
   setFilters(patch: Partial<ScheduleTemplateFilters>) {

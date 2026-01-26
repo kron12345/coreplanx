@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, computed, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
@@ -26,6 +26,7 @@ import {
   OrderStatusUpdateDialogComponent,
   OrderStatusUpdateDialogData,
 } from '../order-status-update-dialog.component';
+import { OrderManagementCollaborationService } from '../../../core/services/order-management-collaboration.service';
 import {
   ConfirmDialogComponent,
   ConfirmDialogData,
@@ -55,6 +56,7 @@ import type { OrderHealthSnapshot, StatusSummary } from './order-card.types';
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrderCardComponent {
+  private readonly collaboration = inject(OrderManagementCollaborationService);
   private readonly orderSignal = signal<Order | null>(null);
   private readonly itemsSignal = signal<OrderItem[] | null>(null);
 
@@ -99,6 +101,10 @@ export class OrderCardComponent {
   readonly internalStatusSummaries = computed(() =>
     this.computeInternalStatusSummaries(this.effectiveItems()),
   );
+  readonly itemsLoading = computed(() => {
+    const order = this.orderSignal();
+    return order ? this.orderService.isOrderItemsLoading(order.id) : false;
+  });
   readonly orderHealth = computed(() => this.computeOrderHealth());
   private readonly filters = computed(() => this.orderService.filters());
   private readonly filtersActive = computed(() =>
@@ -181,12 +187,14 @@ export class OrderCardComponent {
     event?.stopPropagation();
     this.selectedIds.set(new Set());
     this.selectionMode.set(false);
+    this.notifySelectionUpdate();
   }
 
   selectAllVisible(event?: MouseEvent) {
     event?.stopPropagation();
     const allIds = this.effectiveItems().map((item) => item.id);
     this.selectedIds.set(new Set(allIds));
+    this.notifySelectionUpdate();
   }
 
   openLinkBusinessDialog(event: MouseEvent): void {
@@ -224,6 +232,17 @@ export class OrderCardComponent {
         next.delete(change.id);
       }
       return next;
+    });
+    this.notifySelectionUpdate();
+  }
+
+  private notifySelectionUpdate(): void {
+    const ids = Array.from(this.selectedIds());
+    this.collaboration.sendSelection({
+      entityType: 'orderItem',
+      entityIds: ids,
+      primaryId: ids[0] ?? null,
+      mode: 'select',
     });
   }
 

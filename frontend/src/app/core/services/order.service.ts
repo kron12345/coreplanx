@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Order, OrderProcessStatus } from '../models/order.model';
 import {
@@ -82,6 +82,11 @@ import { OrderTimetableYearHelper } from './orders/order-timetable-year.helper';
 import { OrderStatusManager } from './orders/order-status.manager';
 import { OrderLinkingHelper } from './orders/order-linking.helper';
 import { OrderPlanModificationManager } from './orders/order-plan-modification.manager';
+import {
+  OrderManagementRealtimeEvent,
+  OrderManagementRealtimeService,
+} from './order-management-realtime.service';
+import { ClientIdentityService } from './client-identity.service';
 
 export interface OrderItemOption {
   itemId: string;
@@ -253,6 +258,8 @@ export interface SplitOrderItemPayload {
 
 @Injectable({ providedIn: 'root' })
 export class OrderService {
+  private readonly realtime = inject(OrderManagementRealtimeService);
+  private readonly identity = inject(ClientIdentityService);
   private readonly _orders = signal<Order[]>([]);
   private readonly _filters = signal<OrderFilters>({ ...DEFAULT_ORDER_FILTERS });
   private readonly browserStorage = detectFilterStorage();
@@ -263,7 +270,7 @@ export class OrderService {
   private readonly currentPage = signal(1);
   private fetchToken = 0;
   private readonly orderItemsLoaded = new Set<string>();
-  private readonly orderItemsLoading = new Set<string>();
+  private readonly orderItemsLoading = signal<Set<string>>(new Set());
   private orderItemsFetchToken = 0;
   private readonly orderItemsPageSize = 200;
   private readonly pendingSaves = new Map<string, Order>();
@@ -357,6 +364,52 @@ export class OrderService {
     });
 
     void this.refreshOrders();
+    this.realtime.events().subscribe((event) => this.handleRealtimeEvent(event));
+  }
+
+  private handleRealtimeEvent(event: OrderManagementRealtimeEvent): void {
+    if (event.scope !== 'orders' || event.entityType !== 'order') {
+      return;
+    }
+    if (
+      event.sourceConnectionId &&
+      event.sourceConnectionId === this.identity.connectionId()
+    ) {
+      return;
+    }
+    if (event.action === 'delete') {
+      this.removeOrderFromStore(event.entityId);
+      return;
+    }
+    if (event.action === 'upsert' && event.payload) {
+      this.applyRealtimeOrder(event.payload as Order);
+    }
+  }
+
+  private applyRealtimeOrder(order: Order): void {
+    const normalized = this.normalizeOrderFromApi(order);
+    const existing = this.getOrderById(normalized.id);
+    if (!existing) {
+      if (this.hasActiveFilters()) {
+        void this.refreshOrders(true);
+        return;
+      }
+      this.updateOrders((orders) => [normalized, ...orders], { persist: false });
+      return;
+    }
+    this.updateOrders(
+      (orders) =>
+        orders.map((entry) => (entry.id === normalized.id ? normalized : entry)),
+      { persist: false },
+    );
+    this.syncTimetablesFromOrders([normalized]);
+  }
+
+  private removeOrderFromStore(orderId: string): void {
+    this.updateOrders(
+      (orders) => orders.filter((entry) => entry.id !== orderId),
+      { persist: false },
+    );
   }
 
   readonly filters = computed(() => this._filters());
@@ -364,6 +417,7 @@ export class OrderService {
   readonly totalCount = computed(() => this.total());
   readonly hasMoreOrders = computed(() => this.hasMore());
   readonly isLoading = computed(() => this.loading());
+  readonly orderItemsLoadingIds = computed(() => this.orderItemsLoading());
   readonly orderItems = computed(() =>
     this._orders().flatMap((order) =>
       order.items.map((item) => ({
@@ -410,7 +464,7 @@ export class OrderService {
   }
 
   async ensureOrderItemsLoaded(orderId: string): Promise<void> {
-    if (this.orderItemsLoaded.has(orderId) || this.orderItemsLoading.has(orderId)) {
+    if (this.orderItemsLoaded.has(orderId) || this.orderItemsLoading().has(orderId)) {
       return;
     }
     const order = this.getOrderById(orderId);
@@ -418,7 +472,9 @@ export class OrderService {
       return;
     }
     const requestToken = this.orderItemsFetchToken;
-    this.orderItemsLoading.add(orderId);
+    const nextLoading = new Set(this.orderItemsLoading());
+    nextLoading.add(orderId);
+    this.orderItemsLoading.set(nextLoading);
     try {
       const items = await this.fetchAllOrderItems(orderId, requestToken);
       if (requestToken !== this.orderItemsFetchToken) {
@@ -432,11 +488,15 @@ export class OrderService {
       items.forEach((item) =>
         this.syncTimetableCalendarArtifacts(item.generatedTimetableRefId),
       );
+      this.timetableService.upsertFromOrderItems(items);
+      this.timetableHubService.refreshFromTimetables();
       this.orderItemsLoaded.add(orderId);
     } catch (error) {
       console.warn('[OrderService] Failed to load order items from backend', error);
     } finally {
-      this.orderItemsLoading.delete(orderId);
+      const remaining = new Set(this.orderItemsLoading());
+      remaining.delete(orderId);
+      this.orderItemsLoading.set(remaining);
     }
   }
 
@@ -467,6 +527,7 @@ export class OrderService {
         append ? this.appendOrders(current, orders) : orders,
       );
       this.syncCalendarArtifactsForOrders(orders);
+      this.syncTimetablesFromOrders(orders);
     } catch (error) {
       console.warn('[OrderService] Failed to load orders from backend', error);
     } finally {
@@ -552,6 +613,15 @@ export class OrderService {
     );
   }
 
+  private syncTimetablesFromOrders(orders: Order[]): void {
+    const items = orders.flatMap((order) => order.items);
+    if (!items.length) {
+      return;
+    }
+    this.timetableService.upsertFromOrderItems(items);
+    this.timetableHubService.refreshFromTimetables();
+  }
+
   setFilter(patch: Partial<OrderFilters>) {
     this._filters.update((f) => {
       const next = { ...f, ...patch };
@@ -574,8 +644,12 @@ export class OrderService {
 
   private resetOrderItemCache(): void {
     this.orderItemsLoaded.clear();
-    this.orderItemsLoading.clear();
+    this.orderItemsLoading.set(new Set());
     this.orderItemsFetchToken += 1;
+  }
+
+  isOrderItemsLoading(orderId: string): boolean {
+    return this.orderItemsLoading().has(orderId);
   }
 
   private updateOrders(
@@ -1070,9 +1144,7 @@ export class OrderService {
     const planFactory = new OrderPlanFactory({
       trainPlanService: this.trainPlanService,
       timetableService: this.timetableService,
-      trafficPeriodService: this.trafficPeriodService,
       timetableYearService: this.timetableYearService,
-      getOrderById: (orderId) => this.getOrderById(orderId),
       ensureOrderTimetableYear: (orderId, label) => this.ensureOrderTimetableYear(orderId, label),
       applyPlanDetailsToItem: (item, plan) => applyPlanDetailsToItem(item, plan),
       ensureTimetableForPlan: (plan, item, refOverride) =>

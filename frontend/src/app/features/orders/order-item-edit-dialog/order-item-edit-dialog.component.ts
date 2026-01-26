@@ -1,5 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -8,7 +17,6 @@ import {
   Validators,
 } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { inject } from '@angular/core';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
 import { OrderItem, OrderItemValiditySegment } from '../../../core/models/order-item.model';
 import {
@@ -29,6 +37,10 @@ import { OrderItemRangeFieldsComponent } from '../shared/order-item-range-fields
 import { TimetablePhase } from '../../../core/models/timetable.model';
 import { TrafficPeriod } from '../../../core/models/traffic-period.model';
 import { ReferenceCalendarInlineFormComponent } from '../reference-calendar-inline-form/reference-calendar-inline-form.component';
+import { OrderManagementCollaborationService } from '../../../core/services/order-management-collaboration.service';
+import { debounceTime } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import type { OrderManagementEditUpdate } from '../../../core/services/order-management-realtime.service';
 
 interface OrderItemEditDialogData {
   orderId: string;
@@ -67,17 +79,19 @@ interface OrderItemEditFormModel {
     styleUrl: './order-item-edit-dialog.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class OrderItemEditDialogComponent implements OnInit {
+export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
   private readonly dialogRef =
     inject<MatDialogRef<OrderItemEditDialogComponent>>(MatDialogRef);
   private readonly data = inject<OrderItemEditDialogData>(MAT_DIALOG_DATA);
   private readonly orderService = inject(OrderService);
+  private readonly collaboration = inject(OrderManagementCollaborationService);
   private readonly trafficPeriodService = inject(TrafficPeriodService);
   private readonly trainPlanService = inject(TrainPlanService);
   private readonly templateService = inject(ScheduleTemplateService);
   private readonly dialog = inject(MatDialog);
   private readonly fb = inject(FormBuilder);
   private readonly timetableYearService = inject(TimetableYearService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly form: FormGroup<OrderItemEditFormModel>;
   readonly errorMessage = signal<string | null>(null);
@@ -122,6 +136,41 @@ export class OrderItemEditDialogComponent implements OnInit {
   readonly planLocked = computed(
     () => this.isPlanItem && this.requiresPlanVersion,
   );
+  readonly remoteEdits = computed(() =>
+    this.collaboration.editsFor('orderItem', this.item.id),
+  );
+  private readonly fieldLabels: Record<string, string> = {
+    rangeStart: 'Gültig ab',
+    rangeEnd: 'Gültig bis',
+    name: 'Name',
+    responsible: 'Verantwortlich',
+    deviation: 'Abweichung',
+    tags: 'Tags',
+    serviceType: 'Leistungsart',
+    fromLocation: 'Von',
+    toLocation: 'Nach',
+    trafficPeriodId: 'Verkehrsperiode',
+    startDateTime: 'Startzeit',
+    endDateTime: 'Endzeit',
+    linkedTrainPlanId: 'Fahrplan',
+    linkedTemplateId: 'Vorlage',
+  };
+  private readonly fieldOrder = [
+    'name',
+    'responsible',
+    'deviation',
+    'tags',
+    'rangeStart',
+    'rangeEnd',
+    'serviceType',
+    'fromLocation',
+    'toLocation',
+    'trafficPeriodId',
+    'startDateTime',
+    'endDateTime',
+    'linkedTrainPlanId',
+    'linkedTemplateId',
+  ];
   readonly serviceFieldsConfig = {
     startControl: 'startDateTime',
     endControl: 'endDateTime',
@@ -135,6 +184,7 @@ export class OrderItemEditDialogComponent implements OnInit {
   readonly calendarExclusionsControl = this.fb.nonNullable.control<string[]>([]);
   private currentCalendarPeriodId: string | undefined = this.item.trafficPeriodId ?? undefined;
   private planMutated = false;
+  private lastEditValue: Record<string, unknown> | null = null;
 
   constructor() {
     const defaultValidity = this.determineDefaultValidity();
@@ -217,6 +267,141 @@ export class OrderItemEditDialogComponent implements OnInit {
     if (this.isPlanItem) {
       this.initializeCalendarEditor();
     }
+    this.startRealtimeEditing();
+  }
+
+  ngOnDestroy(): void {
+    this.collaboration.sendEditUpdate({
+      entityType: 'orderItem',
+      entityId: this.item.id,
+      state: 'end',
+    });
+    this.collaboration.sendSelection({
+      entityType: 'orderItem',
+      entityIds: [],
+      primaryId: null,
+      mode: 'edit',
+    });
+  }
+
+  trackRemoteEdit(_: number, entry: OrderManagementEditUpdate): string {
+    return entry.sourceConnectionId ?? entry.userId ?? `${_}`;
+  }
+
+  fieldLabel(field: string | null | undefined): string {
+    if (!field) {
+      return 'Feld';
+    }
+    return this.fieldLabels[field] ?? field;
+  }
+
+  editFields(entry: OrderManagementEditUpdate): Array<{
+    key: string;
+    label: string;
+    value: unknown;
+    active: boolean;
+  }> {
+    const fields = entry.fields ?? {};
+    const keys = Object.keys(fields);
+    const activeField = entry.field;
+    if (activeField && !keys.includes(activeField)) {
+      keys.unshift(activeField);
+    }
+    const orderIndex = new Map(
+      this.fieldOrder.map((key, index) => [key, index]),
+    );
+    const ordered = keys.sort((a, b) => {
+      const aIndex = orderIndex.get(a);
+      const bIndex = orderIndex.get(b);
+      if (aIndex === undefined && bIndex === undefined) {
+        return a.localeCompare(b);
+      }
+      if (aIndex === undefined) {
+        return 1;
+      }
+      if (bIndex === undefined) {
+        return -1;
+      }
+      return aIndex - bIndex;
+    });
+    return ordered.map((key) => ({
+      key,
+      label: this.fieldLabel(key),
+      value: fields[key],
+      active: key === activeField,
+    }));
+  }
+
+  formatEditValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return `${value}`;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  private startRealtimeEditing(): void {
+    this.collaboration.sendSelection({
+      entityType: 'orderItem',
+      entityIds: [this.item.id],
+      primaryId: this.item.id,
+      mode: 'edit',
+    });
+    this.collaboration.sendEditUpdate({
+      entityType: 'orderItem',
+      entityId: this.item.id,
+      state: 'start',
+    });
+
+    this.lastEditValue = this.form.getRawValue() as Record<string, unknown>;
+    this.form.valueChanges
+      .pipe(debounceTime(150), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        const current = this.form.getRawValue() as Record<string, unknown>;
+        const previous = this.lastEditValue ?? {};
+        const changed = this.diffFormValues(previous, current);
+        if (changed.length) {
+          changed.forEach(([field, value]) => {
+            this.collaboration.sendEditUpdate({
+              entityType: 'orderItem',
+              entityId: this.item.id,
+              field,
+              value,
+              state: 'change',
+            });
+          });
+        }
+        this.lastEditValue = current;
+      });
+  }
+
+  private diffFormValues(
+    previous: Record<string, unknown>,
+    current: Record<string, unknown>,
+  ): Array<[string, unknown]> {
+    const changes: Array<[string, unknown]> = [];
+    Object.keys(current).forEach((key) => {
+      const prevValue = previous[key];
+      const nextValue = current[key];
+      if (Array.isArray(prevValue) || Array.isArray(nextValue)) {
+        const prevJson = JSON.stringify(prevValue ?? []);
+        const nextJson = JSON.stringify(nextValue ?? []);
+        if (prevJson !== nextJson) {
+          changes.push([key, nextValue]);
+        }
+        return;
+      }
+      if (prevValue !== nextValue) {
+        changes.push([key, nextValue]);
+      }
+    });
+    return changes;
   }
 
   currentPlan(): TrainPlan | undefined {

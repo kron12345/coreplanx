@@ -25,6 +25,21 @@
       background: rgba(26, 115, 232, 0.04);
     }
 
+    &.item--remote {
+      background: rgba(255, 255, 255, 0.6);
+      box-shadow: inset 3px 0 0 rgba(33, 53, 71, 0.18);
+    }
+
+    &.item--remote-edit {
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: inset 3px 0 0 rgba(255, 143, 0, 0.35);
+    }
+
+    &.item--remote-hover {
+      background: rgba(255, 255, 255, 0.7);
+      box-shadow: inset 3px 0 0 rgba(33, 150, 243, 0.25);
+    }
+
     &.version-depth-2 .left,
     &.version-depth-3 .left,
     &.version-depth-4 .left,
@@ -70,6 +85,33 @@
           font-size: 0.75rem;
           height: 24px;
           border-radius: 999px;
+        }
+      }
+
+      .remote-presence {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 4px 0 2px 0;
+
+        .remote-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          border: 1px solid rgba(0, 0, 0, 0.15);
+          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        }
+
+        .remote-dot--edit {
+          border-color: rgba(255, 143, 0, 0.5);
+        }
+
+        .remote-dot--select {
+          border-color: rgba(33, 150, 243, 0.5);
+        }
+
+        .remote-dot--hover {
+          border-color: rgba(94, 53, 177, 0.5);
         }
       }
       .meta {

@@ -1,5 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post, Put } from '@nestjs/common';
 import { BusinessService } from './business.service';
+import { OrderManagementRealtimeService } from '../order-management-realtime/order-management-realtime.service';
+import { parseClientRequestId } from '../shared/client-context';
 import type {
   BusinessDto,
   BusinessSearchRequest,
@@ -10,7 +12,10 @@ import type {
 
 @Controller('businesses')
 export class BusinessController {
-  constructor(private readonly businessService: BusinessService) {}
+  constructor(
+    private readonly businessService: BusinessService,
+    private readonly realtime: OrderManagementRealtimeService,
+  ) {}
 
   @Post('search')
   searchBusinesses(
@@ -20,18 +25,38 @@ export class BusinessController {
   }
 
   @Post()
-  createBusiness(
+  async createBusiness(
     @Body() payload: CreateBusinessPayload,
+    @Headers('x-client-request-id') clientRequestId?: string,
   ): Promise<BusinessDto> {
-    return this.businessService.createBusiness(payload);
+    const business = await this.businessService.createBusiness(payload);
+    this.realtime.emitEvent({
+      scope: 'business',
+      entityType: 'business',
+      entityId: business.id,
+      action: 'upsert',
+      payload: business,
+      sourceConnectionId: parseClientRequestId(clientRequestId).connectionId,
+    });
+    return business;
   }
 
   @Put(':businessId')
-  updateBusiness(
+  async updateBusiness(
     @Param('businessId') businessId: string,
     @Body() payload: UpdateBusinessPayload,
+    @Headers('x-client-request-id') clientRequestId?: string,
   ): Promise<BusinessDto> {
-    return this.businessService.updateBusiness(businessId, payload);
+    const business = await this.businessService.updateBusiness(businessId, payload);
+    this.realtime.emitEvent({
+      scope: 'business',
+      entityType: 'business',
+      entityId: business.id,
+      action: 'upsert',
+      payload: business,
+      sourceConnectionId: parseClientRequestId(clientRequestId).connectionId,
+    });
+    return business;
   }
 
   @Get(':businessId')
@@ -42,9 +67,17 @@ export class BusinessController {
   }
 
   @Delete(':businessId')
-  deleteBusiness(
+  async deleteBusiness(
     @Param('businessId') businessId: string,
+    @Headers('x-client-request-id') clientRequestId?: string,
   ): Promise<void> {
-    return this.businessService.deleteBusiness(businessId);
+    await this.businessService.deleteBusiness(businessId);
+    this.realtime.emitEvent({
+      scope: 'business',
+      entityType: 'business',
+      entityId: businessId,
+      action: 'delete',
+      sourceConnectionId: parseClientRequestId(clientRequestId).connectionId,
+    });
   }
 }

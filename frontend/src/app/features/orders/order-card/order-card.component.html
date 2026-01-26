@@ -334,6 +334,12 @@
         <button mat-icon-button matTooltip="Optionen" (click)="$event.stopPropagation()">
           <mat-icon>more_vert</mat-icon>
         </button>
+        @if (itemsLoading()) {
+          <div class="right__loading">
+            <mat-progress-spinner diameter="16" strokeWidth="3" mode="indeterminate"></mat-progress-spinner>
+            <span>Lade Leistungen…</span>
+          </div>
+        }
       </div>
       <div class="right__quick-actions">
         <button mat-button type="button" (click)="openLinkBusinessDialog($event)">

@@ -24,9 +24,17 @@ export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
     'Tipp: Shift + Klick für Bereichsauswahl, Strg/Cmd + Klick um bestehende Auswahl zu erweitern.';
   @Input() exclusionHint =
     'Wähle Tage aus, die trotz Markierung nicht gefahren werden sollen.';
-  @Input() fixedYearLabel: string | null = null;
+  @Input()
+  set fixedYearLabel(value: string | null) {
+    this.fixedYearLabelValue = value?.trim() || null;
+    this.applyFixedYear();
+  }
+  get fixedYearLabel(): string | null {
+    return this.fixedYearLabelValue;
+  }
 
   private yearChangesSub?: Subscription;
+  private fixedYearLabelValue: string | null = null;
   mode: 'include' | 'exclude' = 'include';
   constructor(private readonly timetableYearService: TimetableYearService) {}
 
@@ -84,10 +92,7 @@ export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.ensureYearControl();
-    if (this.fixedYearLabel) {
-      this.yearControl.setValue(this.fixedYearLabel, { emitEvent: false });
-      this.yearControl.disable({ emitEvent: false });
-    }
+    this.applyFixedYear();
     this.onYearChanged();
     this.yearChangesSub = this.yearControl.valueChanges.subscribe(() => this.onYearChanged());
   }
@@ -152,6 +157,18 @@ export class ReferenceCalendarInlineFormComponent implements OnInit, OnDestroy {
     } catch {
       const fallback = this.timetableYearService.defaultYearBounds();
       this.yearControl.setValue(fallback.label, { emitEvent: false });
+    }
+  }
+
+  private applyFixedYear(): void {
+    if (!this.yearControl) {
+      return;
+    }
+    if (this.fixedYearLabel) {
+      this.yearControl.setValue(this.fixedYearLabel, { emitEvent: false });
+      this.yearControl.disable({ emitEvent: false });
+    } else {
+      this.yearControl.enable({ emitEvent: false });
     }
   }
 

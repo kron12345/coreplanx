@@ -2,6 +2,8 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Customer, CustomerContact } from '../models/customer.model';
 import { CustomerApiService } from '../api/customer-api.service';
+import { OrderManagementRealtimeEvent, OrderManagementRealtimeService } from './order-management-realtime.service';
+import { ClientIdentityService } from './client-identity.service';
 
 export interface CreateCustomerPayload {
   name: string;
@@ -15,6 +17,8 @@ export interface CreateCustomerPayload {
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   private readonly api = inject(CustomerApiService);
+  private readonly realtime = inject(OrderManagementRealtimeService);
+  private readonly identity = inject(ClientIdentityService);
   private readonly _customers = signal<Customer[]>([]);
   private readonly loading = signal(false);
 
@@ -23,6 +27,41 @@ export class CustomerService {
 
   constructor() {
     void this.loadFromApi();
+    this.realtime.events().subscribe((event) => this.handleRealtimeEvent(event));
+  }
+
+  private handleRealtimeEvent(event: OrderManagementRealtimeEvent): void {
+    if (event.scope !== 'customers' || event.entityType !== 'customer') {
+      return;
+    }
+    if (
+      event.sourceConnectionId &&
+      event.sourceConnectionId === this.identity.connectionId()
+    ) {
+      return;
+    }
+    if (event.action === 'delete') {
+      this.removeCustomerFromStore(event.entityId);
+      return;
+    }
+    if (event.action === 'upsert' && event.payload) {
+      this.applyRealtimeCustomer(event.payload as Customer);
+    }
+  }
+
+  private applyRealtimeCustomer(customer: Customer): void {
+    const exists = this.getById(customer.id);
+    if (!exists) {
+      void this.loadFromApi(true);
+      return;
+    }
+    this.replaceCustomer(customer);
+  }
+
+  private removeCustomerFromStore(customerId: string): void {
+    this._customers.update((entries) =>
+      entries.filter((entry) => entry.id !== customerId),
+    );
   }
 
   getById(id: string | undefined): Customer | undefined {

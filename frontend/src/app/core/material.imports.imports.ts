@@ -23,6 +23,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 export const MATERIAL_IMPORTS = [
   MatToolbarModule,
@@ -50,4 +51,5 @@ export const MATERIAL_IMPORTS = [
   MatTabsModule,
   MatAutocompleteModule,
   MatSnackBarModule,
+  MatProgressSpinnerModule,
 ];

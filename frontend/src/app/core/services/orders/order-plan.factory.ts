@@ -1,7 +1,5 @@
 import { OrderItem } from '../../models/order-item.model';
 import { TrainPlan } from '../../models/train-plan.model';
-import { Order } from '../../models/order.model';
-import { ScheduleTemplate } from '../../models/schedule-template.model';
 import { Timetable } from '../../models/timetable.model';
 import type {
   CreatePlanOrderItemsPayload,
@@ -12,7 +10,6 @@ import type {
 import { CreateScheduleTemplateStopPayload } from '../schedule-template.service';
 import { TrainPlanService, CreatePlansFromTemplatePayload, PlanModificationStopInput } from '../train-plan.service';
 import { TimetableService } from '../timetable.service';
-import { TrafficPeriodService } from '../traffic-period.service';
 import { TimetableYearService } from '../timetable-year.service';
 import { normalizeCalendarDates, normalizeTimetableYearLabel, toTimetableStops, extractPlanStart, extractPlanEnd } from './order-plan.utils';
 import { timetableYearFromPlan } from './order-timetable.utils';
@@ -22,9 +19,7 @@ import { buildDaysBitmapFromValidity, resolveEffectiveValidity, resolveValidityS
 export interface PlanFactoryDeps {
   trainPlanService: TrainPlanService;
   timetableService: TimetableService;
-  trafficPeriodService: TrafficPeriodService;
   timetableYearService: TimetableYearService;
-  getOrderById: (orderId: string) => Order | undefined;
   ensureOrderTimetableYear: (orderId: string, label?: string | null) => void;
   applyPlanDetailsToItem: (item: OrderItem, plan: TrainPlan) => OrderItem;
   ensureTimetableForPlan: (plan: TrainPlan, item: OrderItem, refTrainIdOverride?: string) => Timetable | null;
@@ -35,6 +30,8 @@ export interface PlanFactoryDeps {
 }
 
 export class OrderPlanFactory {
+  private trafficPeriodCounter = 0;
+
   constructor(private readonly deps: PlanFactoryDeps) {}
 
   addPlanOrderItems(payload: CreatePlanOrderItemsPayload): OrderItem[] {
@@ -57,13 +54,7 @@ export class OrderPlanFactory {
 
     let planTrafficPeriodId = planConfig.trafficPeriodId;
     if (!planTrafficPeriodId && effectiveCalendarDates?.length) {
-      planTrafficPeriodId = this.createTrafficPeriodForPlanDates(
-        orderId,
-        namePrefix,
-        effectiveCalendarDates,
-        timetableYearLabel,
-        planConfig.responsibleRu ?? responsible,
-      );
+      planTrafficPeriodId = this.createTrafficPeriodForPlanDates(effectiveCalendarDates);
     }
 
     const plans = this.deps.trainPlanService.createPlansFromTemplate({
@@ -81,7 +72,7 @@ export class OrderPlanFactory {
     const enrichedPlans =
       planTrafficPeriodId && planTrafficPeriodId.length
         ? plans
-        : plans.map((plan) => this.ensurePlanHasTrafficPeriod(plan, namePrefix ?? plan.title));
+        : plans.map((plan) => this.ensurePlanHasTrafficPeriod(plan));
     const normalizedYearLabel =
       normalizeTimetableYearLabel(timetableYearLabel, this.deps.timetableYearService) ??
       timetableYearFromPlan(enrichedPlans[0] ?? plans[0], this.deps.timetableYearService);
@@ -196,6 +187,16 @@ export class OrderPlanFactory {
 
     const responsible = payload.responsible ?? 'RailML Import';
 
+    const normalizedCalendarDates = normalizeCalendarDates(payload.train.calendarDates ?? []);
+    const fallbackDate = departureIso.slice(0, 10);
+    const validFrom = normalizedCalendarDates[0] ?? fallbackDate;
+    const validTo = normalizedCalendarDates[normalizedCalendarDates.length - 1] ?? validFrom;
+    const dateSegments = normalizedCalendarDates.map((date) => ({
+      startDate: date,
+      endDate: date,
+    }));
+    const daysBitmap = buildDaysBitmapFromValidity(dateSegments, validFrom, validTo);
+
     const plan = this.deps.trainPlanService.createManualPlan({
       title: payload.train.name,
       trainNumber: payload.train.number,
@@ -206,6 +207,9 @@ export class OrderPlanFactory {
       notes: undefined,
       templateId: undefined,
       trafficPeriodId: payload.trafficPeriodId,
+      validFrom,
+      validTo,
+      daysBitmap,
       composition: payload.composition,
       planVariantType: payload.variantType ?? 'productive',
       variantLabel: payload.variantLabel,
@@ -215,7 +219,6 @@ export class OrderPlanFactory {
     const timetableYearLabel =
       normalizeTimetableYearLabel(payload.timetableYearLabel, this.deps.timetableYearService) ??
       payload.train.timetableYearLabel ??
-      this.getTrafficPeriodTimetableYear(payload.trafficPeriodId) ??
       timetableYearFromPlan(plan, this.deps.timetableYearService);
     if (!timetableYearLabel) {
       throw new Error('Fahrplanjahr konnte nicht bestimmt werden.');
@@ -260,85 +263,19 @@ export class OrderPlanFactory {
     return enriched;
   }
 
-  private createTrafficPeriodForPlanDates(
-    orderId: string,
-    namePrefix: string | undefined,
-    dates: string[],
-    timetableYearLabel?: string,
-    responsible?: string,
-  ): string {
+  private createTrafficPeriodForPlanDates(dates: string[]): string {
     const normalizedDates = normalizeCalendarDates(dates);
     if (!normalizedDates.length) {
       throw new Error('Referenzkalender enthält keine aktiven Tage.');
     }
-
-    const groupedByYear = normalizedDates.reduce<Map<number, string[]>>(
-      (acc: Map<number, string[]>, date: string) => {
-        const year = Number.parseInt(date.slice(0, 4), 10);
-        const list = acc.get(year);
-        if (list) {
-          list.push(date);
-        } else {
-          acc.set(year, [date]);
-        }
-        return acc;
-      },
-      new Map<number, string[]>(),
-    );
-
-    const sortedYears = Array.from(groupedByYear.keys()).sort((a: number, b: number) => a - b);
-    const baseYear = sortedYears[0] ?? Number.parseInt(normalizedDates[0].slice(0, 4), 10);
-    const calendarName = this.buildPlanCalendarName(orderId, namePrefix);
-    const normalizedYearLabel = normalizeTimetableYearLabel(
-      timetableYearLabel,
-      this.deps.timetableYearService,
-    );
-
-    const rules = sortedYears.map((year, index) => ({
-      name: `${calendarName} ${year}`,
-      year,
-      selectedDates: groupedByYear.get(year) ?? [],
-      variantType: 'special_day' as const,
-      variantNumber: (index + 1).toString().padStart(2, '0'),
-      appliesTo: 'both' as const,
-      primary: index === 0,
-    }));
-
-    const periodId = this.deps.trafficPeriodService.createPeriod({
-      name: calendarName,
-      type: 'standard',
-      description: 'Automatisch erzeugter Referenzkalender aus Serienfahrplan',
-      responsible,
-      year: baseYear,
-      timetableYearLabel: normalizedYearLabel,
-      rules,
-    });
-
-    if (!periodId) {
-      throw new Error('Referenzkalender konnte nicht angelegt werden.');
-    }
-    return periodId;
+    return this.generateTrafficPeriodId();
   }
 
-  private buildPlanCalendarName(orderId: string, namePrefix?: string): string {
-    const order = this.deps.getOrderById(orderId);
-    const orderLabel = order?.name ?? orderId;
-    if (namePrefix?.trim()) {
-      return `${namePrefix.trim()} · ${orderLabel}`;
+  private ensurePlanHasTrafficPeriod(plan: TrainPlan): TrainPlan {
+    if (plan.trafficPeriodId) {
+      return plan;
     }
-    return `Serie ${orderLabel}`;
-  }
-
-  private ensurePlanHasTrafficPeriod(plan: TrainPlan, baseName: string): TrainPlan {
-    const calendarDate =
-      plan.calendar?.validFrom ?? plan.calendar?.validTo ?? new Date().toISOString().slice(0, 10);
-    const calendarName = `${baseName} ${calendarDate}`;
-    const periodId = this.deps.trafficPeriodService.createSingleDayPeriod({
-      name: calendarName,
-      date: calendarDate,
-      variantType: 'series',
-      responsible: plan.responsibleRu,
-    });
+    const periodId = this.generateTrafficPeriodId();
     return this.deps.trainPlanService.assignTrafficPeriod(plan.id, periodId) ?? plan;
   }
 
@@ -367,27 +304,13 @@ export class OrderPlanFactory {
     };
   }
 
-  private getTrafficPeriodTimetableYear(periodId: string): string | null {
-    if (!periodId) {
-      return null;
-    }
-    const period = this.deps.trafficPeriodService.getById(periodId);
-    if (!period) {
-      return null;
-    }
-    if (period.timetableYearLabel) {
-      return period.timetableYearLabel;
-    }
-    const sample =
-      period.rules?.find((rule) => rule.includesDates?.length)?.includesDates?.[0] ??
-      period.rules?.[0]?.validityStart;
-    if (!sample) {
-      return null;
-    }
-    try {
-      return this.deps.timetableYearService.getYearBounds(sample).label;
-    } catch {
-      return null;
-    }
+  private generateTrafficPeriodId(): string {
+    const ts = Date.now().toString(36).toUpperCase();
+    this.trafficPeriodCounter = (this.trafficPeriodCounter + 1) % 1679616; // 36^4 combinations
+    const suffix = this.trafficPeriodCounter
+      .toString(36)
+      .toUpperCase()
+      .padStart(4, '0');
+    return `TPER-${ts}${suffix}`;
   }
 }

@@ -176,6 +176,16 @@ export class DebugStreamInterceptor implements NestInterceptor {
 
   private resolveTopic(path: string): DebugLogTopic {
     const lower = path.toLowerCase();
+    if (
+      lower.includes('/orders') ||
+      lower.includes('/customers') ||
+      lower.includes('/businesses') ||
+      lower.includes('/templates') ||
+      lower.includes('/schedule-templates') ||
+      lower.includes('/plans')
+    ) {
+      return 'orders';
+    }
     if (lower.includes('/optimizer') || lower.includes('/autopilot')) {
       return 'solver';
     }

@@ -4,7 +4,6 @@ import { Order } from '../../core/models/order.model';
 import { OrderItem } from '../../core/models/order-item.model';
 import { BusinessTemplateService } from '../../core/services/business-template.service';
 import { BusinessService } from '../../core/services/business.service';
-import { TrafficPeriodRulePayload, TrafficPeriodService } from '../../core/services/traffic-period.service';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { PlanModificationStopInput } from '../../core/services/train-plan.service';
 import type { ScheduleTemplate } from '../../core/models/schedule-template.model';
@@ -20,9 +19,10 @@ type BusinessForm = OrderPositionForms['businessForm'];
 
 @Injectable({ providedIn: 'root' })
 export class OrderPositionDialogActionsService {
+  private trafficPeriodCounter = 0;
+
   constructor(
     private readonly orderService: OrderService,
-    private readonly trafficPeriodService: TrafficPeriodService,
     private readonly timetableYearService: TimetableYearService,
     private readonly businessTemplateService: BusinessTemplateService,
     private readonly businessService: BusinessService,
@@ -80,19 +80,7 @@ export class OrderPositionDialogActionsService {
         if (!start || !end) {
           throw new Error('Start/Ende konnten nicht berechnet werden.');
         }
-        const trafficPeriodId = this.trafficPeriodService.createSingleDayPeriod({
-          name: `${serviceType} ${date}`,
-          date,
-          variantType: 'special_day',
-          tags: this.buildArchiveGroupTags(
-            `${options.order.id}:service:${this.slugify(serviceType)}`,
-            serviceType,
-            'service',
-          ),
-        });
-        if (!trafficPeriodId) {
-          throw new Error('Referenzkalender konnte nicht erstellt werden.');
-        }
+        const trafficPeriodId = this.generateTrafficPeriodId();
         const payload: CreateServiceOrderItemPayload = {
           orderId: options.order.id,
           serviceType,
@@ -158,23 +146,8 @@ export class OrderPositionDialogActionsService {
       const responsible = value.responsible?.trim() || undefined;
       const planName = value.name?.trim() || undefined;
       const yearInfo = this.timetableYearService.ensureDatesWithinSameYear(sortedDates);
-      const groupId = `${options.order.id}:manual:${this.slugify(trainNumber)}`;
-      const periodTags = this.buildArchiveGroupTags(
-        groupId,
-        planName ?? options.order.name ?? 'Manueller Fahrplan',
-        'manual',
-      );
       const itemTags = this.parseTagsInput(value.tags);
-      const trafficPeriodId = this.createManualTrafficPeriod({
-        baseName: planName ?? 'Manueller Fahrplan',
-        dates: sortedDates,
-        responsible,
-        tags: periodTags,
-        timetableYearLabel: yearInfo.label,
-      });
-      if (!trafficPeriodId) {
-        throw new Error('Referenzkalender konnte nicht erstellt werden.');
-      }
+      const trafficPeriodId = this.generateTrafficPeriodId();
       const payload = {
         orderId: options.order.id,
         departure: departure.toISOString(),
@@ -246,9 +219,7 @@ export class OrderPositionDialogActionsService {
       const periodAssignments =
         overridePeriodId || !items.length
           ? null
-          : this.railmlService.ensureCalendarsForImportedTrains(items, (groupId, label, origin) =>
-              this.buildArchiveGroupTags(groupId, label, origin),
-            );
+          : this.railmlService.ensureCalendarsForImportedTrains(items);
       const missingPeriods: string[] = [];
       const payloads: Array<{ train: ImportedRailMlTrain; trafficPeriodId: string }> = [];
 
@@ -461,73 +432,14 @@ export class OrderPositionDialogActionsService {
     return tags.length ? Array.from(new Set(tags)) : undefined;
   }
 
-  private createManualTrafficPeriod(options: {
-    baseName: string;
-    dates: string[];
-    responsible?: string;
-    tags: string[];
-    timetableYearLabel?: string;
-  }): string {
-    if (!options.dates.length) {
-      return '';
-    }
-    const baseName = options.baseName?.trim() || 'Manueller Fahrplan';
-    const sortedDates = [...new Set(options.dates)].sort();
-    const yearInfo = options.timetableYearLabel
-      ? this.timetableYearService.getYearByLabel(options.timetableYearLabel)
-      : this.timetableYearService.ensureDatesWithinSameYear(sortedDates);
-    const grouped = this.groupDatesByYear(sortedDates);
-    const groupedEntries = Array.from(grouped.entries()).sort((a, b) => a[0] - b[0]);
-    if (groupedEntries.length > 1) {
-      throw new Error(
-        'Die Fahrtage erstrecken sich über mehrere Fahrplanjahre. Bitte separate Auftragspositionen anlegen.',
-      );
-    }
-    const firstYear = groupedEntries[0]?.[0] ?? yearInfo.startYear;
-    const rules: TrafficPeriodRulePayload[] = groupedEntries.map(([year, dates], index) => ({
-      name: `${baseName} ${year}`,
-      year,
-      selectedDates: dates,
-      variantType: 'special_day',
-      variantNumber: String(index + 1).padStart(2, '0'),
-      appliesTo: 'both',
-      primary: index === 0,
-    }));
-    const firstDate = sortedDates[0];
-    const lastDate = sortedDates[sortedDates.length - 1];
-    const rangeLabel = firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
-    const periodName = `${baseName} ${rangeLabel}`;
-    return this.trafficPeriodService.createPeriod({
-      name: periodName,
-      type: 'special',
-      responsible: options.responsible,
-      year: firstYear,
-      rules,
-      timetableYearLabel: yearInfo.label,
-      tags: options.tags.length ? options.tags : undefined,
-    });
-  }
-
-  private groupDatesByYear(dates: string[]): Map<number, string[]> {
-    const groups = new Map<number, string[]>();
-    dates.forEach((date) => {
-      const normalized = date?.trim();
-      if (!normalized) {
-        return;
-      }
-      const year = Number.parseInt(normalized.slice(0, 4), 10);
-      const safeYear = Number.isNaN(year)
-        ? this.timetableYearService.defaultYearBounds().startYear
-        : year;
-      const list = groups.get(safeYear) ?? [];
-      list.push(normalized);
-      groups.set(safeYear, list);
-    });
-    groups.forEach((list, year) => {
-      const deduped = Array.from(new Set(list)).sort();
-      groups.set(year, deduped);
-    });
-    return groups;
+  private generateTrafficPeriodId(): string {
+    const ts = Date.now().toString(36).toUpperCase();
+    this.trafficPeriodCounter = (this.trafficPeriodCounter + 1) % 1679616; // 36^4 combinations
+    const suffix = this.trafficPeriodCounter
+      .toString(36)
+      .toUpperCase()
+      .padStart(4, '0');
+    return `TPER-${ts}${suffix}`;
   }
 
   private buildDaysBitmapFromDates(dates: string[]): string {
@@ -627,28 +539,6 @@ export class OrderPositionDialogActionsService {
         ? error.message
         : 'Geschäftsvorlage konnte nicht instanziiert werden.';
     }
-  }
-
-  private buildArchiveGroupTags(groupId: string, label?: string, origin?: string): string[] {
-    const tags = [`archive-group:${groupId}`];
-    if (label?.trim()) {
-      tags.push(`archive-label:${label.trim()}`);
-    }
-    if (origin) {
-      tags.push(`archive-origin:${origin}`);
-    }
-    return tags;
-  }
-
-  private slugify(value: string): string {
-    const normalized = value
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48);
-    return normalized || 'gruppe';
   }
 
   private resolveVariantGroupId(order: Order): string {

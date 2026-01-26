@@ -13,6 +13,7 @@ import {
   TimetableAuditEntry,
   TimetableResponsibility,
 } from '../models/timetable.model';
+import { OrderItem, OrderItemTimetableSnapshot } from '../models/order-item.model';
 import { TrainPlanCalendar } from '../models/train-plan.model';
 import { MOCK_TIMETABLES } from '../mock/mock-timetables.mock';
 
@@ -170,6 +171,28 @@ export class TimetableService {
 
   getByRefTrainId(refTrainId: string): Timetable | undefined {
     return this.timetableIndex().get(refTrainId);
+  }
+
+  upsertFromOrderItems(items: OrderItem[]): void {
+    if (!items.length) {
+      return;
+    }
+    this._timetables.update((current) => {
+      const map = new Map(current.map((entry) => [entry.refTrainId, entry] as const));
+      items.forEach((item) => {
+        const refTrainId =
+          item.originalTimetable?.refTrainId ?? item.generatedTimetableRefId ?? undefined;
+        if (!refTrainId) {
+          return;
+        }
+        const existing = map.get(refTrainId);
+        const timetable = this.buildTimetableFromOrderItem(item, existing);
+        if (timetable) {
+          map.set(timetable.refTrainId, timetable);
+        }
+      });
+      return Array.from(map.values());
+    });
   }
 
   updateStatus(refTrainId: string, status: TimetablePhase): void {
@@ -592,6 +615,165 @@ export class TimetableService {
           },
         ];
     }
+  }
+
+  private buildTimetableFromOrderItem(
+    item: OrderItem,
+    existing?: Timetable,
+  ): Timetable | null {
+    const snapshot = item.originalTimetable;
+    const refTrainId =
+      snapshot?.refTrainId ?? item.generatedTimetableRefId ?? undefined;
+    if (!refTrainId) {
+      return null;
+    }
+
+    const nowIso = new Date().toISOString();
+    const trainNumber = snapshot?.trainNumber ?? existing?.trainNumber ?? item.name;
+    const title = snapshot?.title ?? existing?.title ?? item.name;
+    const calendar = this.normalizeSnapshotCalendar(snapshot, item);
+    const stops =
+      snapshot?.stops?.length
+        ? this.mapSnapshotStops(refTrainId, snapshot.stops)
+        : existing?.stops ?? [];
+    const source =
+      existing?.source ??
+      ({
+        type: snapshot ? 'imported' : 'manual',
+        externalSystem: 'OrderManager',
+      } satisfies TimetableSourceInfo);
+
+    return {
+      refTrainId,
+      opn: existing?.opn ?? `OPN-${trainNumber}`,
+      title,
+      trainNumber,
+      responsibleRu: existing?.responsibleRu ?? item.responsible ?? 'OrderManager',
+      calendar,
+      status: item.timetablePhase ?? existing?.status ?? 'bedarf',
+      source,
+      milestones: existing?.milestones ?? this.defaultMilestones(source.type),
+      stops,
+      createdAt: existing?.createdAt ?? nowIso,
+      updatedAt: nowIso,
+      linkedOrderItemId: item.id,
+      notes: existing?.notes ?? `Auto aus Auftrag ${item.id}`,
+      rollingStock: existing?.rollingStock,
+      calendarVariants:
+        this.mapSnapshotVariants(snapshot?.variants) ?? existing?.calendarVariants,
+      calendarModifications:
+        this.mapSnapshotModifications(snapshot?.modifications) ??
+        existing?.calendarModifications,
+      auditTrail: existing?.auditTrail ?? this.defaultAuditTrail(item.responsible ?? 'OrderManager'),
+      responsibilities:
+        existing?.responsibilities ?? this.defaultResponsibilities(item.responsible ?? 'OrderManager'),
+    };
+  }
+
+  private normalizeSnapshotCalendar(
+    snapshot: OrderItemTimetableSnapshot | undefined,
+    item: OrderItem,
+  ): TrainPlanCalendar {
+    const fallbackStart =
+      snapshot?.calendar?.validFrom ??
+      item.start?.slice(0, 10) ??
+      item.validity?.[0]?.startDate ??
+      new Date().toISOString().slice(0, 10);
+    const fallbackEnd =
+      snapshot?.calendar?.validTo ??
+      item.end?.slice(0, 10) ??
+      item.validity?.[0]?.endDate ??
+      fallbackStart;
+    const daysBitmap =
+      snapshot?.calendar?.daysBitmap && /^[01]{7}$/.test(snapshot.calendar.daysBitmap)
+        ? snapshot.calendar.daysBitmap
+        : '1111111';
+
+    return {
+      validFrom: fallbackStart,
+      validTo: fallbackEnd ?? fallbackStart,
+      daysBitmap,
+    };
+  }
+
+  private mapSnapshotStops(refTrainId: string, stops: OrderItemTimetableSnapshot['stops']): TimetableStop[] {
+    const sorted = [...stops].sort((a, b) => a.sequence - b.sequence);
+    return sorted.map((stop, index) => {
+      const sequence = stop.sequence ?? index + 1;
+      const type =
+        index === 0
+          ? 'origin'
+          : index === sorted.length - 1
+            ? 'destination'
+            : 'intermediate';
+      const locationName = stop.locationName?.trim() || `Halt ${sequence}`;
+      const locationCode = `LOC-${sequence}`;
+      return {
+        id: `${refTrainId}-STOP-${String(sequence).padStart(3, '0')}`,
+        sequence,
+        type,
+        locationCode,
+        locationName,
+        activities: [],
+        commercial: {
+          arrivalTime: stop.arrivalTime,
+          departureTime: stop.departureTime,
+        },
+        operational: {
+          arrivalTime: stop.arrivalTime,
+          departureTime: stop.departureTime,
+        },
+      };
+    });
+  }
+
+  private mapSnapshotVariants(
+    variants: OrderItemTimetableSnapshot['variants'] | undefined,
+  ): TimetableCalendarVariant[] | undefined {
+    if (!variants?.length) {
+      return undefined;
+    }
+    return variants.map((variant) => ({
+      id: variant.id,
+      type: (variant.type as TimetableCalendarVariant['type']) ?? 'series',
+      description: variant.description ?? 'Variante',
+      validFrom: variant.validFrom,
+      validTo: variant.validTo,
+      daysOfWeek: variant.daysOfWeek,
+      dates: variant.dates,
+      appliesTo: variant.appliesTo as TimetableCalendarVariant['appliesTo'],
+      variantNumber: variant.variantNumber ?? variant.id,
+      reason: variant.reason,
+    }));
+  }
+
+  private mapSnapshotModifications(
+    modifications: OrderItemTimetableSnapshot['modifications'] | undefined,
+  ): TimetableCalendarModification[] | undefined {
+    if (!modifications?.length) {
+      return undefined;
+    }
+    return modifications.map((mod) => ({
+      date: mod.date,
+      description: mod.description ?? 'Änderung',
+      type: this.normalizeModificationType(mod.type),
+      notes: mod.notes,
+    }));
+  }
+
+  private normalizeModificationType(
+    value: string,
+  ): TimetableCalendarModification['type'] {
+    if (value === 'cancelled') {
+      return 'cancelled';
+    }
+    if (value === 'rolling_stock_change') {
+      return 'rolling_stock_change';
+    }
+    if (value === 'replacement_service') {
+      return 'replacement_service';
+    }
+    return 'modified_timetable';
   }
 
   private defaultResponsibilities(responsibleRu: string): TimetableResponsibility[] {

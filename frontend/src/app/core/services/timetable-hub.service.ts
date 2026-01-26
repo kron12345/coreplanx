@@ -90,7 +90,7 @@ export class TimetableHubService {
   private readonly recordMapSignal = signal<Map<string, InternalRecord>>(new Map());
 
   constructor() {
-    this.bootstrapFromTimetables();
+    this.refreshFromTimetables();
   }
 
   records(): TimetableHubRecord[] {
@@ -107,22 +107,42 @@ export class TimetableHubService {
     this.applyUpdate(update);
   }
 
-  private bootstrapFromTimetables() {
-    this.timetableService.timetables().forEach((tt) => {
-      const update: TimetableHubPlanUpdate = {
-        refTrainId: tt.refTrainId,
-        trainNumber: tt.trainNumber,
-        title: tt.title,
-        timetableYearLabel: this.timetableYearService.getYearBounds(tt.calendar.validFrom).label,
-        calendarDays: this.expandCalendarDays(tt.calendar.validFrom, tt.calendar.validTo ?? tt.calendar.validFrom, tt.calendar.daysBitmap ?? '1111111'),
-        section: 'commercial',
-        stops: this.toStopSummaries(tt.stops, tt.rollingStock),
-        notes: tt.notes,
-        vehicles: tt.rollingStock,
-        technical: this.technicalFromRollingStock(tt.rollingStock),
-      };
-      this.applyUpdate(update);
+  refreshFromTimetables(timetables: Timetable[] = this.timetableService.timetables()): void {
+    this.recordMapSignal.set(new Map());
+    timetables.forEach((tt) => {
+      const update = this.buildUpdateFromTimetable(tt);
+      if (update) {
+        this.applyUpdate(update);
+      }
     });
+  }
+
+  private buildUpdateFromTimetable(tt: Timetable): TimetableHubPlanUpdate | null {
+    const validFrom = tt.calendar?.validFrom;
+    if (!validFrom) {
+      return null;
+    }
+    const validTo = tt.calendar?.validTo ?? validFrom;
+    const calendarDays = this.expandCalendarDays(
+      validFrom,
+      validTo,
+      tt.calendar?.daysBitmap ?? '1111111',
+    );
+    if (!calendarDays.length) {
+      return null;
+    }
+    return {
+      refTrainId: tt.refTrainId,
+      trainNumber: tt.trainNumber,
+      title: tt.title,
+      timetableYearLabel: this.timetableYearService.getYearBounds(validFrom).label,
+      calendarDays,
+      section: 'commercial',
+      stops: this.toStopSummaries(tt.stops, tt.rollingStock),
+      notes: tt.notes,
+      vehicles: tt.rollingStock,
+      technical: this.technicalFromRollingStock(tt.rollingStock),
+    };
   }
 
   private applyUpdate(update: TimetableHubPlanUpdate): void {

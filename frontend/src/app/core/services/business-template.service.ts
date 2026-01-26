@@ -17,6 +17,8 @@ import {
 import { OrderTimelineReference, OrderTtrPhase } from './order.service';
 import { BusinessAssignment } from '../models/business.model';
 import { BusinessTemplateApiService } from '../api/business-template-api.service';
+import { OrderManagementRealtimeEvent, OrderManagementRealtimeService } from './order-management-realtime.service';
+import { ClientIdentityService } from './client-identity.service';
 
 const PHASE_AUTOMATION_STORAGE_KEY = 'business.phaseAutomation.v1';
 const PHASE_WINDOW_STORAGE_KEY = 'business.phaseWindows.v1';
@@ -27,6 +29,8 @@ const TEMPLATE_TAG_PREFIX = 'template:';
 @Injectable({ providedIn: 'root' })
 export class BusinessTemplateService {
   private readonly api = inject(BusinessTemplateApiService);
+  private readonly realtime = inject(OrderManagementRealtimeService);
+  private readonly identity = inject(ClientIdentityService);
   private readonly browserStorage = this.detectStorage();
   private readonly _phaseConditionOverrides = signal<Record<string, AutomationCondition[]>>(
     this.restorePhaseConditions(),
@@ -68,6 +72,41 @@ export class BusinessTemplateService {
       this.persistPhaseConditions(conditions);
     });
     void this.loadFromApi();
+    this.realtime.events().subscribe((event) => this.handleRealtimeEvent(event));
+  }
+
+  private handleRealtimeEvent(event: OrderManagementRealtimeEvent): void {
+    if (event.scope !== 'templates' || event.entityType !== 'businessTemplate') {
+      return;
+    }
+    if (
+      event.sourceConnectionId &&
+      event.sourceConnectionId === this.identity.connectionId()
+    ) {
+      return;
+    }
+    if (event.action === 'delete') {
+      this.removeTemplateFromStore(event.entityId);
+      return;
+    }
+    if (event.action === 'upsert' && event.payload) {
+      this.applyRealtimeTemplate(event.payload as BusinessTemplate);
+    }
+  }
+
+  private applyRealtimeTemplate(template: BusinessTemplate): void {
+    const exists = this.getTemplateById(template.id);
+    if (!exists) {
+      void this.loadFromApi(true);
+      return;
+    }
+    this.replaceTemplate(template);
+  }
+
+  private removeTemplateFromStore(templateId: string): void {
+    this._templates.update((entries) =>
+      entries.filter((entry) => entry.id !== templateId),
+    );
   }
 
   getTemplateById(id: string): BusinessTemplate | undefined {

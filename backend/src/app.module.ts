@@ -16,6 +16,7 @@ import { CustomersModule } from './customers/customers.module';
 import { ScheduleTemplatesModule } from './schedule-templates/schedule-templates.module';
 import { BusinessTemplatesModule } from './business-templates/business-templates.module';
 import { OrderManagementAdminModule } from './order-management-admin/order-management-admin.module';
+import { OrderManagementRealtimeModule } from './order-management-realtime/order-management-realtime.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { OrderManagementAdminModule } from './order-management-admin/order-manag
     ScheduleTemplatesModule,
     BusinessTemplatesModule,
     OrderManagementAdminModule,
+    OrderManagementRealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -6,7 +6,7 @@
     </div>
     <mat-form-field appearance="outline" class="inline-calendar__year">
       <mat-label>Fahrplanjahr</mat-label>
-      <mat-select [formControl]="yearControl" [disabled]="!!fixedYearLabel">
+      <mat-select [formControl]="yearControl">
         @for (option of timetableYearOptions; track option.label) {
           <mat-option [value]="option.label">
             {{ option.label }} · {{ option.startIso }} – {{ option.endIso }}

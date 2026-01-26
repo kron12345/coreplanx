@@ -8,6 +8,8 @@ import {
 } from '../models/business.model';
 import { OrderService } from './order.service';
 import { BusinessApiService } from '../api/business-api.service';
+import { OrderManagementRealtimeEvent, OrderManagementRealtimeService } from './order-management-realtime.service';
+import { ClientIdentityService } from './client-identity.service';
 
 export type BusinessDueDateFilter =
   | 'all'
@@ -71,6 +73,8 @@ export interface CreateBusinessPayload {
 @Injectable({ providedIn: 'root' })
 export class BusinessService {
   private readonly api = inject(BusinessApiService);
+  private readonly realtime = inject(OrderManagementRealtimeService);
+  private readonly identity = inject(ClientIdentityService);
   private readonly _businesses = signal<Business[]>([]);
   private readonly _filters = signal<BusinessFilters>({ ...DEFAULT_BUSINESS_FILTERS });
   private readonly _sort = signal<BusinessSort>({ ...DEFAULT_BUSINESS_SORT });
@@ -114,6 +118,41 @@ export class BusinessService {
       this._sort.set(restoredSort);
     }
     void this.refreshBusinesses();
+    this.realtime.events().subscribe((event) => this.handleRealtimeEvent(event));
+  }
+
+  private handleRealtimeEvent(event: OrderManagementRealtimeEvent): void {
+    if (event.scope !== 'business' || event.entityType !== 'business') {
+      return;
+    }
+    if (
+      event.sourceConnectionId &&
+      event.sourceConnectionId === this.identity.connectionId()
+    ) {
+      return;
+    }
+    if (event.action === 'delete') {
+      this.removeBusinessFromStore(event.entityId);
+      return;
+    }
+    if (event.action === 'upsert' && event.payload) {
+      this.applyRealtimeBusiness(event.payload as Business);
+    }
+  }
+
+  private applyRealtimeBusiness(business: Business): void {
+    const exists = this.getById(business.id);
+    if (!exists) {
+      void this.refreshBusinesses();
+      return;
+    }
+    this.replaceBusiness(business);
+  }
+
+  private removeBusinessFromStore(businessId: string): void {
+    this._businesses.update((entries) =>
+      entries.filter((entry) => entry.id !== businessId),
+    );
   }
 
   getById(id: string): Business | undefined {

@@ -316,13 +316,8 @@
   color: rgba(15, 23, 42, 0.6);
 }
 
-.orders-controller.manager-filter {
-  position: sticky;
-  top: var(--app-shell-offset, 64px);
+.orders-controller {
   padding: clamp(12px, 2.5vw, 24px) clamp(18px, 4vw, 56px) clamp(18px, 3vw, 32px);
-  background: transparent;
-  border-bottom: none;
-  z-index: 6;
 }
 
 .orders-filter-bar {
