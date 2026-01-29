@@ -263,12 +263,12 @@ export class TrafficPeriodListComponent {
       },
     });
 
-    dialogRef.afterClosed().subscribe((result) => {
+    dialogRef.afterClosed().subscribe(async (result) => {
       if (result) {
         if (result.periodId) {
-          this.service.updatePeriod(result.periodId, result.payload);
+          await this.service.updatePeriod(result.periodId, result.payload);
         } else {
-          this.service.createPeriod(result.payload);
+          await this.service.createPeriod(result.payload);
         }
       }
     });
@@ -287,9 +287,9 @@ export class TrafficPeriodListComponent {
       },
     });
 
-    dialogRef.afterClosed().subscribe((result) => {
+    dialogRef.afterClosed().subscribe(async (result) => {
       if (result && result.periodId) {
-        this.service.updatePeriod(result.periodId, result.payload);
+        await this.service.updatePeriod(result.periodId, result.payload);
       }
     });
   }
@@ -305,9 +305,9 @@ export class TrafficPeriodListComponent {
       },
     });
 
-    dialogRef.afterClosed().subscribe((confirmed) => {
+    dialogRef.afterClosed().subscribe(async (confirmed) => {
       if (confirmed) {
-        this.service.deletePeriod(period.id);
+        await this.service.deletePeriod(period.id);
       }
     });
   }

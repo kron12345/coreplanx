@@ -9,5 +9,6 @@ import { ScheduleTemplatesRepository } from './schedule-templates.repository';
   imports: [PrismaModule, OrderManagementRealtimeModule],
   controllers: [ScheduleTemplatesController],
   providers: [ScheduleTemplatesService, ScheduleTemplatesRepository],
+  exports: [ScheduleTemplatesService],
 })
 export class ScheduleTemplatesModule {}

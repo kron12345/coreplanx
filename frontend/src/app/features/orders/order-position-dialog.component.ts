@@ -590,7 +590,7 @@ export class OrderPositionDialogComponent {
         this.serviceForm.markAllAsTouched();
         return;
       }
-      const error = this.actionsService.createServiceItems({
+      const error = await this.actionsService.createServiceItems({
         order: this.order,
         serviceForm: this.serviceForm,
         businessForm: this.businessForm,

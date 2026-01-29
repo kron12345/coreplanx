@@ -1,15 +1,15 @@
 import { Injectable } from '@angular/core';
 import { TrafficPeriodVariantType } from '../../core/models/traffic-period.model';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
+import { TrafficPeriodService } from '../../core/services/traffic-period.service';
 import { ImportedRailMlStop, ImportedRailMlTrain } from '../../core/services/order.service';
 import { RailMlOperatingPeriod, RailMlTimetablePeriod } from './order-position-dialog.models';
 
 @Injectable({ providedIn: 'root' })
 export class OrderPositionRailmlService {
-  private periodCounter = 0;
-
   constructor(
     private readonly timetableYearService: TimetableYearService,
+    private readonly trafficPeriodService: TrafficPeriodService,
   ) {}
 
   parseRailMl(xml: string): ImportedRailMlTrain[] {
@@ -40,9 +40,9 @@ export class OrderPositionRailmlService {
     return trains;
   }
 
-  ensureCalendarsForImportedTrains(
+  async ensureCalendarsForImportedTrains(
     trains: ImportedRailMlTrain[],
-  ): Map<string, string> {
+  ): Promise<Map<string, string>> {
     const periodMap = new Map<string, string>();
     if (!trains.length) {
       return periodMap;
@@ -55,26 +55,62 @@ export class OrderPositionRailmlService {
       groups.set(key, list);
     });
 
-    groups.forEach((groupTrains, groupId) => {
-      const periodId = this.generatePeriodId();
+    for (const [groupId, groupTrains] of groups.entries()) {
       const baseTrain = groupTrains.find((train) => !train.variantOf) ?? groupTrains[0];
+      const baseDates = this.normalizeCalendarDates(baseTrain?.calendarDates ?? []);
+      if (!baseDates.length) {
+        continue;
+      }
       const periodName = `${baseTrain?.name ?? groupId} Referenzkalender`;
+      const yearInfo = this.timetableYearService.ensureDatesWithinSameYear(baseDates);
+      const periodId = await this.trafficPeriodService.createPeriod({
+        name: periodName,
+        type: 'standard',
+        description: baseTrain?.calendarLabel ?? undefined,
+        responsible: 'RailML Import',
+        tags: ['railml', `railml:${groupId}`],
+        year: yearInfo.startYear,
+        timetableYearLabel: yearInfo.label,
+        rules: [
+          {
+            name: `${periodName} ${yearInfo.startYear}`,
+            year: yearInfo.startYear,
+            selectedDates: baseDates,
+            variantType: baseTrain?.calendarVariantType ?? 'series',
+            appliesTo: 'commercial',
+            variantNumber: '00',
+            primary: true,
+          },
+        ],
+      });
+      if (!periodId) {
+        continue;
+      }
       periodMap.set(groupId, periodId);
-      groupTrains.forEach((train) => {
+
+      for (const train of groupTrains) {
         train.trafficPeriodId = periodId;
         train.trafficPeriodName = periodName;
         train.trafficPeriodSourceId = groupId;
-      });
-    });
+      }
+
+      for (const variant of groupTrains.filter((train) => train.variantOf)) {
+        const variantDates = this.normalizeCalendarDates(variant.calendarDates ?? []);
+        if (!variantDates.length) {
+          continue;
+        }
+        await this.trafficPeriodService.addVariantRule(periodId, {
+          name: variant.calendarLabel ?? variant.name,
+          dates: variantDates,
+          variantType: variant.calendarVariantType ?? 'special_day',
+          appliesTo: 'both',
+          reason: variant.calendarLabel ?? undefined,
+        });
+        await this.trafficPeriodService.addExclusionDates(periodId, variantDates);
+      }
+    }
 
     return periodMap;
-  }
-
-  private generatePeriodId(): string {
-    const ts = Date.now().toString(36).toUpperCase();
-    this.periodCounter = (this.periodCounter + 1) % 1679616; // 36^4 combinations
-    const suffix = this.periodCounter.toString(36).toUpperCase().padStart(4, '0');
-    return `TPER-${ts}${suffix}`;
   }
 
   private resolveOperatingDates(

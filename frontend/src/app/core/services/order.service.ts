@@ -1143,6 +1143,7 @@ export class OrderService {
 
     const planFactory = new OrderPlanFactory({
       trainPlanService: this.trainPlanService,
+      trafficPeriodService: this.trafficPeriodService,
       timetableService: this.timetableService,
       timetableYearService: this.timetableYearService,
       ensureOrderTimetableYear: (orderId, label) => this.ensureOrderTimetableYear(orderId, label),

@@ -8,16 +8,18 @@ import type {
   ImportedRailMlTrain,
 } from '../order.service';
 import { CreateScheduleTemplateStopPayload } from '../schedule-template.service';
-import { TrainPlanService, CreatePlansFromTemplatePayload, PlanModificationStopInput } from '../train-plan.service';
+import { TrainPlanService, PlanModificationStopInput } from '../train-plan.service';
+import { TrafficPeriodService } from '../traffic-period.service';
 import { TimetableService } from '../timetable.service';
 import { TimetableYearService } from '../timetable-year.service';
 import { normalizeCalendarDates, normalizeTimetableYearLabel } from './order-plan.utils';
 import { timetableYearFromPlan } from './order-timetable.utils';
 import { normalizeTags } from './order-item.utils';
-import { buildDaysBitmapFromValidity, resolveEffectiveValidity, resolveValiditySegments } from './order-validity.utils';
+import { buildDaysBitmapFromValidity } from './order-validity.utils';
 
 export interface PlanFactoryDeps {
   trainPlanService: TrainPlanService;
+  trafficPeriodService: TrafficPeriodService;
   timetableService: TimetableService;
   timetableYearService: TimetableYearService;
   ensureOrderTimetableYear: (orderId: string, label?: string | null) => void;
@@ -30,8 +32,6 @@ export interface PlanFactoryDeps {
 }
 
 export class OrderPlanFactory {
-  private trafficPeriodCounter = 0;
-
   constructor(private readonly deps: PlanFactoryDeps) {}
 
   async addPlanOrderItems(payload: CreatePlanOrderItemsPayload): Promise<OrderItem[]> {
@@ -54,7 +54,10 @@ export class OrderPlanFactory {
 
     let planTrafficPeriodId = planConfig.trafficPeriodId;
     if (!planTrafficPeriodId && effectiveCalendarDates?.length) {
-      planTrafficPeriodId = this.createTrafficPeriodForPlanDates(effectiveCalendarDates);
+      planTrafficPeriodId = await this.createTrafficPeriodForPlanDates(
+        effectiveCalendarDates,
+        namePrefix?.trim() || undefined,
+      );
     }
 
     const plans = await this.deps.trainPlanService.createPlansFromTemplate({
@@ -69,10 +72,7 @@ export class OrderPlanFactory {
     if (!plans.length) {
       return [];
     }
-    const enrichedPlans =
-      planTrafficPeriodId && planTrafficPeriodId.length
-        ? plans
-        : plans.map((plan) => this.ensurePlanHasTrafficPeriod(plan));
+    const enrichedPlans = plans;
     const normalizedYearLabel =
       normalizeTimetableYearLabel(timetableYearLabel, this.deps.timetableYearService) ??
       timetableYearFromPlan(enrichedPlans[0] ?? plans[0], this.deps.timetableYearService);
@@ -263,20 +263,36 @@ export class OrderPlanFactory {
     return enriched;
   }
 
-  private createTrafficPeriodForPlanDates(dates: string[]): string {
+  private async createTrafficPeriodForPlanDates(
+    dates: string[],
+    name?: string,
+  ): Promise<string> {
     const normalizedDates = normalizeCalendarDates(dates);
     if (!normalizedDates.length) {
       throw new Error('Referenzkalender enthält keine aktiven Tage.');
     }
-    return this.generateTrafficPeriodId();
-  }
-
-  private ensurePlanHasTrafficPeriod(plan: TrainPlan): TrainPlan {
-    if (plan.trafficPeriodId) {
-      return plan;
+    const year = Number.parseInt(normalizedDates[0].slice(0, 4), 10);
+    const periodName = name ?? 'Referenzkalender';
+    const id = await this.deps.trafficPeriodService.createPeriod({
+      name: periodName,
+      type: 'standard',
+      year,
+      rules: [
+        {
+          name: `${periodName} ${year}`,
+          year,
+          selectedDates: normalizedDates,
+          variantType: 'series',
+          appliesTo: 'both',
+          variantNumber: '00',
+          primary: true,
+        },
+      ],
+    });
+    if (!id) {
+      throw new Error('Referenzkalender konnte nicht erstellt werden.');
     }
-    const periodId = this.generateTrafficPeriodId();
-    return this.deps.trainPlanService.assignTrafficPeriod(plan.id, periodId) ?? plan;
+    return id;
   }
 
   private manualStopToTemplatePayload(
@@ -304,13 +320,5 @@ export class OrderPlanFactory {
     };
   }
 
-  private generateTrafficPeriodId(): string {
-    const ts = Date.now().toString(36).toUpperCase();
-    this.trafficPeriodCounter = (this.trafficPeriodCounter + 1) % 1679616; // 36^4 combinations
-    const suffix = this.trafficPeriodCounter
-      .toString(36)
-      .toUpperCase()
-      .padStart(4, '0');
-    return `TPER-${ts}${suffix}`;
-  }
+  
 }

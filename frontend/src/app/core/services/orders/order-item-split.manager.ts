@@ -217,7 +217,7 @@ export class OrderItemSplitManager {
     if (!dates.length) {
       return;
     }
-    this.deps.trafficPeriodService.addExclusionDates(trafficPeriodId, dates);
+    void this.deps.trafficPeriodService.addExclusionDates(trafficPeriodId, dates);
   }
 
   private getItemTimetableYear(item: OrderItem): string | null {

@@ -6,6 +6,7 @@ import { BusinessTemplateService } from '../../core/services/business-template.s
 import { BusinessService } from '../../core/services/business.service';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { PlanModificationStopInput } from '../../core/services/train-plan.service';
+import { TrafficPeriodService } from '../../core/services/traffic-period.service';
 import type { ScheduleTemplate } from '../../core/models/schedule-template.model';
 import { OrderPositionRailmlService } from './order-position-railml.service';
 import type { OrderPositionForms } from './order-position-dialog.forms';
@@ -19,21 +20,20 @@ type BusinessForm = OrderPositionForms['businessForm'];
 
 @Injectable({ providedIn: 'root' })
 export class OrderPositionDialogActionsService {
-  private trafficPeriodCounter = 0;
-
   constructor(
     private readonly orderService: OrderService,
     private readonly timetableYearService: TimetableYearService,
+    private readonly trafficPeriodService: TrafficPeriodService,
     private readonly businessTemplateService: BusinessTemplateService,
     private readonly businessService: BusinessService,
     private readonly railmlService: OrderPositionRailmlService,
   ) {}
 
-  createServiceItems(options: {
+  async createServiceItems(options: {
     order: Order;
     serviceForm: ServiceForm;
     businessForm: BusinessForm;
-  }): string | null {
+  }): Promise<string | null> {
     const value = options.serviceForm.getRawValue();
     const serviceType = value.serviceType?.trim();
     if (!serviceType) {
@@ -65,6 +65,11 @@ export class OrderPositionDialogActionsService {
       return 'Bitte Herkunft und Ziel angeben.';
     }
 
+    const name =
+      value.name?.trim() && value.name.trim().length > 0
+        ? value.name.trim()
+        : serviceType;
+
     const businessError = this.validateBusinessSelection(options.businessForm);
     if (businessError) {
       return businessError;
@@ -80,7 +85,16 @@ export class OrderPositionDialogActionsService {
         if (!start || !end) {
           throw new Error('Start/Ende konnten nicht berechnet werden.');
         }
-        const trafficPeriodId = this.generateTrafficPeriodId();
+        const trafficPeriodId = await this.trafficPeriodService.createSingleDayPeriod({
+          name,
+          date,
+          type: 'standard',
+          description: value.deviation?.trim() || undefined,
+          tags: itemTags,
+        });
+        if (!trafficPeriodId) {
+          throw new Error('Referenzkalender konnte nicht erstellt werden.');
+        }
         const payload: CreateServiceOrderItemPayload = {
           orderId: options.order.id,
           serviceType,
@@ -147,7 +161,30 @@ export class OrderPositionDialogActionsService {
       const planName = value.name?.trim() || undefined;
       const yearInfo = this.timetableYearService.ensureDatesWithinSameYear(sortedDates);
       const itemTags = this.parseTagsInput(value.tags);
-      const trafficPeriodId = this.generateTrafficPeriodId();
+      const calendarName = planName ?? `Manueller Fahrplan ${trainNumber}`;
+      const rules = [
+        {
+          name: `${calendarName} ${yearInfo.startYear}`,
+          year: yearInfo.startYear,
+          selectedDates: sortedDates,
+          variantType: 'special_day' as const,
+          appliesTo: 'both' as const,
+          variantNumber: '00',
+          primary: true,
+        },
+      ];
+      const trafficPeriodId = await this.trafficPeriodService.createPeriod({
+        name: calendarName,
+        type: 'standard',
+        description: planName ?? undefined,
+        responsible,
+        year: yearInfo.startYear,
+        timetableYearLabel: yearInfo.label,
+        rules,
+      });
+      if (!trafficPeriodId) {
+        throw new Error('Referenzkalender konnte nicht erstellt werden.');
+      }
       const payload = {
         orderId: options.order.id,
         departure: departure.toISOString(),
@@ -219,7 +256,7 @@ export class OrderPositionDialogActionsService {
       const periodAssignments =
         overridePeriodId || !items.length
           ? null
-          : this.railmlService.ensureCalendarsForImportedTrains(items);
+          : await this.railmlService.ensureCalendarsForImportedTrains(items);
       const missingPeriods: string[] = [];
       const payloads: Array<{ train: ImportedRailMlTrain; trafficPeriodId: string }> = [];
 
@@ -430,16 +467,6 @@ export class OrderPositionDialogActionsService {
       .map((tag) => tag.trim())
       .filter((tag) => tag.length);
     return tags.length ? Array.from(new Set(tags)) : undefined;
-  }
-
-  private generateTrafficPeriodId(): string {
-    const ts = Date.now().toString(36).toUpperCase();
-    this.trafficPeriodCounter = (this.trafficPeriodCounter + 1) % 1679616; // 36^4 combinations
-    const suffix = this.trafficPeriodCounter
-      .toString(36)
-      .toUpperCase()
-      .padStart(4, '0');
-    return `TPER-${ts}${suffix}`;
   }
 
   private buildDaysBitmapFromDates(dates: string[]): string {

@@ -465,7 +465,7 @@ export class PlanModificationDialogComponent {
       });
 
       if (this.calendarLocked) {
-        this.handleLockedPlanModification(newPlan, this.customSelectedDates());
+        await this.handleLockedPlanModification(newPlan, this.customSelectedDates());
       } else {
         this.orderService.applyPlanModification({
           orderId: this.orderId,
@@ -932,7 +932,7 @@ export class PlanModificationDialogComponent {
     return this.plan.stops.map((stop) => mapPlanStop(stop));
   }
 
-  private handleLockedPlanModification(plan: TrainPlan, dates: string[]) {
+  private async handleLockedPlanModification(plan: TrainPlan, dates: string[]) {
     const normalizedDates = Array.from(new Set(dates)).sort();
     const segments = buildSegmentsFromDates(normalizedDates);
     if (!segments.length) {
@@ -945,7 +945,7 @@ export class PlanModificationDialogComponent {
       rangeEnd: segments[segments.length - 1].endDate,
       segments,
     });
-    this.registerSubCalendarVariant(plan, normalizedDates);
+    await this.registerSubCalendarVariant(plan, normalizedDates);
     this.orderService.applyPlanModification({
       orderId: this.orderId,
       itemId: result.created.id,
@@ -956,18 +956,18 @@ export class PlanModificationDialogComponent {
     });
   }
 
-  private registerSubCalendarVariant(plan: TrainPlan, dates: string[]): void {
+  private async registerSubCalendarVariant(plan: TrainPlan, dates: string[]): Promise<void> {
     if (!this.item.trafficPeriodId || !dates.length) {
       return;
     }
     const periodId = this.item.trafficPeriodId;
-    this.trafficPeriodService.addVariantRule(periodId, {
+    await this.trafficPeriodService.addVariantRule(periodId, {
       name: `${plan.title} · Unterkalender`,
       dates,
       variantType: 'special_day',
       appliesTo: 'both',
       reason: `Variante für ${plan.trainNumber}`,
     });
-    this.trafficPeriodService.addExclusionDates(periodId, dates);
+    await this.trafficPeriodService.addExclusionDates(periodId, dates);
   }
 }

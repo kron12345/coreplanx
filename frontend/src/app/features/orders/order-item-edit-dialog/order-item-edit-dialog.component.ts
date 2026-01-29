@@ -467,7 +467,7 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
     const calendarEditorWasDirty = this.canEditCalendar && this.calendarEditorDirty();
     if (calendarEditorWasDirty) {
       try {
-        this.persistCalendarEditorChanges();
+        await this.persistCalendarEditorChanges();
       } catch (error) {
         const message =
           error instanceof Error
@@ -869,7 +869,7 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
     );
   }
 
-  private persistCalendarEditorChanges(): string | undefined {
+  private async persistCalendarEditorChanges(): Promise<string | undefined> {
     if (!this.canEditCalendar || !this.calendarEditorDirty()) {
       return undefined;
     }
@@ -915,9 +915,9 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
     };
     let periodId = this.currentCalendarPeriodId;
     if (periodId) {
-      this.trafficPeriodService.updatePeriod(periodId, payload);
+      await this.trafficPeriodService.updatePeriod(periodId, payload);
     } else {
-      periodId = this.trafficPeriodService.createPeriod(payload);
+      periodId = await this.trafficPeriodService.createPeriod(payload);
       this.currentCalendarPeriodId = periodId;
     }
     this.calendarYearControl.markAsPristine();
