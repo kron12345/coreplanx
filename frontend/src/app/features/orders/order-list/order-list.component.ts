@@ -27,6 +27,7 @@ import { OrderCardComponent } from '../order-card/order-card.component';
 import { OrderCreateDialogComponent } from '../order-create-dialog.component';
 import { OrderTemplateRecommendationComponent } from '../order-template-recommendation.component';
 import { OrderManagementCollaborationService } from '../../../core/services/order-management-collaboration.service';
+import { AssistantUiContextService } from '../../../core/services/assistant-ui-context.service';
 import {
   INSIGHTS_COLLAPSED_STORAGE_KEY,
   ORDER_PRESETS_STORAGE_KEY,
@@ -62,6 +63,7 @@ export class OrderListComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
   private readonly collaboration = inject(OrderManagementCollaborationService);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
 
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly highlightItemId = signal<string | null>(null);
@@ -91,6 +93,7 @@ export class OrderListComponent {
 
   constructor() {
     this.collaboration.setScope('orders');
+    queueMicrotask(() => this.setHelpContext());
     this.restorePresetsFromStorage();
     this.searchControl.setValue(this.store.filters().search, { emitEvent: false });
     this.searchControl.valueChanges
@@ -145,6 +148,12 @@ export class OrderListComponent {
         this.activePresetId.set(null);
       }
     });
+  }
+
+  private setHelpContext(): void {
+    this.assistantUiContext.setDocKey('orders');
+    this.assistantUiContext.setDocSubtopic(null);
+    this.assistantUiContext.setBreadcrumbs(['Auftragsmanager', 'Aufträge']);
   }
 
   readonly heroMetricList = computed(() => [

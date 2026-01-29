@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
@@ -10,6 +10,7 @@ import {
 import { CustomerService } from '../../core/services/customer.service';
 import { Customer } from '../../core/models/customer.model';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
+import { AssistantUiContextService } from '../../core/services/assistant-ui-context.service';
 
 @Component({
     selector: 'app-order-create-dialog',
@@ -17,13 +18,17 @@ import { TimetableYearService } from '../../core/services/timetable-year.service
     templateUrl: './order-create-dialog.component.html',
     styleUrl: './order-create-dialog.component.scss'
 })
-export class OrderCreateDialogComponent {
+export class OrderCreateDialogComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = inject(MatDialogRef<OrderCreateDialogComponent>);
   private readonly orderService = inject(OrderService);
   private readonly customerService = inject(CustomerService);
   private readonly timetableYearService = inject(TimetableYearService);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
   private readonly defaultTimetableYear = this.timetableYearService.defaultYearBounds();
+  private readonly previousDocKey = this.assistantUiContext.docKey();
+  private readonly previousDocSubtopic = this.assistantUiContext.docSubtopic();
+  private readonly previousBreadcrumbs = [...this.assistantUiContext.breadcrumbs()];
 
   readonly fieldDescriptions = {
     id: 'Optionale manuelle Kennung. Leer lassen, wenn das System eine ID vergeben soll.',
@@ -48,6 +53,18 @@ export class OrderCreateDialogComponent {
   readonly customers = this.customerService.customers;
   get timetableYearOptions() {
     return this.timetableYearService.listYearsAround(new Date(), 3, 3);
+  }
+
+  constructor() {
+    this.assistantUiContext.setDocKey('orders');
+    this.assistantUiContext.setDocSubtopic('Neuer Auftrag');
+    this.assistantUiContext.setBreadcrumbs(['Auftragsmanager', 'Aufträge', 'Neuer Auftrag']);
+  }
+
+  ngOnDestroy(): void {
+    this.assistantUiContext.setDocKey(this.previousDocKey);
+    this.assistantUiContext.setDocSubtopic(this.previousDocSubtopic);
+    this.assistantUiContext.setBreadcrumbs(this.previousBreadcrumbs);
   }
 
   cancel() {

@@ -1,5 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -69,6 +77,7 @@ import {
   SERVICE_GENERAL_LABELS,
 } from './order-position-dialog.constants';
 import { createOrderPositionForms } from './order-position-dialog.forms';
+import { AssistantUiContextService } from '../../core/services/assistant-ui-context.service';
 
 @Component({
     selector: 'app-order-position-dialog',
@@ -86,7 +95,7 @@ import { createOrderPositionForms } from './order-position-dialog.forms';
     styleUrl: './order-position-dialog.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class OrderPositionDialogComponent {
+export class OrderPositionDialogComponent implements OnDestroy {
   private readonly tabModes: ReadonlyArray<OrderPositionMode> = [
     'service',
     'plan',
@@ -108,6 +117,10 @@ export class OrderPositionDialogComponent {
   private readonly templateCalcService = inject(OrderPositionTemplateService);
   private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly assistantUiContext = inject(AssistantUiContextService);
+  private readonly previousDocKey = this.assistantUiContext.docKey();
+  private readonly previousDocSubtopic = this.assistantUiContext.docSubtopic();
+  private readonly previousBreadcrumbs = [...this.assistantUiContext.breadcrumbs()];
   readonly orderYearLabel =
     this.data.order.timetableYearLabel ?? this.timetableYearService.defaultYearBounds().label;
 
@@ -118,6 +131,7 @@ export class OrderPositionDialogComponent {
 
   readonly modeControl = this.forms.modeControl;
   readonly serviceForm = this.forms.serviceForm;
+
   readonly planForm = this.forms.planForm;
   readonly manualPlanForm = this.forms.manualPlanForm;
   readonly importFilters = this.forms.importFilters;
@@ -347,6 +361,14 @@ export class OrderPositionDialogComponent {
   }
 
   constructor() {
+    this.assistantUiContext.setDocKey('orders');
+    this.assistantUiContext.setDocSubtopic('Auftragsposition hinzufügen');
+    this.assistantUiContext.setBreadcrumbs([
+      'Auftragsmanager',
+      'Aufträge',
+      'Auftragsposition hinzufügen',
+    ]);
+
     const templateList = this.templateService.templates();
 
     const firstTemplate = templateList[0];
@@ -987,5 +1009,11 @@ export class OrderPositionDialogComponent {
       current.delete(ruleId);
     }
     control.setValue(Array.from(current), { emitEvent: false });
+  }
+
+  ngOnDestroy(): void {
+    this.assistantUiContext.setDocKey(this.previousDocKey);
+    this.assistantUiContext.setDocSubtopic(this.previousDocSubtopic);
+    this.assistantUiContext.setBreadcrumbs(this.previousBreadcrumbs);
   }
 }

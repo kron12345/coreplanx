@@ -15,12 +15,12 @@
 }
 
 .business-controller.manager-filter {
-  position: sticky;
-  top: var(--app-shell-offset, 64px);
+  position: relative;
+  top: auto;
   padding: clamp(12px, 2.5vw, 24px) clamp(18px, 4vw, 56px) clamp(18px, 3vw, 32px);
-  background: transparent;
-  border-bottom: none;
-  z-index: 6;
+  background: linear-gradient(180deg, #f7f9ff 0%, #eef1f9 70%, #f4f6fb 100%);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.1);
   margin-top: clamp(8px, 2vw, 20px);
 }
 

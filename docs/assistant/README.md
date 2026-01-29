@@ -6,6 +6,7 @@ Diese Markdown-Dateien sind die interne Wissensbasis für den CorePlanX Assistan
 
 - `docs/assistant/stammdaten-*.md`: Dokumentation pro Stammdaten-Bereich (Personal, Fahrzeuge, …)
 - `docs/assistant/einstellungen-*.md`: Dokumentation pro Einstellungsbereich (Attribut-Editor, Activity-Editor, …)
+- `docs/assistant/auftragsmanager-*.md`: Dokumentation pro Auftragsmanager-Bereich (Aufträge, …)
 
 ## Verwendung im Assistant
 

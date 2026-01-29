@@ -17,6 +17,8 @@ type MasterDataDocKey =
   | 'vehicles'
   | 'topology';
 
+type OrderManagementDocKey = 'orders';
+
 type SettingsDocKey =
   | 'settings-attributes'
   | 'settings-activity-catalog'
@@ -26,7 +28,7 @@ type SettingsDocKey =
   | 'settings-planning-rules'
   | 'settings-planning';
 
-type AssistantDocKey = MasterDataDocKey | SettingsDocKey;
+type AssistantDocKey = MasterDataDocKey | OrderManagementDocKey | SettingsDocKey;
 
 const MASTER_DATA_DOCS: Record<MasterDataDocKey, AssistantDocDescriptor> = {
   personnel: {
@@ -57,6 +59,17 @@ const MASTER_DATA_TITLE_TO_DOC_KEY: Record<string, MasterDataDocKey> = {
   Simulationen: 'simulations',
   Fahrzeuge: 'vehicles',
   Topologie: 'topology',
+};
+
+const ORDER_MANAGEMENT_DOCS: Record<OrderManagementDocKey, AssistantDocDescriptor> = {
+  orders: {
+    title: 'Auftragsmanager · Aufträge',
+    relativePath: 'docs/assistant/auftragsmanager-auftraege.md',
+  },
+};
+
+const ORDER_MANAGEMENT_TITLE_TO_DOC_KEY: Record<string, OrderManagementDocKey> = {
+  Aufträge: 'orders',
 };
 
 const SETTINGS_DOCS: Record<SettingsDocKey, AssistantDocDescriptor> = {
@@ -102,6 +115,7 @@ const SETTINGS_TITLE_TO_DOC_KEY: Record<string, SettingsDocKey> = {
 
 const ASSISTANT_DOCS: Record<AssistantDocKey, AssistantDocDescriptor> = {
   ...MASTER_DATA_DOCS,
+  ...ORDER_MANAGEMENT_DOCS,
   ...SETTINGS_DOCS,
 };
 
@@ -207,6 +221,14 @@ export class AssistantDocumentationService {
       return null;
     }
 
+    const orderManagementTitle = this.extractOrderManagementArea(breadcrumbs);
+    const orderKey = orderManagementTitle
+      ? (ORDER_MANAGEMENT_TITLE_TO_DOC_KEY[orderManagementTitle] ?? null)
+      : null;
+    if (orderKey) {
+      return orderKey;
+    }
+
     const masterDataTitle = this.extractMasterDataArea(breadcrumbs);
     const masterKey = masterDataTitle
       ? (MASTER_DATA_TITLE_TO_DOC_KEY[masterDataTitle] ?? null)
@@ -220,6 +242,22 @@ export class AssistantDocumentationService {
       return null;
     }
     return SETTINGS_TITLE_TO_DOC_KEY[settingsTitle] ?? null;
+  }
+
+  private extractOrderManagementArea(breadcrumbs: string[]): string | null {
+    const normalized = breadcrumbs
+      .map((crumb) => crumb?.trim?.() ?? '')
+      .filter((c) => c.length);
+    if (!normalized.length) {
+      return null;
+    }
+    const ordersIndex = normalized.findIndex(
+      (entry) => entry.toLowerCase() === 'auftragsmanager',
+    );
+    if (ordersIndex < 0) {
+      return null;
+    }
+    return normalized[ordersIndex + 1] ?? null;
   }
 
   private extractSettingsArea(breadcrumbs: string[]): string | null {
