@@ -8,6 +8,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
 import { OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import yaml from 'js-yaml';
+import fastifyMultipart from '@fastify/multipart';
 
 async function bootstrap() {
   const apiPrefix = 'api/v1';
@@ -18,6 +19,11 @@ async function bootstrap() {
     },
   });
   const app = await NestFactory.create(AppModule, fastifyAdapter);
+  await fastifyAdapter.getInstance().register(fastifyMultipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024,
+    },
+  });
   fastifyAdapter.getInstance().addHook('onRequest', (request, reply, done) => {
     const originalUrl = request.raw.url ?? '/';
     const collapsed = originalUrl.replace(/^\/{2,}/, '/');

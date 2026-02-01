@@ -4,6 +4,8 @@ import type {
   HomeDepot,
   OperationalPoint,
   OpReplacementStopLink,
+  Platform,
+  PlatformEdge,
   Personnel,
   PersonnelPool,
   PersonnelService,
@@ -13,6 +15,9 @@ import type {
   ReplacementRoute,
   ReplacementStop,
   SectionOfLine,
+  Siding,
+  StationArea,
+  Track,
   TransferEdge,
   Vehicle,
   VehicleComposition,
@@ -677,6 +682,61 @@ export class PlanningMasterDataWriteRepository {
       'topology_section_of_line',
       'sol_id',
       items.map((item) => ({ id: item.solId, payload: item })),
+    );
+  }
+
+  async replaceStationAreas(items: StationArea[]): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+    await this.replaceJsonPayloadCollection(
+      'topology_station_area',
+      'station_area_id',
+      items.map((item) => ({ id: item.stationAreaId, payload: item })),
+    );
+  }
+
+  async replaceTracks(items: Track[]): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+    await this.replaceJsonPayloadCollection(
+      'topology_track',
+      'track_key',
+      items.map((item) => ({ id: item.trackKey, payload: item })),
+    );
+  }
+
+  async replacePlatformEdges(items: PlatformEdge[]): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+    await this.replaceJsonPayloadCollection(
+      'topology_platform_edge',
+      'platform_edge_id',
+      items.map((item) => ({ id: item.platformEdgeId, payload: item })),
+    );
+  }
+
+  async replacePlatforms(items: Platform[]): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+    await this.replaceJsonPayloadCollection(
+      'topology_platform',
+      'platform_key',
+      items.map((item) => ({ id: item.platformKey, payload: item })),
+    );
+  }
+
+  async replaceSidings(items: Siding[]): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+    await this.replaceJsonPayloadCollection(
+      'topology_siding',
+      'siding_key',
+      items.map((item) => ({ id: item.sidingKey, payload: item })),
     );
   }
 

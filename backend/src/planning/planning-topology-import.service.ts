@@ -1,8 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { spawn, type ChildProcess } from 'child_process';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { Readable } from 'stream';
 import { Observable, Subject } from 'rxjs';
+
+interface TopologyUploadFile {
+  originalname?: string;
+  buffer?: Buffer;
+  path?: string;
+}
 import type {
   TopologyImportEventRequest,
   TopologyImportKind,
@@ -87,6 +94,50 @@ export class PlanningTopologyImportService {
       startedAt,
       requestedKinds,
       message: `Import wurde angestoßen (${normalizedKindsLabel}). Fortschritt siehe Stream /planning/topology/import/events.`,
+    };
+  }
+
+  async uploadTopologyImportFile(file: TopologyUploadFile | undefined, kindRaw: string) {
+    if (!file) {
+      throw new BadRequestException('Keine Importdatei übergeben.');
+    }
+    const normalizedKind = this.normalizeTopologyKinds([kindRaw as TopologyImportKind])[0];
+    if (!normalizedKind) {
+      throw new BadRequestException(`Unbekannter Importtyp: ${kindRaw}`);
+    }
+    const uploadsDir = path.join(
+      this.topologyScriptsDir,
+      'import-data',
+      'uploads',
+      normalizedKind,
+    );
+    await fs.mkdir(uploadsDir, { recursive: true });
+    const safeName = path.basename(file.originalname ?? 'import.dat');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const targetName = `${timestamp}_${safeName}`;
+    const targetPath = path.join(uploadsDir, targetName);
+
+    if (file.buffer && file.buffer.length) {
+      await fs.writeFile(targetPath, file.buffer);
+    } else if (file.path) {
+      await fs.copyFile(file.path, targetPath);
+    } else {
+      throw new BadRequestException('Importdatei konnte nicht gelesen werden.');
+    }
+
+    this.publishTopologyImportEvent({
+      status: 'queued',
+      kinds: [normalizedKind],
+      source: 'upload',
+      message: `Importdatei gespeichert: ${targetName}`,
+    });
+    this.spawnTopologyUploadProcess(normalizedKind, targetPath);
+
+    return {
+      ok: true as const,
+      kind: normalizedKind,
+      fileName: targetName,
+      storedAt: path.join('import-data', 'uploads', normalizedKind, targetName),
     };
   }
 
@@ -276,6 +327,95 @@ export class PlanningTopologyImportService {
     });
   }
 
+  private spawnTopologyUploadProcess(kind: TopologyImportKind, filePath: string): void {
+    if (this.runningTopologyProcesses.has(kind)) {
+      this.logger.warn(
+        `Topologie-Upload-Import für ${kind} läuft bereits – erneuter Start wird ignoriert.`,
+      );
+      this.publishTopologyImportEvent({
+        status: 'ignored',
+        kinds: [kind],
+        source: 'upload',
+        message: 'Import bereits aktiv – erneuter Start ignoriert.',
+      });
+      return;
+    }
+    const definition = this.getUploadScriptDefinition(kind, filePath);
+    if (!definition) {
+      this.logger.warn(
+        `Kein Upload-Import-Skript für ${kind} konfiguriert – bitte Implementierung ergänzen.`,
+      );
+      this.publishTopologyImportEvent({
+        status: 'failed',
+        kinds: [kind],
+        source: 'upload',
+        message:
+          'Kein Python-Skript für diesen Upload-Typ hinterlegt. Bitte Backend anpassen.',
+      });
+      return;
+    }
+    const { script, args, source } = definition;
+    const commandPreview = `${this.topologyPythonBin} ${script} ${args.join(' ')}`;
+    this.logger.log(
+      `Starte Upload-Import-Skript ${script} für ${kind}. Kommando: ${commandPreview}`,
+    );
+    this.publishTopologyImportEvent({
+      status: 'in-progress',
+      kinds: [kind],
+      source,
+      message: `Starte Upload-Import ${script}`,
+    });
+    const child = spawn(this.topologyPythonBin, [script, ...args], {
+      cwd: this.topologyScriptsDir,
+      env: {
+        ...process.env,
+        TOPOLOGY_API_BASE: this.topologyImportApiBase,
+        PYTHONUNBUFFERED: '1',
+      },
+    });
+    this.runningTopologyProcesses.set(kind, child);
+    if (child.stdout) {
+      this.handleTopologyProcessOutput(kind, child.stdout, `${source}:stdout`);
+    }
+    if (child.stderr) {
+      this.handleTopologyProcessOutput(kind, child.stderr, `${source}:stderr`);
+    }
+
+    child.on('error', (error) => {
+      this.runningTopologyProcesses.delete(kind);
+      this.logger.error(
+        `Upload-Import-Skript ${script} konnte nicht gestartet werden: ${error.message}`,
+        error.stack,
+      );
+      this.publishTopologyImportEvent({
+        status: 'failed',
+        kinds: [kind],
+        source,
+        message: `Skript-Start fehlgeschlagen: ${error.message}`,
+      });
+    });
+
+    child.on('exit', (code, signal) => {
+      this.runningTopologyProcesses.delete(kind);
+      const success = typeof code === 'number' && code === 0 && !signal;
+      const status = success ? 'succeeded' : 'failed';
+      const reason = success
+        ? `Upload-Import ${script} beendet (Exit-Code ${code}).`
+        : `Upload-Import ${script} beendet (Exit-Code ${code ?? 'unbekannt'}, Signal ${signal ?? 'keins'}).`;
+      if (success) {
+        this.logger.log(reason);
+      } else {
+        this.logger.error(reason);
+      }
+      this.publishTopologyImportEvent({
+        status,
+        kinds: [kind],
+        source,
+        message: reason,
+      });
+    });
+  }
+
   private getTopologyScriptDefinition(kind: TopologyImportKind): {
     script: string;
     args: string[];
@@ -296,6 +436,31 @@ export class PlanningTopologyImportService {
       };
     }
     return null;
+  }
+
+  private getUploadScriptDefinition(
+    kind: TopologyImportKind,
+    filePath: string,
+  ): { script: string; args: string[]; source: string } | null {
+    const script = 'topology_upload_import.py';
+    const args = [
+      '--kind',
+      kind,
+      '--file',
+      filePath,
+      '--api-base',
+      this.topologyImportApiBase,
+    ];
+    const importSource =
+      process.env.TOPOLOGY_IMPORT_UPLOAD_SOURCE ?? 'topology_upload_backend_runner';
+    if (importSource) {
+      args.push('--import-source', importSource);
+    }
+    return {
+      script,
+      args,
+      source: 'upload_import',
+    };
   }
 
   private buildOpsImportArgs(): string[] {
@@ -402,6 +567,11 @@ export class PlanningTopologyImportService {
     const allowed: TopologyImportKind[] = [
       'operational-points',
       'sections-of-line',
+      'station-areas',
+      'tracks',
+      'platform-edges',
+      'platforms',
+      'sidings',
       'personnel-sites',
       'replacement-stops',
       'replacement-routes',

@@ -3,6 +3,11 @@ import { firstValueFrom, forkJoin, Observable } from 'rxjs';
 import {
   OperationalPoint,
   SectionOfLine,
+  StationArea,
+  Track,
+  PlatformEdge,
+  Platform,
+  Siding,
   PersonnelSite,
   ReplacementStop,
   ReplacementRoute,
@@ -24,6 +29,11 @@ export class PlanningStoreService {
   private readonly entities: PlanningEntitySignals = {
     operationalPoints: signal<OperationalPoint[]>([]),
     sectionsOfLine: signal<SectionOfLine[]>([]),
+    stationAreas: signal<StationArea[]>([]),
+    tracks: signal<Track[]>([]),
+    platformEdges: signal<PlatformEdge[]>([]),
+    platforms: signal<Platform[]>([]),
+    sidings: signal<Siding[]>([]),
     personnelSites: signal<PersonnelSite[]>([]),
     replacementStops: signal<ReplacementStop[]>([]),
     replacementRoutes: signal<ReplacementRoute[]>([]),
@@ -37,6 +47,11 @@ export class PlanningStoreService {
 
   readonly operationalPoints = this.entities.operationalPoints.asReadonly();
   readonly sectionsOfLine = this.entities.sectionsOfLine.asReadonly();
+  readonly stationAreas = this.entities.stationAreas.asReadonly();
+  readonly tracks = this.entities.tracks.asReadonly();
+  readonly platformEdges = this.entities.platformEdges.asReadonly();
+  readonly platforms = this.entities.platforms.asReadonly();
+  readonly sidings = this.entities.sidings.asReadonly();
   readonly personnelSites = this.entities.personnelSites.asReadonly();
   readonly replacementStops = this.entities.replacementStops.asReadonly();
   readonly replacementRoutes = this.entities.replacementRoutes.asReadonly();
@@ -67,6 +82,11 @@ export class PlanningStoreService {
         forkJoin({
           operationalPoints: this.api.listOperationalPoints(),
           sectionsOfLine: this.api.listSectionsOfLine(),
+          stationAreas: this.api.listStationAreas(),
+          tracks: this.api.listTracks(),
+          platformEdges: this.api.listPlatformEdges(),
+          platforms: this.api.listPlatforms(),
+          sidings: this.api.listSidings(),
           personnelSites: this.api.listPersonnelSites(),
           replacementStops: this.api.listReplacementStops(),
           replacementRoutes: this.api.listReplacementRoutes(),
@@ -77,6 +97,11 @@ export class PlanningStoreService {
       );
       this.setOperationalPoints(data.operationalPoints ?? []);
       this.setSectionsOfLine(data.sectionsOfLine ?? []);
+      this.setStationAreas(data.stationAreas ?? []);
+      this.setTracks(data.tracks ?? []);
+      this.setPlatformEdges(data.platformEdges ?? []);
+      this.setPlatforms(data.platforms ?? []);
+      this.setSidings(data.sidings ?? []);
       this.setPersonnelSites(data.personnelSites ?? []);
       this.setReplacementStops(data.replacementStops ?? []);
       this.setReplacementRoutes(data.replacementRoutes ?? []);
@@ -119,6 +144,46 @@ export class PlanningStoreService {
     );
   }
 
+  async refreshStationAreasFromApi(): Promise<void> {
+    await this.loadEntity(
+      this.api.listStationAreas(),
+      (items) => this.setStationAreas(items ?? []),
+      'station areas',
+    );
+  }
+
+  async refreshTracksFromApi(): Promise<void> {
+    await this.loadEntity(
+      this.api.listTracks(),
+      (items) => this.setTracks(items ?? []),
+      'tracks',
+    );
+  }
+
+  async refreshPlatformEdgesFromApi(): Promise<void> {
+    await this.loadEntity(
+      this.api.listPlatformEdges(),
+      (items) => this.setPlatformEdges(items ?? []),
+      'platform edges',
+    );
+  }
+
+  async refreshPlatformsFromApi(): Promise<void> {
+    await this.loadEntity(
+      this.api.listPlatforms(),
+      (items) => this.setPlatforms(items ?? []),
+      'platforms',
+    );
+  }
+
+  async refreshSidingsFromApi(): Promise<void> {
+    await this.loadEntity(
+      this.api.listSidings(),
+      (items) => this.setSidings(items ?? []),
+      'sidings',
+    );
+  }
+
   addOperationalPoint(op: OperationalPoint): void {
     this.assertUniqueOpId(op.uniqueOpId, op.opId);
     this.entities.operationalPoints.update((list) => [
@@ -146,6 +211,10 @@ export class PlanningStoreService {
     this.persistOperationalPoints();
     if (relinked) {
       this.persistSectionsOfLine();
+      this.persistStationAreas();
+      this.persistTracks();
+      this.persistPlatforms();
+      this.persistSidings();
       this.persistPersonnelSites();
       this.persistReplacementStops();
       this.persistOpReplacementStopLinks();
@@ -164,6 +233,24 @@ export class PlanningStoreService {
       list.filter(
         (sol) => sol.startUniqueOpId !== uniqueId && sol.endUniqueOpId !== uniqueId,
       ),
+    );
+    this.entities.stationAreas.update((list) =>
+      list.filter((area) => area.uniqueOpId !== uniqueId),
+    );
+    const removedTracks = new Set(
+      this.entities.tracks().filter((track) => track.uniqueOpId === uniqueId).map((t) => t.trackKey),
+    );
+    this.entities.tracks.update((list) =>
+      list.filter((track) => track.uniqueOpId !== uniqueId),
+    );
+    this.entities.platformEdges.update((list) =>
+      list.filter((edge) => !removedTracks.has(edge.trackKey ?? '')),
+    );
+    this.entities.platforms.update((list) =>
+      list.filter((platform) => platform.uniqueOpId !== uniqueId),
+    );
+    this.entities.sidings.update((list) =>
+      list.filter((siding) => siding.uniqueOpId !== uniqueId),
     );
     this.entities.personnelSites.update((list) =>
       list.map((site) =>
@@ -184,6 +271,11 @@ export class PlanningStoreService {
     );
     this.persistOperationalPoints();
     this.persistSectionsOfLine();
+    this.persistStationAreas();
+    this.persistTracks();
+    this.persistPlatformEdges();
+    this.persistPlatforms();
+    this.persistSidings();
     this.persistPersonnelSites();
     this.persistReplacementStops();
     this.persistOpReplacementStopLinks();
@@ -221,6 +313,175 @@ export class PlanningStoreService {
   removeSectionOfLine(solId: string): void {
     this.entities.sectionsOfLine.update((list) => list.filter((item) => item.solId !== solId));
     this.persistSectionsOfLine();
+  }
+
+  addStationArea(area: StationArea): void {
+    if (area.uniqueOpId) {
+      this.ensureOperationalPointExists(area.uniqueOpId);
+    }
+    this.entities.stationAreas.update((list) => [...list, this.withAudit(area, true)]);
+    this.persistStationAreas();
+  }
+
+  updateStationArea(stationAreaId: string, patch: Partial<StationArea>): void {
+    this.entities.stationAreas.update((list) =>
+      list.map((item) => {
+        if (item.stationAreaId !== stationAreaId) {
+          return item;
+        }
+        const merged = { ...item, ...patch, stationAreaId };
+        if (merged.uniqueOpId) {
+          this.ensureOperationalPointExists(merged.uniqueOpId);
+        }
+        return this.withAudit(merged, false);
+      }),
+    );
+    this.persistStationAreas();
+  }
+
+  removeStationArea(stationAreaId: string): void {
+    this.entities.stationAreas.update((list) =>
+      list.filter((item) => item.stationAreaId !== stationAreaId),
+    );
+    this.persistStationAreas();
+  }
+
+  addTrack(track: Track): void {
+    if (track.uniqueOpId) {
+      this.ensureOperationalPointExists(track.uniqueOpId);
+    }
+    this.entities.tracks.update((list) => [...list, this.withAudit(track, true)]);
+    this.persistTracks();
+  }
+
+  updateTrack(trackKey: string, patch: Partial<Track>): void {
+    this.entities.tracks.update((list) =>
+      list.map((item) => {
+        if (item.trackKey !== trackKey) {
+          return item;
+        }
+        const merged = { ...item, ...patch, trackKey };
+        if (merged.uniqueOpId) {
+          this.ensureOperationalPointExists(merged.uniqueOpId);
+        }
+        return this.withAudit(merged, false);
+      }),
+    );
+    this.persistTracks();
+  }
+
+  removeTrack(trackKey: string): void {
+    this.entities.tracks.update((list) => list.filter((item) => item.trackKey !== trackKey));
+    this.entities.platformEdges.update((list) =>
+      list.filter((edge) => edge.trackKey !== trackKey),
+    );
+    this.persistTracks();
+    this.persistPlatformEdges();
+  }
+
+  addPlatformEdge(edge: PlatformEdge): void {
+    if (edge.trackKey) {
+      this.ensureTrackExists(edge.trackKey);
+    }
+    this.entities.platformEdges.update((list) => [...list, this.withAudit(edge, true)]);
+    this.persistPlatformEdges();
+  }
+
+  updatePlatformEdge(platformEdgeId: string, patch: Partial<PlatformEdge>): void {
+    this.entities.platformEdges.update((list) =>
+      list.map((item) => {
+        if (item.platformEdgeId !== platformEdgeId) {
+          return item;
+        }
+        const merged = { ...item, ...patch, platformEdgeId };
+        if (merged.trackKey) {
+          this.ensureTrackExists(merged.trackKey);
+        }
+        return this.withAudit(merged, false);
+      }),
+    );
+    this.persistPlatformEdges();
+  }
+
+  removePlatformEdge(platformEdgeId: string): void {
+    this.entities.platformEdges.update((list) =>
+      list.filter((item) => item.platformEdgeId !== platformEdgeId),
+    );
+    this.entities.platforms.update((list) =>
+      list.map((platform) => ({
+        ...platform,
+        platformEdgeIds: (platform.platformEdgeIds ?? []).filter((id) => id !== platformEdgeId),
+      })),
+    );
+    this.entities.tracks.update((list) =>
+      list.map((track) => ({
+        ...track,
+        platformEdgeIds: (track.platformEdgeIds ?? []).filter((id) => id !== platformEdgeId),
+      })),
+    );
+    this.persistPlatformEdges();
+    this.persistPlatforms();
+    this.persistTracks();
+  }
+
+  addPlatform(platform: Platform): void {
+    if (platform.uniqueOpId) {
+      this.ensureOperationalPointExists(platform.uniqueOpId);
+    }
+    this.entities.platforms.update((list) => [...list, this.withAudit(platform, true)]);
+    this.persistPlatforms();
+  }
+
+  updatePlatform(platformKey: string, patch: Partial<Platform>): void {
+    this.entities.platforms.update((list) =>
+      list.map((item) => {
+        if (item.platformKey !== platformKey) {
+          return item;
+        }
+        const merged = { ...item, ...patch, platformKey };
+        if (merged.uniqueOpId) {
+          this.ensureOperationalPointExists(merged.uniqueOpId);
+        }
+        return this.withAudit(merged, false);
+      }),
+    );
+    this.persistPlatforms();
+  }
+
+  removePlatform(platformKey: string): void {
+    this.entities.platforms.update((list) =>
+      list.filter((item) => item.platformKey !== platformKey),
+    );
+    this.persistPlatforms();
+  }
+
+  addSiding(siding: Siding): void {
+    if (siding.uniqueOpId) {
+      this.ensureOperationalPointExists(siding.uniqueOpId);
+    }
+    this.entities.sidings.update((list) => [...list, this.withAudit(siding, true)]);
+    this.persistSidings();
+  }
+
+  updateSiding(sidingKey: string, patch: Partial<Siding>): void {
+    this.entities.sidings.update((list) =>
+      list.map((item) => {
+        if (item.sidingKey !== sidingKey) {
+          return item;
+        }
+        const merged = { ...item, ...patch, sidingKey };
+        if (merged.uniqueOpId) {
+          this.ensureOperationalPointExists(merged.uniqueOpId);
+        }
+        return this.withAudit(merged, false);
+      }),
+    );
+    this.persistSidings();
+  }
+
+  removeSiding(sidingKey: string): void {
+    this.entities.sidings.update((list) => list.filter((item) => item.sidingKey !== sidingKey));
+    this.persistSidings();
   }
 
   addPersonnelSite(site: PersonnelSite): void {
@@ -462,6 +723,26 @@ export class PlanningStoreService {
     this.entities.sectionsOfLine.set(this.cloneList(items));
   }
 
+  private setStationAreas(items: StationArea[]): void {
+    this.entities.stationAreas.set(this.cloneList(items));
+  }
+
+  private setTracks(items: Track[]): void {
+    this.entities.tracks.set(this.cloneList(items));
+  }
+
+  private setPlatformEdges(items: PlatformEdge[]): void {
+    this.entities.platformEdges.set(this.cloneList(items));
+  }
+
+  private setPlatforms(items: Platform[]): void {
+    this.entities.platforms.set(this.cloneList(items));
+  }
+
+  private setSidings(items: Siding[]): void {
+    this.entities.sidings.set(this.cloneList(items));
+  }
+
   private setPersonnelSites(items: PersonnelSite[]): void {
     this.entities.personnelSites.set(this.cloneList(items));
   }
@@ -536,6 +817,46 @@ export class PlanningStoreService {
     );
   }
 
+  private persistStationAreas(): void {
+    void this.persistEntity(
+      this.api.saveStationAreas(this.entities.stationAreas()),
+      (items) => this.setStationAreas(items),
+      'station areas',
+    );
+  }
+
+  private persistTracks(): void {
+    void this.persistEntity(
+      this.api.saveTracks(this.entities.tracks()),
+      (items) => this.setTracks(items),
+      'tracks',
+    );
+  }
+
+  private persistPlatformEdges(): void {
+    void this.persistEntity(
+      this.api.savePlatformEdges(this.entities.platformEdges()),
+      (items) => this.setPlatformEdges(items),
+      'platform edges',
+    );
+  }
+
+  private persistPlatforms(): void {
+    void this.persistEntity(
+      this.api.savePlatforms(this.entities.platforms()),
+      (items) => this.setPlatforms(items),
+      'platforms',
+    );
+  }
+
+  private persistSidings(): void {
+    void this.persistEntity(
+      this.api.saveSidings(this.entities.sidings()),
+      (items) => this.setSidings(items),
+      'sidings',
+    );
+  }
+
   private persistPersonnelSites(): void {
     void this.persistEntity(
       this.api.savePersonnelSites(this.entities.personnelSites()),
@@ -593,6 +914,12 @@ export class PlanningStoreService {
   private ensureReplacementStopExists(stopId: string): void {
     if (!this.replacementStopMap().has(stopId)) {
       throw new Error(`Replacement stop "${stopId}" not found.`);
+    }
+  }
+
+  private ensureTrackExists(trackKey: string): void {
+    if (!this.tracks().some((track) => track.trackKey === trackKey)) {
+      throw new Error(`Track "${trackKey}" not found.`);
     }
   }
 
@@ -690,6 +1017,26 @@ export class PlanningStoreService {
         startUniqueOpId: sol.startUniqueOpId === oldId ? newId : sol.startUniqueOpId,
         endUniqueOpId: sol.endUniqueOpId === oldId ? newId : sol.endUniqueOpId,
       })),
+    );
+    this.entities.stationAreas.update((list) =>
+      list.map((area) =>
+        area.uniqueOpId === oldId ? { ...area, uniqueOpId: newId } : area,
+      ),
+    );
+    this.entities.tracks.update((list) =>
+      list.map((track) =>
+        track.uniqueOpId === oldId ? { ...track, uniqueOpId: newId } : track,
+      ),
+    );
+    this.entities.platforms.update((list) =>
+      list.map((platform) =>
+        platform.uniqueOpId === oldId ? { ...platform, uniqueOpId: newId } : platform,
+      ),
+    );
+    this.entities.sidings.update((list) =>
+      list.map((siding) =>
+        siding.uniqueOpId === oldId ? { ...siding, uniqueOpId: newId } : siding,
+      ),
     );
     this.entities.personnelSites.update((list) =>
       list.map((site) =>

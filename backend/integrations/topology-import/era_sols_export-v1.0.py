@@ -560,7 +560,8 @@ def export_sharded(iso3, outfile, sol_base, sol_prefixes,
                    limit_sols, label_batch, label_min,
                    *, api_client: TopologyAPIClient | None = None,
                    normalize_prefix: str | None = None,
-                   normalize_fillchar: str = "0"):
+                   normalize_fillchar: str = "0",
+                   return_records: bool = False):
     sink = SectionOfLineSink(
         outfile,
         csv_bom=csv_bom,
@@ -745,8 +746,11 @@ def export_sharded(iso3, outfile, sol_base, sol_prefixes,
     sink.finish()
     if outfile:
         print(f"\n[done] wrote CSV to {outfile}")
-    if api_client:
+    if api_client and not return_records:
         print(f"[done] uploaded {sink.record_count} sections of line via API")
+    if return_records:
+        return sink.records
+    return None
 
 class SectionOfLineSink:
     EXCLUDED_ATTR_COLUMNS = {"validFrom"}
@@ -898,6 +902,22 @@ def main():
 
     args = ap.parse_args()
 
+    def parse_countries(value: str) -> List[str]:
+        parts = [p.strip().upper() for p in re.split(r"[,\s]+", value or "") if p.strip()]
+        seen = set()
+        ordered: List[str] = []
+        for p in parts:
+            if p not in seen:
+                seen.add(p)
+                ordered.append(p)
+        return ordered
+
+    countries = parse_countries(args.country)
+    if not countries:
+        ap.error("Bitte mindestens ein ISO3-Land im Argument --country angeben.")
+    if len(countries) > 1 and args.outfile:
+        ap.error("--outfile ist bei mehreren Ländern nicht unterstützt.")
+
     api_base = resolve_api_base(args.api_base)
     if not api_base and not args.outfile:
         ap.error("Either --outfile oder --api-base (oder TOPOLOGY_API_BASE) muss angegeben werden.")
@@ -908,33 +928,69 @@ def main():
             api_client.send_event(
                 "in-progress",
                 kinds=kinds,
-                message=f"SoL-Import {args.country.upper()} gestartet",
+                message=f"SoL-Import {','.join(countries)} gestartet",
                 source=args.import_source,
             )
-        export_sharded(
-            iso3=args.country.upper(),
-            outfile=args.outfile,
-            sol_base=args.sol_base,
-            sol_prefixes=parse_prefixes(args.sol_prefixes),
-            page_size=args.page_size, min_page_size=args.min_page_size,
-            timeout=args.timeout, retries=args.retries,
-            ep_batch=args.batch_endpoints, ep_min=args.min_batch_endpoints,
-            meta_batch=args.batch_meta, meta_min=args.min_batch_meta,
-            op_batch=args.batch_opids, op_min=args.min_batch_opids,
-            trdir_batch=args.batch_track_dirs, trdir_min=args.min_batch_track_dirs,
-            trprop_batch=args.batch_track_prop, trprop_min=args.min_batch_track_prop,
-            endpoint=args.endpoint_url, csv_bom=args.csv_bom, skip_on_timeout=args.skip_on_timeout,
-            limit_sols=args.limit_sols,
-            label_batch=args.batch_labels, label_min=args.min_batch_labels,
-            api_client=api_client,
-            normalize_prefix=args.normalize_prefix,
-            normalize_fillchar=args.normalize_fillchar,
-        )
+        if len(countries) == 1:
+            export_sharded(
+                iso3=countries[0],
+                outfile=args.outfile,
+                sol_base=args.sol_base,
+                sol_prefixes=parse_prefixes(args.sol_prefixes),
+                page_size=args.page_size, min_page_size=args.min_page_size,
+                timeout=args.timeout, retries=args.retries,
+                ep_batch=args.batch_endpoints, ep_min=args.min_batch_endpoints,
+                meta_batch=args.batch_meta, meta_min=args.min_batch_meta,
+                op_batch=args.batch_opids, op_min=args.min_batch_opids,
+                trdir_batch=args.batch_track_dirs, trdir_min=args.min_batch_track_dirs,
+                trprop_batch=args.batch_track_prop, trprop_min=args.min_batch_track_prop,
+                endpoint=args.endpoint_url, csv_bom=args.csv_bom, skip_on_timeout=args.skip_on_timeout,
+                limit_sols=args.limit_sols,
+                label_batch=args.batch_labels, label_min=args.min_batch_labels,
+                api_client=api_client,
+                normalize_prefix=args.normalize_prefix,
+                normalize_fillchar=args.normalize_fillchar,
+            )
+        else:
+            combined: List[dict] = []
+            seen_ids: set[str] = set()
+            for iso3 in countries:
+                records = export_sharded(
+                    iso3=iso3,
+                    outfile=None,
+                    sol_base=args.sol_base,
+                    sol_prefixes=parse_prefixes(args.sol_prefixes),
+                    page_size=args.page_size, min_page_size=args.min_page_size,
+                    timeout=args.timeout, retries=args.retries,
+                    ep_batch=args.batch_endpoints, ep_min=args.min_batch_endpoints,
+                    meta_batch=args.batch_meta, meta_min=args.min_batch_meta,
+                    op_batch=args.batch_opids, op_min=args.min_batch_opids,
+                    trdir_batch=args.batch_track_dirs, trdir_min=args.min_batch_track_dirs,
+                    trprop_batch=args.batch_track_prop, trprop_min=args.min_batch_track_prop,
+                    endpoint=args.endpoint_url, csv_bom=args.csv_bom, skip_on_timeout=args.skip_on_timeout,
+                    limit_sols=args.limit_sols,
+                    label_batch=args.batch_labels, label_min=args.min_batch_labels,
+                    api_client=None,
+                    normalize_prefix=args.normalize_prefix,
+                    normalize_fillchar=args.normalize_fillchar,
+                    return_records=True,
+                ) or []
+                for record in records:
+                    uid = record.get("uniqueSolId") or record.get("solId")
+                    if not uid:
+                        continue
+                    if uid in seen_ids:
+                        continue
+                    seen_ids.add(uid)
+                    combined.append(record)
+            if api_client:
+                api_client.replace_sections_of_line(combined)
+                print(f"[done] uploaded {len(combined)} sections of line via API")
         if api_client and not args.skip_events:
             api_client.send_event(
                 "succeeded",
                 kinds=kinds,
-                message=f"SoL-Import {args.country.upper()} abgeschlossen",
+                message=f"SoL-Import {','.join(countries)} abgeschlossen",
                 source=args.import_source,
             )
     except Exception as exc:

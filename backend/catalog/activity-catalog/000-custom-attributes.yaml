@@ -252,6 +252,155 @@ customAttributes:
       type: string
       description: REGULAR oder LINK.
       required: true
+  topology-station-areas:
+    - id: attr-topology-sa-unique-op
+      key: uniqueOpId
+      label: Unique OP ID
+      type: string
+      description: Zuordnung zur Betriebsstelle.
+      required: false
+    - id: attr-topology-sa-name
+      key: name
+      label: Name
+      type: string
+      description: Anzeigename des Bahnhofsbereichs.
+      temporal: true
+    - id: attr-topology-sa-lat
+      key: lat
+      label: Latitude
+      type: number
+      description: Geografische Breite.
+      temporal: true
+    - id: attr-topology-sa-lng
+      key: lng
+      label: Longitude
+      type: number
+      description: Geografische Länge.
+      temporal: true
+  topology-tracks:
+    - id: attr-topology-track-id
+      key: trackId
+      label: Track-ID
+      type: string
+      description: Lokale Gleisbezeichnung.
+    - id: attr-topology-track-op
+      key: uniqueOpId
+      label: Unique OP ID
+      type: string
+      description: Zugehöriger Operational Point.
+    - id: attr-topology-track-platform-edges
+      key: platformEdgeIds
+      label: Platform Edge IDs
+      type: string
+      description: Kommagetrennte Liste zugehöriger Bahnsteigkanten.
+  topology-platform-edges:
+    - id: attr-topology-pe-platform-id
+      key: platformId
+      label: Platform-ID
+      type: string
+      description: Bahnsteignummer / -bezeichnung.
+    - id: attr-topology-pe-platform-key
+      key: platformKey
+      label: Platform-Key
+      type: string
+      description: Interner Plattform-Key.
+    - id: attr-topology-pe-track
+      key: trackKey
+      label: Track-Key
+      type: string
+      description: Zugehöriges Gleis (Track).
+    - id: attr-topology-pe-length
+      key: lengthMeters
+      label: Länge (m)
+      type: number
+      description: Bahnsteigkantenlänge in Metern.
+    - id: attr-topology-pe-height
+      key: platformHeight
+      label: Höhe
+      type: string
+      description: Bahnsteighöhe (z. B. 550 oder 300-380).
+  topology-platforms:
+    - id: attr-topology-platform-id
+      key: platformId
+      label: Platform-ID
+      type: string
+      description: Bahnsteignummer / -bezeichnung.
+    - id: attr-topology-platform-op
+      key: uniqueOpId
+      label: Unique OP ID
+      type: string
+      description: Zugehöriger Operational Point.
+    - id: attr-topology-platform-name
+      key: name
+      label: Name
+      type: string
+      description: Anzeigename des Bahnsteigs.
+    - id: attr-topology-platform-length
+      key: lengthMeters
+      label: Länge (m)
+      type: number
+      description: Bahnsteiglänge in Metern.
+    - id: attr-topology-platform-height
+      key: platformHeight
+      label: Höhe
+      type: string
+      description: Bahnsteighöhe (z. B. 550 oder 300-380).
+    - id: attr-topology-platform-edges
+      key: platformEdgeIds
+      label: Platform Edge IDs
+      type: string
+      description: Kommagetrennte Liste zugehöriger Bahnsteigkanten.
+  topology-sidings:
+    - id: attr-topology-siding-id
+      key: sidingId
+      label: Siding-ID
+      type: string
+      description: Lokale Abstellgleis-ID.
+    - id: attr-topology-siding-op
+      key: uniqueOpId
+      label: Unique OP ID
+      type: string
+      description: Zugehöriger Operational Point.
+    - id: attr-topology-siding-length
+      key: lengthMeters
+      label: Länge (m)
+      type: number
+      description: Länge des Abstellgleises in Metern.
+    - id: attr-topology-siding-gradient
+      key: gradient
+      label: Gradient
+      type: string
+      description: Neigung (z. B. 1.2%).
+    - id: attr-topology-siding-refuel
+      key: hasRefuelling
+      label: Betankung möglich
+      type: boolean
+      description: Betankungsmöglichkeit vorhanden.
+    - id: attr-topology-siding-shore
+      key: hasElectricShoreSupply
+      label: Landstrom
+      type: boolean
+      description: Elektrische Landversorgung vorhanden.
+    - id: attr-topology-siding-water
+      key: hasWaterRestocking
+      label: Wasser auffüllen
+      type: boolean
+      description: Wasserversorgung vorhanden.
+    - id: attr-topology-siding-sand
+      key: hasSandRestocking
+      label: Sand auffüllen
+      type: boolean
+      description: Sandvorrat verfügbar.
+    - id: attr-topology-siding-toilet
+      key: hasToiletDischarge
+      label: Toilettenentsorgung
+      type: boolean
+      description: Toilettenentsorgung möglich.
+    - id: attr-topology-siding-clean
+      key: hasExternalCleaning
+      label: Außenreinigung
+      type: boolean
+      description: Außenreinigung verfügbar.
   topology-personnel-sites:
     - id: attr-topology-site-name
       key: name

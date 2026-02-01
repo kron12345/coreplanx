@@ -434,6 +434,93 @@ export interface SectionOfLine {
 export type SectionOfLineListRequest = ListPayload<SectionOfLine>;
 export type SectionOfLineListResponse = SectionOfLine[];
 
+export interface StationArea {
+  stationAreaId: string;
+  uniqueOpId?: string | null;
+  name?: string | null;
+  position?: LatLng | null;
+  attributes?: TopologyAttribute[];
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export type StationAreaListRequest = ListPayload<StationArea>;
+export type StationAreaListResponse = StationArea[];
+
+export interface Track {
+  trackKey: string;
+  trackId?: string | null;
+  uniqueOpId?: string | null;
+  platformEdgeIds?: string[];
+  attributes?: TopologyAttribute[];
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export type TrackListRequest = ListPayload<Track>;
+export type TrackListResponse = Track[];
+
+export interface PlatformEdge {
+  platformEdgeId: string;
+  platformId?: string | null;
+  platformKey?: string | null;
+  trackKey?: string | null;
+  lengthMeters?: number | null;
+  platformHeight?: string | null;
+  attributes?: TopologyAttribute[];
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export type PlatformEdgeListRequest = ListPayload<PlatformEdge>;
+export type PlatformEdgeListResponse = PlatformEdge[];
+
+export interface Platform {
+  platformKey: string;
+  platformId?: string | null;
+  uniqueOpId?: string | null;
+  name?: string | null;
+  lengthMeters?: number | null;
+  platformHeight?: string | null;
+  platformEdgeIds?: string[];
+  attributes?: TopologyAttribute[];
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export type PlatformListRequest = ListPayload<Platform>;
+export type PlatformListResponse = Platform[];
+
+export interface Siding {
+  sidingKey: string;
+  sidingId?: string | null;
+  uniqueOpId?: string | null;
+  lengthMeters?: number | null;
+  gradient?: string | null;
+  hasRefuelling?: boolean | null;
+  hasElectricShoreSupply?: boolean | null;
+  hasWaterRestocking?: boolean | null;
+  hasSandRestocking?: boolean | null;
+  hasToiletDischarge?: boolean | null;
+  hasExternalCleaning?: boolean | null;
+  attributes?: TopologyAttribute[];
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export type SidingListRequest = ListPayload<Siding>;
+export type SidingListResponse = Siding[];
+
 export type PersonnelSiteType =
   | 'MELDESTELLE'
   | 'PAUSENRAUM'
@@ -578,6 +665,11 @@ export type TransferEdgeListResponse = TransferEdge[];
 export type TopologyImportKind =
   | 'operational-points'
   | 'sections-of-line'
+  | 'station-areas'
+  | 'tracks'
+  | 'platform-edges'
+  | 'platforms'
+  | 'sidings'
   | 'personnel-sites'
   | 'replacement-stops'
   | 'replacement-routes'

@@ -1,0 +1,14 @@
+<section class="topology-editor">
+  <app-attribute-entity-editor
+    [title]="'Tracks'"
+    [entities]="entityRecords()"
+    [listLimit]="500"
+    [attributeDefinitions]="attributeDefinitions()"
+    [defaultFallbackValues]="defaultFallback"
+    [selectOptions]="selectOptions()"
+    [detailError]="error()"
+    (saveEntity)="handleSave($event)"
+    (deleteEntities)="handleDelete($event)"
+    (bulkApply)="handleBulkApply($event)"
+  />
+</section>

@@ -84,8 +84,8 @@ export class OperationalPointEditorComponent implements OnDestroy {
         name: op.name,
         countryCode: op.countryCode,
         opType: op.opType,
-        lat: String(op.position.lat ?? ''),
-        lng: String(op.position.lng ?? ''),
+        lat: String(op.position?.lat ?? ''),
+        lng: String(op.position?.lng ?? ''),
       },
     })),
   );

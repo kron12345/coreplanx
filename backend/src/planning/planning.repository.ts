@@ -4,6 +4,8 @@ import type {
   HomeDepot,
   OperationalPoint,
   OpReplacementStopLink,
+  Platform,
+  PlatformEdge,
   Personnel,
   PersonnelPool,
   PersonnelService,
@@ -14,7 +16,10 @@ import type {
   ReplacementStop,
   Resource,
   SectionOfLine,
+  Siding,
   StageId,
+  StationArea,
+  Track,
   TimelineRange,
   TransferEdge,
   Vehicle,
@@ -164,6 +169,26 @@ export class PlanningRepository {
 
   replaceSectionsOfLine(items: SectionOfLine[]): Promise<void> {
     return this.masterDataRepository.replaceSectionsOfLine(items);
+  }
+
+  replaceStationAreas(items: StationArea[]): Promise<void> {
+    return this.masterDataRepository.replaceStationAreas(items);
+  }
+
+  replaceTracks(items: Track[]): Promise<void> {
+    return this.masterDataRepository.replaceTracks(items);
+  }
+
+  replacePlatformEdges(items: PlatformEdge[]): Promise<void> {
+    return this.masterDataRepository.replacePlatformEdges(items);
+  }
+
+  replacePlatforms(items: Platform[]): Promise<void> {
+    return this.masterDataRepository.replacePlatforms(items);
+  }
+
+  replaceSidings(items: Siding[]): Promise<void> {
+    return this.masterDataRepository.replaceSidings(items);
   }
 
   replacePersonnelSites(items: PersonnelSite[]): Promise<void> {

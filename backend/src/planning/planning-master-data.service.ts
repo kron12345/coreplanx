@@ -11,6 +11,12 @@ import type {
   OpReplacementStopLink,
   OpReplacementStopLinkListRequest,
   OpReplacementStopLinkListResponse,
+  Platform,
+  PlatformListRequest,
+  PlatformListResponse,
+  PlatformEdge,
+  PlatformEdgeListRequest,
+  PlatformEdgeListResponse,
   Personnel,
   PersonnelPool,
   PersonnelPoolListRequest,
@@ -35,6 +41,15 @@ import type {
   SectionOfLine,
   SectionOfLineListRequest,
   SectionOfLineListResponse,
+  Siding,
+  SidingListRequest,
+  SidingListResponse,
+  StationArea,
+  StationAreaListRequest,
+  StationAreaListResponse,
+  Track,
+  TrackListRequest,
+  TrackListResponse,
   TopologyAttribute,
   TransferEdge,
   TransferEdgeListRequest,
@@ -67,6 +82,11 @@ interface MasterDataDefaultsFile {
   topology?: Partial<{
     operationalPoints: OperationalPoint[];
     sectionsOfLine: SectionOfLine[];
+    stationAreas: StationArea[];
+    tracks: Track[];
+    platformEdges: PlatformEdge[];
+    platforms: Platform[];
+    sidings: Siding[];
     personnelSites: PersonnelSite[];
     replacementStops: ReplacementStop[];
     replacementRoutes: ReplacementRoute[];
@@ -92,6 +112,11 @@ export class PlanningMasterDataService implements OnModuleInit {
   private vehicleCompositions: VehicleComposition[] = [];
   private operationalPoints: OperationalPoint[] = [];
   private sectionsOfLine: SectionOfLine[] = [];
+  private stationAreas: StationArea[] = [];
+  private tracks: Track[] = [];
+  private platformEdges: PlatformEdge[] = [];
+  private platforms: Platform[] = [];
+  private sidings: Siding[] = [];
   private personnelSites: PersonnelSite[] = [];
   private replacementStops: ReplacementStop[] = [];
   private replacementRoutes: ReplacementRoute[] = [];
@@ -268,6 +293,77 @@ export class PlanningMasterDataService implements OnModuleInit {
       await this.repository.replaceSectionsOfLine(this.sectionsOfLine);
     }
     return this.listSectionsOfLine();
+  }
+
+  listStationAreas(): StationAreaListResponse {
+    return this.stationAreas.map((area) => this.cloneStationArea(area));
+  }
+
+  async saveStationAreas(
+    request?: StationAreaListRequest,
+  ): Promise<StationAreaListResponse> {
+    const incoming = request?.items ?? [];
+    this.stationAreas = incoming.map((area) => this.cloneStationArea(area));
+    if (this.usingDatabase) {
+      await this.repository.replaceStationAreas(this.stationAreas);
+    }
+    return this.listStationAreas();
+  }
+
+  listTracks(): TrackListResponse {
+    return this.tracks.map((track) => this.cloneTrack(track));
+  }
+
+  async saveTracks(request?: TrackListRequest): Promise<TrackListResponse> {
+    const incoming = request?.items ?? [];
+    this.tracks = incoming.map((track) => this.cloneTrack(track));
+    if (this.usingDatabase) {
+      await this.repository.replaceTracks(this.tracks);
+    }
+    return this.listTracks();
+  }
+
+  listPlatformEdges(): PlatformEdgeListResponse {
+    return this.platformEdges.map((edge) => this.clonePlatformEdge(edge));
+  }
+
+  async savePlatformEdges(
+    request?: PlatformEdgeListRequest,
+  ): Promise<PlatformEdgeListResponse> {
+    const incoming = request?.items ?? [];
+    this.platformEdges = incoming.map((edge) => this.clonePlatformEdge(edge));
+    if (this.usingDatabase) {
+      await this.repository.replacePlatformEdges(this.platformEdges);
+    }
+    return this.listPlatformEdges();
+  }
+
+  listPlatforms(): PlatformListResponse {
+    return this.platforms.map((platform) => this.clonePlatform(platform));
+  }
+
+  async savePlatforms(
+    request?: PlatformListRequest,
+  ): Promise<PlatformListResponse> {
+    const incoming = request?.items ?? [];
+    this.platforms = incoming.map((platform) => this.clonePlatform(platform));
+    if (this.usingDatabase) {
+      await this.repository.replacePlatforms(this.platforms);
+    }
+    return this.listPlatforms();
+  }
+
+  listSidings(): SidingListResponse {
+    return this.sidings.map((siding) => this.cloneSiding(siding));
+  }
+
+  async saveSidings(request?: SidingListRequest): Promise<SidingListResponse> {
+    const incoming = request?.items ?? [];
+    this.sidings = incoming.map((siding) => this.cloneSiding(siding));
+    if (this.usingDatabase) {
+      await this.repository.replaceSidings(this.sidings);
+    }
+    return this.listSidings();
   }
 
   listPersonnelSites(): PersonnelSiteListResponse {
@@ -476,6 +572,19 @@ export class PlanningMasterDataService implements OnModuleInit {
     this.sectionsOfLine = (topology.sectionsOfLine ?? []).map((item) =>
       this.cloneSectionOfLine(item),
     );
+    this.stationAreas = (topology.stationAreas ?? []).map((item) =>
+      this.cloneStationArea(item),
+    );
+    this.tracks = (topology.tracks ?? []).map((item) => this.cloneTrack(item));
+    this.platformEdges = (topology.platformEdges ?? []).map((item) =>
+      this.clonePlatformEdge(item),
+    );
+    this.platforms = (topology.platforms ?? []).map((item) =>
+      this.clonePlatform(item),
+    );
+    this.sidings = (topology.sidings ?? []).map((item) =>
+      this.cloneSiding(item),
+    );
     this.personnelSites = (topology.personnelSites ?? []).map((item) =>
       this.clonePersonnelSite(item),
     );
@@ -499,6 +608,11 @@ export class PlanningMasterDataService implements OnModuleInit {
       await Promise.all([
         this.repository.replaceOperationalPoints(this.operationalPoints),
         this.repository.replaceSectionsOfLine(this.sectionsOfLine),
+        this.repository.replaceStationAreas(this.stationAreas),
+        this.repository.replaceTracks(this.tracks),
+        this.repository.replacePlatformEdges(this.platformEdges),
+        this.repository.replacePlatforms(this.platforms),
+        this.repository.replaceSidings(this.sidings),
         this.repository.replacePersonnelSites(this.personnelSites),
         this.repository.replaceReplacementStops(this.replacementStops),
         this.repository.replaceReplacementRoutes(this.replacementRoutes),
@@ -554,6 +668,11 @@ export class PlanningMasterDataService implements OnModuleInit {
     this.defaultTopology = {
       operationalPoints: doc.topology?.operationalPoints ?? [],
       sectionsOfLine: doc.topology?.sectionsOfLine ?? [],
+      stationAreas: doc.topology?.stationAreas ?? [],
+      tracks: doc.topology?.tracks ?? [],
+      platformEdges: doc.topology?.platformEdges ?? [],
+      platforms: doc.topology?.platforms ?? [],
+      sidings: doc.topology?.sidings ?? [],
       personnelSites: doc.topology?.personnelSites ?? [],
       replacementStops: doc.topology?.replacementStops ?? [],
       replacementRoutes: doc.topology?.replacementRoutes ?? [],
@@ -757,6 +876,11 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.vehicleCompositions.length > 0 ||
       this.operationalPoints.length > 0 ||
       this.sectionsOfLine.length > 0 ||
+      this.stationAreas.length > 0 ||
+      this.tracks.length > 0 ||
+      this.platformEdges.length > 0 ||
+      this.platforms.length > 0 ||
+      this.sidings.length > 0 ||
       this.personnelSites.length > 0 ||
       this.replacementStops.length > 0 ||
       this.replacementRoutes.length > 0 ||
@@ -1396,6 +1520,19 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.sectionsOfLine = masterData.sectionsOfLine.map((section) =>
         this.cloneSectionOfLine(section),
       );
+      this.stationAreas = masterData.stationAreas.map((area) =>
+        this.cloneStationArea(area),
+      );
+      this.tracks = masterData.tracks.map((track) => this.cloneTrack(track));
+      this.platformEdges = masterData.platformEdges.map((edge) =>
+        this.clonePlatformEdge(edge),
+      );
+      this.platforms = masterData.platforms.map((platform) =>
+        this.clonePlatform(platform),
+      );
+      this.sidings = masterData.sidings.map((siding) =>
+        this.cloneSiding(siding),
+      );
       this.personnelSites = masterData.personnelSites.map((site) =>
         this.clonePersonnelSite(site),
       );
@@ -1441,6 +1578,11 @@ export class PlanningMasterDataService implements OnModuleInit {
       this.vehicleCompositions = [];
       this.operationalPoints = [];
       this.sectionsOfLine = [];
+      this.stationAreas = [];
+      this.tracks = [];
+      this.platformEdges = [];
+      this.platforms = [];
+      this.sidings = [];
       this.personnelSites = [];
       this.replacementStops = [];
       this.replacementRoutes = [];
@@ -1570,6 +1712,44 @@ export class PlanningMasterDataService implements OnModuleInit {
       ...section,
       polyline: section.polyline?.map((entry) => this.cloneLatLng(entry)),
       attributes: this.cloneTopologyAttributes(section.attributes),
+    };
+  }
+
+  private cloneStationArea(area: StationArea): StationArea {
+    return {
+      ...area,
+      position: area.position ? this.cloneLatLng(area.position) : area.position,
+      attributes: this.cloneTopologyAttributes(area.attributes),
+    };
+  }
+
+  private cloneTrack(track: Track): Track {
+    return {
+      ...track,
+      platformEdgeIds: [...(track.platformEdgeIds ?? [])],
+      attributes: this.cloneTopologyAttributes(track.attributes),
+    };
+  }
+
+  private clonePlatformEdge(edge: PlatformEdge): PlatformEdge {
+    return {
+      ...edge,
+      attributes: this.cloneTopologyAttributes(edge.attributes),
+    };
+  }
+
+  private clonePlatform(platform: Platform): Platform {
+    return {
+      ...platform,
+      platformEdgeIds: [...(platform.platformEdgeIds ?? [])],
+      attributes: this.cloneTopologyAttributes(platform.attributes),
+    };
+  }
+
+  private cloneSiding(siding: Siding): Siding {
+    return {
+      ...siding,
+      attributes: this.cloneTopologyAttributes(siding.attributes),
     };
   }
 

@@ -47,6 +47,58 @@ export interface SectionOfLine extends AuditInfo {
    attributes?: TopologyAttribute[];
 }
 
+export interface StationArea extends AuditInfo {
+  stationAreaId: UUID;
+  uniqueOpId?: string;
+  name?: string;
+  position?: LatLng;
+  attributes?: TopologyAttribute[];
+}
+
+export interface Track extends AuditInfo {
+  trackKey: UUID;
+  trackId?: string;
+  uniqueOpId?: string;
+  platformEdgeIds?: UUID[];
+  attributes?: TopologyAttribute[];
+}
+
+export interface PlatformEdge extends AuditInfo {
+  platformEdgeId: UUID;
+  platformId?: string;
+  platformKey?: UUID;
+  trackKey?: UUID;
+  lengthMeters?: number;
+  platformHeight?: string;
+  attributes?: TopologyAttribute[];
+}
+
+export interface Platform extends AuditInfo {
+  platformKey: UUID;
+  platformId?: string;
+  uniqueOpId?: string;
+  name?: string;
+  lengthMeters?: number;
+  platformHeight?: string;
+  platformEdgeIds?: UUID[];
+  attributes?: TopologyAttribute[];
+}
+
+export interface Siding extends AuditInfo {
+  sidingKey: UUID;
+  sidingId?: string;
+  uniqueOpId?: string;
+  lengthMeters?: number;
+  gradient?: string;
+  hasRefuelling?: boolean;
+  hasElectricShoreSupply?: boolean;
+  hasWaterRestocking?: boolean;
+  hasSandRestocking?: boolean;
+  hasToiletDischarge?: boolean;
+  hasExternalCleaning?: boolean;
+  attributes?: TopologyAttribute[];
+}
+
 export type OpTrackRole = 'RUNNING' | 'SIDING';
 
 export interface OpTrack {
@@ -131,6 +183,11 @@ export interface TransferEdge extends AuditInfo {
 export interface PlanningEntitySignals {
   operationalPoints: WritableSignal<OperationalPoint[]>;
   sectionsOfLine: WritableSignal<SectionOfLine[]>;
+  stationAreas: WritableSignal<StationArea[]>;
+  tracks: WritableSignal<Track[]>;
+  platformEdges: WritableSignal<PlatformEdge[]>;
+  platforms: WritableSignal<Platform[]>;
+  sidings: WritableSignal<Siding[]>;
   personnelSites: WritableSignal<PersonnelSite[]>;
   replacementStops: WritableSignal<ReplacementStop[]>;
   replacementRoutes: WritableSignal<ReplacementRoute[]>;
@@ -142,6 +199,11 @@ export interface PlanningEntitySignals {
 export type TopologyImportKind =
   | 'operational-points'
   | 'sections-of-line'
+  | 'station-areas'
+  | 'tracks'
+  | 'platform-edges'
+  | 'platforms'
+  | 'sidings'
   | 'personnel-sites'
   | 'replacement-stops'
   | 'replacement-routes'

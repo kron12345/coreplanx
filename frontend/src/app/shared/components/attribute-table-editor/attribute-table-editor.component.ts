@@ -18,7 +18,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { CustomAttributeDefinition } from '../../../core/services/custom-attribute.service';
+import {
+  CustomAttributeDefinition,
+  CustomAttributePrimitiveType,
+} from '../../../core/services/custom-attribute.service';
 import { TopologyAttribute } from '../../planning-types';
 
 export interface AttributeSavePayload {
@@ -277,7 +280,10 @@ export class AttributeTableEditorComponent implements OnChanges {
 
   private buildRows(): void {
     this.multiSelectCache.clear();
-    const defs = this.definitions;
+    let defs = this.definitions;
+    if (!defs || defs.length === 0) {
+      defs = this.buildFallbackDefinitions();
+    }
     if (!defs || defs.length === 0) {
       this.rows.set([]);
       this.snapshot = [];
@@ -362,5 +368,29 @@ export class AttributeTableEditorComponent implements OnChanges {
       value: entry.value ?? '',
       validFrom: entry.validFrom ?? '',
     };
+  }
+
+  private buildFallbackDefinitions(): CustomAttributeDefinition[] {
+    const keys = Object.keys(this.fallbackValues ?? {});
+    if (keys.length === 0) {
+      return [];
+    }
+    return keys
+      .map((key) => ({
+        id: `fallback-${key}`,
+        key,
+        label: this.humanizeKey(key),
+        type: (this.numericKeys.includes(key) ? 'number' : 'string') as CustomAttributePrimitiveType,
+        entityId: 'fallback',
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  }
+
+  private humanizeKey(key: string): string {
+    const withSpaces = key
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+    return withSpaces ? withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1) : key;
   }
 }

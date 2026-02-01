@@ -22,6 +22,21 @@ class TopologyAPIClient:
     def replace_sections_of_line(self, items: Sequence[dict[str, Any]]) -> None:
         self._put('/planning/topology/sections-of-line', items)
 
+    def replace_station_areas(self, items: Sequence[dict[str, Any]]) -> None:
+        self._put('/planning/topology/station-areas', items)
+
+    def replace_tracks(self, items: Sequence[dict[str, Any]]) -> None:
+        self._put('/planning/topology/tracks', items)
+
+    def replace_platform_edges(self, items: Sequence[dict[str, Any]]) -> None:
+        self._put('/planning/topology/platform-edges', items)
+
+    def replace_platforms(self, items: Sequence[dict[str, Any]]) -> None:
+        self._put('/planning/topology/platforms', items)
+
+    def replace_sidings(self, items: Sequence[dict[str, Any]]) -> None:
+        self._put('/planning/topology/sidings', items)
+
     def send_event(
         self,
         status: str,

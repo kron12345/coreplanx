@@ -155,9 +155,13 @@
 
     <ng-template #flatList>
       @if (filteredEntities().length > 0) {
-        <div class="stop-list">
-          @for (entity of filteredEntities(); track entity.id) {
-            <div class="stop-row" [class.selected]="isSelected(entity.id)">
+        <div class="stop-list-wrapper">
+          <cdk-virtual-scroll-viewport class="stop-list stop-list--virtual" [itemSize]="44">
+            <div
+              class="stop-row"
+              *cdkVirtualFor="let entity of limitedEntities(); trackBy: trackEntityId"
+              [class.selected]="isSelected(entity.id)"
+            >
               <mat-checkbox
                 [checked]="isSelected(entity.id)"
                 (change)="toggleSelection(entity.id, $event.checked)"
@@ -166,6 +170,12 @@
                 <div class="stop-row__name">{{ entity.label }}</div>
                 <div class="stop-row__secondary">{{ entity.secondaryLabel || '—' }}</div>
               </div>
+            </div>
+          </cdk-virtual-scroll-viewport>
+          @if (hasMore()) {
+            <div class="stop-list__footer">
+              <span>Zeige {{ limitedEntities().length }} von {{ filteredEntities().length }} Einträgen.</span>
+              <button mat-stroked-button type="button" (click)="showMore()">Mehr laden</button>
             </div>
           }
         </div>
@@ -281,7 +291,7 @@
     }
   </section>
 
-  @if (attributeDefinitions.length > 0 && selectedIds().length <= 1) {
+  @if (hasDetailPanel && selectedIds().length <= 1) {
     <section class="editor__detail">
     <div class="attributes">
       <header class="detail-header">

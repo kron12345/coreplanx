@@ -433,6 +433,7 @@ def export_ops(
     api_client: Optional[TopologyAPIClient] = None,
     normalize_prefix: Optional[str] = None,
     normalize_fillchar: str = "0",
+    return_records: bool = False,
 ):
 
     # Stage A: OP-IRIs einsammeln
@@ -538,7 +539,7 @@ def export_ops(
     sink = OperationalPointSink(
         outfile,
         fieldnames,
-        api_client=api_client,
+        api_client=None if return_records else api_client,
         normalize_prefix=normalize_prefix,
         normalize_fillchar=normalize_fillchar,
     )
@@ -628,10 +629,13 @@ def export_ops(
         sink.write(out)
 
     sink.finish()
-    if api_client:
+    if api_client and not return_records:
         print(f"[done] uploaded {sink.record_count} operational points via API")
     if outfile:
         print(f"[done] ops -> {outfile} ({sink.record_count} rows)")
+    if return_records:
+        return sink.records
+    return None
 
 class OperationalPointSink:
     EXCLUDED_ATTR_COLUMNS = {
@@ -753,6 +757,22 @@ def main():
     ap.add_argument("--normalize-fillchar", default="0", help="Füllzeichen hinter dem Prefix (default: 0).")
     args = ap.parse_args()
 
+    def parse_countries(value: str) -> List[str]:
+        parts = [p.strip().upper() for p in re.split(r"[,\s]+", value or "") if p.strip()]
+        seen = set()
+        ordered: List[str] = []
+        for p in parts:
+            if p not in seen:
+                seen.add(p)
+                ordered.append(p)
+        return ordered
+
+    countries = parse_countries(args.country)
+    if not countries:
+        ap.error("Bitte mindestens ein ISO3-Land im Argument --country angeben.")
+    if len(countries) > 1 and args.outfile:
+        ap.error("--outfile ist bei mehreren Ländern nicht unterstützt.")
+
     api_base = resolve_api_base(args.api_base)
     if not api_base and not args.outfile:
         ap.error("Either --outfile oder --api-base (oder TOPOLOGY_API_BASE) muss angegeben werden.")
@@ -763,35 +783,73 @@ def main():
             api_client.send_event(
                 "in-progress",
                 kinds=kinds,
-                message=f"Import {args.country.upper()} gestartet",
+                message=f"Import {','.join(countries)} gestartet",
                 source=args.import_source,
             )
-        export_ops(
-            country_iso3=args.country.upper(),
-            outfile=args.outfile,
-            props_mode=args.props_mode,
-            add_predicates=args.add_predicate,
-            always_include_extras=args.always_include_extras,
-            include_extras_columns=args.include_extras_columns,
-            page_size=args.page_size,
-            chunk_labels=args.chunk_labels,
-            chunk_extras=args.chunk_extras,
-            parallel=args.parallel,
-            timeout=args.timeout,
-            retries=args.retries,
-            as_of=args.as_of,
-            endpoint_url=args.endpoint_url,
-            emit_1900_row=not args.no_1900_row,
-            type_as_code=args.type_as_code,
-            api_client=api_client,
-            normalize_prefix=args.normalize_prefix,
-            normalize_fillchar=args.normalize_fillchar,
-        )
+        if len(countries) == 1:
+            export_ops(
+                country_iso3=countries[0],
+                outfile=args.outfile,
+                props_mode=args.props_mode,
+                add_predicates=args.add_predicate,
+                always_include_extras=args.always_include_extras,
+                include_extras_columns=args.include_extras_columns,
+                page_size=args.page_size,
+                chunk_labels=args.chunk_labels,
+                chunk_extras=args.chunk_extras,
+                parallel=args.parallel,
+                timeout=args.timeout,
+                retries=args.retries,
+                as_of=args.as_of,
+                endpoint_url=args.endpoint_url,
+                emit_1900_row=not args.no_1900_row,
+                type_as_code=args.type_as_code,
+                api_client=api_client,
+                normalize_prefix=args.normalize_prefix,
+                normalize_fillchar=args.normalize_fillchar,
+            )
+        else:
+            combined: List[dict] = []
+            seen_ids: set[str] = set()
+            for iso3 in countries:
+                records = export_ops(
+                    country_iso3=iso3,
+                    outfile=None,
+                    props_mode=args.props_mode,
+                    add_predicates=args.add_predicate,
+                    always_include_extras=args.always_include_extras,
+                    include_extras_columns=args.include_extras_columns,
+                    page_size=args.page_size,
+                    chunk_labels=args.chunk_labels,
+                    chunk_extras=args.chunk_extras,
+                    parallel=args.parallel,
+                    timeout=args.timeout,
+                    retries=args.retries,
+                    as_of=args.as_of,
+                    endpoint_url=args.endpoint_url,
+                    emit_1900_row=not args.no_1900_row,
+                    type_as_code=args.type_as_code,
+                    api_client=None,
+                    normalize_prefix=args.normalize_prefix,
+                    normalize_fillchar=args.normalize_fillchar,
+                    return_records=True,
+                ) or []
+                for record in records:
+                    uid = record.get("uniqueOpId") or record.get("opId")
+                    if not uid:
+                        continue
+                    if uid in seen_ids:
+                        continue
+                    seen_ids.add(uid)
+                    combined.append(record)
+            if api_client:
+                api_client.replace_operational_points(combined)
+                print(f"[done] uploaded {len(combined)} operational points via API")
         if api_client and not args.skip_events:
             api_client.send_event(
                 "succeeded",
                 kinds=kinds,
-                message=f"Import {args.country.upper()} abgeschlossen",
+                message=f"Import {','.join(countries)} abgeschlossen",
                 source=args.import_source,
             )
     except Exception as exc:

@@ -1,0 +1,117 @@
+<h2 mat-dialog-title>Topologie-Import</h2>
+<form class="topology-import" (ngSubmit)="submit()">
+  <div mat-dialog-content class="topology-import__content">
+    <mat-form-field appearance="fill" class="topology-import__field">
+      <mat-label>Datenart</mat-label>
+      <mat-select
+        [ngModel]="selectedKind()"
+        (ngModelChange)="handleKindChange($event)"
+        name="kind"
+      >
+        <mat-option *ngFor="let kind of kinds" [value]="kind.value">
+          {{ kind.label }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <div class="topology-import__file">
+      <input
+        #fileInput
+        type="file"
+        class="topology-import__file-input"
+        (change)="handleFileChange($event)"
+      />
+      <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="isBusy()">
+        Datei wählen
+      </button>
+      <span class="topology-import__file-name">
+        {{ fileName() || 'Keine Datei gewählt' }}
+      </span>
+    </div>
+
+    <p class="topology-import__hint">
+      Importdateien werden serverseitig gespeichert. Das Feld "Gültig bis" wird beim Import ignoriert.
+    </p>
+
+    <div class="topology-import__preview" *ngIf="preview().ready || preview().blocked">
+      <div class="topology-import__preview-header">
+        <strong>Preview</strong>
+        <span *ngIf="preview().blocked" class="topology-import__warning">
+          Bitte korrigieren: doppelte oder ungueltige IDs entdeckt.
+        </span>
+      </div>
+      <div class="topology-import__preview-grid">
+        <div>Gesamt</div>
+        <div>{{ preview().total }}</div>
+        <div>Vorhanden</div>
+        <div>{{ preview().existing }}</div>
+        <div>Neu</div>
+        <div>{{ preview().newCount }}</div>
+        <div>Updates</div>
+        <div>{{ preview().updateCount }}</div>
+        <div>Unveraendert</div>
+        <div>{{ preview().unchangedCount }}</div>
+        <div>Doppelt</div>
+        <div>{{ preview().duplicateCount }}</div>
+        <div>Ungueltig</div>
+        <div>{{ preview().invalidCount }}</div>
+      </div>
+      <div class="topology-import__preview-list" *ngIf="preview().duplicates.length">
+        <div><strong>Doppelte IDs (Auszug)</strong></div>
+        <div class="topology-import__chips">
+          <span class="topology-import__chip" *ngFor="let dup of preview().duplicates">{{ dup }}</span>
+        </div>
+      </div>
+      <div class="topology-import__preview-list" *ngIf="preview().invalidIds.length">
+        <div><strong>Ungueltige IDs (Auszug)</strong></div>
+        <div class="topology-import__chips">
+          <span class="topology-import__chip" *ngFor="let invalid of preview().invalidIds">
+            {{ invalid }}
+          </span>
+        </div>
+      </div>
+      <div class="topology-import__preview-list" *ngIf="preview().diffs.length">
+        <div><strong>Beispiel-Updates</strong></div>
+        <div class="topology-import__diffs">
+          <div class="topology-import__diff" *ngFor="let diff of preview().diffs">
+            <div class="topology-import__diff-id">{{ diff.id }}</div>
+            <div class="topology-import__diff-fields">
+              <div *ngFor="let change of diff.changes">
+                <span class="topology-import__diff-field">{{ change.field }}</span>
+                <span class="topology-import__diff-value">{{ change.before || '∅' }}</span>
+                <span class="topology-import__diff-arrow">→</span>
+                <span class="topology-import__diff-value">{{ change.after || '∅' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topology-import__status" *ngIf="importStatus() || importLogs().length">
+      <div class="topology-import__status-header">
+        <span>Import-Status: {{ importStatus() || 'bereit' }}</span>
+        <mat-progress-spinner
+          *ngIf="isBusy()"
+          diameter="18"
+          mode="indeterminate"
+        ></mat-progress-spinner>
+      </div>
+      <div class="topology-import__logs" *ngIf="importLogs().length">
+        <div *ngFor="let line of importLogs()">{{ line }}</div>
+      </div>
+    </div>
+  </div>
+  <div mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()" [disabled]="isBusy()">Abbrechen</button>
+    <button mat-button type="button" (click)="closeDialog()">Schließen</button>
+    <button
+      mat-flat-button
+      color="primary"
+      type="submit"
+      [disabled]="!fileName() || isBusy() || preview().blocked || !preview().ready"
+    >
+      Import starten
+    </button>
+  </div>
+</form>

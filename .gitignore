@@ -12,6 +12,9 @@ dist
 # Local logs / profiles
 logs
 
+# ERA import dumps
+backend/integrations/topology-import/import-data/
+
 # Python
 .venv/
 **/.venv/

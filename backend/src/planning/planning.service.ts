@@ -19,6 +19,10 @@ import type {
   OperationalPointListResponse,
   OpReplacementStopLinkListRequest,
   OpReplacementStopLinkListResponse,
+  PlatformListRequest,
+  PlatformListResponse,
+  PlatformEdgeListRequest,
+  PlatformEdgeListResponse,
   PersonnelPoolListRequest,
   PersonnelPoolListResponse,
   PersonnelServicePoolListRequest,
@@ -39,6 +43,12 @@ import type {
   ResourceSnapshot,
   SectionOfLineListRequest,
   SectionOfLineListResponse,
+  SidingListRequest,
+  SidingListResponse,
+  StationAreaListRequest,
+  StationAreaListResponse,
+  TrackListRequest,
+  TrackListResponse,
   TopologyImportEventRequest,
   TopologyImportRealtimeEvent,
   TopologyImportRequest,
@@ -271,6 +281,52 @@ export class PlanningService {
     request?: SectionOfLineListRequest,
   ): Promise<SectionOfLineListResponse> {
     return this.masterDataService.saveSectionsOfLine(request);
+  }
+
+  listStationAreas(): StationAreaListResponse {
+    return this.masterDataService.listStationAreas();
+  }
+
+  saveStationAreas(
+    request?: StationAreaListRequest,
+  ): Promise<StationAreaListResponse> {
+    return this.masterDataService.saveStationAreas(request);
+  }
+
+  listTracks(): TrackListResponse {
+    return this.masterDataService.listTracks();
+  }
+
+  saveTracks(request?: TrackListRequest): Promise<TrackListResponse> {
+    return this.masterDataService.saveTracks(request);
+  }
+
+  listPlatformEdges(): PlatformEdgeListResponse {
+    return this.masterDataService.listPlatformEdges();
+  }
+
+  savePlatformEdges(
+    request?: PlatformEdgeListRequest,
+  ): Promise<PlatformEdgeListResponse> {
+    return this.masterDataService.savePlatformEdges(request);
+  }
+
+  listPlatforms(): PlatformListResponse {
+    return this.masterDataService.listPlatforms();
+  }
+
+  savePlatforms(
+    request?: PlatformListRequest,
+  ): Promise<PlatformListResponse> {
+    return this.masterDataService.savePlatforms(request);
+  }
+
+  listSidings(): SidingListResponse {
+    return this.masterDataService.listSidings();
+  }
+
+  saveSidings(request?: SidingListRequest): Promise<SidingListResponse> {
+    return this.masterDataService.saveSidings(request);
   }
 
   listPersonnelSites(): PersonnelSiteListResponse {
@@ -550,5 +606,12 @@ export class PlanningService {
     request: TopologyImportEventRequest,
   ): TopologyImportRealtimeEvent {
     return this.topologyImportService.publishTopologyImportEvent(request);
+  }
+
+  uploadTopologyImportFile(
+    file: { originalname?: string; buffer?: Buffer; path?: string },
+    kind: string,
+  ) {
+    return this.topologyImportService.uploadTopologyImportFile(file, kind);
   }
 }

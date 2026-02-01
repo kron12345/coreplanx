@@ -6,11 +6,16 @@ import { API_CONFIG } from '../core/config/api-config';
 import {
   OpReplacementStopLink,
   OperationalPoint,
+  Platform,
+  PlatformEdge,
   PersonnelSite,
   ReplacementEdge,
   ReplacementRoute,
   ReplacementStop,
   SectionOfLine,
+  Siding,
+  StationArea,
+  Track,
   TransferEdge,
   TopologyImportKind,
   TopologyImportRealtimeEvent,
@@ -38,6 +43,46 @@ export class TopologyApiService {
 
   saveSectionsOfLine(items: SectionOfLine[]): Observable<SectionOfLine[]> {
     return this.putList('/planning/topology/sections-of-line', items);
+  }
+
+  listStationAreas(): Observable<StationArea[]> {
+    return this.getList('/planning/topology/station-areas', [] as StationArea[]);
+  }
+
+  saveStationAreas(items: StationArea[]): Observable<StationArea[]> {
+    return this.putList('/planning/topology/station-areas', items);
+  }
+
+  listTracks(): Observable<Track[]> {
+    return this.getList('/planning/topology/tracks', [] as Track[]);
+  }
+
+  saveTracks(items: Track[]): Observable<Track[]> {
+    return this.putList('/planning/topology/tracks', items);
+  }
+
+  listPlatformEdges(): Observable<PlatformEdge[]> {
+    return this.getList('/planning/topology/platform-edges', [] as PlatformEdge[]);
+  }
+
+  savePlatformEdges(items: PlatformEdge[]): Observable<PlatformEdge[]> {
+    return this.putList('/planning/topology/platform-edges', items);
+  }
+
+  listPlatforms(): Observable<Platform[]> {
+    return this.getList('/planning/topology/platforms', [] as Platform[]);
+  }
+
+  savePlatforms(items: Platform[]): Observable<Platform[]> {
+    return this.putList('/planning/topology/platforms', items);
+  }
+
+  listSidings(): Observable<Siding[]> {
+    return this.getList('/planning/topology/sidings', [] as Siding[]);
+  }
+
+  saveSidings(items: Siding[]): Observable<Siding[]> {
+    return this.putList('/planning/topology/sidings', items);
   }
 
   listPersonnelSites(): Observable<PersonnelSite[]> {
@@ -105,6 +150,19 @@ export class TopologyApiService {
     return this.http
       .post<TopologyImportResponse>(this.url('/planning/topology/import'), payload)
       .pipe(map((response) => this.normalizeImportResponse(response)));
+  }
+
+  uploadTopologyImportFile(
+    kind: TopologyImportKind,
+    file: File,
+  ): Observable<{ ok: true; kind: TopologyImportKind; fileName: string; storedAt: string }> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('kind', kind);
+    return this.http.post<{ ok: true; kind: TopologyImportKind; fileName: string; storedAt: string }>(
+      this.url('/planning/topology/import/upload'),
+      formData,
+    );
   }
 
   streamTopologyImportEvents(): Observable<TopologyImportRealtimeEvent> {

@@ -4,9 +4,12 @@
       <h2>Topologie</h2>
       <p>Werkseinstellungen stellen Beispiel-Daten für Haltepunkte, Strecken und SEV wieder her.</p>
     </div>
-    <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
-      Werkseinstellungen
-    </button>
+    <div class="planning-master__actions">
+      <button mat-stroked-button type="button" (click)="openImportDialog()">Importieren</button>
+      <button mat-stroked-button color="warn" type="button" (click)="resetToDefaults()">
+        Werkseinstellungen
+      </button>
+    </div>
   </header>
   <mat-tab-group
     color="primary"
@@ -18,6 +21,21 @@
     </mat-tab>
     <mat-tab label="Sections of Line">
       <app-section-of-line-editor />
+    </mat-tab>
+    <mat-tab label="Station Areas">
+      <app-station-area-editor />
+    </mat-tab>
+    <mat-tab label="Tracks">
+      <app-track-editor />
+    </mat-tab>
+    <mat-tab label="Platform Edges">
+      <app-platform-edge-editor />
+    </mat-tab>
+    <mat-tab label="Platforms">
+      <app-platform-editor />
+    </mat-tab>
+    <mat-tab label="Sidings">
+      <app-siding-editor />
     </mat-tab>
     <mat-tab label="Personnel Sites">
       <app-personnel-site-editor />

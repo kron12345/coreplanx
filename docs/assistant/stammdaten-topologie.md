@@ -11,6 +11,11 @@ Navigation:
 - Tabs:
   - **Operational Points**
   - **Sections of Line**
+  - **Station Areas**
+  - **Tracks**
+  - **Platform Edges**
+  - **Platforms**
+  - **Sidings**
   - **Personnel Sites**
   - **Replacement Stops**
   - **Replacement Routes**
@@ -30,6 +35,34 @@ Die Topologie bildet das Netzmodell, auf das andere Bereiche zugreifen:
 
 Alle Tabs nutzen den Attribut-Editor: zusaetzliche Felder koennen als **Custom Attributes** gepflegt
 werden (teilweise mit `validFrom` fuer gueltig-ab).
+
+## Import (globaler Dialog)
+
+Der Import erfolgt zentral über **Importieren** im Topologie-Header. Der Dialog deckt aktuell
+Operational Points, Sections of Line, Station Areas, Tracks, Platform Edges, Platforms und Sidings ab.
+
+### Ablauf
+
+1. **Datenart** wählen (z. B. Station Areas).
+2. JSON-Datei auswählen (Array oder `{ "items": [...] }`).
+3. Preview prüfen (Neu/Update/Unverändert, Doppelte IDs, Ungültige IDs, Beispiel-Diffs).
+4. **Import starten**.
+
+### Preview & Duplikate
+
+- Import wird blockiert, wenn doppelte oder ungültige IDs im Upload sind.
+- Vorhandene Einträge werden erkannt; Unterschiede werden als Diff-Beispiele angezeigt.
+- Felder wie `validTo`/`validUntil` werden beim Import ignoriert (historische Werte).
+
+### JSON-Format
+
+- **Liste**: `[ { ... }, { ... } ]`
+- **Container**: `{ "items": [ { ... }, ... ] }`
+
+## Screenshots
+
+![Topologie-Import Dialog](./assets/topologie/topologie-import-dialog.png)
+![Topologie-Übersicht](./assets/topologie/topologie-overview.png)
 
 ## Operational Points
 
@@ -82,6 +115,105 @@ werden (teilweise mit `validFrom` fuer gueltig-ab).
 ### Import & Tools
 
 - Es gibt einen Import fuer **Sections of Line** mit Live-Log.
+
+## Station Areas
+
+### Feldlexikon
+
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `stationAreaId` | string | Eindeutige ID | ja |
+| `uniqueOpId` | string | OP-Referenz (optional) | nein |
+| `name` | string | Bereichsname | nein |
+| `position` | object | `{ lat, lng }` WGS84 | nein |
+| `attributes` | list | Custom Attributes | nein |
+
+### Regeln & Validierung
+
+- `stationAreaId` muss eindeutig sein.
+- Wenn `uniqueOpId` gesetzt ist, muss der OP existieren.
+- `position.lat`/`position.lng` muessen numerisch sein.
+
+## Tracks
+
+### Feldlexikon
+
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `trackKey` | string | Eindeutiger Schlüssel | ja |
+| `trackId` | string | Fachliche Gleisnummer | nein |
+| `uniqueOpId` | string | OP-Referenz (optional) | nein |
+| `platformEdgeIds` | list | Platform-Edge-IDs | nein |
+| `attributes` | list | Custom Attributes | nein |
+
+### Regeln & Validierung
+
+- `trackKey` muss eindeutig sein.
+- `platformEdgeIds` sollten existierende Platform Edges referenzieren.
+- Wenn `uniqueOpId` gesetzt ist, muss der OP existieren.
+
+## Platform Edges
+
+### Feldlexikon
+
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `platformEdgeId` | string | Eindeutige Kanten-ID | ja |
+| `platformId` | string | Fachliche Bahnsteig-ID | nein |
+| `platformKey` | string | Plattform-Schlüssel | nein |
+| `trackKey` | string | Zugeordnetes Gleis | nein |
+| `lengthMeters` | number | Laenge in Metern | nein |
+| `platformHeight` | string | Hoehenklasse | nein |
+| `attributes` | list | Custom Attributes | nein |
+
+### Regeln & Validierung
+
+- `platformEdgeId` muss eindeutig sein.
+- Wenn `trackKey` gesetzt ist, sollte das Gleis existieren.
+
+## Platforms
+
+### Feldlexikon
+
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `platformKey` | string | Eindeutiger Schlüssel | ja |
+| `platformId` | string | Fachliche Bahnsteig-ID | nein |
+| `uniqueOpId` | string | OP-Referenz (optional) | nein |
+| `name` | string | Anzeigename | nein |
+| `lengthMeters` | number | Laenge in Metern | nein |
+| `platformHeight` | string | Hoehenklasse | nein |
+| `platformEdgeIds` | list | Zugeordnete Kanten | nein |
+| `attributes` | list | Custom Attributes | nein |
+
+### Regeln & Validierung
+
+- `platformKey` muss eindeutig sein.
+- `platformEdgeIds` sollten existierende Platform Edges referenzieren.
+
+## Sidings
+
+### Feldlexikon
+
+| Feld | Typ | Zweck | Pflicht |
+| --- | --- | --- | --- |
+| `sidingKey` | string | Eindeutiger Schlüssel | ja |
+| `sidingId` | string | Fachliche Abstell-ID | nein |
+| `uniqueOpId` | string | OP-Referenz (optional) | nein |
+| `lengthMeters` | number | Laenge in Metern | nein |
+| `gradient` | string | Steigung/Gefaelle | nein |
+| `hasRefuelling` | boolean | Betankung moeglich | nein |
+| `hasElectricShoreSupply` | boolean | Landstrom | nein |
+| `hasWaterRestocking` | boolean | Wasser | nein |
+| `hasSandRestocking` | boolean | Sand | nein |
+| `hasToiletDischarge` | boolean | Toilette entleeren | nein |
+| `hasExternalCleaning` | boolean | Aussenreinigung | nein |
+| `attributes` | list | Custom Attributes | nein |
+
+### Regeln & Validierung
+
+- `sidingKey` muss eindeutig sein.
+- Wenn `uniqueOpId` gesetzt ist, muss der OP existieren.
 
 ## Personnel Sites
 

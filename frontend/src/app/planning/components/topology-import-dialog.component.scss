@@ -1,0 +1,145 @@
+.topology-import__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: min(460px, 90vw);
+}
+
+.topology-import__field {
+  width: 100%;
+}
+
+.topology-import__file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topology-import__file-input {
+  display: none;
+}
+
+.topology-import__file-name {
+  font-size: 0.95rem;
+  opacity: 0.8;
+  word-break: break-all;
+}
+
+.topology-import__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.topology-import__status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 12px;
+}
+
+.topology-import__status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.topology-import__logs {
+  max-height: 220px;
+  overflow: auto;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  font-family: 'IBM Plex Mono', 'Fira Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0.85;
+}
+
+.topology-import__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.topology-import__preview-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.topology-import__warning {
+  color: #b3261e;
+}
+
+.topology-import__preview-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 0.85rem;
+}
+
+.topology-import__preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.topology-import__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topology-import__chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 0.75rem;
+}
+
+.topology-import__diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.topology-import__diff {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.topology-import__diff-id {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.topology-import__diff-fields {
+  display: grid;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.topology-import__diff-field {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.topology-import__diff-value {
+  opacity: 0.75;
+  margin: 0 4px;
+}
+
+.topology-import__diff-arrow {
+  margin: 0 6px;
+}

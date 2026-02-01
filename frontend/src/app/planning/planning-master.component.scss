@@ -11,6 +11,12 @@
   margin-bottom: 16px;
 }
 
+.planning-master__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .planning-master__header h2 {
   margin: 0;
 }

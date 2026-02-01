@@ -64,6 +64,7 @@ type AzgDutySnapshot = {
   workHalfMs: number | null;
   activityIds: string[];
   hasNightWork: boolean;
+  primaryActivityId: string | null;
 };
 
 type BoundaryCleanupEntry = {
@@ -2948,6 +2949,45 @@ export class DutyAutopilotService {
         (a, b) =>
           a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId),
       );
+      if (!windows.length) {
+        const dayBuckets = new Map<
+          string,
+          { minStartMs: number; maxEndMs: number }
+        >();
+        ownerActivities.forEach((activity) => {
+          const startMs = this.parseMs(activity.start);
+          if (startMs === null) {
+            return;
+          }
+          const endMs = Math.max(startMs, this.resolveEndMs(activity, startMs));
+          const dayKey = this.utcDayKey(activity.start);
+          const existing = dayBuckets.get(dayKey);
+          if (!existing) {
+            dayBuckets.set(dayKey, { minStartMs: startMs, maxEndMs: endMs });
+            return;
+          }
+          existing.minStartMs = Math.min(existing.minStartMs, startMs);
+          existing.maxEndMs = Math.max(existing.maxEndMs, endMs);
+        });
+        windows = Array.from(dayBuckets.entries()).map(
+          ([dayKey, range]) => {
+            const serviceId = this.computeServiceId(stageId, ownerId, dayKey);
+            const endMs =
+              range.maxEndMs >= range.minStartMs
+                ? range.maxEndMs
+                : range.minStartMs + fallbackServiceWindowMs;
+            return {
+              serviceId,
+              startMs: range.minStartMs,
+              endMs,
+            };
+          },
+        );
+        windows.sort(
+          (a, b) =>
+            a.startMs - b.startMs || a.serviceId.localeCompare(b.serviceId),
+        );
+      }
 
       const findWindowServiceId = (startMs: number): string | null => {
         for (let i = windows.length - 1; i >= 0; i -= 1) {
@@ -5021,6 +5061,15 @@ export class DutyAutopilotService {
         startBoundary?.id ?? this.findFirstActivity(groupActivities)?.id ?? null;
       const endActivityId =
         endBoundary?.id ?? this.findLastActivity(groupActivities)?.id ?? null;
+      const primaryActivityId =
+        groupActivities.find(
+          (activity) =>
+            !isBoundary(activity) &&
+            !isRegularBreak(activity) &&
+            !isShortBreak(activity),
+        )?.id ??
+        startActivityId ??
+        endActivityId;
 
       const breakActivities = groupActivities
         .filter((activity) => isRegularBreak(activity))
@@ -5110,6 +5159,7 @@ export class DutyAutopilotService {
         workHalfMs,
         activityIds: groupActivities.map((activity) => activity.id),
         hasNightWork: this.intervalsOverlapDailyWindow(workSegments, 0, 4),
+        primaryActivityId,
       });
     }
 
@@ -5145,6 +5195,7 @@ export class DutyAutopilotService {
     const addBoundaryCode = (duty: AzgDutySnapshot, code: string) => {
       addActivityCode(duty.startActivityId, code);
       addActivityCode(duty.endActivityId, code);
+      addActivityCode(duty.primaryActivityId, code);
     };
     const addBreakCodes = (
       activities: Array<{ id: string }>,
@@ -5306,6 +5357,7 @@ export class DutyAutopilotService {
             (brk) => intervalMinutes(brk) < standardBreakMinMinutes,
           );
           addBreakCodes(tooShort, 'AZG_BREAK_STANDARD_MIN');
+          addBoundaryCode(duty, 'AZG_BREAK_STANDARD_MIN');
         }
         if (config.azg.breakMidpoint.enabled && duty.workHalfMs !== null) {
           const isLongDuty =

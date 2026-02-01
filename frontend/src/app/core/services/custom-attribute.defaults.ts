@@ -74,6 +74,36 @@ export const CUSTOM_ATTRIBUTE_TARGETS: CustomAttributeTarget[] = [
     description: 'Attribute für Sections of Line.',
   },
   {
+    id: 'topology-station-areas',
+    label: 'Topologie – Bahnhofsbereiche',
+    group: 'general',
+    description: 'Attribute für Station Areas (Bahnhofsbereiche).',
+  },
+  {
+    id: 'topology-tracks',
+    label: 'Topologie – Bahnhofsgleise',
+    group: 'general',
+    description: 'Attribute für Tracks innerhalb von Bahnhöfen.',
+  },
+  {
+    id: 'topology-platform-edges',
+    label: 'Topologie – Bahnsteigkanten',
+    group: 'general',
+    description: 'Attribute für Platform Edges (Bahnsteigkanten).',
+  },
+  {
+    id: 'topology-platforms',
+    label: 'Topologie – Bahnsteige',
+    group: 'general',
+    description: 'Attribute für Platforms (Bahnsteige).',
+  },
+  {
+    id: 'topology-sidings',
+    label: 'Topologie – Abstellgleise',
+    group: 'general',
+    description: 'Attribute für Sidings (Abstellgleise).',
+  },
+  {
     id: 'topology-personnel-sites',
     label: 'Topologie – Personaleinsatzstellen',
     group: 'general',

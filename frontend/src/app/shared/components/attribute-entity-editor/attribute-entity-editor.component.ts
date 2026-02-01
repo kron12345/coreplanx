@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { CommonModule } from '@angular/common';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { FormsModule } from '@angular/forms';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -81,6 +82,7 @@ export interface AttributeActionEvent {
     standalone: true,
     imports: [
         CommonModule,
+        ScrollingModule,
         FormsModule,
         MatCheckboxModule,
         MatFormFieldModule,
@@ -120,12 +122,19 @@ export interface AttributeActionEvent {
 export class AttributeEntityEditorComponent implements OnDestroy {
   private readonly entitySignal = signal<AttributeEntityRecord[]>([]);
   private readonly draftSignal = signal<AttributeEntityRecord[]>([]);
+  private listLimitValue = 2000;
 
   @Input() title = 'Attribute';
   @Input({ alias: 'entities' })
   set entityRecords(value: AttributeEntityRecord[]) {
     this.entitySignal.set(value ?? []);
     this.reconcileSelection();
+  }
+  @Input()
+  set listLimit(value: number | null | undefined) {
+    const next = typeof value === 'number' && value > 0 ? value : 2000;
+    this.listLimitValue = next;
+    this.visibleLimit.set(next);
   }
   readonly entities = this.entitySignal.asReadonly();
   readonly combinedEntities = computed<AttributeEntityRecord[]>(() => [
@@ -229,19 +238,27 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   readonly filteredEntities = computed(() => {
     const query = this.searchTerm().trim().toLowerCase();
     const filters = this.activeFilters();
-    const sorted = [...this.combinedEntities()].sort((a: AttributeEntityRecord, b: AttributeEntityRecord) =>
-      this.compareEntities(a, b, this.sortKey(), this.sortDirection()),
-    );
+    const combined = this.combinedEntities();
+    const hasQuery = query.length > 0;
+    const filterKeys = Object.keys(filters).filter((key) => (filters[key]?.length ?? 0) > 0);
+    const hasFilters = filterKeys.length > 0;
+    const sortKey = this.sortKey();
+    const sortDirection = this.sortDirection();
+    const needsSort = hasQuery || hasFilters || sortKey !== 'name' || sortDirection !== 'asc';
+    const sorted = needsSort
+      ? [...combined].sort((a: AttributeEntityRecord, b: AttributeEntityRecord) =>
+          this.compareEntities(a, b, sortKey, sortDirection),
+        )
+      : combined;
     return sorted.filter((entity) => {
       const nameMatch =
-        !query ||
+        !hasQuery ||
         entity.label.toLowerCase().includes(query) ||
         (entity.secondaryLabel ?? '').toLowerCase().includes(query);
       if (!nameMatch) {
         return false;
       }
-      const filterKeys = Object.keys(filters).filter((key) => (filters[key]?.length ?? 0) > 0);
-      if (filterKeys.length === 0) {
+      if (!hasFilters) {
         return true;
       }
       return filterKeys.every((key) => {
@@ -253,6 +270,27 @@ export class AttributeEntityEditorComponent implements OnDestroy {
       });
     });
   });
+  readonly visibleLimit = signal(this.listLimitValue);
+  readonly limitedEntities = computed(() =>
+    this.filteredEntities().slice(0, this.visibleLimit()),
+  );
+  readonly hasMore = computed(
+    () => this.filteredEntities().length > this.visibleLimit(),
+  );
+  private readonly resetVisibleOnFilter = effect(() => {
+    this.searchTerm();
+    this.activeFilters();
+    this.sortKey();
+    this.sortDirection();
+    this.visibleLimit.set(this.listLimitValue);
+  });
+
+  get hasDetailPanel(): boolean {
+    return (
+      (this.attributeDefinitions?.length ?? 0) > 0 ||
+      Object.keys(this.fallbackValues()).length > 0
+    );
+  }
 
   get effectiveRequiredKeys(): string[] {
     if (this.requiredKeys && this.requiredKeys.length > 0) {
@@ -578,6 +616,11 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   resetView(): void {
     this.searchTerm.set('');
     this.clearFilters();
+    this.visibleLimit.set(this.listLimitValue);
+  }
+
+  showMore(): void {
+    this.visibleLimit.update((current) => current + this.listLimitValue);
   }
 
   filterValuesFor(key: string): string[] {
@@ -662,6 +705,10 @@ export class AttributeEntityEditorComponent implements OnDestroy {
     if (this.bulkFeedbackTimeout) {
       clearTimeout(this.bulkFeedbackTimeout);
     }
+  }
+
+  trackEntityId(_index: number, entity: AttributeEntityRecord): string {
+    return entity.id;
   }
 }
 

@@ -1,0 +1,15 @@
+<section class="topology-editor">
+  <app-attribute-entity-editor
+    [title]="'Platform Edges'"
+    [entities]="entityRecords()"
+    [listLimit]="500"
+    [attributeDefinitions]="attributeDefinitions()"
+    [defaultFallbackValues]="defaultFallback"
+    [numericKeys]="numericKeys"
+    [selectOptions]="selectOptions()"
+    [detailError]="error()"
+    (saveEntity)="handleSave($event)"
+    (deleteEntities)="handleDelete($event)"
+    (bulkApply)="handleBulkApply($event)"
+  />
+</section>

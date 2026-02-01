@@ -7,6 +7,8 @@ import type {
   LayerGroup,
   OperationalPoint,
   OpReplacementStopLink,
+  Platform,
+  PlatformEdge,
   Personnel,
   PersonnelPool,
   PersonnelService,
@@ -18,7 +20,10 @@ import type {
   HomeDepot,
   Resource,
   SectionOfLine,
+  Siding,
   StageId,
+  StationArea,
+  Track,
   TimelineRange,
   TrainRun,
   TrainSegment,
@@ -58,6 +63,11 @@ export interface MasterDataSets {
   vehicleCompositions: VehicleComposition[];
   operationalPoints: OperationalPoint[];
   sectionsOfLine: SectionOfLine[];
+  stationAreas: StationArea[];
+  tracks: Track[];
+  platformEdges: PlatformEdge[];
+  platforms: Platform[];
+  sidings: Siding[];
   personnelSites: PersonnelSite[];
   replacementStops: ReplacementStop[];
   replacementRoutes: ReplacementRoute[];
