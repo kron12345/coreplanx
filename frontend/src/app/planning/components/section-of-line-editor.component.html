@@ -46,13 +46,17 @@
     [title]="'Sections of Line'"
     [entities]="entityRecords()"
     [listLimit]="500"
+    [totalCount]="totalCount()"
     [attributeDefinitions]="attributeDefinitions()"
     [defaultFallbackValues]="defaultFallback"
     [numericKeys]="numericKeys"
+    [serverSearch]="true"
     [detailError]="error()"
     [selectOptions]="selectOptions()"
     (saveEntity)="handleSave($event)"
     (deleteEntities)="handleDelete($event)"
     (bulkApply)="handleBulkApply($event)"
+    (loadMore)="loadMore()"
+    (searchChanged)="handleSearch($event)"
   />
 </section>

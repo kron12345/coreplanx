@@ -36,6 +36,14 @@ Die Topologie bildet das Netzmodell, auf das andere Bereiche zugreifen:
 Alle Tabs nutzen den Attribut-Editor: zusaetzliche Felder koennen als **Custom Attributes** gepflegt
 werden (teilweise mit `validFrom` fuer gueltig-ab).
 
+## Suche & Performance
+
+Die Listen sind fuer grosse Datenmengen optimiert:
+
+- **Server-seitige Suche**: Suchbegriffe werden an das Backend uebergeben (`query`), sodass nur passende Treffer geladen werden.
+- **Infinite Scroll**: Weitere Eintraege werden automatisch beim Scrollen nachgeladen (kein „Mehr laden“-Button).
+- **Zaehler**: Die UI zeigt „geladen von gesamt“, damit du siehst, wie viele Datensaetze bereits geladen sind.
+
 ## Import (globaler Dialog)
 
 Der Import erfolgt zentral über **Importieren** im Topologie-Header. Der Dialog deckt aktuell

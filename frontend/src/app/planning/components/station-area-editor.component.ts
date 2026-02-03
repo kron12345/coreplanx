@@ -70,6 +70,7 @@ export class StationAreaEditorComponent {
   readonly defaultFallback = DEFAULT_FALLBACK;
   readonly numericKeys = ['lat', 'lng'];
   readonly error = signal<string | null>(null);
+  readonly totalCount = this.store.stationAreasTotal;
 
   handleSave(event: EntitySaveEvent): void {
     const core = this.deriveCoreFields(event.payload.values);
@@ -99,6 +100,14 @@ export class StationAreaEditorComponent {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removeStationArea(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMoreStationAreas();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchStationAreas(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

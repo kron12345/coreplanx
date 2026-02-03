@@ -21,12 +21,13 @@ import {
   ImportedRailMlTrain,
   ImportedTemplateStopComparison,
 } from '../../core/services/order.service';
-import { ScheduleTemplateService } from '../../core/services/schedule-template.service';
+import { CreateScheduleTemplateStopPayload, ScheduleTemplateService } from '../../core/services/schedule-template.service';
 import { TrafficPeriodService } from '../../core/services/traffic-period.service';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { ScheduleTemplate } from '../../core/models/schedule-template.model';
 import { BusinessTemplateService } from '../../core/services/business-template.service';
 import { BusinessService } from '../../core/services/business.service';
+import { Router } from '@angular/router';
 import {
   ScheduleTemplateCreateDialogComponent,
   ScheduleTemplateCreateDialogData,
@@ -37,7 +38,7 @@ import {
   PlanAssemblyDialogData,
   PlanAssemblyDialogResult,
 } from './plan-assembly-dialog/plan-assembly-dialog.component';
-import { PlanModificationStopInput } from '../../core/services/train-plan.service';
+import { PlanModificationStopInput, TrainPlanService } from '../../core/services/train-plan.service';
 import { TrainPlanStop } from '../../core/models/train-plan.model';
 import {
   PlanGenerationPreview,
@@ -112,10 +113,12 @@ export class OrderPositionDialogComponent implements OnDestroy {
   private readonly businessService = inject(BusinessService);
   private readonly railmlService = inject(OrderPositionRailmlService);
   private readonly actionsService = inject(OrderPositionDialogActionsService);
+  private readonly trainPlanService = inject(TrainPlanService);
   private readonly compositionFacade = inject(OrderPositionCompositionFacade);
   private readonly simulationFacade = inject(OrderPositionSimulationFacade);
   private readonly templateCalcService = inject(OrderPositionTemplateService);
   private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly assistantUiContext = inject(AssistantUiContextService);
   private readonly previousDocKey = this.assistantUiContext.docKey();
@@ -593,6 +596,61 @@ export class OrderPositionDialogComponent implements OnDestroy {
     });
   }
 
+  async openManualTimetableEditor() {
+    this.errorMessage.set(null);
+    const trainNumber = this.manualPlanForm.controls.trainNumber.value?.trim();
+    if (!trainNumber) {
+      this.manualPlanForm.controls.trainNumber.markAsTouched();
+      this.errorMessage.set('Bitte eine Zugnummer angeben, um den Fahrplan-Editor zu oeffnen.');
+      return;
+    }
+
+    const stops = this.manualAssemblyInputStops();
+    if (!stops.length) {
+      this.errorMessage.set('Bitte zuerst einen Fahrplan zusammenstellen.');
+      return;
+    }
+
+    this.ensureManualTemplateFromStops(stops);
+
+    const stopPayloads = stops.map((stop) => this.trainPlanStopToTemplatePayload(stop));
+    const departure = this.resolveManualEditorDepartureIso();
+    const responsible =
+      this.manualPlanForm.controls.responsible.value?.trim() || 'Manuelle Planung';
+    const title =
+      this.manualPlanForm.controls.name.value?.trim() ||
+      `Manueller Fahrplan ${trainNumber}`;
+    const variantType = this.manualPlanForm.controls.variantType.value ?? 'productive';
+
+    try {
+      const plan = await this.trainPlanService.createManualPlan({
+        title,
+        trainNumber,
+        responsibleRu: responsible,
+        departure,
+        stops: stopPayloads,
+        sourceName: `${title} (Editor)`,
+        composition: this.buildCompositionPayload(),
+        planVariantType: variantType,
+        variantLabel: this.manualPlanForm.controls.variantLabel.value?.trim() || undefined,
+        simulationId: this.manualPlanForm.controls.simulationId.value || undefined,
+        simulationLabel: this.manualPlanForm.controls.simulationLabel.value || undefined,
+      });
+
+      const returnUrl = this.router.url;
+      this.dialogRef.close();
+      const queryParams: Record<string, string> = { returnUrl };
+      if (this.order?.id) {
+        queryParams['orderId'] = this.order.id;
+      }
+      void this.router.navigate(['/fahrplan-editor', plan.id], { queryParams });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Fahrplan konnte nicht erstellt werden.';
+      this.errorMessage.set(message);
+    }
+  }
+
   clearManualTemplate() {
     this.manualTemplate.set(null);
     this.manualStopOptions = [];
@@ -728,6 +786,62 @@ export class OrderPositionDialogComponent implements OnDestroy {
       return this.manualStopsToPlanStops(stops);
     }
     return this.defaultManualStops();
+  }
+
+  private resolveManualEditorDepartureIso(): string {
+    const dates = this.manualPlanForm.controls.calendarDates.value ?? [];
+    const dateIso = dates.length ? [...dates].sort()[0] : new Date().toISOString().slice(0, 10);
+    return `${dateIso}T08:00:00`;
+  }
+
+  private ensureManualTemplateFromStops(stops: TrainPlanStop[]): void {
+    if (this.manualTemplate()) {
+      return;
+    }
+    const templateStops: PlanModificationStopInput[] = stops.map((stop, index) => ({
+      sequence: stop.sequence ?? index + 1,
+      type: stop.type,
+      locationCode: stop.locationCode,
+      locationName: stop.locationName,
+      countryCode: stop.countryCode,
+      arrivalTime: stop.arrivalTime,
+      departureTime: stop.departureTime,
+      arrivalOffsetDays: stop.arrivalOffsetDays,
+      departureOffsetDays: stop.departureOffsetDays,
+      dwellMinutes: stop.dwellMinutes,
+      activities: stop.activities && stop.activities.length ? [...stop.activities] : ['0001'],
+      platform: stop.platform,
+      notes: stop.notes,
+    }));
+    this.manualTemplate.set(templateStops);
+    this.manualStopOptions = this.compositionFacade.stopOptionsFromManual(templateStops);
+    if (this.requiresRollingStock) {
+      this.ensureCompositionSeed();
+    }
+  }
+
+  private trainPlanStopToTemplatePayload(
+    stop: TrainPlanStop,
+  ): CreateScheduleTemplateStopPayload {
+    const arrivalTime = stop.arrivalTime?.trim();
+    const departureTime = stop.departureTime?.trim();
+    const locationName = stop.locationName?.trim() || stop.locationCode?.trim() || 'Unbekannt';
+    const locationCode = stop.locationCode?.trim() || locationName || 'LOC';
+    return {
+      type: stop.type,
+      locationCode,
+      locationName,
+      countryCode: stop.countryCode?.trim() || undefined,
+      arrivalEarliest: arrivalTime || undefined,
+      arrivalLatest: arrivalTime || undefined,
+      departureEarliest: departureTime || undefined,
+      departureLatest: departureTime || undefined,
+      offsetDays: stop.arrivalOffsetDays ?? stop.departureOffsetDays ?? undefined,
+      dwellMinutes: stop.dwellMinutes ?? undefined,
+      activities: stop.activities && stop.activities.length ? [...stop.activities] : ['0001'],
+      platformWish: stop.platform,
+      notes: stop.notes,
+    };
   }
 
   private manualStopsToPlanStops(stops: PlanModificationStopInput[]): TrainPlanStop[] {

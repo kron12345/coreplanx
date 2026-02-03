@@ -119,6 +119,86 @@ export class PlanningRepository {
     return this.masterDataRepository.loadMasterData();
   }
 
+  listOperationalPointsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.masterDataRepository.listOperationalPointsPaged(
+      offset,
+      limit,
+      query,
+    );
+  }
+
+  listOperationalPointsInBounds(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+    limit?: number,
+  ) {
+    return this.masterDataRepository.listOperationalPointsInBounds(
+      minLat,
+      minLng,
+      maxLat,
+      maxLng,
+      limit,
+    );
+  }
+
+  listOperationalPointsByIds(ids: string[]) {
+    return this.masterDataRepository.listOperationalPointsByIds(ids);
+  }
+
+  listSectionsOfLinePaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.masterDataRepository.listSectionsOfLinePaged(
+      offset,
+      limit,
+      query,
+    );
+  }
+
+  listStationAreasPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.masterDataRepository.listStationAreasPaged(
+      offset,
+      limit,
+      query,
+    );
+  }
+
+  listTracksPaged(offset: number, limit: number, query?: string | null) {
+    return this.masterDataRepository.listTracksPaged(offset, limit, query);
+  }
+
+  listPlatformEdgesPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.masterDataRepository.listPlatformEdgesPaged(
+      offset,
+      limit,
+      query,
+    );
+  }
+
+  listPlatformsPaged(offset: number, limit: number, query?: string | null) {
+    return this.masterDataRepository.listPlatformsPaged(offset, limit, query);
+  }
+
+  listSidingsPaged(offset: number, limit: number, query?: string | null) {
+    return this.masterDataRepository.listSidingsPaged(offset, limit, query);
+  }
+
   replacePersonnelServicePools(items: PersonnelServicePool[]): Promise<void> {
     return this.masterDataRepository.replacePersonnelServicePools(items);
   }

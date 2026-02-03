@@ -122,7 +122,11 @@ export interface AttributeActionEvent {
 export class AttributeEntityEditorComponent implements OnDestroy {
   private readonly entitySignal = signal<AttributeEntityRecord[]>([]);
   private readonly draftSignal = signal<AttributeEntityRecord[]>([]);
+  private readonly totalCountSignal = signal<number | null>(null);
   private listLimitValue = 2000;
+  private searchDebounce: ReturnType<typeof setTimeout> | null = null;
+  private autoLoadCooldown: ReturnType<typeof setTimeout> | null = null;
+  private autoLoadLocked = false;
 
   @Input() title = 'Attribute';
   @Input({ alias: 'entities' })
@@ -136,15 +140,31 @@ export class AttributeEntityEditorComponent implements OnDestroy {
     this.listLimitValue = next;
     this.visibleLimit.set(next);
   }
+  @Input()
+  set totalCount(value: number | null | undefined) {
+    if (typeof value === 'number' && value >= 0) {
+      this.totalCountSignal.set(value);
+    } else {
+      this.totalCountSignal.set(null);
+    }
+  }
   readonly entities = this.entitySignal.asReadonly();
   readonly combinedEntities = computed<AttributeEntityRecord[]>(() => [
     ...this.draftSignal(),
     ...this.entitySignal(),
   ]);
+  readonly loadedCount = computed(() => this.entitySignal().length);
   readonly searchTerm = signal('');
   readonly showFilters = signal(false);
   readonly filterValues = signal<Partial<Record<string, string[]>>>({});
   readonly activeFilters = signal<Partial<Record<string, string[]>>>({});
+  readonly isFiltering = computed(() => {
+    const query = this.searchTerm().trim();
+    const filters = this.activeFilters();
+    const hasQuery = query.length > 0;
+    const hasFilters = Object.keys(filters).length > 0;
+    return (hasQuery && !this.serverSearch) || hasFilters;
+  });
   readonly sortKey = signal('name');
   readonly sortDirection = signal<'asc' | 'desc'>('asc');
   readonly detailDirty = signal(false);
@@ -184,6 +204,7 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   @Input() requiredKeys: string[] | null = null;
   @Input() numericKeys: string[] = [];
   @Input() actionKeys: string[] = [];
+  @Input() serverSearch = false;
   @Input() presets: AttributeBulkPreset[] = [];
   @Input() detailError: string | null = null;
   @Input() groupedEntities: AttributeEntityGroup[] | null = null;
@@ -195,6 +216,8 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   @Output() readonly deleteEntities = new EventEmitter<string[]>();
   @Output() readonly bulkApply = new EventEmitter<BulkApplyEvent>();
   @Output() readonly actionTriggered = new EventEmitter<AttributeActionEvent>();
+  @Output() readonly loadMore = new EventEmitter<void>();
+  @Output() readonly searchChanged = new EventEmitter<string>();
 
   readonly selectedIds = signal<string[]>([]);
   readonly selectedId = signal<string | null>(null);
@@ -274,9 +297,27 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   readonly limitedEntities = computed(() =>
     this.filteredEntities().slice(0, this.visibleLimit()),
   );
-  readonly hasMore = computed(
-    () => this.filteredEntities().length > this.visibleLimit(),
-  );
+  readonly hasMore = computed(() => {
+    const total = this.totalCountSignal();
+    if (total !== null && !this.isFiltering()) {
+      return this.loadedCount() < total;
+    }
+    return this.filteredEntities().length > this.visibleLimit();
+  });
+  readonly totalAvailable = computed(() => {
+    const total = this.totalCountSignal();
+    if (total === null || this.isFiltering()) {
+      return this.filteredEntities().length;
+    }
+    return total;
+  });
+  readonly headerCountLabel = computed(() => {
+    const total = this.totalAvailable();
+    if (this.totalCountSignal() !== null && !this.isFiltering()) {
+      return `${this.loadedCount()} von ${total} Einträgen`;
+    }
+    return `${total} Einträge`;
+  });
   private readonly resetVisibleOnFilter = effect(() => {
     this.searchTerm();
     this.activeFilters();
@@ -620,7 +661,41 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   }
 
   showMore(): void {
+    if (this.shouldRequestMore()) {
+      this.loadMore.emit();
+    }
     this.visibleLimit.update((current) => current + this.listLimitValue);
+  }
+
+  onSearchChange(value: string): void {
+    this.searchTerm.set(value);
+    if (this.searchDebounce) {
+      clearTimeout(this.searchDebounce);
+    }
+    this.searchDebounce = setTimeout(() => {
+      this.searchChanged.emit(this.searchTerm().trim());
+    }, 250);
+  }
+
+  onVirtualScroll(index: number): void {
+    if (!this.hasMore()) {
+      return;
+    }
+    const remaining = this.limitedEntities().length - index;
+    if (remaining > 24) {
+      return;
+    }
+    if (this.autoLoadLocked) {
+      return;
+    }
+    this.autoLoadLocked = true;
+    this.showMore();
+    if (this.autoLoadCooldown) {
+      clearTimeout(this.autoLoadCooldown);
+    }
+    this.autoLoadCooldown = setTimeout(() => {
+      this.autoLoadLocked = false;
+    }, 400);
   }
 
   filterValuesFor(key: string): string[] {
@@ -689,6 +764,17 @@ export class AttributeEntityEditorComponent implements OnDestroy {
     return `__draft-${uid()}`;
   }
 
+  private shouldRequestMore(): boolean {
+    const total = this.totalCountSignal();
+    if (total === null) {
+      return false;
+    }
+    if (this.isFiltering()) {
+      return false;
+    }
+    return this.loadedCount() < total;
+  }
+
   private removeDrafts(ids: string[]): void {
     this.draftSignal.update((current) => current.filter((draft) => !ids.includes(draft.id)));
   }
@@ -704,6 +790,12 @@ export class AttributeEntityEditorComponent implements OnDestroy {
   ngOnDestroy(): void {
     if (this.bulkFeedbackTimeout) {
       clearTimeout(this.bulkFeedbackTimeout);
+    }
+    if (this.searchDebounce) {
+      clearTimeout(this.searchDebounce);
+    }
+    if (this.autoLoadCooldown) {
+      clearTimeout(this.autoLoadCooldown);
     }
   }
 

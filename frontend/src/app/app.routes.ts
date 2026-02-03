@@ -70,6 +70,15 @@ export const routes: Routes = [
     ],
   },
   {
+    path: 'fahrplan-editor/:planId',
+    loadComponent: () =>
+      import('./features/timetable-editor/timetable-editor.component').then(
+        (m) => m.TimetableEditorComponent,
+      ),
+    title: 'Fahrplan-Editor',
+    data: { section: 'manager' },
+  },
+  {
     path: 'plans',
     component: ArchivePageComponent,
     title: 'Fahrplanarchiv',

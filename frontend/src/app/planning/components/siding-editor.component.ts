@@ -82,6 +82,7 @@ export class SidingEditorComponent {
   readonly defaultFallback = DEFAULT_FALLBACK;
   readonly numericKeys = ['lengthMeters'];
   readonly error = signal<string | null>(null);
+  readonly totalCount = this.store.sidingsTotal;
 
   handleSave(event: EntitySaveEvent): void {
     const core = this.deriveCoreFields(event.payload.values);
@@ -118,6 +119,14 @@ export class SidingEditorComponent {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removeSiding(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMoreSidings();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchSidings(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

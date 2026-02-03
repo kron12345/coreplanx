@@ -312,6 +312,24 @@ export class TrainPlanService {
     return this.planIndex().get(id);
   }
 
+  async savePlan(plan: TrainPlan): Promise<TrainPlan | null> {
+    try {
+      const saved = await firstValueFrom(this.api.upsertPlan(plan));
+      this._plans.update((plans) => {
+        const hasEntry = plans.some((entry) => entry.id === saved.id);
+        if (!hasEntry) {
+          return [saved, ...plans];
+        }
+        return plans.map((entry) => (entry.id === saved.id ? saved : entry));
+      });
+      return saved;
+    } catch (error) {
+      console.warn('[TrainPlanService] Failed to save plan', error);
+      this.errorSignal.set('Fahrplan konnte nicht gespeichert werden.');
+      return null;
+    }
+  }
+
   private async persistPlans(plans: TrainPlan[]): Promise<void> {
     try {
       await Promise.all(plans.map((plan) => firstValueFrom(this.api.upsertPlan(plan))));

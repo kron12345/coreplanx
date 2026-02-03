@@ -1,7 +1,7 @@
 import type { ActivityCatalogOption } from './planning-dashboard.types';
 import { Activity, ActivityParticipantRole } from '../../models/activity';
 import { ActivityLinkRole } from './activity-link-role-dialog.component';
-import { Resource } from '../../models/resource';
+import { Resource, ResourceKind } from '../../models/resource';
 import { ActivityParticipant } from '../../models/activity';
 
 export function defaultTemplatePeriod(bounds: { startIso: string; endIso: string }) {
@@ -198,7 +198,24 @@ export function buildActivityTitle(label?: string | null): string {
 
 export function definitionAppliesToResource(option: ActivityCatalogOption, resource: Resource): boolean {
   const relevant = option.relevantFor ?? [];
-  return relevant.length ? relevant.includes(resource.kind) : true;
+  if (!relevant.length) {
+    return true;
+  }
+  if (relevant.includes(resource.kind)) {
+    return true;
+  }
+  const fallback = fallbackResourceKind(resource.kind);
+  return fallback ? relevant.includes(fallback) : false;
+}
+
+function fallbackResourceKind(kind: ResourceKind): ResourceKind | null {
+  if (kind === 'vehicle-service') {
+    return 'vehicle';
+  }
+  if (kind === 'personnel-service') {
+    return 'personnel';
+  }
+  return null;
 }
 
 export function resolveActivityTypeForResource(

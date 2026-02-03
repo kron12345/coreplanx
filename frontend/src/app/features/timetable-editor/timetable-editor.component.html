@@ -1,0 +1,103 @@
+<section class="timetable-editor">
+  <header class="editor-header">
+    <div class="editor-title">
+      <h1>Fahrplan-Editor</h1>
+      @if (plan(); as plan) {
+        <p>
+          Zug {{ plan.trainNumber }} · {{ plan.title }}
+          @if (plan.responsibleRu) {
+            · {{ plan.responsibleRu }}
+          }
+        </p>
+      }
+      @if (orderId() || itemId()) {
+        <small>
+          @if (orderId()) {
+            Auftrag {{ orderId() }}
+          }
+          @if (itemId()) {
+            · Position {{ itemId() }}
+          }
+        </small>
+      }
+    </div>
+    <div class="editor-status">
+      @switch (saveState()) {
+        @case ('saving') {
+          <span class="status saving">Speichern…</span>
+        }
+        @case ('saved') {
+          <span class="status saved">Gespeichert</span>
+        }
+        @case ('error') {
+          <span class="status error">Speicherfehler</span>
+        }
+        @default {
+          <span class="status idle">Entwurf</span>
+        }
+      }
+      @if (lastSavedIso()) {
+        <small>Letztes Update: {{ lastSavedIso() | date: 'short' }}</small>
+      }
+    </div>
+    <div class="editor-actions">
+      <button mat-stroked-button type="button" (click)="navigateBack()">Zurück</button>
+      <button mat-flat-button color="primary" type="button" (click)="applyAndReturn()" [disabled]="!hasPlan()">Übernehmen</button>
+    </div>
+  </header>
+
+  <div class="editor-stepper">
+    <button
+      mat-stroked-button
+      type="button"
+      class="stepper-step"
+      [class.is-active]="activeStep() === 'route'"
+      (click)="setStep('route')"
+    >
+      1 · Route Builder
+    </button>
+    <div class="stepper-line"></div>
+    <button
+      mat-stroked-button
+      type="button"
+      class="stepper-step"
+      [class.is-active]="activeStep() === 'timing'"
+      [disabled]="!canProceedToTiming()"
+      (click)="setStep('timing')"
+    >
+      2 · Timing Editor
+    </button>
+    <div class="stepper-actions">
+      @if (activeStep() === 'route') {
+        <button mat-flat-button color="primary" type="button" (click)="goToTiming()" [disabled]="!canProceedToTiming()">
+          Weiter → Timing Editor
+        </button>
+      } @else {
+        <button mat-stroked-button type="button" (click)="goToRoute()">← Zurück zum Route Builder</button>
+      }
+    </div>
+  </div>
+
+  <div class="editor-body">
+    @if (loading()) {
+      <p class="hint">Lade Fahrplan…</p>
+    } @else if (error()) {
+      <p class="error">{{ error() }}</p>
+    } @else {
+      @if (activeStep() === 'route') {
+        <app-timetable-route-builder
+          [draft]="routeDraft()"
+          (draftChange)="onRouteDraftChange($event)"
+        ></app-timetable-route-builder>
+      } @else {
+        <app-timetable-timing-editor
+          [routeDraft]="routeDraft()"
+          [timetableDraft]="timetableDraft()"
+          [patternDefinition]="patternDefinition()"
+          (timetableDraftChange)="onTimetableDraftChange($event)"
+          (patternDefinitionChange)="onPatternChange($event)"
+        ></app-timetable-timing-editor>
+      }
+    }
+  </div>
+</section>

@@ -139,4 +139,68 @@ export class PlanningMasterDataRepository {
   replaceTransferEdges(items: TransferEdge[]): Promise<void> {
     return this.writeRepository.replaceTransferEdges(items);
   }
+
+  listOperationalPointsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.readRepository.listOperationalPointsPaged(offset, limit, query);
+  }
+
+  listOperationalPointsInBounds(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+    limit?: number,
+  ) {
+    return this.readRepository.listOperationalPointsInBounds(
+      minLat,
+      minLng,
+      maxLat,
+      maxLng,
+      limit,
+    );
+  }
+
+  listOperationalPointsByIds(ids: string[]) {
+    return this.readRepository.listOperationalPointsByIds(ids);
+  }
+
+  listSectionsOfLinePaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.readRepository.listSectionsOfLinePaged(offset, limit, query);
+  }
+
+  listStationAreasPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.readRepository.listStationAreasPaged(offset, limit, query);
+  }
+
+  listTracksPaged(offset: number, limit: number, query?: string | null) {
+    return this.readRepository.listTracksPaged(offset, limit, query);
+  }
+
+  listPlatformEdgesPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ) {
+    return this.readRepository.listPlatformEdgesPaged(offset, limit, query);
+  }
+
+  listPlatformsPaged(offset: number, limit: number, query?: string | null) {
+    return this.readRepository.listPlatformsPaged(offset, limit, query);
+  }
+
+  listSidingsPaged(offset: number, limit: number, query?: string | null) {
+    return this.readRepository.listSidingsPaged(offset, limit, query);
+  }
 }

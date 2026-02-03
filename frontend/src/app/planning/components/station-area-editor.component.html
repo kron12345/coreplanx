@@ -3,13 +3,17 @@
     [title]="'Station Areas'"
     [entities]="entityRecords()"
     [listLimit]="500"
+    [totalCount]="totalCount()"
     [attributeDefinitions]="attributeDefinitions()"
     [defaultFallbackValues]="defaultFallback"
     [numericKeys]="numericKeys"
+    [serverSearch]="true"
     [selectOptions]="selectOptions()"
     [detailError]="error()"
     (saveEntity)="handleSave($event)"
     (deleteEntities)="handleDelete($event)"
     (bulkApply)="handleBulkApply($event)"
+    (loadMore)="loadMore()"
+    (searchChanged)="handleSearch($event)"
   />
 </section>

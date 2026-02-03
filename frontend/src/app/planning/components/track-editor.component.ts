@@ -67,6 +67,7 @@ export class TrackEditorComponent {
 
   readonly defaultFallback = DEFAULT_FALLBACK;
   readonly error = signal<string | null>(null);
+  readonly totalCount = this.store.tracksTotal;
 
   handleSave(event: EntitySaveEvent): void {
     const core = this.deriveCoreFields(event.payload.values);
@@ -96,6 +97,14 @@ export class TrackEditorComponent {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removeTrack(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMoreTracks();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchTracks(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

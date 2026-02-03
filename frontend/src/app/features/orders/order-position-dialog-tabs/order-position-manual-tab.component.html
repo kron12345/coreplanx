@@ -4,8 +4,12 @@
       <mat-icon>alt_route</mat-icon>
       Fahrplan zusammenstellen
     </button>
+    <button mat-stroked-button type="button" (click)="openTimetableEditorRequested.emit()">
+      <mat-icon>open_in_new</mat-icon>
+      Fahrplan-Editor oeffnen
+    </button>
     <p class="hint">
-      Stelle den Fahrplan direkt zusammen und wähle anschließend die Fahrtage.
+      Stelle den Fahrplan direkt zusammen oder starte im Fahrplan-Editor (Vollseite).
     </p>
   </div>
 
@@ -98,4 +102,3 @@
     ></app-vehicle-composition-form>
   </form>
 </div>
-

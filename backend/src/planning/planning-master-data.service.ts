@@ -8,9 +8,11 @@ import type {
   OperationalPoint,
   OperationalPointListRequest,
   OperationalPointListResponse,
+  OperationalPointBoundsRequest,
   OpReplacementStopLink,
   OpReplacementStopLinkListRequest,
   OpReplacementStopLinkListResponse,
+  PagedResponse,
   Platform,
   PlatformListRequest,
   PlatformListResponse,
@@ -263,6 +265,64 @@ export class PlanningMasterDataService implements OnModuleInit {
     );
   }
 
+  async listOperationalPointsInBounds(
+    request: OperationalPointBoundsRequest,
+  ): Promise<OperationalPointListResponse> {
+    const { minLat, minLng, maxLat, maxLng, limit } = request;
+    if (this.usingDatabase) {
+      return this.repository.listOperationalPointsInBounds(
+        minLat,
+        minLng,
+        maxLat,
+        maxLng,
+        limit,
+      );
+    }
+    const filtered = this.operationalPoints.filter((op) => {
+      const pos = op.position;
+      if (!pos) {
+        return false;
+      }
+      return pos.lat >= minLat && pos.lat <= maxLat && pos.lng >= minLng && pos.lng <= maxLng;
+    });
+    return filtered
+      .slice(0, Math.max(1, limit ?? 2000))
+      .map((point) => this.cloneOperationalPoint(point));
+  }
+
+  async listOperationalPointsByIds(
+    ids: string[],
+  ): Promise<OperationalPointListResponse> {
+    const uniqueIds = Array.from(new Set((ids ?? []).filter((id) => id)));
+    if (!uniqueIds.length) {
+      return [];
+    }
+    if (this.usingDatabase) {
+      return this.repository.listOperationalPointsByIds(uniqueIds);
+    }
+    const lookup = new Set(uniqueIds);
+    return this.operationalPoints
+      .filter((op) => lookup.has(op.uniqueOpId))
+      .map((point) => this.cloneOperationalPoint(point));
+  }
+
+  async listOperationalPointsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<OperationalPoint>> {
+    if (this.usingDatabase) {
+      return this.repository.listOperationalPointsPaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.operationalPoints,
+      offset,
+      limit,
+      query,
+      (item) => [item.name, item.uniqueOpId, item.opId],
+    );
+  }
+
   async saveOperationalPoints(
     request?: OperationalPointListRequest,
   ): Promise<OperationalPointListResponse> {
@@ -279,6 +339,23 @@ export class PlanningMasterDataService implements OnModuleInit {
   listSectionsOfLine(): SectionOfLineListResponse {
     return this.sectionsOfLine.map((section) =>
       this.cloneSectionOfLine(section),
+    );
+  }
+
+  async listSectionsOfLinePaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<SectionOfLine>> {
+    if (this.usingDatabase) {
+      return this.repository.listSectionsOfLinePaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.sectionsOfLine,
+      offset,
+      limit,
+      query,
+      (item) => [item.solId, item.startUniqueOpId, item.endUniqueOpId],
     );
   }
 
@@ -299,6 +376,23 @@ export class PlanningMasterDataService implements OnModuleInit {
     return this.stationAreas.map((area) => this.cloneStationArea(area));
   }
 
+  async listStationAreasPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<StationArea>> {
+    if (this.usingDatabase) {
+      return this.repository.listStationAreasPaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.stationAreas,
+      offset,
+      limit,
+      query,
+      (item) => [item.name ?? '', item.stationAreaId, item.uniqueOpId ?? ''],
+    );
+  }
+
   async saveStationAreas(
     request?: StationAreaListRequest,
   ): Promise<StationAreaListResponse> {
@@ -314,6 +408,23 @@ export class PlanningMasterDataService implements OnModuleInit {
     return this.tracks.map((track) => this.cloneTrack(track));
   }
 
+  async listTracksPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Track>> {
+    if (this.usingDatabase) {
+      return this.repository.listTracksPaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.tracks,
+      offset,
+      limit,
+      query,
+      (item) => [item.trackId ?? '', item.trackKey, item.uniqueOpId ?? ''],
+    );
+  }
+
   async saveTracks(request?: TrackListRequest): Promise<TrackListResponse> {
     const incoming = request?.items ?? [];
     this.tracks = incoming.map((track) => this.cloneTrack(track));
@@ -325,6 +436,23 @@ export class PlanningMasterDataService implements OnModuleInit {
 
   listPlatformEdges(): PlatformEdgeListResponse {
     return this.platformEdges.map((edge) => this.clonePlatformEdge(edge));
+  }
+
+  async listPlatformEdgesPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<PlatformEdge>> {
+    if (this.usingDatabase) {
+      return this.repository.listPlatformEdgesPaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.platformEdges,
+      offset,
+      limit,
+      query,
+      (item) => [item.platformEdgeId, item.platformId ?? '', item.trackKey ?? ''],
+    );
   }
 
   async savePlatformEdges(
@@ -342,6 +470,23 @@ export class PlanningMasterDataService implements OnModuleInit {
     return this.platforms.map((platform) => this.clonePlatform(platform));
   }
 
+  async listPlatformsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Platform>> {
+    if (this.usingDatabase) {
+      return this.repository.listPlatformsPaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.platforms,
+      offset,
+      limit,
+      query,
+      (item) => [item.platformKey, item.platformId ?? '', item.uniqueOpId ?? '', item.name ?? ''],
+    );
+  }
+
   async savePlatforms(
     request?: PlatformListRequest,
   ): Promise<PlatformListResponse> {
@@ -355,6 +500,23 @@ export class PlanningMasterDataService implements OnModuleInit {
 
   listSidings(): SidingListResponse {
     return this.sidings.map((siding) => this.cloneSiding(siding));
+  }
+
+  async listSidingsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Siding>> {
+    if (this.usingDatabase) {
+      return this.repository.listSidingsPaged(offset, limit, query);
+    }
+    return this.pageLocalCollection(
+      this.sidings,
+      offset,
+      limit,
+      query,
+      (item) => [item.sidingKey, item.sidingId ?? '', item.uniqueOpId ?? ''],
+    );
   }
 
   async saveSidings(request?: SidingListRequest): Promise<SidingListResponse> {
@@ -1750,6 +1912,32 @@ export class PlanningMasterDataService implements OnModuleInit {
     return {
       ...siding,
       attributes: this.cloneTopologyAttributes(siding.attributes),
+    };
+  }
+
+  private pageLocalCollection<T>(
+    items: T[],
+    offset: number,
+    limit: number,
+    query: string | null | undefined,
+    toSearchFields: (item: T) => string[],
+  ): PagedResponse<T> {
+    const safeOffset = Math.max(0, offset);
+    const safeLimit = Math.max(1, Math.min(limit, 2000));
+    const trimmed = `${query ?? ''}`.trim().toLowerCase();
+    const filtered = trimmed
+      ? items.filter((item) =>
+          toSearchFields(item).some((value) =>
+            `${value ?? ''}`.toLowerCase().includes(trimmed),
+          ),
+        )
+      : items;
+    const slice = filtered.slice(safeOffset, safeOffset + safeLimit);
+    return {
+      items: slice.map((item) => structuredClone(item)),
+      total: filtered.length,
+      offset: safeOffset,
+      limit: safeLimit,
     };
   }
 

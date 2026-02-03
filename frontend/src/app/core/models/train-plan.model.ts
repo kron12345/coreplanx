@@ -1,4 +1,5 @@
 import type { TimetableRollingStock } from './timetable.model';
+import type { TimetableDraftBundle } from './timetable-draft.model';
 
 export type TrainPlanStatus =
   | 'not_ordered'
@@ -59,6 +60,7 @@ export interface TrainPlanRouteMetadata {
   originBorderPoint?: string;
   destinationBorderPoint?: string;
   borderNotes?: string;
+  timetableDrafts?: TimetableDraftBundle;
 }
 
 export interface TrainPlanCaseReference {

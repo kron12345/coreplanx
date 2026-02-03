@@ -1,4 +1,4 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { Injectable, Signal, WritableSignal, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, forkJoin, Observable } from 'rxjs';
 import {
   OperationalPoint,
@@ -15,6 +15,7 @@ import {
   OpReplacementStopLink,
   TransferEdge,
   TransferNode,
+  PagedResponse,
   PlanningEntitySignals,
 } from './planning-types';
 import { TopologyApiService } from '../planning/topology-api.service';
@@ -41,6 +42,22 @@ export class PlanningStoreService {
     opReplacementStopLinks: signal<OpReplacementStopLink[]>([]),
     transferEdges: signal<TransferEdge[]>([]),
   };
+  private readonly topologyPageSize = 500;
+  private readonly topologyInitialized = signal(false);
+  private readonly operationalPointsTotalSignal = signal(0);
+  private readonly sectionsOfLineTotalSignal = signal(0);
+  private readonly stationAreasTotalSignal = signal(0);
+  private readonly tracksTotalSignal = signal(0);
+  private readonly platformEdgesTotalSignal = signal(0);
+  private readonly platformsTotalSignal = signal(0);
+  private readonly sidingsTotalSignal = signal(0);
+  private readonly operationalPointsQuerySignal = signal<string | null>(null);
+  private readonly sectionsOfLineQuerySignal = signal<string | null>(null);
+  private readonly stationAreasQuerySignal = signal<string | null>(null);
+  private readonly tracksQuerySignal = signal<string | null>(null);
+  private readonly platformEdgesQuerySignal = signal<string | null>(null);
+  private readonly platformsQuerySignal = signal<string | null>(null);
+  private readonly sidingsQuerySignal = signal<string | null>(null);
   private readonly initialized = signal(false);
   private readonly loadingSignal = signal(false);
   private readonly syncErrorSignal = signal<string | null>(null);
@@ -60,6 +77,13 @@ export class PlanningStoreService {
   readonly transferEdges = this.entities.transferEdges.asReadonly();
   readonly loading = this.loadingSignal.asReadonly();
   readonly syncError = this.syncErrorSignal.asReadonly();
+  readonly operationalPointsTotal = this.operationalPointsTotalSignal.asReadonly();
+  readonly sectionsOfLineTotal = this.sectionsOfLineTotalSignal.asReadonly();
+  readonly stationAreasTotal = this.stationAreasTotalSignal.asReadonly();
+  readonly tracksTotal = this.tracksTotalSignal.asReadonly();
+  readonly platformEdgesTotal = this.platformEdgesTotalSignal.asReadonly();
+  readonly platformsTotal = this.platformsTotalSignal.asReadonly();
+  readonly sidingsTotal = this.sidingsTotalSignal.asReadonly();
 
   readonly operationalPointMap: Signal<Map<string, OperationalPoint>> = computed(() => {
     return new Map(this.operationalPoints().map((op) => [op.uniqueOpId, op]));
@@ -72,6 +96,12 @@ export class PlanningStoreService {
   ensureInitialized(): void {
     if (!this.initialized()) {
       void this.refreshAllFromApi();
+    }
+  }
+
+  ensureTopologyInitialized(): void {
+    if (!this.topologyInitialized()) {
+      void this.refreshTopologyFromApi();
     }
   }
 
@@ -109,9 +139,69 @@ export class PlanningStoreService {
       this.setOpReplacementStopLinks(data.opReplacementStopLinks ?? []);
       this.setTransferEdges(data.transferEdges ?? []);
       this.initialized.set(true);
+      this.topologyInitialized.set(true);
       this.syncErrorSignal.set(null);
     } catch (error) {
       console.error('[PlanningStoreService] Failed to load topology data', error);
+      this.syncErrorSignal.set(error instanceof Error ? error.message : String(error));
+    } finally {
+      this.loadingSignal.set(false);
+    }
+  }
+
+  async refreshTopologyFromApi(): Promise<void> {
+    this.loadingSignal.set(true);
+    try {
+      this.resetTopologyQueries();
+      const pageSize = this.topologyPageSize;
+      const data = await firstValueFrom(
+        forkJoin({
+          operationalPoints: this.api.listOperationalPointsPaged(0, pageSize),
+          sectionsOfLine: this.api.listSectionsOfLinePaged(0, pageSize),
+          stationAreas: this.api.listStationAreasPaged(0, pageSize),
+          tracks: this.api.listTracksPaged(0, pageSize),
+          platformEdges: this.api.listPlatformEdgesPaged(0, pageSize),
+          platforms: this.api.listPlatformsPaged(0, pageSize),
+          sidings: this.api.listSidingsPaged(0, pageSize),
+          personnelSites: this.api.listPersonnelSites(),
+          replacementStops: this.api.listReplacementStops(),
+          replacementRoutes: this.api.listReplacementRoutes(),
+          replacementEdges: this.api.listReplacementEdges(),
+          opReplacementStopLinks: this.api.listOpReplacementStopLinks(),
+          transferEdges: this.api.listTransferEdges(),
+        }),
+      );
+      this.applyPagedResponse(data.operationalPoints, (items, total) =>
+        this.setOperationalPoints(items, total),
+      );
+      this.applyPagedResponse(data.sectionsOfLine, (items, total) =>
+        this.setSectionsOfLine(items, total),
+      );
+      this.applyPagedResponse(data.stationAreas, (items, total) =>
+        this.setStationAreas(items, total),
+      );
+      this.applyPagedResponse(data.tracks, (items, total) =>
+        this.setTracks(items, total),
+      );
+      this.applyPagedResponse(data.platformEdges, (items, total) =>
+        this.setPlatformEdges(items, total),
+      );
+      this.applyPagedResponse(data.platforms, (items, total) =>
+        this.setPlatforms(items, total),
+      );
+      this.applyPagedResponse(data.sidings, (items, total) =>
+        this.setSidings(items, total),
+      );
+      this.setPersonnelSites(data.personnelSites ?? []);
+      this.setReplacementStops(data.replacementStops ?? []);
+      this.setReplacementRoutes(data.replacementRoutes ?? []);
+      this.setReplacementEdges(data.replacementEdges ?? []);
+      this.setOpReplacementStopLinks(data.opReplacementStopLinks ?? []);
+      this.setTransferEdges(data.transferEdges ?? []);
+      this.topologyInitialized.set(true);
+      this.syncErrorSignal.set(null);
+    } catch (error) {
+      console.error('[PlanningStoreService] Failed to load paged topology data', error);
       this.syncErrorSignal.set(error instanceof Error ? error.message : String(error));
     } finally {
       this.loadingSignal.set(false);
@@ -184,12 +274,160 @@ export class PlanningStoreService {
     );
   }
 
+  async loadMoreOperationalPoints(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.operationalPoints(),
+      this.operationalPointsTotalSignal,
+      this.operationalPointsQuerySignal,
+      (offset, limit, query) => this.api.listOperationalPointsPaged(offset, limit, query),
+      (items, total) => this.setOperationalPoints(items, total),
+      'operational points',
+    );
+  }
+
+  async loadMoreSectionsOfLine(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.sectionsOfLine(),
+      this.sectionsOfLineTotalSignal,
+      this.sectionsOfLineQuerySignal,
+      (offset, limit, query) => this.api.listSectionsOfLinePaged(offset, limit, query),
+      (items, total) => this.setSectionsOfLine(items, total),
+      'sections of line',
+    );
+  }
+
+  async loadMoreStationAreas(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.stationAreas(),
+      this.stationAreasTotalSignal,
+      this.stationAreasQuerySignal,
+      (offset, limit, query) => this.api.listStationAreasPaged(offset, limit, query),
+      (items, total) => this.setStationAreas(items, total),
+      'station areas',
+    );
+  }
+
+  async loadMoreTracks(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.tracks(),
+      this.tracksTotalSignal,
+      this.tracksQuerySignal,
+      (offset, limit, query) => this.api.listTracksPaged(offset, limit, query),
+      (items, total) => this.setTracks(items, total),
+      'tracks',
+    );
+  }
+
+  async loadMorePlatformEdges(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.platformEdges(),
+      this.platformEdgesTotalSignal,
+      this.platformEdgesQuerySignal,
+      (offset, limit, query) => this.api.listPlatformEdgesPaged(offset, limit, query),
+      (items, total) => this.setPlatformEdges(items, total),
+      'platform edges',
+    );
+  }
+
+  async loadMorePlatforms(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.platforms(),
+      this.platformsTotalSignal,
+      this.platformsQuerySignal,
+      (offset, limit, query) => this.api.listPlatformsPaged(offset, limit, query),
+      (items, total) => this.setPlatforms(items, total),
+      'platforms',
+    );
+  }
+
+  async loadMoreSidings(): Promise<void> {
+    await this.loadMorePagedEntity(
+      () => this.entities.sidings(),
+      this.sidingsTotalSignal,
+      this.sidingsQuerySignal,
+      (offset, limit, query) => this.api.listSidingsPaged(offset, limit, query),
+      (items, total) => this.setSidings(items, total),
+      'sidings',
+    );
+  }
+
+  async searchOperationalPoints(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.operationalPointsQuerySignal,
+      (offset, limit, term) => this.api.listOperationalPointsPaged(offset, limit, term),
+      (items, total) => this.setOperationalPoints(items, total),
+      query,
+      'operational points',
+    );
+  }
+
+  async searchSectionsOfLine(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.sectionsOfLineQuerySignal,
+      (offset, limit, term) => this.api.listSectionsOfLinePaged(offset, limit, term),
+      (items, total) => this.setSectionsOfLine(items, total),
+      query,
+      'sections of line',
+    );
+  }
+
+  async searchStationAreas(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.stationAreasQuerySignal,
+      (offset, limit, term) => this.api.listStationAreasPaged(offset, limit, term),
+      (items, total) => this.setStationAreas(items, total),
+      query,
+      'station areas',
+    );
+  }
+
+  async searchTracks(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.tracksQuerySignal,
+      (offset, limit, term) => this.api.listTracksPaged(offset, limit, term),
+      (items, total) => this.setTracks(items, total),
+      query,
+      'tracks',
+    );
+  }
+
+  async searchPlatformEdges(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.platformEdgesQuerySignal,
+      (offset, limit, term) => this.api.listPlatformEdgesPaged(offset, limit, term),
+      (items, total) => this.setPlatformEdges(items, total),
+      query,
+      'platform edges',
+    );
+  }
+
+  async searchPlatforms(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.platformsQuerySignal,
+      (offset, limit, term) => this.api.listPlatformsPaged(offset, limit, term),
+      (items, total) => this.setPlatforms(items, total),
+      query,
+      'platforms',
+    );
+  }
+
+  async searchSidings(query: string): Promise<void> {
+    await this.searchPagedEntity(
+      this.sidingsQuerySignal,
+      (offset, limit, term) => this.api.listSidingsPaged(offset, limit, term),
+      (items, total) => this.setSidings(items, total),
+      query,
+      'sidings',
+    );
+  }
+
   addOperationalPoint(op: OperationalPoint): void {
     this.assertUniqueOpId(op.uniqueOpId, op.opId);
     this.entities.operationalPoints.update((list) => [
       ...list,
       this.withAudit(op, true),
     ]);
+    this.operationalPointsTotalSignal.set(this.entities.operationalPoints().length);
     this.persistOperationalPoints();
   }
 
@@ -269,6 +507,13 @@ export class PlanningStoreService {
       list.filter((edge) => !this.transferNodeMatches(edge.from, { kind: 'OP', uniqueOpId: uniqueId })
         && !this.transferNodeMatches(edge.to, { kind: 'OP', uniqueOpId: uniqueId })),
     );
+    this.operationalPointsTotalSignal.set(this.entities.operationalPoints().length);
+    this.sectionsOfLineTotalSignal.set(this.entities.sectionsOfLine().length);
+    this.stationAreasTotalSignal.set(this.entities.stationAreas().length);
+    this.tracksTotalSignal.set(this.entities.tracks().length);
+    this.platformEdgesTotalSignal.set(this.entities.platformEdges().length);
+    this.platformsTotalSignal.set(this.entities.platforms().length);
+    this.sidingsTotalSignal.set(this.entities.sidings().length);
     this.persistOperationalPoints();
     this.persistSectionsOfLine();
     this.persistStationAreas();
@@ -289,6 +534,7 @@ export class PlanningStoreService {
       throw new Error('Section of line cannot start and end at the same operational point.');
     }
     this.entities.sectionsOfLine.update((list) => [...list, this.withAudit(sol, true)]);
+    this.sectionsOfLineTotalSignal.set(this.entities.sectionsOfLine().length);
     this.persistSectionsOfLine();
   }
 
@@ -312,6 +558,7 @@ export class PlanningStoreService {
 
   removeSectionOfLine(solId: string): void {
     this.entities.sectionsOfLine.update((list) => list.filter((item) => item.solId !== solId));
+    this.sectionsOfLineTotalSignal.set(this.entities.sectionsOfLine().length);
     this.persistSectionsOfLine();
   }
 
@@ -320,6 +567,7 @@ export class PlanningStoreService {
       this.ensureOperationalPointExists(area.uniqueOpId);
     }
     this.entities.stationAreas.update((list) => [...list, this.withAudit(area, true)]);
+    this.stationAreasTotalSignal.set(this.entities.stationAreas().length);
     this.persistStationAreas();
   }
 
@@ -343,6 +591,7 @@ export class PlanningStoreService {
     this.entities.stationAreas.update((list) =>
       list.filter((item) => item.stationAreaId !== stationAreaId),
     );
+    this.stationAreasTotalSignal.set(this.entities.stationAreas().length);
     this.persistStationAreas();
   }
 
@@ -351,6 +600,7 @@ export class PlanningStoreService {
       this.ensureOperationalPointExists(track.uniqueOpId);
     }
     this.entities.tracks.update((list) => [...list, this.withAudit(track, true)]);
+    this.tracksTotalSignal.set(this.entities.tracks().length);
     this.persistTracks();
   }
 
@@ -375,6 +625,8 @@ export class PlanningStoreService {
     this.entities.platformEdges.update((list) =>
       list.filter((edge) => edge.trackKey !== trackKey),
     );
+    this.tracksTotalSignal.set(this.entities.tracks().length);
+    this.platformEdgesTotalSignal.set(this.entities.platformEdges().length);
     this.persistTracks();
     this.persistPlatformEdges();
   }
@@ -384,6 +636,7 @@ export class PlanningStoreService {
       this.ensureTrackExists(edge.trackKey);
     }
     this.entities.platformEdges.update((list) => [...list, this.withAudit(edge, true)]);
+    this.platformEdgesTotalSignal.set(this.entities.platformEdges().length);
     this.persistPlatformEdges();
   }
 
@@ -419,6 +672,7 @@ export class PlanningStoreService {
         platformEdgeIds: (track.platformEdgeIds ?? []).filter((id) => id !== platformEdgeId),
       })),
     );
+    this.platformEdgesTotalSignal.set(this.entities.platformEdges().length);
     this.persistPlatformEdges();
     this.persistPlatforms();
     this.persistTracks();
@@ -429,6 +683,7 @@ export class PlanningStoreService {
       this.ensureOperationalPointExists(platform.uniqueOpId);
     }
     this.entities.platforms.update((list) => [...list, this.withAudit(platform, true)]);
+    this.platformsTotalSignal.set(this.entities.platforms().length);
     this.persistPlatforms();
   }
 
@@ -452,6 +707,7 @@ export class PlanningStoreService {
     this.entities.platforms.update((list) =>
       list.filter((item) => item.platformKey !== platformKey),
     );
+    this.platformsTotalSignal.set(this.entities.platforms().length);
     this.persistPlatforms();
   }
 
@@ -460,6 +716,7 @@ export class PlanningStoreService {
       this.ensureOperationalPointExists(siding.uniqueOpId);
     }
     this.entities.sidings.update((list) => [...list, this.withAudit(siding, true)]);
+    this.sidingsTotalSignal.set(this.entities.sidings().length);
     this.persistSidings();
   }
 
@@ -481,6 +738,7 @@ export class PlanningStoreService {
 
   removeSiding(sidingKey: string): void {
     this.entities.sidings.update((list) => list.filter((item) => item.sidingKey !== sidingKey));
+    this.sidingsTotalSignal.set(this.entities.sidings().length);
     this.persistSidings();
   }
 
@@ -713,34 +971,54 @@ export class PlanningStoreService {
       sig.set([]);
     });
     this.initialized.set(false);
+    this.topologyInitialized.set(false);
+    this.operationalPointsTotalSignal.set(0);
+    this.sectionsOfLineTotalSignal.set(0);
+    this.stationAreasTotalSignal.set(0);
+    this.tracksTotalSignal.set(0);
+    this.platformEdgesTotalSignal.set(0);
+    this.platformsTotalSignal.set(0);
+    this.sidingsTotalSignal.set(0);
+    this.resetTopologyQueries();
   }
 
-  private setOperationalPoints(items: OperationalPoint[]): void {
+  private setOperationalPoints(items: OperationalPoint[], total?: number): void {
     this.entities.operationalPoints.set(this.cloneList(items));
+    this.operationalPointsTotalSignal.set(
+      typeof total === 'number' ? total : items.length,
+    );
   }
 
-  private setSectionsOfLine(items: SectionOfLine[]): void {
+  private setSectionsOfLine(items: SectionOfLine[], total?: number): void {
     this.entities.sectionsOfLine.set(this.cloneList(items));
+    this.sectionsOfLineTotalSignal.set(typeof total === 'number' ? total : items.length);
   }
 
-  private setStationAreas(items: StationArea[]): void {
+  private setStationAreas(items: StationArea[], total?: number): void {
     this.entities.stationAreas.set(this.cloneList(items));
+    this.stationAreasTotalSignal.set(typeof total === 'number' ? total : items.length);
   }
 
-  private setTracks(items: Track[]): void {
+  private setTracks(items: Track[], total?: number): void {
     this.entities.tracks.set(this.cloneList(items));
+    this.tracksTotalSignal.set(typeof total === 'number' ? total : items.length);
   }
 
-  private setPlatformEdges(items: PlatformEdge[]): void {
+  private setPlatformEdges(items: PlatformEdge[], total?: number): void {
     this.entities.platformEdges.set(this.cloneList(items));
+    this.platformEdgesTotalSignal.set(
+      typeof total === 'number' ? total : items.length,
+    );
   }
 
-  private setPlatforms(items: Platform[]): void {
+  private setPlatforms(items: Platform[], total?: number): void {
     this.entities.platforms.set(this.cloneList(items));
+    this.platformsTotalSignal.set(typeof total === 'number' ? total : items.length);
   }
 
-  private setSidings(items: Siding[]): void {
+  private setSidings(items: Siding[], total?: number): void {
     this.entities.sidings.set(this.cloneList(items));
+    this.sidingsTotalSignal.set(typeof total === 'number' ? total : items.length);
   }
 
   private setPersonnelSites(items: PersonnelSite[]): void {
@@ -769,6 +1047,83 @@ export class PlanningStoreService {
 
   private cloneList<T>(items: T[]): T[] {
     return items.map((item) => ({ ...(item as Record<string, unknown>) }) as T);
+  }
+
+  private resetTopologyQueries(): void {
+    this.operationalPointsQuerySignal.set(null);
+    this.sectionsOfLineQuerySignal.set(null);
+    this.stationAreasQuerySignal.set(null);
+    this.tracksQuerySignal.set(null);
+    this.platformEdgesQuerySignal.set(null);
+    this.platformsQuerySignal.set(null);
+    this.sidingsQuerySignal.set(null);
+  }
+
+  private normalizeQuery(query: string): string | null {
+    const trimmed = query.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private async searchPagedEntity<T>(
+    querySignal: WritableSignal<string | null>,
+    request: (offset: number, limit: number, query?: string | null) => Observable<PagedResponse<T>>,
+    setter: (items: T[], total?: number) => void,
+    query: string,
+    label: string,
+  ): Promise<void> {
+    const normalized = this.normalizeQuery(query);
+    querySignal.set(normalized);
+    try {
+      const response = await firstValueFrom(
+        request(0, this.topologyPageSize, normalized),
+      );
+      this.applyPagedResponse(response, setter);
+      this.syncErrorSignal.set(null);
+    } catch (error) {
+      console.error(`[PlanningStoreService] Failed to search ${label}`, error);
+      this.syncErrorSignal.set(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private applyPagedResponse<T>(
+    response: PagedResponse<T> | null | undefined,
+    setter: (items: T[], total?: number) => void,
+  ): void {
+    const items = response?.items ?? [];
+    const total = typeof response?.total === 'number' ? response.total : items.length;
+    setter(items, total);
+  }
+
+  private async loadMorePagedEntity<T>(
+    getCurrent: () => T[],
+    totalSignal: WritableSignal<number>,
+    querySignal: WritableSignal<string | null>,
+    request: (offset: number, limit: number, query?: string | null) => Observable<PagedResponse<T>>,
+    setter: (items: T[], total?: number) => void,
+    label: string,
+  ): Promise<void> {
+    const current = getCurrent();
+    const total = totalSignal();
+    if (total > 0 && current.length >= total) {
+      return;
+    }
+    try {
+      const query = querySignal();
+      const response = await firstValueFrom(
+        request(current.length, this.topologyPageSize, query),
+      );
+      const items = response?.items ?? [];
+      const merged = [...current, ...items];
+      const nextTotal =
+        typeof response?.total === 'number'
+          ? response.total
+          : Math.max(total, merged.length);
+      setter(merged, nextTotal);
+      this.syncErrorSignal.set(null);
+    } catch (error) {
+      console.error(`[PlanningStoreService] Failed to load more ${label}`, error);
+      this.syncErrorSignal.set(error instanceof Error ? error.message : String(error));
+    }
   }
 
   private async loadEntity<T>(

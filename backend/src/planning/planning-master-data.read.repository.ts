@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import type {
   HomeDepot,
+  PagedResponse,
   OperationalPoint,
   OpReplacementStopLink,
   Platform,
@@ -166,6 +167,15 @@ interface VehicleServicePoolMemberRow {
 interface JsonPayloadRow<T> {
   payload: T;
 }
+
+type PagedQueryOptions = {
+  tableName: string;
+  orderField: string;
+  searchFields: string[];
+  offset: number;
+  limit: number;
+  query?: string | null;
+};
 
 @Injectable()
 export class PlanningMasterDataReadRepository {
@@ -456,6 +466,190 @@ export class PlanningMasterDataReadRepository {
     };
   }
 
+  async listOperationalPointsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<OperationalPoint>> {
+    return this.listJsonCollectionPaged<OperationalPoint>({
+      tableName: 'topology_operational_point',
+      orderField: 'name',
+      searchFields: ['name', 'uniqueOpId', 'opId'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
+  async listOperationalPointsInBounds(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+    limit = 2000,
+  ): Promise<OperationalPoint[]> {
+    if (!this.isEnabled) {
+      return [];
+    }
+    if (this.missingTopologyTables.has('topology_operational_point')) {
+      return [];
+    }
+    const safeLimit = Math.max(1, Math.min(limit, 5000));
+    try {
+      const result = await this.database.query<JsonPayloadRow<OperationalPoint>>(
+        `
+          SELECT payload
+          FROM topology_operational_point
+          WHERE payload->'position' IS NOT NULL
+            AND (payload->'position'->>'lat')::double precision BETWEEN $1 AND $2
+            AND (payload->'position'->>'lng')::double precision BETWEEN $3 AND $4
+          LIMIT $5
+        `,
+        [minLat, maxLat, minLng, maxLng, safeLimit],
+      );
+      return result.rows.map((row) => row.payload);
+    } catch (error) {
+      if (this.isTopologyStructureMissing(error)) {
+        if (!this.missingTopologyTables.has('topology_operational_point')) {
+          this.logger.debug(
+            'Tabelle topology_operational_point fehlt oder hat keine payload-Spalte – verwende leere Sammlung.',
+          );
+        }
+        this.missingTopologyTables.add('topology_operational_point');
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  async listOperationalPointsByIds(
+    ids: string[],
+  ): Promise<OperationalPoint[]> {
+    if (!this.isEnabled) {
+      return [];
+    }
+    if (this.missingTopologyTables.has('topology_operational_point')) {
+      return [];
+    }
+    const uniqueIds = Array.from(new Set((ids ?? []).filter((id) => id)));
+    if (!uniqueIds.length) {
+      return [];
+    }
+    const safeIds = uniqueIds.slice(0, 5000);
+    try {
+      const result = await this.database.query<JsonPayloadRow<OperationalPoint>>(
+        `
+          SELECT payload
+          FROM topology_operational_point
+          WHERE payload->>'uniqueOpId' = ANY($1)
+        `,
+        [safeIds],
+      );
+      return result.rows.map((row) => row.payload);
+    } catch (error) {
+      if (this.isTopologyStructureMissing(error)) {
+        if (!this.missingTopologyTables.has('topology_operational_point')) {
+          this.logger.debug(
+            'Tabelle topology_operational_point fehlt oder hat keine payload-Spalte – verwende leere Sammlung.',
+          );
+        }
+        this.missingTopologyTables.add('topology_operational_point');
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  async listSectionsOfLinePaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<SectionOfLine>> {
+    return this.listJsonCollectionPaged<SectionOfLine>({
+      tableName: 'topology_section_of_line',
+      orderField: 'solId',
+      searchFields: ['solId', 'startUniqueOpId', 'endUniqueOpId'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
+  async listStationAreasPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<StationArea>> {
+    return this.listJsonCollectionPaged<StationArea>({
+      tableName: 'topology_station_area',
+      orderField: 'name',
+      searchFields: ['name', 'stationAreaId', 'uniqueOpId'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
+  async listTracksPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Track>> {
+    return this.listJsonCollectionPaged<Track>({
+      tableName: 'topology_track',
+      orderField: 'trackId',
+      searchFields: ['trackId', 'trackKey', 'uniqueOpId'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
+  async listPlatformEdgesPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<PlatformEdge>> {
+    return this.listJsonCollectionPaged<PlatformEdge>({
+      tableName: 'topology_platform_edge',
+      orderField: 'platformEdgeId',
+      searchFields: ['platformEdgeId', 'platformId', 'trackKey'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
+  async listPlatformsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Platform>> {
+    return this.listJsonCollectionPaged<Platform>({
+      tableName: 'topology_platform',
+      orderField: 'platformId',
+      searchFields: ['platformKey', 'platformId', 'uniqueOpId', 'name'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
+  async listSidingsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Siding>> {
+    return this.listJsonCollectionPaged<Siding>({
+      tableName: 'topology_siding',
+      orderField: 'sidingId',
+      searchFields: ['sidingKey', 'sidingId', 'uniqueOpId'],
+      offset,
+      limit,
+      query,
+    });
+  }
+
   private mapPersonnel(row: PersonnelRow): Personnel {
     const attrs = this.ensureRecord(row.attributes);
     return {
@@ -743,6 +937,60 @@ export class PlanningMasterDataReadRepository {
         }
         this.missingTopologyTables.add(tableName);
         return [];
+      }
+      throw error;
+    }
+  }
+
+  private async listJsonCollectionPaged<T>({
+    tableName,
+    orderField,
+    searchFields,
+    offset,
+    limit,
+    query,
+  }: PagedQueryOptions): Promise<PagedResponse<T>> {
+    if (!this.isEnabled) {
+      return { items: [], total: 0, offset, limit };
+    }
+    if (this.missingTopologyTables.has(tableName)) {
+      return { items: [], total: 0, offset, limit };
+    }
+    const safeLimit = Math.max(1, Math.min(limit, 2000));
+    const safeOffset = Math.max(0, offset);
+    const trimmed = `${query ?? ''}`.trim();
+    const hasQuery = trimmed.length > 0;
+    const whereClause = hasQuery
+      ? `WHERE (${searchFields
+          .map((field) => `payload->>'${field}' ILIKE $1`)
+          .join(' OR ')})`
+      : '';
+    const whereArgs = hasQuery ? [`%${trimmed}%`] : [];
+    try {
+      const countResult = await this.database.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM ${tableName} ${whereClause}`,
+        whereArgs,
+      );
+      const total = countResult.rows[0]?.count ?? 0;
+      const listResult = await this.database.query<JsonPayloadRow<T>>(
+        `SELECT payload FROM ${tableName} ${whereClause} ORDER BY payload->>'${orderField}' NULLS LAST LIMIT $${whereArgs.length + 1} OFFSET $${whereArgs.length + 2}`,
+        [...whereArgs, safeLimit, safeOffset],
+      );
+      return {
+        items: listResult.rows.map((row) => row.payload),
+        total,
+        offset: safeOffset,
+        limit: safeLimit,
+      };
+    } catch (error) {
+      if (this.isTopologyStructureMissing(error)) {
+        if (!this.missingTopologyTables.has(tableName)) {
+          this.logger.debug(
+            `Tabelle ${tableName} (JSON-Payload) fehlt oder hat keine payload-Spalte – verwende leere Sammlung.`,
+          );
+        }
+        this.missingTopologyTables.add(tableName);
+        return { items: [], total: 0, offset: safeOffset, limit: safeLimit };
       }
       throw error;
     }

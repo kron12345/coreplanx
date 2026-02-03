@@ -17,7 +17,7 @@ type MasterDataDocKey =
   | 'vehicles'
   | 'topology';
 
-type OrderManagementDocKey = 'orders';
+type OrderManagementDocKey = 'orders' | 'timetable-editor';
 
 type SettingsDocKey =
   | 'settings-attributes'
@@ -66,10 +66,15 @@ const ORDER_MANAGEMENT_DOCS: Record<OrderManagementDocKey, AssistantDocDescripto
     title: 'Auftragsmanager · Aufträge',
     relativePath: 'docs/assistant/auftragsmanager-auftraege.md',
   },
+  'timetable-editor': {
+    title: 'Auftragsmanager · Fahrplan-Editor',
+    relativePath: 'docs/assistant/auftragsmanager-fahrplan-editor.md',
+  },
 };
 
 const ORDER_MANAGEMENT_TITLE_TO_DOC_KEY: Record<string, OrderManagementDocKey> = {
   Aufträge: 'orders',
+  'Fahrplan-Editor': 'timetable-editor',
 };
 
 const SETTINGS_DOCS: Record<SettingsDocKey, AssistantDocDescriptor> = {

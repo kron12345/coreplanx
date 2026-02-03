@@ -79,6 +79,7 @@ export class PlatformEdgeEditorComponent {
   readonly defaultFallback = DEFAULT_FALLBACK;
   readonly numericKeys = ['lengthMeters'];
   readonly error = signal<string | null>(null);
+  readonly totalCount = this.store.platformEdgesTotal;
 
   handleSave(event: EntitySaveEvent): void {
     const core = this.deriveCoreFields(event.payload.values);
@@ -110,6 +111,14 @@ export class PlatformEdgeEditorComponent {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removePlatformEdge(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMorePlatformEdges();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchPlatformEdges(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

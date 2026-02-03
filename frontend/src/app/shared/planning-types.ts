@@ -7,6 +7,13 @@ export interface LatLng {
   lng: number;
 }
 
+export interface PagedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface TopologyAttribute {
   key: string;
   value: string;
@@ -45,6 +52,40 @@ export interface SectionOfLine extends AuditInfo {
   nature: SolNature;
   polyline?: LatLng[];
    attributes?: TopologyAttribute[];
+}
+
+export interface TopologyRouteRequest {
+  startUniqueOpId: string;
+  endUniqueOpId: string;
+  includeLinkSections?: boolean | null;
+  allowedNatures?: SolNature[] | null;
+  attributeFilters?: Array<{ key: string; values?: string[] }>;
+  maxAlternatives?: number | null;
+}
+
+export interface TopologyRouteSegment {
+  solId: UUID;
+  startUniqueOpId: string;
+  endUniqueOpId: string;
+  lengthKm?: number | null;
+  polyline?: LatLng[];
+}
+
+export interface TopologyRouteResponse {
+  status: 'ok' | 'no_route' | 'invalid';
+  startUniqueOpId: string;
+  endUniqueOpId: string;
+  totalDistanceKm?: number;
+  segments?: TopologyRouteSegment[];
+  geometry?: LatLng[];
+  alternatives?: TopologyRouteSegmentedRoute[];
+  message?: string;
+}
+
+export interface TopologyRouteSegmentedRoute {
+  totalDistanceKm?: number;
+  segments?: TopologyRouteSegment[];
+  geometry?: LatLng[];
 }
 
 export interface StationArea extends AuditInfo {

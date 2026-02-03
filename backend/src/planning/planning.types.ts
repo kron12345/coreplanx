@@ -412,8 +412,27 @@ export interface OperationalPoint {
   updatedBy?: string | null;
 }
 
+export interface PagedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export type OperationalPointListRequest = ListPayload<OperationalPoint>;
 export type OperationalPointListResponse = OperationalPoint[];
+
+export interface OperationalPointIdsRequest {
+  ids: string[];
+}
+
+export interface OperationalPointBoundsRequest {
+  minLat: number;
+  minLng: number;
+  maxLat: number;
+  maxLng: number;
+  limit?: number;
+}
 
 export type SectionOfLineNature = 'REGULAR' | 'LINK';
 
@@ -433,6 +452,40 @@ export interface SectionOfLine {
 
 export type SectionOfLineListRequest = ListPayload<SectionOfLine>;
 export type SectionOfLineListResponse = SectionOfLine[];
+
+export interface TopologyRouteRequest {
+  startUniqueOpId: string;
+  endUniqueOpId: string;
+  includeLinkSections?: boolean | null;
+  allowedNatures?: SectionOfLineNature[] | null;
+  attributeFilters?: Array<{ key: string; values?: string[] }>;
+  maxAlternatives?: number | null;
+}
+
+export interface TopologyRouteSegment {
+  solId: string;
+  startUniqueOpId: string;
+  endUniqueOpId: string;
+  lengthKm?: number | null;
+  polyline?: LatLng[];
+}
+
+export interface TopologyRouteResponse {
+  status: 'ok' | 'no_route' | 'invalid';
+  startUniqueOpId: string;
+  endUniqueOpId: string;
+  totalDistanceKm?: number;
+  segments?: TopologyRouteSegment[];
+  geometry?: LatLng[];
+  alternatives?: TopologyRouteSegmentedRoute[];
+  message?: string;
+}
+
+export interface TopologyRouteSegmentedRoute {
+  totalDistanceKm?: number;
+  segments?: TopologyRouteSegment[];
+  geometry?: LatLng[];
+}
 
 export interface StationArea {
   stationAreaId: string;

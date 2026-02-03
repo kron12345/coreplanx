@@ -558,6 +558,7 @@ Dieser Tab eignet sich, wenn Sie **einen individuellen Fahrplan** anlegen möcht
   - Verantwortliche Stelle  
   - Gültigkeitstage im Kalender  
   - optional Tags
+- **Neu:** Über „Fahrplan-Editor öffnen“ können Sie einen TrainPlan erzeugen und direkt im Vollseiten-Editor starten. Die Auftragsposition wird erst beim Speichern des Dialogs erzeugt.
 
 **Was passiert beim Speichern?**
 
@@ -635,7 +636,7 @@ Wenn Sie auf das Stift-Icon einer Position klicken, öffnet sich der Dialog **�
     - Änderungen werden direkt im hinterlegten Referenzkalender gespeichert.
   - **Fahrplanübersicht** (nur für Fahrpläne):
     - Zeigt Titel, Zugnummer, Verantwortliche und den Kalenderbereich des verknüpften Fahrplans.  
-    - Über den Button „Fahrplan bearbeiten“ können Sie in einen Spezialdialog wechseln, um Halte und Zeiten anzupassen.
+    - Über den Button „Fahrplan bearbeiten“ wechseln Sie in einen **Vollseiten-Editor** (Route Builder + Timing Editor).
 
 Wenn Sie speichern:
 
@@ -684,18 +685,23 @@ Wenn Sie den Dialog speichern:
 - Sie landen wieder im Tab „Fahrplan (Manuell)“, wo Sie Zugnummer, Gültigkeitstage und Tags ergänzen.  
 - Beim endgültigen Speichern (siehe Abschnitt 5.4) entsteht daraus der eigentliche Fahrplan-Datensatz (technisch: *TrainPlan*) plus Auftragsposition.
 
+**Alternative (neu):**  
+Statt den Dialog zu nutzen, können Sie im Tab „Fahrplan (Manuell)“ direkt **Fahrplan-Editor öffnen** wählen. Dadurch wird ein neuer TrainPlan erzeugt und im Vollseiten-Editor bearbeitet. Die Position bleibt offen, bis Sie den Dialog speichern.
+
 #### 5.8.2 Fahrplan bearbeiten (bestehende Position)
 
 Wenn Sie eine bestehende Fahrplanposition bearbeiten und dort auf „Fahrplan bearbeiten“ klicken:
 
-- Öffnet sich ein ähnlicher Dialog, diesmal auf Basis des **bestehenden Fahrplans**:
-  - Alle aktuellen Halte sind bereits eingefüllt.  
-  - Sie können Haltzeiten anpassen, Halte hinzufügen/entfernen oder neu anordnen.  
-  - Optional können technische Details (z. B. Rolling-Stock-Segmente, Zusammenführen/Trennen) im Hintergrund berücksichtigt werden – im Mock wird dies nur angedeutet.
-- Nach dem Speichern:
-  - Wird ein **neuer Fahrplanstand** erzeugt (im Archiv sichtbar).  
-  - Die Auftragsposition zeigt weiterhin denselben Bezug, aber mit aktualisierten Kalender- und Stopinformationen.  
-  - Frühere Varianten/Versionen bleiben nachvollziehbar, sodass Sie erkennen, was sich geändert hat.
+- Öffnet sich eine **Vollseiten-Ansicht** mit zwei Schritten:
+  1. **Route Builder** – Strecke, Halte, Annahmen (OSM-Karte).
+  2. **Timing Editor** – Zeiten im Stop-Grid + Zuggrafik.
+- Bereits vorhandene Halte werden übernommen und können angepasst werden.
+- Route Builder nutzt SOL-Daten zur **schienengebundenen Routenberechnung** (kürzeste Strecke).
+- Die Karte ist Vollbild mit schwebender Start/Ziel-Suche; das Route-Panel faehrt links ein.
+- Optional kann die Route mit/ohne Link-Abschnitte berechnet werden; Elektrifizierung kann gefiltert werden; Alternativen lassen sich auswaehlen. OP-Marker laden nur im sichtbaren Kartenbereich.
+- Eine Abfahrtszeit im Route Builder zeigt eine **Vorschau** der Zeiten für alle Halte und wird in den Timing Editor uebernommen.
+- Änderungen werden **automatisch als Draft gespeichert**, so dass Arbeit nicht verloren geht.
+- Mit **Übernehmen** kehren Sie zur vorherigen Ansicht zurück.
 
 Für das Review ist vor allem wichtig:
 

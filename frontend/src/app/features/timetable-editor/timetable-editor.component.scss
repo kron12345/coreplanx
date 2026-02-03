@@ -1,0 +1,133 @@
+.timetable-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px clamp(16px, 4vw, 40px);
+  min-height: calc(100vh - var(--app-shell-offset, 64px));
+  height: calc(100vh - var(--app-shell-offset, 64px));
+}
+
+.editor-header {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.editor-title h1 {
+  margin: 0;
+}
+
+.editor-title p {
+  margin: 4px 0 0;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.editor-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+  font-size: 0.85rem;
+}
+
+.status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status.saving {
+  background: rgba(30, 136, 229, 0.12);
+  color: #1e88e5;
+}
+
+.status.saved {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.status.error {
+  background: rgba(198, 40, 40, 0.12);
+  color: #c62828;
+}
+
+.status.idle {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.editor-stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stepper-step {
+  border-radius: 999px;
+}
+
+.stepper-step.is-active {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: transparent;
+}
+
+.stepper-line {
+  flex: 1;
+  min-width: 40px;
+  height: 1px;
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.stepper-actions {
+  margin-left: auto;
+}
+
+.editor-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-body app-timetable-route-builder,
+.editor-body app-timetable-timing-editor {
+  display: block;
+  height: 100%;
+}
+
+.hint {
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.error {
+  color: #c62828;
+}
+
+@media (max-width: 960px) {
+  .editor-header {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .editor-status {
+    text-align: left;
+  }
+
+  .stepper-actions {
+    width: 100%;
+  }
+}

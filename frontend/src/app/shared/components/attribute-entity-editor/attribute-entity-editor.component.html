@@ -2,7 +2,7 @@
   <section class="editor__list">
     <header>
       <h2>{{ title }}</h2>
-      <span>{{ combinedEntities().length }} Einträge</span>
+      <span>{{ headerCountLabel() }}</span>
     </header>
 
     <div class="toolbar">
@@ -14,14 +14,14 @@
             type="search"
             placeholder="Name, Code …"
             [ngModel]="searchTerm()"
-            (ngModelChange)="searchTerm.set($event)"
+            (ngModelChange)="onSearchChange($event)"
           />
           @if (searchTerm()) {
             <button
               mat-icon-button
               matSuffix
               type="button"
-              (click)="searchTerm.set('')"
+              (click)="onSearchChange('')"
               aria-label="Suche leeren"
             >
               <mat-icon>close</mat-icon>
@@ -156,7 +156,11 @@
     <ng-template #flatList>
       @if (filteredEntities().length > 0) {
         <div class="stop-list-wrapper">
-          <cdk-virtual-scroll-viewport class="stop-list stop-list--virtual" [itemSize]="44">
+          <cdk-virtual-scroll-viewport
+            class="stop-list stop-list--virtual"
+            [itemSize]="44"
+            (scrolledIndexChange)="onVirtualScroll($event)"
+          >
             <div
               class="stop-row"
               *cdkVirtualFor="let entity of limitedEntities(); trackBy: trackEntityId"
@@ -174,8 +178,7 @@
           </cdk-virtual-scroll-viewport>
           @if (hasMore()) {
             <div class="stop-list__footer">
-              <span>Zeige {{ limitedEntities().length }} von {{ filteredEntities().length }} Einträgen.</span>
-              <button mat-stroked-button type="button" (click)="showMore()">Mehr laden</button>
+              <span>Zeige {{ limitedEntities().length }} von {{ totalAvailable() }} Einträgen. Weitere werden beim Scrollen geladen.</span>
             </div>
           }
         </div>

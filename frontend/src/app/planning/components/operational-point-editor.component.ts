@@ -97,6 +97,7 @@ export class OperationalPointEditorComponent implements OnDestroy {
   readonly importLogs = signal<string[]>([]);
   readonly importState = signal<'idle' | 'running' | 'success' | 'error'>('idle');
   readonly importConsoleOpen = signal(false);
+  readonly totalCount = this.store.operationalPointsTotal;
   readonly importConsoleVisible = computed(
     () => this.importState() === 'running' || this.importConsoleOpen(),
   );
@@ -138,6 +139,14 @@ export class OperationalPointEditorComponent implements OnDestroy {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removeOperationalPoint(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMoreOperationalPoints();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchOperationalPoints(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

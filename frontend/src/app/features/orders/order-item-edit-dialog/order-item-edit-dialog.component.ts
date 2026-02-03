@@ -16,7 +16,8 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { Router } from '@angular/router';
 import { MATERIAL_IMPORTS } from '../../../core/material.imports.imports';
 import { OrderItem, OrderItemValiditySegment } from '../../../core/models/order-item.model';
 import {
@@ -30,7 +31,6 @@ import { TrainPlanService } from '../../../core/services/train-plan.service';
 import { TrainPlan } from '../../../core/models/train-plan.model';
 import { ScheduleTemplateService } from '../../../core/services/schedule-template.service';
 import { ScheduleTemplate } from '../../../core/models/schedule-template.model';
-import { PlanModificationDialogComponent } from '../plan-modification-dialog/plan-modification-dialog.component';
 import { OrderItemGeneralFieldsComponent } from '../shared/order-item-general-fields/order-item-general-fields.component';
 import { OrderItemServiceFieldsComponent } from '../shared/order-item-service-fields/order-item-service-fields.component';
 import { OrderItemRangeFieldsComponent } from '../shared/order-item-range-fields/order-item-range-fields.component';
@@ -88,7 +88,7 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
   private readonly trafficPeriodService = inject(TrafficPeriodService);
   private readonly trainPlanService = inject(TrainPlanService);
   private readonly templateService = inject(ScheduleTemplateService);
-  private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly timetableYearService = inject(TimetableYearService);
   private readonly destroyRef = inject(DestroyRef);
@@ -415,26 +415,15 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
       this.errorMessage.set('Für diese Auftragsposition ist kein Fahrplan verknüpft.');
       return;
     }
-
-    this.dialog
-      .open(PlanModificationDialogComponent, {
-        width: '95vw',
-        maxWidth: '1200px',
-        maxHeight: '95vh',
-        data: {
-          orderId: this.orderId,
-          item: this.item,
-          plan,
-        },
-      })
-      .afterClosed()
-      .subscribe((result) => {
-        if (!result?.updatedPlanId) {
-          return;
-        }
-        this.planMutated = true;
-        this.syncItemState();
-      });
+    const returnUrl = this.router.url;
+    this.dialogRef.close();
+    void this.router.navigate(['/fahrplan-editor', plan.id], {
+      queryParams: {
+        returnUrl,
+        orderId: this.orderId,
+        itemId: this.item.id,
+      },
+    });
   }
 
   private syncItemState() {

@@ -136,6 +136,11 @@ wie Start-/Zielorte vorgeschlagen oder ausgeblendet werden:
 
 ## Fehlerbilder & Loesungen
 
+- **Gantt-Dialog oeffnet nicht / keine Activities verfuegbar**
+  - Pruefen: Gibt es Activity-Definitionen im Katalog?
+  - Loesung: „Werkseinstellungen“ nutzen (Default-Katalog neu laden).
+  - Alternative: API `POST /api/v1/planning/catalog/reset`.
+  - Pruefen: `relevantFor` enthaelt `personnel-service` oder `vehicle-service`.
 - **Activity taucht nicht im Board auf**
   - Pruefen: `activityType` existiert? `relevant_for` passt zur Ressource?
 - **Gantt-Stil wird nicht angewandt**

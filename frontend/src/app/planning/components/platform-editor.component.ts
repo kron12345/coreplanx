@@ -74,6 +74,7 @@ export class PlatformEditorComponent {
   readonly defaultFallback = DEFAULT_FALLBACK;
   readonly numericKeys = ['lengthMeters'];
   readonly error = signal<string | null>(null);
+  readonly totalCount = this.store.platformsTotal;
 
   handleSave(event: EntitySaveEvent): void {
     const core = this.deriveCoreFields(event.payload.values);
@@ -106,6 +107,14 @@ export class PlatformEditorComponent {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removePlatform(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMorePlatforms();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchPlatforms(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

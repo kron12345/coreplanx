@@ -6,6 +6,7 @@ import { API_CONFIG } from '../core/config/api-config';
 import {
   OpReplacementStopLink,
   OperationalPoint,
+  PagedResponse,
   Platform,
   PlatformEdge,
   PersonnelSite,
@@ -20,6 +21,8 @@ import {
   TopologyImportKind,
   TopologyImportRealtimeEvent,
   TopologyImportResponse,
+  TopologyRouteRequest,
+  TopologyRouteResponse,
 } from '../shared/planning-types';
 
 type ListPayload<T> = { items: T[] };
@@ -33,6 +36,41 @@ export class TopologyApiService {
     return this.getList('/planning/topology/operational-points', [] as OperationalPoint[]);
   }
 
+  listOperationalPointsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<OperationalPoint>> {
+    return this.getPaged(
+      '/planning/topology/operational-points/paged',
+      { offset, limit, query },
+      [] as OperationalPoint[],
+    );
+  }
+
+  listOperationalPointsInBounds(
+    minLat: number,
+    minLng: number,
+    maxLat: number,
+    maxLng: number,
+    limit = 2000,
+  ): Observable<OperationalPoint[]> {
+    return this.getList('/planning/topology/operational-points/bbox', [] as OperationalPoint[], {
+      minLat,
+      minLng,
+      maxLat,
+      maxLng,
+      limit,
+    });
+  }
+
+  listOperationalPointsByIds(ids: string[]): Observable<OperationalPoint[]> {
+    return this.http.post<OperationalPoint[]>(
+      this.url('/planning/topology/operational-points/by-ids'),
+      { ids },
+    );
+  }
+
   saveOperationalPoints(items: OperationalPoint[]): Observable<OperationalPoint[]> {
     return this.putList('/planning/topology/operational-points', items);
   }
@@ -41,12 +79,40 @@ export class TopologyApiService {
     return this.getList('/planning/topology/sections-of-line', [] as SectionOfLine[]);
   }
 
+  listSectionsOfLinePaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<SectionOfLine>> {
+    return this.getPaged(
+      '/planning/topology/sections-of-line/paged',
+      { offset, limit, query },
+      [] as SectionOfLine[],
+    );
+  }
+
   saveSectionsOfLine(items: SectionOfLine[]): Observable<SectionOfLine[]> {
     return this.putList('/planning/topology/sections-of-line', items);
   }
 
+  planSectionRoute(request: TopologyRouteRequest): Observable<TopologyRouteResponse> {
+    return this.http.post<TopologyRouteResponse>(this.url('/planning/topology/route'), request);
+  }
+
   listStationAreas(): Observable<StationArea[]> {
     return this.getList('/planning/topology/station-areas', [] as StationArea[]);
+  }
+
+  listStationAreasPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<StationArea>> {
+    return this.getPaged(
+      '/planning/topology/station-areas/paged',
+      { offset, limit, query },
+      [] as StationArea[],
+    );
   }
 
   saveStationAreas(items: StationArea[]): Observable<StationArea[]> {
@@ -57,12 +123,36 @@ export class TopologyApiService {
     return this.getList('/planning/topology/tracks', [] as Track[]);
   }
 
+  listTracksPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<Track>> {
+    return this.getPaged(
+      '/planning/topology/tracks/paged',
+      { offset, limit, query },
+      [] as Track[],
+    );
+  }
+
   saveTracks(items: Track[]): Observable<Track[]> {
     return this.putList('/planning/topology/tracks', items);
   }
 
   listPlatformEdges(): Observable<PlatformEdge[]> {
     return this.getList('/planning/topology/platform-edges', [] as PlatformEdge[]);
+  }
+
+  listPlatformEdgesPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<PlatformEdge>> {
+    return this.getPaged(
+      '/planning/topology/platform-edges/paged',
+      { offset, limit, query },
+      [] as PlatformEdge[],
+    );
   }
 
   savePlatformEdges(items: PlatformEdge[]): Observable<PlatformEdge[]> {
@@ -73,12 +163,36 @@ export class TopologyApiService {
     return this.getList('/planning/topology/platforms', [] as Platform[]);
   }
 
+  listPlatformsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<Platform>> {
+    return this.getPaged(
+      '/planning/topology/platforms/paged',
+      { offset, limit, query },
+      [] as Platform[],
+    );
+  }
+
   savePlatforms(items: Platform[]): Observable<Platform[]> {
     return this.putList('/planning/topology/platforms', items);
   }
 
   listSidings(): Observable<Siding[]> {
     return this.getList('/planning/topology/sidings', [] as Siding[]);
+  }
+
+  listSidingsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Observable<PagedResponse<Siding>> {
+    return this.getPaged(
+      '/planning/topology/sidings/paged',
+      { offset, limit, query },
+      [] as Siding[],
+    );
   }
 
   saveSidings(items: Siding[]): Observable<Siding[]> {
@@ -203,10 +317,31 @@ export class TopologyApiService {
     });
   }
 
-  private getList<T>(path: string, fallback: T[]): Observable<T[]> {
+  private getList<T>(path: string, fallback: T[], params?: Record<string, unknown>): Observable<T[]> {
     return this.http
-      .get<unknown>(this.url(path))
+      .get<unknown>(this.url(path), params ? { params: this.buildQueryParams(params) } : undefined)
       .pipe(map((response) => this.normalizeListResponse(response, fallback)));
+  }
+
+  private buildQueryParams(params: Record<string, unknown>) {
+    const searchParams: Record<string, string> = {};
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '') {
+        return;
+      }
+      searchParams[key] = String(value);
+    });
+    return searchParams;
+  }
+
+  private getPaged<T>(
+    path: string,
+    params: { offset: number; limit: number; query?: string | null },
+    fallback: T[],
+  ): Observable<PagedResponse<T>> {
+    return this.http
+      .get<unknown>(this.url(path), { params: this.buildPagingParams(params) })
+      .pipe(map((response) => this.normalizePagedResponse(response, fallback, params)));
   }
 
   private putList<T>(path: string, items: T[]): Observable<T[]> {
@@ -235,6 +370,64 @@ export class TopologyApiService {
       }
     }
     return fallback;
+  }
+
+  private normalizePagedResponse<T>(
+    response: unknown,
+    fallback: T[],
+    params: { offset: number; limit: number; query?: string | null },
+  ): PagedResponse<T> {
+    if (response && typeof response === 'object') {
+      const parsed = response as {
+        items?: unknown;
+        total?: unknown;
+        limit?: unknown;
+        offset?: unknown;
+      };
+      const items = Array.isArray(parsed.items) ? (parsed.items as T[]) : fallback;
+      const total =
+        typeof parsed.total === 'number' ? parsed.total : (items?.length ?? 0);
+      const limit =
+        typeof parsed.limit === 'number' ? parsed.limit : params.limit;
+      const offset =
+        typeof parsed.offset === 'number' ? parsed.offset : params.offset;
+      return {
+        items,
+        total,
+        limit,
+        offset,
+      };
+    }
+    if (Array.isArray(response)) {
+      const items = response as T[];
+      return {
+        items,
+        total: items.length,
+        limit: params.limit,
+        offset: params.offset,
+      };
+    }
+    return {
+      items: fallback,
+      total: fallback.length,
+      limit: params.limit,
+      offset: params.offset,
+    };
+  }
+
+  private buildPagingParams(params: {
+    offset: number;
+    limit: number;
+    query?: string | null;
+  }) {
+    const result: Record<string, string> = {
+      offset: String(params.offset ?? 0),
+      limit: String(params.limit ?? 0),
+    };
+    if (params.query) {
+      result['query'] = params.query;
+    }
+    return result;
   }
 
   private normalizeImportResponse(

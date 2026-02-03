@@ -90,7 +90,7 @@ export class PlanningMasterComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.store.ensureInitialized();
+    this.store.ensureTopologyInitialized();
   }
 
   resetToDefaults(): void {

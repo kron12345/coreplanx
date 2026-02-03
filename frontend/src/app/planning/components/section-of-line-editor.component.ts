@@ -109,6 +109,7 @@ export class SectionOfLineEditorComponent implements OnDestroy {
   readonly importLogs = signal<string[]>([]);
   readonly importState = signal<'idle' | 'running' | 'success' | 'error'>('idle');
   readonly importConsoleOpen = signal(false);
+  readonly totalCount = this.store.sectionsOfLineTotal;
   readonly importConsoleVisible = computed(
     () => this.importState() === 'running' || this.importConsoleOpen(),
   );
@@ -149,6 +150,14 @@ export class SectionOfLineEditorComponent implements OnDestroy {
 
   handleDelete(ids: string[]): void {
     ids.forEach((id) => this.store.removeSectionOfLine(id));
+  }
+
+  loadMore(): void {
+    void this.store.loadMoreSectionsOfLine();
+  }
+
+  handleSearch(term: string): void {
+    void this.store.searchSectionsOfLine(term);
   }
 
   handleBulkApply(event: BulkApplyEvent): void {

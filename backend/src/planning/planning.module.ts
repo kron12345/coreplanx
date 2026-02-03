@@ -25,6 +25,7 @@ import { PlanningMasterDataService } from './planning-master-data.service';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { PlanningRulesetService } from './planning-ruleset.service';
 import { PlanningTopologyImportService } from './planning-topology-import.service';
+import { PlanningTopologyRoutingService } from './planning-topology-routing.service';
 import { PlanningSnapshotService } from './planning-snapshot.service';
 import { PlanningRuleRepository } from './planning-rule.repository';
 import { PlanningRuleService } from './planning-rule.service';
@@ -60,6 +61,7 @@ import { PlanningGanttGateway } from './planning-gantt.gateway';
     PlanningRulesetService,
     PlanningSnapshotService,
     PlanningTopologyImportService,
+    PlanningTopologyRoutingService,
     PlanningOptimizationService,
     PlanningSolverService,
     PlanningStageRepository,

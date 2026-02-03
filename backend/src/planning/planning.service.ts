@@ -12,13 +12,16 @@ import type {
   CustomAttributeState,
   ActivityValidationRequest,
   ActivityValidationResponse,
+  OperationalPoint,
   PlanningStageViewportSubscriptionRequest,
   PlanningStageViewportSubscriptionResponse,
   LayerGroup,
   OperationalPointListRequest,
   OperationalPointListResponse,
+  OperationalPointBoundsRequest,
   OpReplacementStopLinkListRequest,
   OpReplacementStopLinkListResponse,
+  PagedResponse,
   PlatformListRequest,
   PlatformListResponse,
   PlatformEdgeListRequest,
@@ -41,12 +44,18 @@ import type {
   ResourceMutationRequest,
   ResourceMutationResponse,
   ResourceSnapshot,
+  SectionOfLine,
   SectionOfLineListRequest,
   SectionOfLineListResponse,
+  TopologyRouteRequest,
+  TopologyRouteResponse,
   SidingListRequest,
   SidingListResponse,
+  Siding,
   StationAreaListRequest,
   StationAreaListResponse,
+  StationArea,
+  Track,
   TrackListRequest,
   TrackListResponse,
   TopologyImportEventRequest,
@@ -64,6 +73,8 @@ import type {
   VehicleServicePoolListResponse,
   VehicleTypeListRequest,
   VehicleTypeListResponse,
+  PlatformEdge,
+  Platform,
 } from './planning.types';
 import { PlanningActivityCatalogService } from './planning-activity-catalog.service';
 import { PlanningMasterDataService } from './planning-master-data.service';
@@ -74,6 +85,7 @@ import type {
 import { PlanningSnapshotService } from './planning-snapshot.service';
 import { PlanningStageService } from './planning-stage.service';
 import { PlanningTopologyImportService } from './planning-topology-import.service';
+import { PlanningTopologyRoutingService } from './planning-topology-routing.service';
 
 @Injectable()
 export class PlanningService {
@@ -83,6 +95,7 @@ export class PlanningService {
     private readonly catalogService: PlanningActivityCatalogService,
     private readonly snapshotService: PlanningSnapshotService,
     private readonly topologyImportService: PlanningTopologyImportService,
+    private readonly topologyRoutingService: PlanningTopologyRoutingService,
   ) {}
 
   getStageSnapshot(
@@ -267,14 +280,42 @@ export class PlanningService {
     return this.masterDataService.listOperationalPoints();
   }
 
+  listOperationalPointsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<OperationalPoint>> {
+    return this.masterDataService.listOperationalPointsPaged(offset, limit, query);
+  }
+
   saveOperationalPoints(
     request?: OperationalPointListRequest,
   ): Promise<OperationalPointListResponse> {
     return this.masterDataService.saveOperationalPoints(request);
   }
 
+  listOperationalPointsInBounds(
+    request: OperationalPointBoundsRequest,
+  ): Promise<OperationalPointListResponse> {
+    return this.masterDataService.listOperationalPointsInBounds(request);
+  }
+
+  listOperationalPointsByIds(
+    ids: string[],
+  ): Promise<OperationalPointListResponse> {
+    return this.masterDataService.listOperationalPointsByIds(ids);
+  }
+
   listSectionsOfLine(): SectionOfLineListResponse {
     return this.masterDataService.listSectionsOfLine();
+  }
+
+  listSectionsOfLinePaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<SectionOfLine>> {
+    return this.masterDataService.listSectionsOfLinePaged(offset, limit, query);
   }
 
   saveSectionsOfLine(
@@ -283,8 +324,20 @@ export class PlanningService {
     return this.masterDataService.saveSectionsOfLine(request);
   }
 
+  planTopologyRoute(request: TopologyRouteRequest): TopologyRouteResponse {
+    return this.topologyRoutingService.planRoute(request);
+  }
+
   listStationAreas(): StationAreaListResponse {
     return this.masterDataService.listStationAreas();
+  }
+
+  listStationAreasPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<StationArea>> {
+    return this.masterDataService.listStationAreasPaged(offset, limit, query);
   }
 
   saveStationAreas(
@@ -297,12 +350,28 @@ export class PlanningService {
     return this.masterDataService.listTracks();
   }
 
+  listTracksPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Track>> {
+    return this.masterDataService.listTracksPaged(offset, limit, query);
+  }
+
   saveTracks(request?: TrackListRequest): Promise<TrackListResponse> {
     return this.masterDataService.saveTracks(request);
   }
 
   listPlatformEdges(): PlatformEdgeListResponse {
     return this.masterDataService.listPlatformEdges();
+  }
+
+  listPlatformEdgesPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<PlatformEdge>> {
+    return this.masterDataService.listPlatformEdgesPaged(offset, limit, query);
   }
 
   savePlatformEdges(
@@ -315,6 +384,14 @@ export class PlanningService {
     return this.masterDataService.listPlatforms();
   }
 
+  listPlatformsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Platform>> {
+    return this.masterDataService.listPlatformsPaged(offset, limit, query);
+  }
+
   savePlatforms(
     request?: PlatformListRequest,
   ): Promise<PlatformListResponse> {
@@ -323,6 +400,14 @@ export class PlanningService {
 
   listSidings(): SidingListResponse {
     return this.masterDataService.listSidings();
+  }
+
+  listSidingsPaged(
+    offset: number,
+    limit: number,
+    query?: string | null,
+  ): Promise<PagedResponse<Siding>> {
+    return this.masterDataService.listSidingsPaged(offset, limit, query);
   }
 
   saveSidings(request?: SidingListRequest): Promise<SidingListResponse> {

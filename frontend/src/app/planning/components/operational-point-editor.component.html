@@ -46,14 +46,18 @@
     [title]="'Operational Points'"
     [entities]="entityRecords()"
     [listLimit]="500"
+    [totalCount]="totalCount()"
     [attributeDefinitions]="attributeDefinitions()"
     [defaultFallbackValues]="defaultFallback"
     [numericKeys]="numericKeys"
     [actionKeys]="actionKeys"
+    [serverSearch]="true"
     [detailError]="error()"
     (saveEntity)="handleSave($event)"
     (deleteEntities)="handleDelete($event)"
     (bulkApply)="handleBulkApply($event)"
     (actionTriggered)="handleAction($event)"
+    (loadMore)="loadMore()"
+    (searchChanged)="handleSearch($event)"
   />
 </section>

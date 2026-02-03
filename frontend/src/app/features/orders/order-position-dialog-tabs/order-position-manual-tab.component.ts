@@ -51,7 +51,7 @@ export class OrderPositionManualTabComponent {
   @Input() simulationSelectionLabel: string | null = null;
 
   @Output() assemblePlanRequested = new EventEmitter<void>();
+  @Output() openTimetableEditorRequested = new EventEmitter<void>();
   @Output() clearTemplateRequested = new EventEmitter<void>();
   @Output() simulationAssignmentRequested = new EventEmitter<void>();
 }
-

@@ -1,0 +1,103 @@
+<section class="timing-editor">
+  <div class="timing-editor__grid">
+    <div class="timing-editor__left">
+      <h3>Stops Grid</h3>
+      @if (!stopRows().length) {
+        <p class="hint">Keine Halte vorhanden.</p>
+      } @else {
+        <table class="stops-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Halt</th>
+              <th>Ankunft</th>
+              <th>Abfahrt</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of stopRows(); track row.stop.stopId) {
+              <tr>
+                <td>{{ $index + 1 }}</td>
+                <td>
+                  <strong>{{ row.stop.op?.name ?? 'Unbekannt' }}</strong>
+                  <div class="muted">{{ row.stop.op?.id ?? row.stop.stopId }}</div>
+                </td>
+                <td>
+                  <input
+                    type="time"
+                    [value]="row.arrival"
+                    [disabled]="row.isPassThrough || row.stop.kind === 'origin'"
+                    (change)="onTimeChanged(row.stop.stopId, 'arrival', $any($event.target).value)"
+                  />
+                </td>
+                <td>
+                  <input
+                    type="time"
+                    [value]="row.departure"
+                    [disabled]="row.isPassThrough || row.stop.kind === 'destination'"
+                    (change)="onTimeChanged(row.stop.stopId, 'departure', $any($event.target).value)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+
+    <div class="timing-editor__center">
+      <div class="graph-header">
+        <h3>Zeit–Distanz-Graph</h3>
+        <mat-button-toggle-group
+          [value]="snapMode()"
+          (change)="snapMode.set($event.value)"
+          class="snap-toggle"
+        >
+          <mat-button-toggle value="minute">1 min</mat-button-toggle>
+          <mat-button-toggle value="half-minute">30 s</mat-button-toggle>
+          <mat-button-toggle value="off">Off</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+      <div class="graph-container">
+        <app-timetable-graph
+          [points]="graphPoints()"
+          [snapMode]="snapMode()"
+          [startTimeIso]="timetableDraftValue()?.startTimeIso ?? null"
+          (timeDragged)="onGraphDragged($event)"
+        ></app-timetable-graph>
+      </div>
+    </div>
+
+    <aside class="timing-editor__right">
+      <div class="panel">
+        <h4>Warnungen</h4>
+        @if (!warnings().length) {
+          <p class="hint">Keine Warnungen.</p>
+        } @else {
+          <ul>
+            @for (warning of warnings(); track warning) {
+              <li>{{ warning }}</li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="panel">
+        <h4>Pattern / Takt</h4>
+        <mat-form-field appearance="outline">
+          <mat-label>Headway (min)</mat-label>
+          <input matInput type="number" [value]="patternDefinitionValue()?.headwayMinutes ?? 60" (change)="updatePatternHeadway($any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Startzeit</mat-label>
+          <input matInput type="time" [value]="patternDefinitionValue()?.startTimeIso ? (patternDefinitionValue()?.startTimeIso | slice:11:16) : ''" (change)="updatePatternStart($any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Endzeit</mat-label>
+          <input matInput type="time" [value]="patternDefinitionValue()?.endTimeIso ? (patternDefinitionValue()?.endTimeIso | slice:11:16) : ''" (change)="updatePatternEnd($any($event.target).value)" />
+        </mat-form-field>
+        <button mat-stroked-button type="button" (click)="clearPattern()">Pattern löschen</button>
+      </div>
+    </aside>
+  </div>
+</section>

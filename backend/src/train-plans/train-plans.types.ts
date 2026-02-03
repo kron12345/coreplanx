@@ -59,6 +59,15 @@ export interface TrainPlanRouteMetadataDto {
   originBorderPoint?: string;
   destinationBorderPoint?: string;
   borderNotes?: string;
+  timetableDrafts?: TimetableDraftBundleDto;
+}
+
+export interface TimetableDraftBundleDto {
+  schemaVersion: number;
+  routeDraft?: Record<string, unknown> | null;
+  timetableDraft?: Record<string, unknown> | null;
+  patternDefinition?: Record<string, unknown> | null;
+  updatedAtIso?: string;
 }
 
 export interface TrainPlanParticipantDto {
