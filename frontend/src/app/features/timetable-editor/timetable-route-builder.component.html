@@ -11,30 +11,6 @@
     ></app-timetable-route-map>
   </div>
 
-  <div class="route-builder__search">
-    <mat-form-field appearance="outline">
-      <mat-label>Start</mat-label>
-      <mat-icon matPrefix>trip_origin</mat-icon>
-      <input matInput [formControl]="originSearch" [matAutocomplete]="originAuto" />
-      <mat-autocomplete #originAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="setOrigin($event.option.value)">
-        @for (op of originResults(); track op.uniqueOpId) {
-          <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
-        }
-      </mat-autocomplete>
-    </mat-form-field>
-
-    <mat-form-field appearance="outline">
-      <mat-label>Ziel</mat-label>
-      <mat-icon matPrefix>flag</mat-icon>
-      <input matInput [formControl]="destinationSearch" [matAutocomplete]="destinationAuto" />
-      <mat-autocomplete #destinationAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="setDestination($event.option.value)">
-        @for (op of destinationResults(); track op.uniqueOpId) {
-          <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
-        }
-      </mat-autocomplete>
-    </mat-form-field>
-  </div>
-
   <aside class="route-builder__panel" [class.is-open]="panelOpen()">
     <div class="panel-header">
       <h3>Route Builder</h3>
@@ -49,53 +25,88 @@
         @for (stop of stops(); track stop.stopId) {
           <div class="stop-row">
             <div class="stop-row__index">#{{ $index + 1 }}</div>
-            <div class="stop-row__body">
-              <strong>{{ stop.op?.name ?? 'Unbekannter Halt' }}</strong>
-              <span>{{ stop.op?.id ?? stop.stopId }}</span>
-            </div>
-            <mat-form-field appearance="outline" class="stop-row__kind">
-              <mat-label>Art</mat-label>
-              <mat-select
-                [value]="stop.kind"
-                [disabled]="stop.kind === 'origin' || stop.kind === 'destination'"
-                (selectionChange)="updateStopKind(stop.stopId, $event.value)"
-              >
-                <mat-option value="origin">Origin</mat-option>
-                <mat-option value="stop">Stop</mat-option>
-                <mat-option value="pass">Pass</mat-option>
-                <mat-option value="destination">Destination</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="stop-row__dwell">
-              <mat-label>Dwell (min)</mat-label>
-              <input
-                matInput
-                type="number"
-                [disabled]="stop.kind !== 'stop'"
-                [value]="stop.dwellSeconds ? stop.dwellSeconds / 60 : ''"
-                (change)="updateDwell(stop.stopId, $any($event.target).value)"
-              />
-            </mat-form-field>
-            <div class="stop-row__actions">
-              <button
-                mat-icon-button
-                type="button"
-                (click)="moveStop(stop.stopId, -1)"
-                [disabled]="stop.kind === 'origin' || stop.kind === 'destination' || $index === 0"
-              >
-                <mat-icon>arrow_upward</mat-icon>
-              </button>
-              <button
-                mat-icon-button
-                type="button"
-                (click)="moveStop(stop.stopId, 1)"
-                [disabled]="stop.kind === 'origin' || stop.kind === 'destination' || $index === stops().length - 1"
-              >
-                <mat-icon>arrow_downward</mat-icon>
-              </button>
-              <button mat-icon-button type="button" (click)="removeStop(stop.stopId)" [disabled]="stop.kind === 'origin' || stop.kind === 'destination'">
-                <mat-icon>delete</mat-icon>
-              </button>
+            <div class="stop-row__content">
+              <div class="stop-row__header">
+                @if (stop.kind === 'origin') {
+                  <mat-form-field appearance="outline" class="stop-row__input">
+                    <mat-label>Start</mat-label>
+                    <mat-icon matPrefix>trip_origin</mat-icon>
+                    <input matInput [formControl]="originSearch" [matAutocomplete]="originAuto" />
+                    <mat-autocomplete #originAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="setOrigin($event.option.value)">
+                      @for (op of originResults(); track op.uniqueOpId) {
+                        <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
+                      }
+                    </mat-autocomplete>
+                  </mat-form-field>
+                } @else if (stop.kind === 'destination') {
+                  <mat-form-field appearance="outline" class="stop-row__input">
+                    <mat-label>Ziel</mat-label>
+                    <mat-icon matPrefix>flag</mat-icon>
+                    <input matInput [formControl]="destinationSearch" [matAutocomplete]="destinationAuto" />
+                    <mat-autocomplete #destinationAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="setDestination($event.option.value)">
+                      @for (op of destinationResults(); track op.uniqueOpId) {
+                        <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
+                      }
+                    </mat-autocomplete>
+                  </mat-form-field>
+                } @else {
+                  <div class="stop-row__title">
+                    <strong>{{ stop.op?.name ?? 'Unbekannter Halt' }}</strong>
+                  </div>
+                }
+                @if (stop.kind !== 'origin' && stop.kind !== 'destination') {
+                  <span class="stop-row__meta">{{ stop.op?.id ?? stop.stopId }}</span>
+                }
+              </div>
+              @if (stop.kind === 'origin' || stop.kind === 'destination') {
+                <span class="stop-row__meta">{{ stop.op?.id ?? stop.stopId }}</span>
+              }
+              <div class="stop-row__controls">
+                <mat-form-field appearance="outline" class="stop-row__kind">
+                  <mat-label>Art</mat-label>
+                  <mat-select
+                    [value]="stop.kind"
+                    [disabled]="stop.kind === 'origin' || stop.kind === 'destination'"
+                    (selectionChange)="updateStopKind(stop.stopId, $event.value)"
+                  >
+                    <mat-option value="origin">Origin</mat-option>
+                    <mat-option value="stop">Stop</mat-option>
+                    <mat-option value="pass">Pass</mat-option>
+                    <mat-option value="destination">Destination</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="stop-row__dwell">
+                  <mat-label>Dwell (min)</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [disabled]="stop.kind !== 'stop'"
+                    [value]="stop.dwellSeconds ? stop.dwellSeconds / 60 : ''"
+                    (change)="updateDwell(stop.stopId, $any($event.target).value)"
+                  />
+                </mat-form-field>
+                <div class="stop-row__actions">
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="moveStop(stop.stopId, -1)"
+                    [disabled]="stop.kind === 'origin' || stop.kind === 'destination' || $index === 0"
+                  >
+                    <mat-icon>arrow_upward</mat-icon>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="moveStop(stop.stopId, 1)"
+                    [disabled]="stop.kind === 'origin' || stop.kind === 'destination' || $index === stops().length - 1"
+                  >
+                    <mat-icon>arrow_downward</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" (click)="removeStop(stop.stopId)" [disabled]="stop.kind === 'origin' || stop.kind === 'destination'">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           @if (stop.kind !== 'destination') {
@@ -249,25 +260,35 @@
             <h5>Unterwegspunkte</h5>
             <button mat-stroked-button type="button" (click)="togglePassPoints()">
               @if (showPassPoints()) {
-                Ausblenden ({{ routeOpDisplay().length }})
+                Ausblenden ({{ passThroughRows().length }})
               } @else {
-                Einblenden ({{ routeOpDisplay().length }})
+                Einblenden ({{ passThroughRows().length }})
               }
             </button>
           </div>
           @if (showPassPoints()) {
-            @if (routeOpDisplay().length) {
+            @if (passThroughRows().length) {
               <div class="preview-list">
-                @for (entry of routeOpDisplay(); track entry.id) {
+                @for (entry of passThroughRows(); track entry.opId) {
                   <div class="preview-row preview-row--pass">
                     <div class="preview-row__index">#{{ $index + 1 }}</div>
-                    <div class="preview-row__body" (click)="focusPassOp(entry.id)">
+                    <div class="preview-row__body" (click)="focusPassOp(entry.opId)">
                       <strong>{{ entry.op?.name ?? 'Unbekannter Halt' }}</strong>
-                      <span>{{ entry.op?.uniqueOpId ?? entry.id }}</span>
+                      <span>{{ entry.op?.id ?? entry.opId }}</span>
+                    </div>
+                    <div class="preview-row__times">
+                      <span>Arr: {{ entry.arrival || '–' }}</span>
+                      <span>Dep: {{ entry.departure || '–' }}</span>
                     </div>
                     <div class="preview-row__actions">
-                      <button mat-stroked-button type="button" (click)="convertPassOpToStop(entry.id)">
-                        Als Halt
+                      <button
+                        mat-icon-button
+                        type="button"
+                        aria-label="Als Halt"
+                        matTooltip="Als Halt"
+                        (click)="convertPassOpToStop(entry.opId)"
+                      >
+                        <mat-icon>flag</mat-icon>
                       </button>
                     </div>
                   </div>

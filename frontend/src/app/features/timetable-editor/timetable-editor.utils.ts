@@ -156,6 +156,20 @@ export const buildTimingPointsFromRoute = (
   if (!startTimeIso) {
     return points;
   }
+  const resolveSegmentDistance = (segment: RouteSegment | undefined): number => {
+    if (!segment) {
+      return 0;
+    }
+    if (segment.distanceMeters && segment.distanceMeters > 0) {
+      return segment.distanceMeters;
+    }
+    const path = routeDraft.segmentOpPaths?.[segment.segmentId] ?? [];
+    const pathKm = path.reduce((sum, entry) => sum + (entry.lengthKm ?? 0), 0);
+    if (pathKm > 0) {
+      return pathKm * 1000;
+    }
+    return segment.distanceMeters ?? 0;
+  };
   let cursorIso = startTimeIso;
   routeDraft.stops.forEach((stop, index) => {
     if (index === 0) {
@@ -163,7 +177,15 @@ export const buildTimingPointsFromRoute = (
       return;
     }
     const segment = routeDraft.segments[index - 1];
-    cursorIso = addSecondsToIso(cursorIso, segment?.estimatedTravelSeconds ?? 0) ?? cursorIso;
+    let travelSeconds = segment?.estimatedTravelSeconds ?? 0;
+    if ((!travelSeconds || travelSeconds <= 0) && segment) {
+      const speed = segment.assumedSpeedKph ?? routeDraft.assumptions.defaultSpeedKph;
+      if (speed > 0) {
+        const distanceMeters = resolveSegmentDistance(segment);
+        travelSeconds = Math.round(distanceMeters / (speed * (1000 / 3600)));
+      }
+    }
+    cursorIso = addSecondsToIso(cursorIso, travelSeconds) ?? cursorIso;
     const arrivalIso = cursorIso;
     if (stop.kind === 'destination' || stop.kind === 'pass') {
       points.push({ stopId: stop.stopId, arrivalIso });
@@ -208,6 +230,76 @@ export const buildPassThroughPoints = (
   const pointMap = new Map(startPoints.map((point) => [point.stopId, point] as const));
   const opLookup = new Map((routeDraft.routeOps ?? []).map((op) => [op.id, op]));
   const stopOpIds = new Set(routeDraft.stops.map((stop) => stop.op?.id).filter(Boolean));
+  const segmentIds = routeDraft.segments.map((segment) => segment.segmentId);
+  const segmentPaths = routeDraft.segmentOpPaths ?? {};
+  const hasAllSegmentPaths =
+    segmentIds.length > 0 &&
+    segmentIds.every((id) => (segmentPaths[id] ?? []).length > 0);
+  if (!hasAllSegmentPaths && routeDraft.routeOps?.length) {
+    const originStop = routeDraft.stops.find((stop) => stop.kind === 'origin');
+    const destinationStop = routeDraft.stops.find((stop) => stop.kind === 'destination');
+    const originPoint = originStop ? pointMap.get(originStop.stopId) : startPoints[0];
+    const destinationPoint = destinationStop
+      ? pointMap.get(destinationStop.stopId)
+      : startPoints[startPoints.length - 1];
+    const startIso = originPoint?.departureIso ?? originPoint?.arrivalIso;
+    const endIso = destinationPoint?.arrivalIso ?? destinationPoint?.departureIso;
+    const routeOps = routeDraft.routeOps ?? [];
+    let totalSeconds = 0;
+    if (startIso && endIso) {
+      totalSeconds = (parseIsoToUtcMs(endIso) - parseIsoToUtcMs(startIso)) / 1000;
+    }
+    let cumulativeDistance = 0;
+    let totalDistance = 0;
+    const distances = routeOps.map((op, index) => {
+      if (index === 0) {
+        return 0;
+      }
+      const prev = routeOps[index - 1];
+      if (
+        Number.isFinite(prev.lat) &&
+        Number.isFinite(prev.lon) &&
+        Number.isFinite(op.lat) &&
+        Number.isFinite(op.lon)
+      ) {
+        return haversineMeters(prev.lat as number, prev.lon as number, op.lat as number, op.lon as number);
+      }
+      return 1000;
+    });
+    totalDistance = distances.reduce((sum, value) => sum + value, 0);
+    if (totalSeconds <= 0 && totalDistance > 0 && startIso) {
+      const speed = routeDraft.assumptions.defaultSpeedKph;
+      if (speed > 0) {
+        totalSeconds = Math.round(totalDistance / (speed * (1000 / 3600)));
+      }
+    }
+    for (let index = 0; index < routeOps.length; index += 1) {
+      const op = routeOps[index];
+      if (index > 0) {
+        cumulativeDistance += distances[index] ?? 0;
+      }
+      if (!op?.id || stopOpIds.has(op.id)) {
+        continue;
+      }
+      const ratio =
+        totalDistance > 0
+          ? cumulativeDistance / totalDistance
+          : index / Math.max(1, routeOps.length - 1);
+      const arrivalIso =
+        startIso && totalSeconds > 0
+          ? addSecondsToIso(startIso, Math.round(totalSeconds * ratio))
+          : undefined;
+      passPoints.push({
+        stopId: `pass-${op.id}`,
+        opId: op.id,
+        op: opLookup.get(op.id) ?? op,
+        arrivalIso,
+        departureIso: arrivalIso,
+        distanceMeters: cumulativeDistance,
+      });
+    }
+    return passPoints;
+  }
   const seenOpIds = new Set<string>();
   let cumulativeDistance = 0;
   routeDraft.segments.forEach((segment) => {
@@ -258,6 +350,18 @@ export const buildPassThroughPoints = (
     } else if (startIso && segment.estimatedTravelSeconds) {
       totalSeconds = segment.estimatedTravelSeconds;
       effectiveEnd = addSecondsToIso(startIso, totalSeconds);
+    }
+    if (effectiveStart && totalSeconds <= 0) {
+      const fallbackDistance =
+        segmentDistanceMeters && segmentDistanceMeters > 0 ? segmentDistanceMeters : cursor;
+      const fallbackSpeed =
+        segment.assumedSpeedKph ?? routeDraft.assumptions.defaultSpeedKph;
+      if (fallbackDistance > 0 && fallbackSpeed > 0) {
+        totalSeconds = Math.round(
+          fallbackDistance / (fallbackSpeed * (1000 / 3600)),
+        );
+        effectiveEnd = addSecondsToIso(effectiveStart, totalSeconds);
+      }
     }
     const segmentTotal = cursor > 0 ? cursor : segmentDistanceMeters;
     opSeq.forEach((entry) => {

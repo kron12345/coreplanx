@@ -68,6 +68,7 @@ export class TimetableEditorComponent {
   private saveTimer: number | null = null;
   private saveInFlight = false;
   private pendingBundle: TimetableDraftBundle | null = null;
+  private timetableEdited = false;
 
   readonly hasPlan = computed(() => !!this.plan());
   readonly canProceedToTiming = computed(() => {
@@ -140,8 +141,22 @@ export class TimetableEditorComponent {
   onRouteDraftChange(next: RouteDraft) {
     this.routeDraft.set(next);
     let timetableDraft = this.timetableDraft();
+    if (!timetableDraft) {
+      return;
+    }
     if (timetableDraft && next.previewStartTimeIso) {
       timetableDraft = this.shiftTimetableStart(timetableDraft, next.previewStartTimeIso);
+    }
+    if (!this.timetableEdited) {
+      const startTimeIso =
+        next.previewStartTimeIso ?? timetableDraft.startTimeIso;
+      timetableDraft = {
+        ...timetableDraft,
+        startTimeIso,
+        points: buildTimingPointsFromRoute(next, startTimeIso),
+      };
+      this.timetableDraft.set(timetableDraft);
+      return;
     }
     const synced = this.syncTimetableDraft(next, timetableDraft);
     if (synced) {
@@ -150,6 +165,7 @@ export class TimetableEditorComponent {
   }
 
   onTimetableDraftChange(next: TimetableDraft) {
+    this.timetableEdited = true;
     this.timetableDraft.set(next);
   }
 
@@ -192,6 +208,7 @@ export class TimetableEditorComponent {
     this.autoSaveEnabled.set(false);
     this.saveState.set('idle');
     this.lastSavedIso.set(null);
+    this.timetableEdited = false;
     const existing = plan.routeMetadata?.timetableDrafts;
     const validExisting = existing?.schemaVersion === 1 ? existing : null;
     let routeDraft = validExisting?.routeDraft ?? this.createRouteDraft(plan);

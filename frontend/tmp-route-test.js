@@ -149,22 +149,37 @@ async function ensureOrderCard(page) {
     await page.waitForTimeout(3000);
     await page.screenshot({ path: '/tmp/coreplanx-route-04-editor.png', fullPage: true });
 
-    const search = page.locator('.route-builder__search');
-    const startInput = search.getByLabel('Start', { exact: false }).first();
-    const zielInput = search.getByLabel('Ziel', { exact: false }).first();
-
-    if (await startInput.count()) {
+    const stopInputs = page.locator('.stop-row__input input');
+    if ((await stopInputs.count()) >= 2) {
+      const startInput = stopInputs.nth(0);
+      const zielInput = stopInputs.nth(1);
       await startInput.fill('Leipzig Hbf');
       await page.waitForTimeout(1200);
       await page.keyboard.press('ArrowDown');
       await page.keyboard.press('Enter');
-    }
 
-    if (await zielInput.count()) {
       await zielInput.fill('Karlsruhe Hbf');
       await page.waitForTimeout(1200);
       await page.keyboard.press('ArrowDown');
       await page.keyboard.press('Enter');
+    } else {
+      const stopList = page.locator('.stop-list');
+      const startInput = stopList.getByLabel('Start', { exact: false }).first();
+      const zielInput = stopList.getByLabel('Ziel', { exact: false }).first();
+
+      if (await startInput.count()) {
+        await startInput.fill('Leipzig Hbf');
+        await page.waitForTimeout(1200);
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+      }
+
+      if (await zielInput.count()) {
+        await zielInput.fill('Karlsruhe Hbf');
+        await page.waitForTimeout(1200);
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+      }
     }
 
     await page.waitForTimeout(3500);
@@ -179,6 +194,12 @@ async function ensureOrderCard(page) {
 
     const previewRows = page.locator('.preview-row');
     console.log('previewRows', await previewRows.count());
+    const passTimeLabels = page.locator('.preview-row--pass .preview-row__times');
+    const passTimeCount = await passTimeLabels.evaluateAll((nodes) => {
+      const timeRegex = /\d{2}:\d{2}/;
+      return nodes.filter((node) => timeRegex.test(node.textContent ?? '')).length;
+    });
+    console.log('passThroughTimes', passTimeCount);
 
     const panel = page.locator('.route-builder__panel');
     const panelOpenBefore = await panel.evaluate((el) => el.classList.contains('is-open'));
@@ -192,11 +213,92 @@ async function ensureOrderCard(page) {
     }
 
     const nextButton = page.getByRole('button', { name: /weiter.*timing editor/i });
-    if (await nextButton.count()) {
+      if (await nextButton.count()) {
       await nextButton.click();
       await page.waitForTimeout(1200);
       const passRows = page.locator('tbody tr');
       console.log('timingRows', await passRows.count());
+      const graphInfo = await page.evaluate(() => {
+        const canvas = document.querySelector('app-timetable-graph canvas');
+        if (!canvas) {
+          return { found: false };
+        }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          return { found: true, ctx: false };
+        }
+        const width = canvas.width;
+        const height = canvas.height;
+        let nonBlack = 0;
+        if (width > 0 && height > 0) {
+          const data = ctx.getImageData(0, 0, Math.min(width, 200), Math.min(height, 200)).data;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+            if (a !== 255 || r !== 0 || g !== 0 || b !== 0) {
+              nonBlack += 1;
+            }
+          }
+        }
+        return { found: true, width, height, nonBlack };
+      });
+      console.log('graphInfo', graphInfo);
+      await page.screenshot({ path: '/tmp/coreplanx-route-06-graph.png', fullPage: true });
+      const timingDraft = await page.evaluate(() => {
+        const host = document.querySelector('app-timetable-editor');
+          const ng = window.ng;
+          if (!host || !ng || typeof ng.getComponent !== 'function') {
+            return null;
+          }
+          const comp = ng.getComponent(host);
+          if (!comp || typeof comp.timetableDraft !== 'function') {
+            return null;
+          }
+          const draft = comp.timetableDraft();
+          const routeDraft = typeof comp.routeDraft === 'function' ? comp.routeDraft() : null;
+          const segmentOpPathKeys = routeDraft?.segmentOpPaths
+            ? Object.keys(routeDraft.segmentOpPaths)
+            : [];
+          const segmentOpPathCount = segmentOpPathKeys.length;
+          const routeStopCount = routeDraft?.stops?.length ?? 0;
+          const routeSegmentCount = routeDraft?.segments?.length ?? 0;
+          const routeStopSample = routeDraft?.stops?.map((stop) => ({
+            kind: stop.kind,
+            id: stop.op?.id,
+            name: stop.op?.name,
+          })) ?? [];
+          if (!draft) {
+            return {
+              routeSegmentOpPaths: segmentOpPathCount,
+              routeStopCount,
+              routeSegmentCount,
+              routeStopSample,
+              routeSegmentOpKeys: segmentOpPathKeys,
+            };
+          }
+          const filled = draft.points.filter(
+            (point) => point.arrivalIso || point.departureIso,
+          ).length;
+          return {
+            pointCount: draft.points.length,
+            filled,
+            startTimeIso: draft.startTimeIso,
+            sample: draft.points.slice(0, 3),
+            routeSegmentOpPaths: segmentOpPathCount,
+            routeStopCount,
+            routeSegmentCount,
+            routeStopSample,
+            routeSegmentOpKeys: segmentOpPathKeys,
+          };
+        });
+        console.log('timingDraft', timingDraft);
+        const timeInputs = page.locator('.stops-table tbody input[type="time"]');
+        const filledTimes = await timeInputs.evaluateAll((nodes) =>
+          nodes.map((node) => node.value).filter((value) => value && value.trim().length > 0),
+        );
+        console.log('timingFilledTimes', filledTimes.length);
       const disabledInputs = page.locator('tbody input[disabled]');
       console.log('timingDisabledInputs', await disabledInputs.count());
       const backButton = page.getByRole('button', { name: /zurück zum route builder/i });

@@ -33,6 +33,7 @@ import {
   DEFAULT_SPEED_KPH,
   buildSegments,
   buildTimingPointsFromRoute,
+  buildPassThroughPoints,
   createDraftId,
   formatIsoTime,
   formatOpLabel,
@@ -148,7 +149,7 @@ export class TimetableRouteBuilderComponent {
   readonly routeOpIdsBySegment = signal<Record<string, string[]>>({});
   readonly routeOpLookup = signal<Map<string, OperationalPoint>>(new Map());
   readonly routingState = signal<'idle' | 'loading'>('idle');
-  readonly panelOpenState = signal(false);
+  readonly panelOpenState = signal(true);
   readonly showPassPoints = signal(true);
 
   readonly originStop = computed(() => this.stops().find((stop) => stop.kind === 'origin') ?? null);
@@ -160,6 +161,18 @@ export class TimetableRouteBuilderComponent {
   readonly intermediateStops = computed(() =>
     this.stops().filter((stop) => stop.kind === 'stop' || stop.kind === 'pass'),
   );
+  readonly passThroughRows = computed(() => {
+    const draft = this.draftSignal();
+    if (!draft || !draft.previewStartTimeIso) {
+      return [];
+    }
+    const basePoints = buildTimingPointsFromRoute(draft, draft.previewStartTimeIso);
+    return buildPassThroughPoints(draft, basePoints).map((point) => ({
+      ...point,
+      arrival: formatIsoTime(point.arrivalIso),
+      departure: formatIsoTime(point.departureIso),
+    }));
+  });
   readonly routeOpSequence = computed(() => {
     const idsBySegment = this.routeOpIdsBySegment();
     const sequence: string[] = [];
@@ -235,7 +248,7 @@ export class TimetableRouteBuilderComponent {
     });
 
     effect(() => {
-      if (!this.panelOpenState() && this.stops().length) {
+      if (!this.panelOpenState()) {
         this.panelOpenState.set(true);
       }
     });

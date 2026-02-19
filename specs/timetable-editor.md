@@ -19,11 +19,15 @@
 - R11: Route Builder allows setting a **departure time** and shows a **preview timetable** for all stops (including intermediate) using segment travel times + dwell.
 - R12: Changing the Route Builder departure time **updates the Timing Editor start time** by shifting all timetable points.
 - R13: Route Builder shows **alternative SOL routes** (if available) and allows selection; routing filters include **electrified** constraints.
-- R14: Route Builder uses a **full-screen map** with a floating Start/Ziel search bar; the Route Builder panel **slides in** when a route is started, uses an **inline stop editor** (add between stops), collapsible options, and a **segment area with loading** while routing.
+- R14: Route Builder uses a **map-first layout** with the **Start/Ziel inputs inside the left panel**; the Route Builder panel is **open by default**, uses an **inline stop editor** (add between stops), collapsible options, and a **segment area with loading** while routing.
 - R15: The segment area lists **all SOL-based intermediate Operational Points** along the selected route (not only user stops); names are resolved via OP lookup where available.
 - R16: Returning from Timing Editor reopens the Route Builder panel when a route exists, and the panel layout keeps **segments reachable** even with many stops (scrolling/sections).
 - R17: The Timing Editor includes **pass-through points** (Durchfahrten) derived from SOL paths, with computed times based on segment travel time; they are read-only by default.
 - R18: Route Builder allows converting a pass-through point into a **real stop** (kind `stop`), inserted at the correct route position.
+- R19: The time–distance graph uses **time on the X-axis** and **operational points on the Y-axis**; each OP has a horizontal guide line to make reading the timetable straightforward.
+- R20: When the route/segment travel times change and the Timing Editor has not been manually edited yet, timetable points are **recomputed from the Route Builder preview start time** so the Timing Editor and graph are populated with segment-based times.
+- R21: The Timing Editor allows **creating stops from pass-through points directly in the graph** (click pass-through point → convert to stop) and keeps the graph editable (drag to change times).
+- R22: The time–distance graph places the **origin at the top** of the Y-axis and the **destination at the bottom** (route direction top → bottom).
 
 ## Behavior
 - Inputs:
@@ -55,11 +59,15 @@
 - AC11: Setting a departure time shows a preview timetable for all stops with computed times.
 - AC12: After changing the departure time in Route Builder, the Timing Editor reflects the shifted start time and updated stop times.
 - AC13: When alternatives are available, the user can select one and the segment geometry updates accordingly; electrified-only filtering reduces routes to electrified SOLs.
-- AC14: The map is full-screen with floating Start/Ziel search; selecting a stop opens the sliding Route Builder panel, the inline stop editor allows insertion between stops, options are collapsible, and the segment list shows a loading indicator while routing.
+- AC14: The map is full-screen with a left Route Builder panel; Start/Ziel inputs live inside the panel, the inline stop editor allows insertion between stops, options are collapsible, and the segment list shows a loading indicator while routing.
 - AC15: The segment list shows intermediate OPs along each SOL segment (IDs and resolved names where possible), and the aggregated Unterwegspunkte reflect the SOL path, not only the draft stops.
 - AC16: When returning from the Timing Editor, the Route Builder panel is open if a route exists; the stop list and segment list remain accessible via scrolling when many stops exist.
 - AC17: The Timing Editor shows pass-through points with computed times (read-only), so the timetable is complete.
 - AC18: Clicking **Als Halt** on a pass-through point converts it into a stop and updates the route + timing preview.
+- AC19: The graph renders horizontal guide lines aligned to each operational point, with time plotted on X and OP order on Y.
+- AC20: When the SOL route/segments update and no manual timing edits exist yet, the Timing Editor times and graph are recalculated from segment travel times.
+- AC21: Clicking a pass-through point in the graph converts it into a stop (and the timetable updates accordingly).
+- AC22: The graph renders with the route direction top → bottom (origin above destination).
 
 ## Notes
 - Dependencies: Leaflet (map), OSM tile layer, topology search API.

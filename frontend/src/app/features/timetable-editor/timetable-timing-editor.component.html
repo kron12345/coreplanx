@@ -58,12 +58,14 @@
           <mat-button-toggle value="off">Off</mat-button-toggle>
         </mat-button-toggle-group>
       </div>
+      <p class="hint">Draggt Halte, um Zeiten zu verschieben. Klickt eine Durchfahrt, um sie als Halt zu uebernehmen.</p>
       <div class="graph-container">
         <app-timetable-graph
           [points]="graphPoints()"
           [snapMode]="snapMode()"
           [startTimeIso]="timetableDraftValue()?.startTimeIso ?? null"
           (timeDragged)="onGraphDragged($event)"
+          (pointSelected)="onGraphPointSelected($event)"
         ></app-timetable-graph>
       </div>
     </div>

@@ -9,6 +9,7 @@ export interface TimetableGraphPoint {
   kind: 'origin' | 'stop' | 'destination' | 'pass';
   timeIso?: string;
   distanceMeters: number;
+  opId?: string;
 }
 
 @Component({
@@ -24,10 +25,19 @@ export class TimetableGraphComponent implements AfterViewInit, OnChanges, OnDest
   @Input() snapMode: GraphSnapMode = 'minute';
   @Input() startTimeIso: string | null = null;
   @Output() timeDragged = new EventEmitter<{ stopId: string; timeIso: string }>();
+  @Output() pointSelected = new EventEmitter<{ stopId: string; kind: TimetableGraphPoint['kind']; opId?: string }>();
 
   private ctx: CanvasRenderingContext2D | null = null;
   private resizeObserver?: ResizeObserver;
-  private renderPoints: Array<{ stopId: string; x: number; y: number; timeIso?: string; kind: TimetableGraphPoint['kind'] }> = [];
+  private renderPoints: Array<{
+    stopId: string;
+    x: number;
+    y: number;
+    timeIso?: string;
+    kind: TimetableGraphPoint['kind'];
+    label: string;
+    opId?: string;
+  }> = [];
   private draggingStopId: string | null = null;
   private timeRange: { minMs: number; maxMs: number } | null = null;
 
@@ -124,15 +134,44 @@ export class TimetableGraphComponent implements AfterViewInit, OnChanges, OnDest
     this.points.forEach((point, index) => {
       const timeMs = point.timeIso ? parseIsoToUtcMs(point.timeIso) : minMs;
       const x = margin.left + (timeMs - minMs) * xScale;
-      const y = height - margin.bottom - (point.distanceMeters - minDistance) * yScale;
+      const y = margin.top + (point.distanceMeters - minDistance) * yScale;
       if (index === 0) {
         ctx.moveTo(x, y);
       } else {
         ctx.lineTo(x, y);
       }
-      this.renderPoints.push({ stopId: point.stopId, x, y, timeIso: point.timeIso, kind: point.kind });
+      this.renderPoints.push({
+        stopId: point.stopId,
+        x,
+        y,
+        timeIso: point.timeIso,
+        kind: point.kind,
+        label: point.label,
+        opId: point.opId,
+      });
     });
     ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    this.renderPoints.forEach((point) => {
+      ctx.beginPath();
+      ctx.moveTo(margin.left, point.y);
+      ctx.lineTo(width - margin.right, point.y);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '12px sans-serif';
+    const labelStride = Math.max(1, Math.ceil(this.renderPoints.length / 20));
+    this.renderPoints.forEach((point, index) => {
+      if (index % labelStride !== 0) {
+        return;
+      }
+      ctx.fillText(point.label, 8, point.y + 4);
+    });
 
     this.renderPoints.forEach((point) => {
       ctx.fillStyle = '#0f172a';
@@ -145,7 +184,8 @@ export class TimetableGraphComponent implements AfterViewInit, OnChanges, OnDest
     ctx.font = '12px sans-serif';
     const labelTime = formatIsoTime(this.points[0]?.timeIso);
     if (labelTime) {
-      ctx.fillText(labelTime, margin.left, height - 8);
+      const labelY = Math.max(14, margin.top - 4);
+      ctx.fillText(labelTime, margin.left, labelY);
     }
   }
 
@@ -161,7 +201,11 @@ export class TimetableGraphComponent implements AfterViewInit, OnChanges, OnDest
       const dy = point.y - y;
       return Math.sqrt(dx * dx + dy * dy) <= 8;
     });
-    if (hit && hit.kind !== 'pass') {
+    if (hit) {
+      if (hit.kind === 'pass') {
+        this.pointSelected.emit({ stopId: hit.stopId, kind: hit.kind, opId: hit.opId });
+        return;
+      }
       this.draggingStopId = hit.stopId;
     }
   };

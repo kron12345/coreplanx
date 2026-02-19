@@ -24,9 +24,9 @@ Die Eingaben werden als **Drafts** gespeichert, so dass bei Abbruechen keine Arb
 
 Zweck: Streckenverlauf und grobe Zeiten definieren.
 
-- **OSM-Karte**: Vollbild-Ansicht mit schwebender Start/Ziel-Suche (Google-Maps-Stil).
+- **OSM-Karte**: Map-first Layout, Start/Ziel Eingaben liegen im linken Panel.
 - **Origin/Destination**: Operational Points ueber Suche oder Map-Klick auswaehlen.
-- **Route-Panel (links)**: Faehrt aus, sobald Start/Ziel gesetzt sind; bei Rueckkehr aus dem Timing-Editor bleibt es offen.
+- **Route-Panel (links)**: Standardmaessig offen; bei Rueckkehr aus dem Timing-Editor bleibt es offen.
 - **Stops Inline**: Zwischenhalte werden zwischen den Stop-Zeilen eingefuegt (Art + Dwell direkt editierbar). Bei vielen Halten sind Stops/Segmente ueber Scrollen erreichbar.
 - **Unterwegspunkte**: SOL-Durchfahrten werden angezeigt; einzelne Punkte koennen in **Halt** umgewandelt werden.
 - **Routing-Optionen**: Link-Abschnitte + Elektrifizierung filtern; Alternativen auswaehlen, wenn verfuegbar (Accordion).
@@ -38,7 +38,10 @@ Zweck: Streckenverlauf und grobe Zeiten definieren.
 Zweck: Zeiten im Detail festlegen.
 
 - **Stops Grid**: Ankunft/Abfahrt bearbeiten, Dwell nachvollziehbar. **Durchfahrten** erscheinen als read-only Zeilen mit berechneten Zeiten.
-- **Zeit–Distanz-Graph**: Linie zeigt den Laufweg, Punkte sind Halte.
+- **Zeit-Übernahme**: Solange keine manuellen Timing-Edits vorliegen, werden Zeiten aus der Route-Ansicht (Abfahrtszeit + Segment-Reisezeiten) automatisch uebernommen.
+- **Zuggrafik-Edit**: Zeiten koennen per Drag im Graph angepasst werden; Durchfahrten lassen sich im Graph per Klick zu **Halten** machen.
+- **Achsen**: Origin oben, Destination unten (Route laeuft von oben nach unten).
+- **Zeit–Distanz-Graph**: Zeit auf X-Achse, Betriebsstellen auf Y-Achse; horizontale Linien helfen beim Lesen.
 - **Interaktionen**: Zeiten anpassen (Grid oder via Graph).
 - **Validierungen**: Warnungen bei zu kurzen Dwell/Travel-Zeiten (non-blocking).
 

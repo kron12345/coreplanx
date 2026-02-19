@@ -20,8 +20,11 @@ import type {
 import {
   addMinutesToIso,
   buildCumulativeDistances,
+  buildSegments,
   buildPassThroughPoints,
+  createDraftId,
   formatIsoTime,
+  nowIso,
   parseIsoToUtcMs,
   toIsoWithTime,
 } from './timetable-editor.utils';
@@ -50,6 +53,7 @@ export class TimetableTimingEditorComponent {
   }
   @Output() timetableDraftChange = new EventEmitter<TimetableDraft>();
   @Output() patternDefinitionChange = new EventEmitter<PatternDefinition | null>();
+  @Output() routeDraftChange = new EventEmitter<RouteDraft>();
 
   readonly snapMode = signal<GraphSnapMode>('minute');
   readonly patternDefinitionValue = computed(() => this.patternDefinitionSignal());
@@ -115,6 +119,7 @@ export class TimetableTimingEditorComponent {
           kind: stop.kind,
           timeIso,
           distanceMeters: distanceMap.get(stop.stopId) ?? 0,
+          opId: stop.op?.id,
         };
       }
       const passPoint = passPointMap.get(opId);
@@ -125,6 +130,7 @@ export class TimetableTimingEditorComponent {
         kind: 'pass',
         timeIso,
         distanceMeters: passPoint?.distanceMeters ?? 0,
+        opId: passPoint?.opId ?? opId,
       };
     });
   });
@@ -218,6 +224,17 @@ export class TimetableTimingEditorComponent {
     }
   }
 
+  onGraphPointSelected(event: { stopId: string; kind: TimetableGraphPoint['kind']; opId?: string }) {
+    if (event.kind !== 'pass') {
+      return;
+    }
+    const opId = event.opId ?? event.stopId.replace(/^pass-/, '');
+    if (!opId) {
+      return;
+    }
+    this.convertPassThroughToStop(opId);
+  }
+
   updatePatternHeadway(value: string) {
     this.updatePattern({ headwayMinutes: Number(value) });
   }
@@ -262,6 +279,64 @@ export class TimetableTimingEditorComponent {
 
   private emitDraft(next: TimetableDraft) {
     this.timetableDraftChange.emit(next);
+  }
+
+  private convertPassThroughToStop(opId: string) {
+    const route = this.routeDraftSignal();
+    if (!route) {
+      return;
+    }
+    if (route.stops.some((stop) => stop.op?.id === opId)) {
+      return;
+    }
+    const insertIndex = this.findInsertIndexForOp(route, opId);
+    const op = route.routeOps?.find((entry) => entry.id === opId);
+    const newStop: RouteStop = {
+      stopId: createDraftId('stop'),
+      kind: 'stop',
+      op: op ?? { id: opId, name: opId },
+      dwellSeconds: route.assumptions.defaultDwellSeconds,
+    };
+    const nextStops = [...route.stops];
+    const safeIndex = Math.max(1, Math.min(insertIndex, nextStops.length));
+    nextStops.splice(safeIndex, 0, newStop);
+    const nextSegments = buildSegments(nextStops, route.assumptions, route.segments);
+    this.routeDraftChange.emit({
+      ...route,
+      stops: nextStops,
+      segments: nextSegments,
+      segmentOpPaths: {},
+      updatedAtIso: nowIso(),
+    });
+  }
+
+  private findInsertIndexForOp(route: RouteDraft, opId: string): number {
+    const sequence = route.routeOps?.map((op) => op.id) ?? [];
+    const targetIndex = sequence.indexOf(opId);
+    if (targetIndex < 0) {
+      const destinationIndex = route.stops.findIndex((stop) => stop.kind === 'destination');
+      return destinationIndex >= 0 ? destinationIndex : route.stops.length;
+    }
+    const stopPositions = route.stops
+      .map((stop, index) => ({
+        index,
+        pos: sequence.indexOf(stop.op?.id ?? ''),
+      }))
+      .filter((entry) => entry.pos >= 0)
+      .sort((a, b) => a.pos - b.pos);
+    let insertAfter = 0;
+    for (const entry of stopPositions) {
+      if (entry.pos < targetIndex) {
+        insertAfter = entry.index;
+      } else {
+        break;
+      }
+    }
+    const destinationIndex = route.stops.findIndex((stop) => stop.kind === 'destination');
+    if (destinationIndex >= 0) {
+      return Math.min(insertAfter + 1, destinationIndex);
+    }
+    return insertAfter + 1;
   }
 
   private pickAnchorTime(stop: RouteStop | undefined, point: TimingPoint | undefined): string | undefined {
