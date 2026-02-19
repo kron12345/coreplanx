@@ -61,6 +61,33 @@
   align-items: center;
 }
 
+.orders-hero__create-button {
+  --mdc-outlined-button-label-text-color: #0f172a;
+  --mdc-outlined-button-outline-color: rgba(248, 250, 252, 0.95);
+  --mat-outlined-button-state-layer-color: rgba(15, 23, 42, 0.16);
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(191, 219, 254, 0.95));
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+
+  mat-icon {
+    color: #1d4ed8;
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.35);
+    filter: brightness(1.02);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(191, 219, 254, 0.95);
+    outline-offset: 2px;
+  }
+}
+
 .shortcut-hint {
   font-size: 0.8rem;
   letter-spacing: 0.06em;
@@ -665,6 +692,7 @@
 
 .order-card-wrapper {
   animation: cardEnter 0.3s ease;
+  scroll-margin-top: clamp(8px, 2vh, 24px);
 }
 
 .order-card-skeleton {

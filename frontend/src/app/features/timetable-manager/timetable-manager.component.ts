@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import {
@@ -13,15 +13,30 @@ import {
 } from '../../core/services/timetable-hub.service';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TimetableYearService } from '../../core/services/timetable-year.service';
 import { TimetableYearBounds } from '../../core/models/timetable-year.model';
 import { TimetableService } from '../../core/services/timetable.service';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { TrainPlanService } from '../../core/services/train-plan.service';
+import { TimetableOrderingService } from '../../core/services/timetable-ordering.service';
 import {
   TimetableTestTrainDialogComponent,
   TimetableTestTrainDialogResult,
 } from './timetable-test-train-dialog.component';
+import {
+  TimetableOrderingFromTrainDialogComponent,
+  TimetableOrderingFromTrainDialogResult,
+} from './timetable-ordering-from-train-dialog.component';
+import type {
+  TrainPlan,
+  TrainPlanSourceType,
+  TrainPlanStatus,
+  TrainPlanStop,
+  TrainPlanTechnicalData,
+} from '../../core/models/train-plan.model';
+import type { Timetable, TimetableSourceType } from '../../core/models/timetable.model';
 
 type DialogStopValue = TimetableTestTrainDialogResult['stops'][number];
 
@@ -32,11 +47,16 @@ type DialogStopValue = TimetableTestTrainDialogResult['stops'][number];
     styleUrl: './timetable-manager.component.scss'
 })
 export class TimetableManagerComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly hubService = inject(TimetableHubService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly yearService = inject(TimetableYearService);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly timetableService = inject(TimetableService);
+  private readonly trainPlanService = inject(TrainPlanService);
+  private readonly orderingService = inject(TimetableOrderingService);
 
   readonly searchControl = new FormControl('', { nonNullable: true });
   private readonly searchTerm = signal('');
@@ -145,11 +165,39 @@ export class TimetableManagerComponent {
     });
     ref
       .afterClosed()
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result?: TimetableTestTrainDialogResult) => {
         if (result) {
           this.createVariantFromDialog(base, result);
         }
+      });
+  }
+
+  openOrderingFromTrain(record: TimetableHubRecord, event?: MouseEvent): void {
+    event?.stopPropagation();
+    if (this.isAggregateView()) {
+      return;
+    }
+    const timetable = this.timetableService.getByRefTrainId(record.refTrainId) ?? null;
+    const ref = this.dialog.open(
+      TimetableOrderingFromTrainDialogComponent,
+      {
+        width: '760px',
+        maxWidth: '96vw',
+        data: {
+          record,
+          timetable,
+        },
+      },
+    );
+    ref
+      .afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result?: TimetableOrderingFromTrainDialogResult) => {
+        if (!result) {
+          return;
+        }
+        void this.createOrderingCaseFromTrain(record, timetable, result);
       });
   }
 
@@ -185,7 +233,11 @@ export class TimetableManagerComponent {
   ];
   constructor() {
     this.searchControl.valueChanges
-      .pipe(debounceTime(150), distinctUntilChanged(), takeUntilDestroyed())
+      .pipe(
+        debounceTime(150),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe((value) => this.searchTerm.set(value));
 
     const defaultYearLabel = this.yearService.defaultYearBounds().label;
@@ -401,6 +453,52 @@ export class TimetableManagerComponent {
     return Array.from(labels).sort();
   }
 
+  async openTimetableEditorCreation(): Promise<void> {
+    const year = this.resolveEditorSeedYear();
+    const stamp = new Date().toISOString().replace(/\D/g, '').slice(8, 14);
+    const trainNumber = `NEU-${stamp}`;
+    const title = `Neuer Zuglauf ${year.label}`;
+    const returnUrl = this.router.url || '/fahrplanmanager';
+
+    try {
+      const plan = await this.trainPlanService.createManualPlan({
+        title,
+        trainNumber,
+        responsibleRu: 'Fahrplanmanager',
+        departure: `${year.startIso}T08:00:00.000Z`,
+        validFrom: year.startIso,
+        validTo: year.endIso,
+        daysBitmap: '1111111',
+        sourceName: 'Fahrplanmanager Toolbar',
+        stops: [
+          {
+            type: 'origin',
+            locationCode: 'START',
+            locationName: 'Start',
+            departureEarliest: '08:00',
+            activities: ['0001'],
+          },
+          {
+            type: 'destination',
+            locationCode: 'ZIEL',
+            locationName: 'Ziel',
+            arrivalEarliest: '10:00',
+            activities: ['0001'],
+          },
+        ],
+      });
+
+      await this.router.navigate(['/fahrplan-editor', plan.id], {
+        queryParams: { returnUrl },
+      });
+    } catch (error) {
+      console.warn('[TimetableManager] Failed to start timetable editor create flow', error);
+      this.snackBar.open('Fahrplan-Editor konnte nicht geöffnet werden.', 'OK', {
+        duration: 3600,
+      });
+    }
+  }
+
   openCreationDialog() {
     const ref = this.dialog.open(TimetableTestTrainDialogComponent, {
       width: '720px',
@@ -412,12 +510,24 @@ export class TimetableManagerComponent {
     });
     ref
       .afterClosed()
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result?: TimetableTestTrainDialogResult) => {
         if (result) {
           this.createPlanFromDialog(result);
         }
       });
+  }
+
+  private resolveEditorSeedYear(): TimetableYearBounds {
+    const selectedLabel = this.selectedYearLabel().trim();
+    if (!selectedLabel) {
+      return this.yearService.defaultYearBounds();
+    }
+    try {
+      return this.yearService.getYearByLabel(selectedLabel);
+    } catch {
+      return this.yearService.defaultYearBounds();
+    }
   }
 
   private expandDateRange(startIso: string, endIso: string): string[] {
@@ -628,6 +738,219 @@ export class TimetableManagerComponent {
       this.activeSection.set(result.section);
       this.searchControl.setValue(refTrainId);
       this.searchTerm.set(refTrainId);
+    }
+  }
+
+  private async createOrderingCaseFromTrain(
+    record: TimetableHubRecord,
+    timetable: Timetable | null,
+    result: TimetableOrderingFromTrainDialogResult,
+  ): Promise<void> {
+    const plan = await this.ensureTrainPlanForOrdering(record, timetable, result);
+    if (!plan) {
+      this.snackBar.open('Bestellfall konnte nicht erstellt werden: Fahrplan konnte nicht vorbereitet werden.', 'OK', {
+        duration: 3200,
+      });
+      return;
+    }
+
+    const providedAttributes: Record<string, unknown> = {};
+    if (result.annualRequestWindow?.trim()) {
+      providedAttributes['annualRequestWindow'] = result.annualRequestWindow.trim();
+    }
+    if (result.requestedDepartureTime?.trim()) {
+      providedAttributes['requestedDepartureTime'] = result.requestedDepartureTime.trim();
+    }
+    if (result.tttPhase?.trim()) {
+      providedAttributes['tttPhase'] = result.tttPhase.trim();
+    }
+    if (result.ttrPhase?.trim()) {
+      providedAttributes['ttrPhase'] = result.ttrPhase.trim();
+    }
+
+    const details = await this.orderingService.createCase({
+      profileId: result.profileId,
+      title: result.title.trim(),
+      description: result.description?.trim() || undefined,
+      trainPlanId: plan.id,
+      validFrom: plan.calendar.validFrom,
+      validTo: plan.calendar.validTo ?? plan.calendar.validFrom,
+      pathRequestId: result.pathRequestId.trim(),
+      pathId: result.pathId?.trim() || undefined,
+      providedAttributes:
+        Object.keys(providedAttributes).length > 0 ? providedAttributes : undefined,
+    });
+
+    if (!details) {
+      this.snackBar.open('Bestellfall konnte nicht angelegt werden.', 'OK', {
+        duration: 3200,
+      });
+      return;
+    }
+
+    this.snackBar.open(`Bestellfall ${details.case.id} erstellt.`, 'OK', {
+      duration: 2800,
+    });
+    await this.router.navigate(['/fahrplanmanager/ordering'], {
+      queryParams: { caseId: details.case.id },
+    });
+  }
+
+  private async ensureTrainPlanForOrdering(
+    record: TimetableHubRecord,
+    timetable: Timetable | null,
+    result: TimetableOrderingFromTrainDialogResult,
+  ): Promise<TrainPlan | null> {
+    const existing = this.trainPlanService.getById(record.refTrainId);
+    if (existing) {
+      return existing;
+    }
+
+    const validity = this.resolveOrderingValidity(record, timetable);
+    const nowIso = new Date().toISOString();
+    const stops = this.mapOrderingStops(record, timetable);
+    const technical = this.mapOrderingTechnical(record.technical);
+
+    const plan: TrainPlan = {
+      id: record.refTrainId,
+      title: record.title,
+      trainNumber: record.trainNumber,
+      pathRequestId: result.pathRequestId.trim(),
+      pathId: result.pathId?.trim() || undefined,
+      status: this.mapTimetablePhaseToTrainPlanStatus(timetable?.status),
+      responsibleRu: timetable?.responsibleRu?.trim() || 'Unbekannt',
+      calendar: {
+        validFrom: validity.validFrom,
+        validTo: validity.validTo,
+        daysBitmap: timetable?.calendar.daysBitmap || '1111111',
+      },
+      stops,
+      technical,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      source: {
+        type: this.mapTimetableSourceTypeToTrainPlanSourceType(
+          timetable?.source.type,
+        ),
+        name: `Fahrplanmanager ${record.refTrainId}`,
+      },
+      notes: timetable?.notes,
+      rollingStock: timetable?.rollingStock,
+      planVariantType: 'productive',
+    };
+
+    return this.trainPlanService.savePlan(plan);
+  }
+
+  private resolveOrderingValidity(
+    record: TimetableHubRecord,
+    timetable: Timetable | null,
+  ): { validFrom: string; validTo: string } {
+    const calendar = timetable?.calendar;
+    const from =
+      calendar?.validFrom ??
+      record.calendarDays[0] ??
+      new Date().toISOString().slice(0, 10);
+    const to = calendar?.validTo ?? record.calendarDays[record.calendarDays.length - 1] ?? from;
+    return {
+      validFrom: from,
+      validTo: to,
+    };
+  }
+
+  private mapOrderingStops(
+    record: TimetableHubRecord,
+    timetable: Timetable | null,
+  ): TrainPlanStop[] {
+    if (timetable?.stops?.length) {
+      return timetable.stops
+        .slice()
+        .sort((a, b) => a.sequence - b.sequence)
+        .map((stop, index) => ({
+          id: `${record.refTrainId}-STOP-${String(index + 1).padStart(3, '0')}`,
+          sequence: index + 1,
+          type: stop.type,
+          locationCode: stop.locationCode || `LOC-${String(index + 1).padStart(3, '0')}`,
+          locationName: stop.locationName || `Halt ${index + 1}`,
+          countryCode: stop.countryCode,
+          arrivalTime: stop.commercial.arrivalTime ?? stop.operational.arrivalTime,
+          departureTime:
+            stop.commercial.departureTime ?? stop.operational.departureTime,
+          arrivalOffsetDays:
+            stop.commercial.arrivalOffsetDays ??
+            stop.operational.arrivalOffsetDays,
+          departureOffsetDays:
+            stop.commercial.departureOffsetDays ??
+            stop.operational.departureOffsetDays,
+          dwellMinutes: stop.commercial.dwellMinutes ?? stop.operational.dwellMinutes,
+          activities: [...(stop.activities ?? [])],
+          platform: stop.platform,
+          notes: stop.notes,
+        }));
+    }
+
+    return record.commercial.stops
+      .slice()
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((stop, index) => ({
+        id: `${record.refTrainId}-STOP-${String(index + 1).padStart(3, '0')}`,
+        sequence: index + 1,
+        type: stop.type,
+        locationCode: `LOC-${String(index + 1).padStart(3, '0')}`,
+        locationName: stop.locationName,
+        arrivalTime: stop.commercialArrivalTime ?? stop.arrivalTime,
+        departureTime: stop.commercialDepartureTime ?? stop.departureTime,
+        activities: [],
+      }));
+  }
+
+  private mapOrderingTechnical(
+    technical: TimetableHubTechnicalSummary | undefined,
+  ): TrainPlanTechnicalData {
+    return {
+      trainType: technical?.trainType?.trim() || 'Passenger',
+      maxSpeed: technical?.maxSpeed,
+      lengthMeters: technical?.lengthMeters,
+      weightTons: technical?.weightTons,
+      traction: technical?.traction,
+      energyType: technical?.energyType,
+      brakeType: technical?.brakeType,
+      etcsLevel: technical?.etcsLevel,
+    };
+  }
+
+  private mapTimetablePhaseToTrainPlanStatus(
+    phase: Timetable['status'] | undefined,
+  ): TrainPlanStatus {
+    switch (phase) {
+      case 'path_request':
+        return 'requested';
+      case 'offer':
+        return 'offered';
+      case 'contract':
+        return 'confirmed';
+      case 'operational':
+        return 'operating';
+      case 'archived':
+        return 'canceled';
+      case 'bedarf':
+      default:
+        return 'not_ordered';
+    }
+  }
+
+  private mapTimetableSourceTypeToTrainPlanSourceType(
+    sourceType: TimetableSourceType | undefined,
+  ): TrainPlanSourceType {
+    switch (sourceType) {
+      case 'ttt_path_request':
+        return 'ttt';
+      case 'framework_agreement':
+        return 'rollout';
+      case 'manual':
+      case 'imported':
+      default:
+        return 'external';
     }
   }
 

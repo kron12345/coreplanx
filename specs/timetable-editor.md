@@ -6,7 +6,7 @@
 - Stakeholders: Disposition, Betriebsplanung, Auftragsmanagement, Fahrplanmanager.
 
 ## Rules
-- R1: The Timetable Editor is a **full-page** view with explicit **Uebernehmen** (save + return) and **Zurueck** actions, and can be opened from Auftragsmanagement.
+- R1: The Timetable Editor is a **full-page** view with explicit **Uebernehmen** (save + return) and **Zurueck** actions, and can be opened from Auftragsmanagement and Fahrplanmanagement entry points.
 - R2: Draft data must **auto-save** to the backend (debounced) so unexpected session ends do not lose work.
 - R3: Route Builder uses a **live OSM map** (open-source tiles) and operational points from topology search; selecting stops generates segments with distance and estimated travel time.
 - R4: Timing Editor provides a **time–distance graph** and a **stops grid**; edits update the draft and show warnings (non-blocking) for minimum dwell / minimum travel time.
@@ -28,11 +28,13 @@
 - R20: When the route/segment travel times change and the Timing Editor has not been manually edited yet, timetable points are **recomputed from the Route Builder preview start time** so the Timing Editor and graph are populated with segment-based times.
 - R21: The Timing Editor allows **creating stops from pass-through points directly in the graph** (click pass-through point → convert to stop) and keeps the graph editable (drag to change times).
 - R22: The time–distance graph places the **origin at the top** of the Y-axis and the **destination at the bottom** (route direction top → bottom).
+- R23: In Fahrplanmanagement hub, the primary create action must reuse the same full-page editor flow by creating a seeded TrainPlan (with default route context) and navigating to `/fahrplan-editor/:planId` with `returnUrl` back to the hub.
 
 ## Behavior
 - Inputs:
   - `trainPlanId` (required)
   - optional `orderId`/`itemId` for context
+  - optional timetable-year context when opened via Fahrplanmanagement create action
   - optional `returnUrl` to navigate back
 - Outputs:
   - Drafts stored in `TrainPlan.routeMetadata.timetableDrafts` (schema versioned).
@@ -42,6 +44,7 @@
   - Missing op coordinates → stop can still be added, but map/graph uses available points.
   - Network failure on save → show status + retry on next edit.
   - Manual creation entry: missing train number or too few stops → show error, do not create plan.
+  - Fahrplanmanagement create entry: seeded TrainPlan creation fails → show error and stay in FM hub.
   - No SOL route available → fall back to straight-line segments with warning/neutral UI.
   - Departure time missing → preview timetable stays hidden or shows placeholders.
 
@@ -68,6 +71,7 @@
 - AC20: When the SOL route/segments update and no manual timing edits exist yet, the Timing Editor times and graph are recalculated from segment travel times.
 - AC21: Clicking a pass-through point in the graph converts it into a stop (and the timetable updates accordingly).
 - AC22: The graph renders with the route direction top → bottom (origin above destination).
+- AC23: Clicking the primary create action in Fahrplanmanagement opens the same full-page editor by creating a seeded TrainPlan and forwarding `returnUrl` to `/fahrplanmanager`.
 
 ## Notes
 - Dependencies: Leaflet (map), OSM tile layer, topology search API.

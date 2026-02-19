@@ -1,0 +1,392 @@
+<div class="ordering-layout">
+  <aside class="ordering-sidebar">
+    <div class="ordering-sidebar__header">
+      <div>
+        <h2>Bestellfälle</h2>
+        <p>Jahresbestellung und Gelegenheitsverkehr</p>
+      </div>
+      <div class="ordering-sidebar__actions">
+        <button mat-icon-button type="button" (click)="refreshData()" matTooltip="Neu laden">
+          <mat-icon>refresh</mat-icon>
+        </button>
+        <a
+          mat-icon-button
+          type="button"
+          routerLink="/fahrplanmanager/ordering/simulator"
+          [queryParams]="selectedCase() ? { caseId: selectedCase()?.id } : null"
+          matTooltip="Gegenstelle öffnen"
+        >
+          <mat-icon>hub</mat-icon>
+        </a>
+      </div>
+    </div>
+
+    <mat-form-field appearance="outline" class="ordering-sidebar__search">
+      <mat-label>Suche</mat-label>
+      <input matInput [formControl]="searchControl" placeholder="ID, Titel, Profil, Zustand" />
+    </mat-form-field>
+
+    <div class="ordering-case-list">
+      @for (entry of filteredCases(); track trackCase($index, entry)) {
+        <button
+          type="button"
+          class="ordering-case-item"
+          [class.ordering-case-item--active]="selectedCaseId() === entry.id"
+          (click)="selectCase(entry)"
+        >
+          <div class="ordering-case-item__title">{{ entry.title }}</div>
+          <div class="ordering-case-item__meta">
+            <span>{{ entry.id }}</span>
+            <span>{{ entry.profileLabel }}</span>
+          </div>
+          <div class="ordering-case-item__footer">
+            <span class="state">{{ entry.currentState }}</span>
+            <span class="window">{{ entry.validFrom }} – {{ entry.validTo }}</span>
+          </div>
+        </button>
+      }
+      @if (!filteredCases().length) {
+        <p class="hint">Keine Bestellfälle vorhanden.</p>
+      }
+    </div>
+  </aside>
+
+  <section class="ordering-main">
+    <mat-card class="ordering-create-card">
+      <mat-card-title>Neuen Bestellfall anlegen</mat-card-title>
+      <mat-card-subtitle>{{ profileSpecificHint() }}</mat-card-subtitle>
+      <div class="ordering-create-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Profil</mat-label>
+          <mat-select [formControl]="createForm.controls.profileId">
+            @for (profile of profiles(); track profile.id) {
+              <mat-option [value]="profile.id">{{ profile.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Titel</mat-label>
+          <input matInput [formControl]="createForm.controls.title" placeholder="z. B. Annual RE Ost" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fahrplan</mat-label>
+          <mat-select [formControl]="createForm.controls.trainPlanId">
+            <mat-option value="">Ohne Verknüpfung</mat-option>
+            @for (plan of trainPlanOptions(); track plan.id) {
+              <mat-option [value]="plan.id">{{ plan.trainNumber }} · {{ plan.title }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Gültig von</mat-label>
+          <input matInput type="date" [formControl]="createForm.controls.validFrom" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Gültig bis</mat-label>
+          <input matInput type="date" [formControl]="createForm.controls.validTo" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>PathRequestID</mat-label>
+          <input matInput [formControl]="createForm.controls.pathRequestId" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>PathID</mat-label>
+          <input matInput [formControl]="createForm.controls.pathId" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>EVU</mat-label>
+          <input matInput [formControl]="createForm.controls.responsibleRu" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Zugnummer</mat-label>
+          <input matInput [formControl]="createForm.controls.trainNumber" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Start OP</mat-label>
+          <input matInput [formControl]="createForm.controls.originLocationCode" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Ziel OP</mat-label>
+          <input matInput [formControl]="createForm.controls.destinationLocationCode" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fahrzeugsegmente</mat-label>
+          <textarea
+            matInput
+            rows="2"
+            [formControl]="createForm.controls.rollingStockSegments"
+            placeholder='JSON-Array oder CSV (z. B. [{"position":1,"vehicleTypeId":"ETR610","count":1}] oder ETR610,Bpm)'
+          ></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>TTT-Phase</mat-label>
+          <input matInput [formControl]="createForm.controls.tttPhase" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>TTR-Phase</mat-label>
+          <input matInput [formControl]="createForm.controls.ttrPhase" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>annualRequestWindow</mat-label>
+          <input matInput [formControl]="createForm.controls.annualRequestWindow" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>requestedDepartureTime</mat-label>
+          <input matInput [formControl]="createForm.controls.requestedDepartureTime" />
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline" class="ordering-create-description">
+        <mat-label>Beschreibung</mat-label>
+        <textarea matInput rows="2" [formControl]="createForm.controls.description"></textarea>
+      </mat-form-field>
+      <div class="ordering-create-actions">
+        <button mat-flat-button color="primary" type="button" (click)="createCase()" [disabled]="loading()">
+          <mat-icon>add_circle</mat-icon>
+          Fall anlegen
+        </button>
+      </div>
+    </mat-card>
+
+    @if (error(); as errorMessage) {
+      <mat-card class="ordering-error">
+        <mat-icon>warning</mat-icon>
+        <span>{{ errorMessage }}</span>
+      </mat-card>
+    }
+
+    @if (selectedCase(); as current) {
+      <div class="ordering-detail-grid">
+        <mat-card>
+          <mat-card-title>{{ current.title }}</mat-card-title>
+          <mat-card-subtitle>{{ current.id }} · {{ current.profileLabel }}</mat-card-subtitle>
+          <div class="state-row">
+            <span class="state-chip" [class.terminal]="current.isTerminal">{{ current.currentState }}</span>
+            <span>{{ current.validFrom }} – {{ current.validTo }}</span>
+            <span>fehlende required: {{ requiredMissingCount() }}</span>
+          </div>
+          @if (current.blockingReasons.length) {
+            <div class="blocking-list">
+              @for (reason of current.blockingReasons; track reason) {
+                <mat-chip>{{ reason }}</mat-chip>
+              }
+            </div>
+          }
+          <div class="link-row">
+            <span>PathRequestID: {{ current.pathRequestId || '—' }}</span>
+            <span>PathID: {{ current.pathId || '—' }}</span>
+          </div>
+          @if (current.trainPlanId) {
+            <div class="link-row">TrainPlan: {{ current.trainPlanId }}</div>
+          }
+        </mat-card>
+
+        <mat-card>
+          <mat-card-title>Aktionen</mat-card-title>
+          <div class="action-grid">
+            @for (action of current.allowedActions; track trackAction($index, action)) {
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="action.blocked || loading()"
+                [matTooltip]="actionReasonLabel(action)"
+                (click)="applyAction(action)"
+              >
+                {{ action.label }}
+              </button>
+            }
+          </div>
+          <div class="action-help">
+            Aktionen nutzen den Event-Key aus dem Profil und patchen bei Bedarf die Attributwerte unten.
+          </div>
+        </mat-card>
+
+        <mat-card>
+          <mat-card-title>Attribut-Patch</mat-card-title>
+          <div class="patch-grid">
+            <mat-form-field appearance="outline">
+              <mat-label>PathRequestID</mat-label>
+              <input matInput [formControl]="patchForm.controls.pathRequestId" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>PathID</mat-label>
+              <input matInput [formControl]="patchForm.controls.pathId" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>EVU</mat-label>
+              <input matInput [formControl]="patchForm.controls.responsibleRu" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Zugnummer</mat-label>
+              <input matInput [formControl]="patchForm.controls.trainNumber" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Start OP</mat-label>
+              <input matInput [formControl]="patchForm.controls.originLocationCode" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Ziel OP</mat-label>
+              <input matInput [formControl]="patchForm.controls.destinationLocationCode" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Fahrzeugsegmente</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                [formControl]="patchForm.controls.rollingStockSegments"
+                placeholder='JSON-Array oder CSV (z. B. ETR610,Bpm)'
+              ></textarea>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>TTT-Phase</mat-label>
+              <input matInput [formControl]="patchForm.controls.tttPhase" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>TTR-Phase</mat-label>
+              <input matInput [formControl]="patchForm.controls.ttrPhase" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>annualRequestWindow</mat-label>
+              <input matInput [formControl]="patchForm.controls.annualRequestWindow" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>requestedDepartureTime</mat-label>
+              <input matInput [formControl]="patchForm.controls.requestedDepartureTime" />
+            </mat-form-field>
+          </div>
+        </mat-card>
+
+        <mat-card>
+          <mat-card-title>Required-Status</mat-card-title>
+          <table class="status-table">
+            <thead>
+              <tr>
+                <th>Attribut</th>
+                <th>Scope</th>
+                <th>Pfad</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (required of current.requiredAttributes; track required.key) {
+                <tr>
+                  <td>{{ required.label }}</td>
+                  <td>{{ required.scope }}</td>
+                  <td><code>{{ required.path }}</code></td>
+                  <td>
+                    <span class="required-state" [class.missing]="required.missing">
+                      {{ required.missing ? 'fehlt' : 'ok' }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </mat-card>
+
+        <mat-card>
+          <mat-card-title>Operative Kontexte</mat-card-title>
+          <table class="status-table">
+            <thead>
+              <tr>
+                <th>Fahrplanjahr</th>
+                <th>Von</th>
+                <th>Bis</th>
+                <th>State</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (context of current.operationalContexts; track context.timetableYearLabel + context.validFrom + context.validTo) {
+                <tr>
+                  <td>{{ context.timetableYearLabel }}</td>
+                  <td>{{ context.validFrom }}</td>
+                  <td>{{ context.validTo }}</td>
+                  <td>{{ context.state }}</td>
+                  <td>{{ context.status }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </mat-card>
+
+        @if (selectedDetails(); as details) {
+          <mat-card>
+            <mat-card-title>Transitions</mat-card-title>
+            <table class="status-table">
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Von</th>
+                  <th>Nach</th>
+                  <th>Event</th>
+                  <th>Quelle</th>
+                  <th>Ergebnis</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (transition of details.transitions.slice(0, 20); track transition.id) {
+                  <tr>
+                    <td>{{ transition.createdAt | date: 'short' }}</td>
+                    <td>{{ transition.fromState }}</td>
+                    <td>{{ transition.toState }}</td>
+                    <td><code>{{ transition.eventKey }}</code></td>
+                    <td>{{ transition.source }}</td>
+                    <td>{{ transition.rejected ? ('abgelehnt: ' + (transition.reason || '')) : 'ok' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-title>Messages</mat-card-title>
+            <table class="status-table">
+              <thead>
+                <tr>
+                  <th>Zeit</th>
+                  <th>Richtung</th>
+                  <th>Actor</th>
+                  <th>Event</th>
+                  <th>Quelle</th>
+                  <th>Korrelation</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (message of details.messages.slice(0, 20); track message.id) {
+                  <tr>
+                    <td>{{ message.createdAt | date: 'short' }}</td>
+                    <td>{{ message.direction }}</td>
+                    <td>{{ message.actor }}</td>
+                    <td><code>{{ message.eventKey }}</code></td>
+                    <td>{{ message.source }}</td>
+                    <td>{{ message.correlationKey || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card>
+        }
+      </div>
+    } @else {
+      <mat-card>
+        <mat-card-title>Kein Fall ausgewählt</mat-card-title>
+        <p>Wähle links einen Fall oder lege einen neuen Bestellfall an.</p>
+      </mat-card>
+    }
+  </section>
+</div>

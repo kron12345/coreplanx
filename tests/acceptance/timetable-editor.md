@@ -1,7 +1,7 @@
 # Acceptance Test: Timetable Editor (Route Builder & Timing Editor)
 
 ## Related Spec
-- /specs/timetable-editor.md (Rules: R1–R22)
+- /specs/timetable-editor.md (Rules: R1–R23)
 
 ## Preconditions
 - Mindestens eine Fahrplan-Position ist mit einem TrainPlan verknuepft.
@@ -43,8 +43,15 @@
 4. Klicke **Fahrplan-Editor oeffnen**.
 5. Pruefe: Ein neuer TrainPlan wird angelegt und der Vollseiten-Editor oeffnet sich.
 
+## Steps (Fahrplanmanager Entry)
+1. Oeffne **Fahrplanmanager**.
+2. Nutze die primäre Erstellen-Aktion in der Toolbar.
+3. Pruefe: Ein neuer TrainPlan wird angelegt und der Vollseiten-Editor oeffnet sich.
+4. Pruefe: `returnUrl` zeigt auf den Fahrplanmanager und **Zurueck/Uebernehmen** fuehrt dorthin zurueck.
+
 ## Expected Results
 - Full-page editor wird geladen, alte Dialog-UI wird ersetzt.
 - Route Builder und Timing Editor funktionieren mit Draft-Persistenz.
 - Auto-Save ueberlebt Reload; Uebernehmen navigiert zurueck.
 - Der Manual-Create Einstieg erzeugt einen neuen TrainPlan und oeffnet den Editor.
+- Der Fahrplanmanager-Einstieg nutzt denselben Editor-Flow (inkl. TrainPlan-Seed + returnUrl).

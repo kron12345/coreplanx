@@ -128,6 +128,116 @@ export interface OrderItemDto {
   updatedAt?: string;
 }
 
+export interface OrderFmSummaryEntryDto {
+  label: string;
+  count: number;
+}
+
+export interface OrderPhaseSnapshotDto {
+  orderId: string;
+  linkedPlanCount: number;
+  matchedCaseCount: number;
+  activeCaseCount: number;
+  terminalCaseCount: number;
+  missingOrderItemLinks: number;
+  unresolvedPlanIds: string[];
+  stateSummaries: OrderFmSummaryEntryDto[];
+  tttSummaries: OrderFmSummaryEntryDto[];
+  ttrSummaries: OrderFmSummaryEntryDto[];
+  generatedAt: string;
+}
+
+export interface OrderOperationalContextDto {
+  caseId: string;
+  caseTitle: string;
+  caseCurrentState: string;
+  profileId: string;
+  profileLabel: string;
+  trainPlanId?: string;
+  timetableYearLabel: string;
+  validFrom: string;
+  validTo: string;
+  contextState: string;
+  contextStatus: 'active' | 'terminal';
+  tttPhase?: string | null;
+  ttrPhase?: string | null;
+}
+
+export interface OrderTraceabilityMessageDto {
+  id: string;
+  direction: 'outbound' | 'inbound' | 'internal';
+  source: string;
+  actor: string;
+  eventKey: string;
+  externalMessageId?: string | null;
+  correlationKey?: string | null;
+  createdAt: string;
+}
+
+export interface OrderTraceabilityTransitionDto {
+  id: string;
+  fromState: string;
+  toState: string;
+  eventKey: string;
+  source: string;
+  actionId?: string | null;
+  rejected: boolean;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface OrderTraceabilityEntryDto {
+  caseId: string;
+  caseTitle: string;
+  profileId: string;
+  profileLabel: string;
+  trainPlanId?: string;
+  validFrom: string;
+  validTo: string;
+  currentState: string;
+  isTerminal: boolean;
+  pathRequestId?: string | null;
+  pathId?: string | null;
+  contextCount: number;
+  messageCount: number;
+  transitionCount: number;
+  lastMessage?: OrderTraceabilityMessageDto | null;
+  lastTransition?: OrderTraceabilityTransitionDto | null;
+  detailStatus: 'ok' | 'degraded';
+  detailError?: string | null;
+}
+
+export interface OrderTraceabilityDto {
+  orderId: string;
+  linkedPlanCount: number;
+  matchedCaseCount: number;
+  unresolvedPlanIds: string[];
+  degradedCaseCount: number;
+  entries: OrderTraceabilityEntryDto[];
+  generatedAt: string;
+}
+
+export interface OrderTraceabilityCaseDetailsDto {
+  orderId: string;
+  caseId: string;
+  caseTitle: string;
+  profileId: string;
+  profileLabel: string;
+  trainPlanId?: string;
+  validFrom: string;
+  validTo: string;
+  currentState: string;
+  isTerminal: boolean;
+  pathRequestId?: string | null;
+  pathId?: string | null;
+  operationalContexts: OrderOperationalContextDto[];
+  detailStatus: 'ok' | 'degraded';
+  detailError?: string | null;
+  messages: OrderTraceabilityMessageDto[];
+  transitions: OrderTraceabilityTransitionDto[];
+  generatedAt: string;
+}
+
 export const DEFAULT_ORDER_FILTERS: OrderFilters = {
   search: '',
   tag: 'all',

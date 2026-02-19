@@ -256,6 +256,10 @@ export class MigrationService implements OnModuleInit {
       'traffic_periods',
       'train_plan_versions',
       'train_plans',
+      // Timetable ordering
+      'timetable_ordering_transition',
+      'timetable_ordering_message',
+      'timetable_ordering_case',
       'customers',
       this.tableName,
     ];

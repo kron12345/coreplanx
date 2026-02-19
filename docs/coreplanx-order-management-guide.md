@@ -11,6 +11,10 @@ Es richtet sich bewusst an **nicht-technische Anwender:innen** (z. B. Disposit
 CorePlanX ist (in dieser Ausprägung) eine **UI-Studie**: Es zeigt ein mögliches Zusammenspiel aus Aufträgen, Positionen, Geschäften, Fahrplänen und Referenzkalendern.  
 Die Demo nutzt überwiegend Mock-/Demo-Daten, damit Sie Abläufe ausprobieren und kommentieren können, ohne dass dahinter bereits reale Systeme angeschlossen sind.
 
+> **Geplante Architektur-Umstellung (Datum statt Fahrplanjahr im Auftragsmanagement)**  
+> Der Migrationspfad für die Trennung „Auftragsmanagement (business/überwachend)“ und „Fahrplanmanagement (operativ/fahrplanjahresbasiert)“ ist in  
+> `docs/order-fahrplan-separation-migration-plan.md` dokumentiert.
+
 > **Hinweis zu den fachlichen Grundlagen**  
 > Dieses Begleitdokument baut auf zwei Quellen auf:  
 > - dem SOB-Fachkonzept **„Fachkonzept Auftragsmanagement“** (`docs/Fachkonzept Auftragsmanagement 22587677-1.pdf`) und  
@@ -353,7 +357,25 @@ Für Diskussionen im Workshop ist hilfreich, sich klarzumachen:
 - Der **Auftrags-Prozessstatus** (siehe oben und Glossar) beschreibt dagegen die SOB-interne Sicht auf den Gesamtprozess eines Auftrags (Auftrag → Planung → Produkt/Leistung → Produktion → Abrechnung).  
 - Beide Sichten ergänzen sich: Fahrplanstatus zeigen den Stand einzelner Fahrplanpositionen, der Auftrags-Prozessstatus fasst zusammen, wo der Auftrag als Ganzes steht.
 
-### 3.4 Aktionen im Kopfbereich
+### 3.4 FM-Überwachung (Auftragsmanagement als Überwacher)
+
+Sobald Positionen eines Auftrags mit Fahrplänen verlinkt sind, zeigt die Karte zusätzlich den Bereich **„FM Überwachung (read-only)“**.
+
+Der Bereich ist bewusst als reine Lesesicht angelegt und erfüllt die Trennung:
+- **Auftragsmanagement** überwacht und erklärt den Status für das Business.
+- **Fahrplanmanagement** führt die operativen TTT/TTR-Zustände.
+
+Im FM-Überwachungsbereich sehen Sie:
+- **Aggregierte Kennzahlen** (Anzahl verlinkter Fahrpläne, gefundene FM-Fälle, aktiv/terminal).
+- **Aus FM gelesene Zustände/Phasen** (FM-States sowie TTT/TTR-Werte aus den FM-Snapshots).
+- **Operative Kontexte pro Fall** in Tabellenform (Fahrplanjahr, von/bis, Kontextstatus).
+
+Wenn es zu einem verlinkten Fahrplan noch keinen FM-Bestellfall gibt, wird das explizit als Hinweis angezeigt.  
+Bei temporären FM-Ladefehlern zeigt die Karte eine degradierte Warnung und berechnet keine lokalen Ersatzphasen.
+
+Damit bleibt die Nachvollziehbarkeit erhalten, ohne dass im Auftragsmanagement operative Logik dupliziert wird.
+
+### 3.5 Aktionen im Kopfbereich
 
 Rechts oben in jeder Karte finden Sie Buttons, z. B.:
 

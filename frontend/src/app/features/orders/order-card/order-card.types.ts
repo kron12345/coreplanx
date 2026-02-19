@@ -20,3 +20,49 @@ export interface OrderHealthSnapshot {
   idlePercent: number;
 }
 
+export interface FmPhaseSummary {
+  label: string;
+  count: number;
+}
+
+export interface FmOperationalContextRow {
+  rowKey: string;
+  caseId: string;
+  caseTitle: string;
+  profileLabel: string;
+  caseState: string;
+  contextState: string;
+  timetableYearLabel: string;
+  validFrom: string;
+  validTo: string;
+  status: 'active' | 'terminal';
+}
+
+export interface FmTraceabilityRow {
+  rowKey: string;
+  caseId: string;
+  caseTitle: string;
+  profileLabel: string;
+  currentState: string;
+  correlation: string;
+  lastMessage: string;
+  lastTransition: string;
+  auditCounts: string;
+  detailStatus: 'ok' | 'degraded';
+  detailError?: string | null;
+}
+
+export interface FmSupervisionSnapshot {
+  linkedPlanCount: number;
+  matchedCaseCount: number;
+  terminalCaseCount: number;
+  activeCaseCount: number;
+  missingOrderItemLinks: number;
+  unresolvedPlanIds: string[];
+  degradedCaseCount: number;
+  stateSummaries: FmPhaseSummary[];
+  tttSummaries: FmPhaseSummary[];
+  ttrSummaries: FmPhaseSummary[];
+  contextRows: FmOperationalContextRow[];
+  traceabilityRows: FmTraceabilityRow[];
+}

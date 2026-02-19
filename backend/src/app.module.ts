@@ -19,6 +19,7 @@ import { OrderManagementAdminModule } from './order-management-admin/order-manag
 import { OrderManagementRealtimeModule } from './order-management-realtime/order-management-realtime.module';
 import { TrainPlansModule } from './train-plans/train-plans.module';
 import { TrafficPeriodsModule } from './traffic-periods/traffic-periods.module';
+import { TimetableOrderingModule } from './timetable-ordering/timetable-ordering.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { TrafficPeriodsModule } from './traffic-periods/traffic-periods.module';
     OrderManagementRealtimeModule,
     TrainPlansModule,
     TrafficPeriodsModule,
+    TimetableOrderingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

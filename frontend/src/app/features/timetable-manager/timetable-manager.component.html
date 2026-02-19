@@ -13,8 +13,9 @@
         mat-icon-button
         color="primary"
         type="button"
-        (click)="openCreationDialog()"
-        aria-label="Zug im Fahrplanjahr anlegen"
+        (click)="openTimetableEditorCreation()"
+        aria-label="Zug im Fahrplan-Editor anlegen"
+        matTooltip="Neuen Zug im Fahrplan-Editor anlegen"
       >
         <mat-icon>train</mat-icon>
       </button>
@@ -27,6 +28,26 @@
         matTooltip="Zugläufe und Zugleistungen bearbeiten"
       >
         <mat-icon>edit_note</mat-icon>
+      </a>
+      <a
+        mat-icon-button
+        color="primary"
+        type="button"
+        routerLink="/fahrplanmanager/ordering"
+        aria-label="Bestellprozess öffnen"
+        matTooltip="Bestellprozess öffnen"
+      >
+        <mat-icon>rule_folder</mat-icon>
+      </a>
+      <a
+        mat-icon-button
+        color="primary"
+        type="button"
+        routerLink="/fahrplanmanager/ordering/simulator"
+        aria-label="Gegenstelle öffnen"
+        matTooltip="Gegenstelle öffnen"
+      >
+        <mat-icon>hub</mat-icon>
       </a>
     </div>
     <mat-form-field appearance="outline" class="timetable-hub__search">
@@ -128,6 +149,15 @@
             <mat-chip appearance="outlined">Kalender: {{ record.calendarRangeLabel }}</mat-chip>
           </mat-chip-set>
           @if (!isAggregateView()) {
+            <button
+              mat-icon-button
+              type="button"
+              class="timetable-hub__variant-button"
+              (click)="openOrderingFromTrain(record, $event)"
+              matTooltip="Bestellfall aus diesem Zug eröffnen"
+            >
+              <mat-icon>post_add</mat-icon>
+            </button>
             <button
               mat-icon-button
               type="button"

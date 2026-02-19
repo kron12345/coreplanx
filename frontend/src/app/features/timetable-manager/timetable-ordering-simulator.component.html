@@ -1,0 +1,137 @@
+<div class="sim-layout">
+  <section class="sim-controls">
+    <header class="sim-controls__header">
+      <div>
+        <h2>Gegenstelle (Simulator)</h2>
+        <p>Antworten auf Bestellfälle senden</p>
+      </div>
+      <div class="sim-controls__header-actions">
+        <a mat-icon-button routerLink="/fahrplanmanager/ordering" matTooltip="Zum Cockpit">
+          <mat-icon>arrow_back</mat-icon>
+        </a>
+        <button mat-icon-button type="button" (click)="refreshData()" matTooltip="Neu laden">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
+    </header>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Bestellfall</mat-label>
+      <mat-select [formControl]="caseControl">
+        @for (entry of cases(); track entry.id) {
+          <mat-option [value]="entry.id">
+            {{ entry.id }} · {{ entry.title }} · {{ entry.currentState }}
+          </mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Antworttyp</mat-label>
+      <mat-select [formControl]="responseControl">
+        @for (response of responses; track response.id) {
+          <mat-option [value]="response.id">{{ response.label }} · {{ response.hint }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Payload (JSON optional)</mat-label>
+      <textarea matInput rows="6" [formControl]="payloadControl"></textarea>
+    </mat-form-field>
+
+    <div class="sim-actions">
+      <button mat-flat-button color="primary" type="button" (click)="applyResponse()" [disabled]="loading()">
+        Antwort senden
+      </button>
+      @for (response of responses; track response.id) {
+        <button mat-stroked-button type="button" (click)="quickApply(response.id)" [disabled]="loading()">
+          {{ response.label }}
+        </button>
+      }
+    </div>
+
+    @if (error(); as errorMessage) {
+      <mat-card class="sim-error">
+        <mat-icon>warning</mat-icon>
+        <span>{{ errorMessage }}</span>
+      </mat-card>
+    }
+  </section>
+
+  <section class="sim-result">
+    @if (selectedCase(); as current) {
+      <mat-card>
+        <mat-card-title>{{ current.title }}</mat-card-title>
+        <mat-card-subtitle>{{ current.id }} · {{ current.profileLabel }}</mat-card-subtitle>
+        <div class="sim-state-row">
+          <span class="state" [class.terminal]="current.isTerminal">{{ current.currentState }}</span>
+          <span>{{ current.validFrom }} – {{ current.validTo }}</span>
+        </div>
+      </mat-card>
+
+      <mat-card>
+        <mat-card-title>Transitions (letzte 20)</mat-card-title>
+        @if (selectedDetails(); as details) {
+          <table class="sim-table">
+            <thead>
+              <tr>
+                <th>Zeit</th>
+                <th>Von</th>
+                <th>Nach</th>
+                <th>Event</th>
+                <th>Quelle</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (transition of details.transitions.slice(0, 20); track transition.id) {
+                <tr>
+                  <td>{{ transition.createdAt | date: 'short' }}</td>
+                  <td>{{ transition.fromState }}</td>
+                  <td>{{ transition.toState }}</td>
+                  <td><code>{{ transition.eventKey }}</code></td>
+                  <td>{{ transition.source }}</td>
+                  <td>{{ transition.rejected ? 'abgelehnt' : 'ok' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </mat-card>
+
+      <mat-card>
+        <mat-card-title>Messages (letzte 20)</mat-card-title>
+        @if (selectedDetails(); as details) {
+          <table class="sim-table">
+            <thead>
+              <tr>
+                <th>Zeit</th>
+                <th>Richtung</th>
+                <th>Actor</th>
+                <th>Event</th>
+                <th>Quelle</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (message of details.messages.slice(0, 20); track message.id) {
+                <tr>
+                  <td>{{ message.createdAt | date: 'short' }}</td>
+                  <td>{{ message.direction }}</td>
+                  <td>{{ message.actor }}</td>
+                  <td><code>{{ message.eventKey }}</code></td>
+                  <td>{{ message.source }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </mat-card>
+    } @else {
+      <mat-card>
+        <mat-card-title>Kein Fall ausgewählt</mat-card-title>
+        <p>Wähle links einen Bestellfall aus.</p>
+      </mat-card>
+    }
+  </section>
+</div>

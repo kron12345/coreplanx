@@ -19,6 +19,12 @@ import { TimetableService } from '../../../core/services/timetable.service';
 import { TimetablePhase } from '../../../core/models/timetable.model';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
+  OrderApiService,
+  OrderOperationalContextDto,
+  OrderPhaseSnapshotDto,
+  OrderTraceabilityDto,
+} from '../../../core/api/order-api.service';
+import {
   OrderLinkBusinessDialogComponent,
   OrderLinkBusinessDialogData,
 } from '../order-link-business-dialog.component';
@@ -42,7 +48,16 @@ import {
   ORDER_PROCESS_STATUS_LABELS,
   TIMETABLE_PHASE_LABELS,
 } from './order-card.constants';
-import type { OrderHealthSnapshot, StatusSummary } from './order-card.types';
+import type {
+  FmOperationalContextRow,
+  FmPhaseSummary,
+  FmSupervisionSnapshot,
+  FmTraceabilityRow,
+  OrderHealthSnapshot,
+  StatusSummary,
+} from './order-card.types';
+import { firstValueFrom } from 'rxjs';
+import { OrderFmTraceabilityDialogComponent } from './order-fm-traceability-dialog.component';
 
 @Component({
     selector: 'app-order-card',
@@ -57,8 +72,16 @@ import type { OrderHealthSnapshot, StatusSummary } from './order-card.types';
 })
 export class OrderCardComponent {
   private readonly collaboration = inject(OrderManagementCollaborationService);
+  private readonly orderApi = inject(OrderApiService);
   private readonly orderSignal = signal<Order | null>(null);
   private readonly itemsSignal = signal<OrderItem[] | null>(null);
+  private readonly focusOrderIdSignal = signal<string | null>(null);
+  private readonly fmSnapshotSignal = signal<OrderPhaseSnapshotDto | null>(null);
+  private readonly fmContextsSignal = signal<OrderOperationalContextDto[]>([]);
+  private readonly fmTraceabilitySignal = signal<OrderTraceabilityDto | null>(null);
+  private readonly fmLoadedOrderIdSignal = signal<string | null>(null);
+  private readonly fmLoadingSignal = signal(false);
+  private readonly fmErrorSignal = signal<string | null>(null);
 
   private _order!: Order;
 
@@ -81,8 +104,20 @@ export class OrderCardComponent {
 
   @Input()
   highlightItemId: string | null = null;
+  @Input()
+  set focusOrderId(value: string | null) {
+    this.focusOrderIdSignal.set(value);
+  }
+  get focusOrderId(): string | null {
+    return this.focusOrderIdSignal();
+  }
   expanded = signal(false);
   private readonly autoExpandedByFilter = signal(false);
+  readonly isFocusedOrder = computed(() => {
+    const order = this.orderSignal();
+    const focusOrderId = this.focusOrderIdSignal();
+    return !!order && !!focusOrderId && order.id === focusOrderId;
+  });
   readonly businessStatusSummaries = computed(() =>
     this.computeBusinessStatusSummaries(this.effectiveItems()),
   );
@@ -105,12 +140,21 @@ export class OrderCardComponent {
     const order = this.orderSignal();
     return order ? this.orderService.isOrderItemsLoading(order.id) : false;
   });
+  readonly fmLoading = computed(() => this.fmLoadingSignal());
+  readonly fmError = computed(() => this.fmErrorSignal());
   readonly orderHealth = computed(() => this.computeOrderHealth());
   private readonly filters = computed(() => this.orderService.filters());
   private readonly filtersActive = computed(() =>
     this.orderService.hasActiveFilters(this.filters()),
   );
   readonly effectiveItems = computed(() => this.resolveItems());
+  readonly fmSupervision = computed(() =>
+    this.buildFmSupervision(
+      this.fmSnapshotSignal(),
+      this.fmContextsSignal(),
+      this.fmTraceabilitySignal(),
+    ),
+  );
   readonly selectionMode = signal(false);
   readonly selectedIds = signal<Set<string>>(new Set());
   readonly selectedCount = computed(() => this.selectedIds().size);
@@ -143,6 +187,30 @@ export class OrderCardComponent {
         return;
       }
       void this.orderService.ensureOrderItemsLoaded(order.id);
+      void this.ensureFmSupervisionLoaded(order.id);
+    });
+
+    effect(() => {
+      const order = this.orderSignal();
+      const focusOrderId = this.focusOrderIdSignal();
+      if (!order || !focusOrderId || order.id !== focusOrderId) {
+        return;
+      }
+      if (!this.expanded()) {
+        this.expanded.set(true);
+        this.autoExpandedByFilter.set(false);
+      }
+    });
+
+    effect(() => {
+      const orderId = this.orderSignal()?.id ?? null;
+      if (this.fmLoadedOrderIdSignal() === orderId) {
+        return;
+      }
+      this.fmSnapshotSignal.set(null);
+      this.fmContextsSignal.set([]);
+      this.fmTraceabilitySignal.set(null);
+      this.fmErrorSignal.set(null);
     });
   }
 
@@ -354,6 +422,47 @@ export class OrderCardComponent {
   submitSingle(itemId: string) {
     this.orderService.submitOrderItems(this.order.id, [itemId]);
     this.snackBar.open('Auftragsposition bestellt.', 'OK', { duration: 2000 });
+  }
+
+  refreshFmSupervision(event?: MouseEvent): void {
+    event?.stopPropagation();
+    const orderId = this.orderSignal()?.id;
+    if (!orderId) {
+      return;
+    }
+    void this.loadFmSupervision(orderId, true);
+  }
+
+  trackFmSummary(_: number, summary: FmPhaseSummary): string {
+    return summary.label;
+  }
+
+  trackFmContext(_: number, row: FmOperationalContextRow): string {
+    return row.rowKey;
+  }
+
+  trackFmTraceability(_: number, row: FmTraceabilityRow): string {
+    return row.rowKey;
+  }
+
+  openFmTraceabilityDetails(
+    row: FmTraceabilityRow,
+    event?: MouseEvent,
+  ): void {
+    event?.stopPropagation();
+    const orderId = this.orderSignal()?.id?.trim();
+    const caseId = row.caseId?.trim();
+    if (!orderId || !caseId) {
+      return;
+    }
+    this.dialog.open(OrderFmTraceabilityDialogComponent, {
+      width: '96vw',
+      maxWidth: '1200px',
+      data: {
+        orderId,
+        caseId,
+      },
+    });
   }
 
   advanceProcessStatus(event: MouseEvent): void {
@@ -850,5 +959,182 @@ export class OrderCardComponent {
     }
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private async ensureFmSupervisionLoaded(orderId: string): Promise<void> {
+    if (this.fmLoadedOrderIdSignal() === orderId && this.fmSnapshotSignal()) {
+      return;
+    }
+    await this.loadFmSupervision(orderId, false);
+  }
+
+  private async loadFmSupervision(orderId: string, force: boolean): Promise<void> {
+    const trimmed = orderId?.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (!force && this.fmLoadingSignal()) {
+      return;
+    }
+    if (!force && this.fmLoadedOrderIdSignal() === trimmed && this.fmSnapshotSignal()) {
+      return;
+    }
+
+    this.fmLoadingSignal.set(true);
+    try {
+      const [snapshot, contexts, traceability] = await Promise.all([
+        firstValueFrom(this.orderApi.getOrderPhaseSnapshot(trimmed)),
+        firstValueFrom(this.orderApi.getOrderOperationalContexts(trimmed)),
+        firstValueFrom(this.orderApi.getOrderTraceability(trimmed)),
+      ]);
+      this.fmSnapshotSignal.set(snapshot ?? null);
+      this.fmContextsSignal.set(contexts ?? []);
+      this.fmTraceabilitySignal.set(traceability ?? null);
+      this.fmLoadedOrderIdSignal.set(trimmed);
+      this.fmErrorSignal.set(null);
+    } catch (error) {
+      console.warn('[OrderCard] FM supervision data could not be loaded', error);
+      this.fmSnapshotSignal.set(null);
+      this.fmContextsSignal.set([]);
+      this.fmTraceabilitySignal.set(null);
+      this.fmErrorSignal.set('FM-Snapshot konnte nicht geladen werden.');
+    } finally {
+      this.fmLoadingSignal.set(false);
+    }
+  }
+
+  private buildFmSupervision(
+    snapshot: OrderPhaseSnapshotDto | null,
+    contexts: OrderOperationalContextDto[],
+    traceability: OrderTraceabilityDto | null,
+  ): FmSupervisionSnapshot {
+    if (!snapshot) {
+      return {
+        linkedPlanCount: 0,
+        matchedCaseCount: 0,
+        terminalCaseCount: 0,
+        activeCaseCount: 0,
+        missingOrderItemLinks: 0,
+        unresolvedPlanIds: [],
+        degradedCaseCount: 0,
+        stateSummaries: [],
+        tttSummaries: [],
+        ttrSummaries: [],
+        contextRows: [],
+        traceabilityRows: [],
+      };
+    }
+
+    const contextRows = contexts
+      .map((entry) => ({
+        rowKey: `${entry.caseId}:${entry.timetableYearLabel}:${entry.validFrom}:${entry.validTo}`,
+        caseId: entry.caseId,
+        caseTitle: entry.caseTitle,
+        profileLabel: entry.profileLabel,
+        caseState: entry.caseCurrentState,
+        contextState: entry.contextState,
+        timetableYearLabel: entry.timetableYearLabel,
+        validFrom: entry.validFrom,
+        validTo: entry.validTo,
+        status: entry.contextStatus,
+      }))
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'active' ? -1 : 1;
+        }
+        const byStart = a.validFrom.localeCompare(b.validFrom);
+        if (byStart !== 0) {
+          return byStart;
+        }
+        return a.caseId.localeCompare(b.caseId, 'de', { sensitivity: 'base' });
+      });
+
+    const traceabilityRows = (traceability?.entries ?? [])
+      .map((entry) => ({
+        rowKey: `${entry.caseId}:${entry.detailStatus}`,
+        caseId: entry.caseId,
+        caseTitle: entry.caseTitle,
+        profileLabel: entry.profileLabel,
+        currentState: entry.currentState,
+        correlation: this.formatTraceabilityCorrelation(entry),
+        lastMessage: this.formatTraceabilityMessage(entry),
+        lastTransition: this.formatTraceabilityTransition(entry),
+        auditCounts: `M ${entry.messageCount} · T ${entry.transitionCount}`,
+        detailStatus: entry.detailStatus,
+        detailError: entry.detailError ?? null,
+      }))
+      .sort((a, b) => {
+        if (a.detailStatus !== b.detailStatus) {
+          return a.detailStatus === 'ok' ? -1 : 1;
+        }
+        return a.caseId.localeCompare(b.caseId, 'de', { sensitivity: 'base' });
+      });
+
+    return {
+      linkedPlanCount: snapshot.linkedPlanCount,
+      matchedCaseCount: snapshot.matchedCaseCount,
+      terminalCaseCount: snapshot.terminalCaseCount,
+      activeCaseCount: snapshot.activeCaseCount,
+      missingOrderItemLinks: snapshot.missingOrderItemLinks,
+      unresolvedPlanIds: [...snapshot.unresolvedPlanIds],
+      degradedCaseCount: traceability?.degradedCaseCount ?? 0,
+      stateSummaries: [...snapshot.stateSummaries],
+      tttSummaries: [...snapshot.tttSummaries],
+      ttrSummaries: [...snapshot.ttrSummaries],
+      contextRows,
+      traceabilityRows,
+    };
+  }
+
+  private formatTraceabilityCorrelation(
+    entry: NonNullable<OrderTraceabilityDto['entries']>[number],
+  ): string {
+    const tokens: string[] = [];
+    if (entry.pathRequestId?.trim()) {
+      tokens.push(`PR ${entry.pathRequestId}`);
+    }
+    if (entry.pathId?.trim()) {
+      tokens.push(`P ${entry.pathId}`);
+    }
+    const messageExternalId = entry.lastMessage?.externalMessageId?.trim();
+    if (messageExternalId) {
+      tokens.push(`EXT ${messageExternalId}`);
+    }
+    if (!tokens.length) {
+      return '—';
+    }
+    return tokens.join(' · ');
+  }
+
+  private formatTraceabilityMessage(
+    entry: NonNullable<OrderTraceabilityDto['entries']>[number],
+  ): string {
+    const message = entry.lastMessage;
+    if (!message) {
+      return '—';
+    }
+    const when = this.formatDateTimeLabel(message.createdAt);
+    return `${message.direction} · ${message.eventKey} · ${when}`;
+  }
+
+  private formatTraceabilityTransition(
+    entry: NonNullable<OrderTraceabilityDto['entries']>[number],
+  ): string {
+    const transition = entry.lastTransition;
+    if (!transition) {
+      return '—';
+    }
+    const when = this.formatDateTimeLabel(transition.createdAt);
+    const state = `${transition.fromState}→${transition.toState}`;
+    const marker = transition.rejected ? 'rejected' : 'ok';
+    return `${state} · ${marker} · ${when}`;
+  }
+
+  private formatDateTimeLabel(isoValue: string): string {
+    const parsed = new Date(isoValue);
+    if (Number.isNaN(parsed.getTime())) {
+      return isoValue;
+    }
+    return parsed.toISOString().replace('T', ' ').slice(0, 16);
   }
 }

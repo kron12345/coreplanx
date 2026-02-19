@@ -67,6 +67,7 @@ export class OrderListComponent {
 
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly highlightItemId = signal<string | null>(null);
+  readonly focusOrderId = signal<string | null>(null);
   private readonly viewTransitionFlag = signal(false);
   readonly isViewTransitioning = computed(() => this.viewTransitionFlag());
   readonly skeletonPlaceholders = Array.from({ length: 6 }, (_, index) => index);
@@ -132,6 +133,15 @@ export class OrderListComponent {
         return;
       }
       window.setTimeout(() => this.scrollToHighlightedItem(target), 0);
+    });
+
+    effect(() => {
+      this.orders();
+      const target = this.focusOrderId();
+      if (!target) {
+        return;
+      }
+      window.setTimeout(() => this.scrollToFocusedOrder(target), 0);
     });
 
     effect(() => {
@@ -224,9 +234,15 @@ export class OrderListComponent {
   ]);
 
   openCreateDialog(): void {
-    this.dialog.open(OrderCreateDialogComponent, {
+    const dialogRef = this.dialog.open(OrderCreateDialogComponent, {
       width: '760px',
       maxWidth: '95vw',
+    });
+    dialogRef.afterClosed().subscribe((createdOrder: Order | undefined) => {
+      if (!createdOrder?.id) {
+        return;
+      }
+      this.focusOrderId.set(createdOrder.id);
     });
   }
 
@@ -886,6 +902,27 @@ export class OrderListComponent {
     window.setTimeout(() => {
       if (this.highlightItemId() === itemId) {
         this.highlightItemId.set(null);
+      }
+    }, 2500);
+  }
+
+  private scrollToFocusedOrder(orderId: string | null, attempt = 0): void {
+    if (!orderId) {
+      return;
+    }
+    const element = this.document.getElementById(`order-card-${orderId}`);
+    if (!element) {
+      if (attempt < 8) {
+        window.setTimeout(() => this.scrollToFocusedOrder(orderId, attempt + 1), 120);
+      } else if (this.focusOrderId() === orderId) {
+        this.focusOrderId.set(null);
+      }
+      return;
+    }
+    element.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+    window.setTimeout(() => {
+      if (this.focusOrderId() === orderId) {
+        this.focusOrderId.set(null);
       }
     }, 2500);
   }

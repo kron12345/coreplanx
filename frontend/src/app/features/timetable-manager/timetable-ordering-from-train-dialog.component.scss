@@ -1,0 +1,38 @@
+.ordering-from-train {
+  display: grid;
+  gap: 12px;
+  min-width: min(96vw, 760px);
+
+  &__summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  &__description {
+    width: 100%;
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: 0.82rem;
+    color: rgba(0, 0, 0, 0.64);
+  }
+}
+
+.summary-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(241, 245, 249, 0.9);
+  font-size: 0.74rem;
+  color: #1e293b;
+}

@@ -12,7 +12,12 @@
         </p>
       </div>
       <div class="orders-hero__actions">
-        <button mat-stroked-button type="button" (click)="openCreateDialog()">
+        <button
+          mat-stroked-button
+          type="button"
+          class="orders-hero__create-button"
+          (click)="openCreateDialog()"
+        >
           <mat-icon>add</mat-icon>
           Neuer Auftrag
         </button>
@@ -485,11 +490,12 @@
           }
         } @else {
           @for (entry of orders(); track trackByOrderId($index, entry)) {
-            <div class="order-card-wrapper">
+            <div class="order-card-wrapper" [attr.id]="'order-card-' + entry.order.id">
               <app-order-card
                 [order]="entry.order"
                 [items]="entry.items"
                 [highlightItemId]="highlightItemId()"
+                [focusOrderId]="focusOrderId()"
               ></app-order-card>
             </div>
           }

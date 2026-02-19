@@ -1,0 +1,81 @@
+<h2 mat-dialog-title>Bestellfall aus Zug eröffnen</h2>
+
+<mat-dialog-content class="ordering-from-train">
+  <div class="ordering-from-train__summary">
+    <span class="summary-pill">Ref {{ data.record.refTrainId }}</span>
+    <span class="summary-pill">Zug {{ data.record.trainNumber }}</span>
+    <span class="summary-pill">Kalender {{ validityLabel() }}</span>
+  </div>
+
+  <div class="ordering-from-train__grid">
+    <mat-form-field appearance="outline">
+      <mat-label>Profil</mat-label>
+      <mat-select [formControl]="form.controls.profileId">
+        @for (profile of profileOptions; track profile.id) {
+          <mat-option [value]="profile.id">{{ profile.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Titel</mat-label>
+      <input matInput [formControl]="form.controls.title" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>PathRequestID (EVU)</mat-label>
+      <input matInput [formControl]="form.controls.pathRequestId" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>PathID (optional)</mat-label>
+      <input matInput [formControl]="form.controls.pathId" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>TTT-Phase</mat-label>
+      <input matInput [formControl]="form.controls.tttPhase" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>TTR-Phase</mat-label>
+      <input matInput [formControl]="form.controls.ttrPhase" />
+    </mat-form-field>
+
+    @if (selectedProfile() === 'annual_order') {
+      <mat-form-field appearance="outline">
+        <mat-label>annualRequestWindow</mat-label>
+        <input matInput [formControl]="form.controls.annualRequestWindow" />
+      </mat-form-field>
+    }
+
+    @if (selectedProfile() === 'occasional_traffic') {
+      <mat-form-field appearance="outline">
+        <mat-label>requestedDepartureTime</mat-label>
+        <input matInput [formControl]="form.controls.requestedDepartureTime" placeholder="HH:mm" />
+      </mat-form-field>
+    }
+  </div>
+
+  <mat-form-field appearance="outline" class="ordering-from-train__description">
+    <mat-label>Beschreibung</mat-label>
+    <textarea matInput rows="2" [formControl]="form.controls.description"></textarea>
+  </mat-form-field>
+
+  <p class="ordering-from-train__hint">
+    Fahrplan und Kalender werden aus dem selektierten Zug übernommen. Fehlende train-plan Daten werden bei Bedarf automatisch erzeugt.
+  </p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Abbrechen</button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    (click)="submit()"
+    [disabled]="!form.controls.title.value.trim() || !form.controls.pathRequestId.value.trim()"
+  >
+    Bestellfall erstellen
+  </button>
+</mat-dialog-actions>

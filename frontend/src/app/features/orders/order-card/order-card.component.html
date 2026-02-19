@@ -1,4 +1,4 @@
-<mat-card appearance="outlined" class="order-card">
+<mat-card appearance="outlined" class="order-card" [class.order-card--focused]="isFocusedOrder()">
   <div class="order-header" (click)="toggleExpanded()" tabindex="0">
     <div class="left">
       <div class="title">
@@ -309,6 +309,186 @@
             </div>
           }
         </div>
+      }
+      @if (fmSupervision(); as fm) {
+        @if (fm.linkedPlanCount || fm.matchedCaseCount || fm.missingOrderItemLinks || fmError()) {
+          <div class="fm-supervision">
+            <div class="fm-supervision__header">
+              <span class="group-label">
+                <mat-icon inline>monitoring</mat-icon>
+                FM Überwachung (read-only)
+              </span>
+              <button
+                mat-icon-button
+                type="button"
+                (click)="refreshFmSupervision($event)"
+                matTooltip="FM-Status neu laden"
+              >
+                @if (fmLoading()) {
+                  <mat-progress-spinner diameter="16" strokeWidth="3" mode="indeterminate"></mat-progress-spinner>
+                } @else {
+                  <mat-icon>refresh</mat-icon>
+                }
+              </button>
+            </div>
+
+            <div class="fm-supervision__stats">
+              <span class="fm-pill">Fahrplan-Links {{ fm.linkedPlanCount }}</span>
+              <span class="fm-pill">FM-Fälle {{ fm.matchedCaseCount }}</span>
+              <span class="fm-pill">Aktiv {{ fm.activeCaseCount }}</span>
+              <span class="fm-pill">Terminal {{ fm.terminalCaseCount }}</span>
+              @if (fm.degradedCaseCount) {
+                <span class="fm-pill fm-pill--warn">Teilweise {{ fm.degradedCaseCount }}</span>
+              }
+            </div>
+
+            @if (fm.unresolvedPlanIds.length) {
+              <p class="fm-supervision__hint fm-supervision__hint--warn">
+                Ohne FM-Bestellfall:
+                {{ fm.unresolvedPlanIds.slice(0, 5).join(', ') }}
+                @if (fm.unresolvedPlanIds.length > 5) {
+                  <span> (+{{ fm.unresolvedPlanIds.length - 5 }} weitere)</span>
+                }
+              </p>
+            }
+            @if (fm.missingOrderItemLinks) {
+              <p class="fm-supervision__hint">
+                {{ fm.missingOrderItemLinks }} Position(en) ohne verlinkten Fahrplan.
+              </p>
+            }
+            @if (fmError(); as errorMessage) {
+              <p class="fm-supervision__hint fm-supervision__hint--warn">
+                FM-Snapshot derzeit nicht vollständig verfügbar: {{ errorMessage }}
+              </p>
+            }
+            @if (fm.degradedCaseCount) {
+              <p class="fm-supervision__hint fm-supervision__hint--warn">
+                {{ fm.degradedCaseCount }} FM-Fall/Fälle konnten nur teilweise für die Audit-Sicht aufgelöst werden.
+              </p>
+            }
+
+            @if (fm.stateSummaries.length) {
+              <div class="fm-supervision__chip-line">
+                <span class="fm-label">FM States</span>
+                <mat-chip-set>
+                  @for (summary of fm.stateSummaries; track trackFmSummary($index, summary)) {
+                    <mat-chip appearance="outlined">{{ summary.label }} · {{ summary.count }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </div>
+            }
+
+            @if (fm.tttSummaries.length) {
+              <div class="fm-supervision__chip-line">
+                <span class="fm-label">TTT aus FM</span>
+                <mat-chip-set>
+                  @for (summary of fm.tttSummaries; track trackFmSummary($index, summary)) {
+                    <mat-chip appearance="outlined">{{ summary.label }} · {{ summary.count }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </div>
+            }
+
+            @if (fm.ttrSummaries.length) {
+              <div class="fm-supervision__chip-line">
+                <span class="fm-label">TTR aus FM</span>
+                <mat-chip-set>
+                  @for (summary of fm.ttrSummaries; track trackFmSummary($index, summary)) {
+                    <mat-chip appearance="outlined">{{ summary.label }} · {{ summary.count }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </div>
+            }
+
+            @if (fm.contextRows.length) {
+              <div class="fm-supervision__table-wrap">
+                <table class="fm-supervision__table">
+                  <thead>
+                    <tr>
+                      <th>Fall</th>
+                      <th>Case/Context State</th>
+                      <th>Kontext</th>
+                      <th>Von/Bis</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of fm.contextRows.slice(0, 8); track trackFmContext($index, row)) {
+                      <tr>
+                        <td>{{ row.caseId }} · {{ row.caseTitle }} · {{ row.profileLabel }}</td>
+                        <td>{{ row.caseState }} / {{ row.contextState }}</td>
+                        <td>{{ row.timetableYearLabel }}</td>
+                        <td>{{ row.validFrom }} – {{ row.validTo }}</td>
+                        <td>{{ row.status }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              @if (fm.contextRows.length > 8) {
+                <p class="fm-supervision__hint">
+                  +{{ fm.contextRows.length - 8 }} weitere operative Kontexte im FM.
+                </p>
+              }
+            } @else {
+              <p class="fm-supervision__hint">
+                Für die verlinkten Fahrpläne liegen aktuell keine operativen FM-Kontexte vor.
+              </p>
+            }
+
+            @if (fm.traceabilityRows.length) {
+              <div class="fm-supervision__table-wrap">
+                <table class="fm-supervision__table">
+                  <thead>
+                    <tr>
+                      <th>Fall</th>
+                      <th>Korrelation</th>
+                      <th>Letzte Message</th>
+                      <th>Letzter Übergang</th>
+                      <th>Audit</th>
+                      <th>Aktion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of fm.traceabilityRows.slice(0, 6); track trackFmTraceability($index, row)) {
+                      <tr>
+                        <td>
+                          {{ row.caseId }} · {{ row.caseTitle }} · {{ row.profileLabel }} · {{ row.currentState }}
+                          @if (row.detailStatus === 'degraded') {
+                            <span class="fm-traceability__warn"> · degradiert</span>
+                          }
+                        </td>
+                        <td>{{ row.correlation }}</td>
+                        <td>{{ row.lastMessage }}</td>
+                        <td>{{ row.lastTransition }}</td>
+                        <td>{{ row.auditCounts }}</td>
+                        <td>
+                          <button
+                            mat-stroked-button
+                            type="button"
+                            (click)="openFmTraceabilityDetails(row, $event)"
+                          >
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                      @if (row.detailError) {
+                        <tr>
+                          <td colspan="6" class="fm-traceability__detail-error">{{ row.detailError }}</td>
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+              @if (fm.traceabilityRows.length > 6) {
+                <p class="fm-supervision__hint">
+                  +{{ fm.traceabilityRows.length - 6 }} weitere Traceability-Zeilen.
+                </p>
+              }
+            }
+          </div>
+        }
       }
     </div>
 

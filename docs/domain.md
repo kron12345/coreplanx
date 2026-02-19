@@ -31,6 +31,36 @@ Simulation:
 
 ---
 
+## Fahrplan-Bestellfall (Ordering Case)
+Operativer Bestellvorgang im Fahrplanmanagement.
+
+- gehört genau zu einem Prozessprofil (z. B. Jahresbestellung, Gelegenheitsverkehr)
+- hat einen Zustand mit nachvollziehbarer Historie
+- kann fahrplanjahrübergreifend mehrere operative Kontexte enthalten
+
+---
+
+## Prozessprofil (TTT)
+Konfiguration für den Bestellablauf.
+
+- definiert erlaubte Zustände
+- definiert Zustandsübergänge
+- definiert Pflichtattribute vor dem Senden
+
+---
+
+## Event-Tuple (TTT)
+Kanonischer Schlüssel für Übergänge.
+
+Bestandteile:
+- Actor
+- MessageType
+- MessageStatus
+- TypeOfRequest (TOR)
+- TypeOfInformation (TOI)
+
+---
+
 ## Zuglauf (TrainRun)
 Durchgehender Zug im Fahrplan.
 

@@ -13,8 +13,12 @@ import { OrderManagementRealtimeService } from '../order-management-realtime/ord
 import { parseClientRequestId } from '../shared/client-context';
 import type {
   OrderDto,
+  OrderTraceabilityCaseDetailsDto,
+  OrderTraceabilityDto,
+  OrderOperationalContextDto,
   OrderItemsSearchRequest,
   OrderItemsSearchResponse,
+  OrderPhaseSnapshotDto,
   OrderUpsertPayload,
   OrdersSearchRequest,
   OrdersSearchResponse,
@@ -47,6 +51,35 @@ export class OrdersController {
     @Param('orderId') orderId: string,
   ): Promise<OrderDto> {
     return this.ordersService.getOrderById(orderId);
+  }
+
+  @Get(':orderId/phase-snapshot')
+  getOrderPhaseSnapshot(
+    @Param('orderId') orderId: string,
+  ): Promise<OrderPhaseSnapshotDto> {
+    return this.ordersService.getOrderPhaseSnapshot(orderId);
+  }
+
+  @Get(':orderId/operational-contexts')
+  getOrderOperationalContexts(
+    @Param('orderId') orderId: string,
+  ): Promise<OrderOperationalContextDto[]> {
+    return this.ordersService.getOrderOperationalContexts(orderId);
+  }
+
+  @Get(':orderId/traceability')
+  getOrderTraceability(
+    @Param('orderId') orderId: string,
+  ): Promise<OrderTraceabilityDto> {
+    return this.ordersService.getOrderTraceability(orderId);
+  }
+
+  @Get(':orderId/traceability/:caseId')
+  getOrderTraceabilityCaseDetails(
+    @Param('orderId') orderId: string,
+    @Param('caseId') caseId: string,
+  ): Promise<OrderTraceabilityCaseDetailsDto> {
+    return this.ordersService.getOrderTraceabilityCaseDetails(orderId, caseId);
   }
 
   @Post()

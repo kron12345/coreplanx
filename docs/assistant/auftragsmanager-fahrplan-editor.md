@@ -10,6 +10,8 @@ Navigation:
 - Es oeffnet sich eine **Vollseite** mit Route Builder und Timing Editor.
 - **Auftragsmanager → Auftragsposition hinzufuegen → Fahrplan (Manuell) → Fahrplan-Editor oeffnen**
 - Es wird ein neuer TrainPlan aus den manuellen Halten (oder Defaults) erzeugt und der Editor oeffnet sich.
+- **Fahrplanmanager → primäre Erstellen-Aktion (Toolbar)**
+- Es wird ein neuer, vorbefuellter TrainPlan erzeugt und im selben Vollseiten-Editor geoeffnet.
 
 ## Ueberblick
 

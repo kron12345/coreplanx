@@ -14,7 +14,7 @@ Navigation:
 - Oben: Hero-Kennzahlen (Aufträge, Positionen, Hinweise).
 - Mitte: Filterleiste (Suche, Status, Verantwortliche, Sortierung).
 - Unten: Auftragskarten mit Tabs (Details, Positionen, Dokumente).
-- Button **Neuer Auftrag** öffnet den Erstellen-Dialog.
+- Der Hero-Button **Neuer Auftrag** ist kontrastreich gestaltet und öffnet den Erstellen-Dialog.
 
 ![Auftragsübersicht](/assistant/auftragsmanager/auftraege-uebersicht.png)
 Die Übersicht zeigt oben die KPIs, darunter Filter und die Auftragskarten.
@@ -37,7 +37,19 @@ Der Dialog enthält Pflichtfeld **Name** sowie optionale Felder wie Auftrags-ID,
 ## Auftrag in der Liste prüfen
 
 1. Nach dem Speichern erscheint der neue Auftrag als Karte in der Übersicht.
-2. Mit der Suche oder Tags filtern, falls viele Aufträge vorhanden sind.
+2. Die Liste springt automatisch zum neu angelegten Auftrag, positioniert ihn möglichst weit oben und öffnet seine Karte.
+3. So kannst du direkt mit **Position**, Status oder Verknüpfungen weiterarbeiten.
+4. Mit der Suche oder Tags filtern, falls viele Aufträge vorhanden sind.
+
+## FM-Überwachung in der Auftragskarte
+
+1. In der Auftragskarte erscheint der Bereich **FM Überwachung (read-only)**, sobald Positionen mit verlinktem Fahrplan vorhanden sind.
+2. Dort siehst du:
+   - aggregierte FM-Fallzahlen (aktiv/terminal),
+   - TTT/TTR-Werte aus FM-Snapshots,
+   - operative Kontexte pro Fall (Fahrplanjahr, von/bis, Status).
+3. Fehlen FM-Fälle zu verlinkten Fahrplänen, wird das explizit als Hinweis angezeigt.
+4. Bei FM-Ladeproblemen zeigt die Karte einen degradationssicheren Hinweis statt lokaler Phasenberechnung.
 
 ## Positionen (Auftragskarte)
 

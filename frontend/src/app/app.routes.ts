@@ -67,6 +67,22 @@ export const routes: Routes = [
           ),
         title: 'Fahrplanmanager · Zugläufe',
       },
+      {
+        path: 'ordering',
+        loadComponent: () =>
+          import('./features/timetable-manager/timetable-ordering-cockpit.component').then(
+            (m) => m.TimetableOrderingCockpitComponent,
+          ),
+        title: 'Fahrplanmanager · Bestellprozess',
+      },
+      {
+        path: 'ordering/simulator',
+        loadComponent: () =>
+          import('./features/timetable-manager/timetable-ordering-simulator.component').then(
+            (m) => m.TimetableOrderingSimulatorComponent,
+          ),
+        title: 'Fahrplanmanager · Gegenstelle',
+      },
     ],
   },
   {

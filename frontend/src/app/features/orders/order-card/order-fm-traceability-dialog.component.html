@@ -1,0 +1,150 @@
+<h2 mat-dialog-title>
+  FM Traceability · {{ details()?.caseId ?? 'Laden…' }}
+</h2>
+
+<mat-dialog-content class="traceability-dialog">
+  @if (loading() && !hasInitialLoad()) {
+    <div class="traceability-dialog__loading">
+      <mat-progress-spinner diameter="28" strokeWidth="3" mode="indeterminate"></mat-progress-spinner>
+      <span>Lade FM-Case-Historie…</span>
+    </div>
+  }
+
+  @if (error(); as errorMessage) {
+    <p class="traceability-dialog__error">{{ errorMessage }}</p>
+  }
+
+  @if (details(); as details) {
+    <div class="traceability-dialog__meta">
+      <span class="meta-pill">Auftrag {{ details.orderId }}</span>
+      <span class="meta-pill">Fall {{ details.caseId }}</span>
+      <span class="meta-pill">{{ details.profileLabel }}</span>
+      <span class="meta-pill">{{ details.currentState }}</span>
+      <span class="meta-pill">{{ details.validFrom }} – {{ details.validTo }}</span>
+      @if (details.pathRequestId) {
+        <span class="meta-pill">PR {{ details.pathRequestId }}</span>
+      }
+      @if (details.pathId) {
+        <span class="meta-pill">P {{ details.pathId }}</span>
+      }
+      @if (details.trainPlanId) {
+        <span class="meta-pill">Plan {{ details.trainPlanId }}</span>
+      }
+    </div>
+
+    @if (details.detailStatus === 'degraded') {
+      <p class="traceability-dialog__warning">
+        Detailansicht ist degradiert.
+        @if (details.detailError) {
+          <span>{{ details.detailError }}</span>
+        }
+      </p>
+    }
+
+    @if (details.operationalContexts.length) {
+      <h3>Operative Kontexte</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fahrplanjahr</th>
+              <th>Von/Bis</th>
+              <th>State</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (context of details.operationalContexts; track trackContext($index, context)) {
+              <tr>
+                <td>{{ context.timetableYearLabel }}</td>
+                <td>{{ context.validFrom }} – {{ context.validTo }}</td>
+                <td>{{ context.contextState }}</td>
+                <td>{{ context.contextStatus }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <h3>Messages</h3>
+    @if (!details.messages.length) {
+      <p class="traceability-dialog__hint">Keine Messages für diesen Fall vorhanden.</p>
+    } @else {
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Zeit</th>
+              <th>Richtung</th>
+              <th>Actor</th>
+              <th>Event</th>
+              <th>Quelle</th>
+              <th>External</th>
+              <th>Korrelation</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (message of details.messages; track trackMessage($index, message)) {
+              <tr>
+                <td>{{ formatDateTime(message.createdAt) }}</td>
+                <td>{{ message.direction }}</td>
+                <td>{{ message.actor }}</td>
+                <td>{{ message.eventKey }}</td>
+                <td>{{ message.source }}</td>
+                <td>{{ message.externalMessageId || '—' }}</td>
+                <td>{{ message.correlationKey || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <h3>Transitions</h3>
+    @if (!details.transitions.length) {
+      <p class="traceability-dialog__hint">Keine Transitions für diesen Fall vorhanden.</p>
+    } @else {
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Zeit</th>
+              <th>From/To</th>
+              <th>Event</th>
+              <th>Quelle</th>
+              <th>Action</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (transition of details.transitions; track trackTransition($index, transition)) {
+              <tr [class.is-rejected]="transition.rejected">
+                <td>{{ formatDateTime(transition.createdAt) }}</td>
+                <td>{{ transition.fromState }} → {{ transition.toState }}</td>
+                <td>{{ transition.eventKey }}</td>
+                <td>{{ transition.source }}</td>
+                <td>{{ transition.actionId || '—' }}</td>
+                <td>
+                  @if (transition.rejected) {
+                    rejected{{ transition.reason ? ': ' + transition.reason : '' }}
+                  } @else {
+                    ok
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="reload()" [disabled]="loading()">
+    <mat-icon>refresh</mat-icon>
+    Neu laden
+  </button>
+  <button mat-button type="button" (click)="close()">Schließen</button>
+</mat-dialog-actions>

@@ -5,9 +5,17 @@ import {
   DEFAULT_ORDER_FILTERS,
   OrderDto,
   OrderFilters,
+  OrderFmSummaryEntryDto,
   OrderItemDto,
+  OrderOperationalContextDto,
+  OrderTraceabilityCaseDetailsDto,
+  OrderTraceabilityDto,
+  OrderTraceabilityEntryDto,
+  OrderTraceabilityMessageDto,
+  OrderTraceabilityTransitionDto,
   OrderItemsSearchRequest,
   OrderItemsSearchResponse,
+  OrderPhaseSnapshotDto,
   OrderItemUpsertPayload,
   OrderUpsertPayload,
   OrdersSearchRequest,
@@ -24,6 +32,7 @@ import {
 import { TimetableService } from '../timetable/timetable.service';
 import { buildProductiveVariantId } from '../shared/variant-scope';
 import type { TrainRun, TrainSegment } from '../planning/planning.types';
+import { TimetableOrderingService } from '../timetable-ordering/timetable-ordering.service';
 
 type OrderTimetableSnapshot = {
   refTrainId?: string;
@@ -42,6 +51,17 @@ type OrderTimetableSnapshot = {
   }>;
 };
 
+type OrderFmProjection = {
+  orderId: string;
+  linkedPlanIds: string[];
+  missingOrderItemLinks: number;
+  matchedCases: Awaited<
+    ReturnType<TimetableOrderingService['listCases']>
+  >;
+  unresolvedPlanIds: string[];
+  contexts: OrderOperationalContextDto[];
+};
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
@@ -49,6 +69,7 @@ export class OrdersService {
   constructor(
     private readonly repository: OrdersRepository,
     private readonly timetableService: TimetableService,
+    private readonly timetableOrderingService: TimetableOrderingService,
   ) {}
 
   async searchOrders(
@@ -126,6 +147,234 @@ export class OrdersService {
       throw new NotFoundException(`Order ${orderId} not found.`);
     }
     return this.mapOrder(record, record.items);
+  }
+
+  async getOrderPhaseSnapshot(orderId: string): Promise<OrderPhaseSnapshotDto> {
+    const projection = await this.buildOrderFmProjection(orderId);
+    const terminalCaseCount = projection.matchedCases.filter(
+      (entry) => entry.isTerminal,
+    ).length;
+    const activeCaseCount = Math.max(
+      projection.matchedCases.length - terminalCaseCount,
+      0,
+    );
+
+    return {
+      orderId: projection.orderId,
+      linkedPlanCount: projection.linkedPlanIds.length,
+      matchedCaseCount: projection.matchedCases.length,
+      activeCaseCount,
+      terminalCaseCount,
+      missingOrderItemLinks: projection.missingOrderItemLinks,
+      unresolvedPlanIds: projection.unresolvedPlanIds,
+      stateSummaries: this.buildSummaryEntries(
+        projection.matchedCases.map((entry) => entry.currentState),
+      ),
+      tttSummaries: this.buildSummaryEntries(
+        projection.matchedCases.map(
+          (entry) => entry.aggregatedPhase.tttPhase ?? 'nicht gesetzt',
+        ),
+      ),
+      ttrSummaries: this.buildSummaryEntries(
+        projection.matchedCases.map(
+          (entry) => entry.aggregatedPhase.ttrPhase ?? 'nicht gesetzt',
+        ),
+      ),
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getOrderOperationalContexts(
+    orderId: string,
+  ): Promise<OrderOperationalContextDto[]> {
+    const projection = await this.buildOrderFmProjection(orderId);
+    return projection.contexts;
+  }
+
+  async getOrderTraceability(orderId: string): Promise<OrderTraceabilityDto> {
+    const projection = await this.buildOrderFmProjection(orderId);
+    if (!projection.matchedCases.length) {
+      return {
+        orderId: projection.orderId,
+        linkedPlanCount: projection.linkedPlanIds.length,
+        matchedCaseCount: 0,
+        unresolvedPlanIds: projection.unresolvedPlanIds,
+        degradedCaseCount: 0,
+        entries: [],
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const entries = await Promise.all(
+      projection.matchedCases.map(async (orderingCase) => {
+        try {
+          const details = await this.timetableOrderingService.getCaseDetails(
+            orderingCase.id,
+          );
+          const lastMessage = details.messages[0];
+          const lastTransition = details.transitions[0];
+          const mapped: OrderTraceabilityEntryDto = {
+            caseId: orderingCase.id,
+            caseTitle: orderingCase.title,
+            profileId: orderingCase.profileId,
+            profileLabel: orderingCase.profileLabel,
+            trainPlanId: orderingCase.trainPlanId ?? undefined,
+            validFrom: orderingCase.validFrom,
+            validTo: orderingCase.validTo,
+            currentState: orderingCase.currentState,
+            isTerminal: orderingCase.isTerminal,
+            pathRequestId: orderingCase.pathRequestId ?? null,
+            pathId: orderingCase.pathId ?? null,
+            contextCount: orderingCase.operationalContexts.length,
+            messageCount: details.messages.length,
+            transitionCount: details.transitions.length,
+            lastMessage: lastMessage
+              ? this.mapTraceabilityMessage(lastMessage)
+              : null,
+            lastTransition: lastTransition
+              ? this.mapTraceabilityTransition(lastTransition)
+              : null,
+            detailStatus: 'ok',
+            detailError: null,
+          };
+          return mapped;
+        } catch (error) {
+          this.logger.warn(
+            `Failed to enrich FM traceability for case ${orderingCase.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          const degraded: OrderTraceabilityEntryDto = {
+            caseId: orderingCase.id,
+            caseTitle: orderingCase.title,
+            profileId: orderingCase.profileId,
+            profileLabel: orderingCase.profileLabel,
+            trainPlanId: orderingCase.trainPlanId ?? undefined,
+            validFrom: orderingCase.validFrom,
+            validTo: orderingCase.validTo,
+            currentState: orderingCase.currentState,
+            isTerminal: orderingCase.isTerminal,
+            pathRequestId: orderingCase.pathRequestId ?? null,
+            pathId: orderingCase.pathId ?? null,
+            contextCount: orderingCase.operationalContexts.length,
+            messageCount: 0,
+            transitionCount: 0,
+            lastMessage: null,
+            lastTransition: null,
+            detailStatus: 'degraded',
+            detailError: 'FM-Case-Details konnten nicht geladen werden.',
+          };
+          return degraded;
+        }
+      }),
+    );
+
+    const sortedEntries = entries.sort((a, b) => {
+      if (a.detailStatus !== b.detailStatus) {
+        return a.detailStatus === 'ok' ? -1 : 1;
+      }
+      if (a.isTerminal !== b.isTerminal) {
+        return a.isTerminal ? 1 : -1;
+      }
+      const byStart = a.validFrom.localeCompare(b.validFrom);
+      if (byStart !== 0) {
+        return byStart;
+      }
+      return a.caseId.localeCompare(b.caseId, 'de', { sensitivity: 'base' });
+    });
+    const degradedCaseCount = sortedEntries.filter(
+      (entry) => entry.detailStatus === 'degraded',
+    ).length;
+
+    return {
+      orderId: projection.orderId,
+      linkedPlanCount: projection.linkedPlanIds.length,
+      matchedCaseCount: projection.matchedCases.length,
+      unresolvedPlanIds: projection.unresolvedPlanIds,
+      degradedCaseCount,
+      entries: sortedEntries,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getOrderTraceabilityCaseDetails(
+    orderId: string,
+    caseId: string,
+  ): Promise<OrderTraceabilityCaseDetailsDto> {
+    const projection = await this.buildOrderFmProjection(orderId);
+    const normalizedCaseId = caseId?.trim();
+    if (!normalizedCaseId) {
+      throw new BadRequestException('caseId is required.');
+    }
+
+    const linkedCase = projection.matchedCases.find(
+      (entry) => entry.id === normalizedCaseId,
+    );
+    if (!linkedCase) {
+      throw new NotFoundException(
+        `Traceability case ${normalizedCaseId} is not linked to order ${orderId}.`,
+      );
+    }
+
+    const operationalContexts = projection.contexts.filter(
+      (entry) => entry.caseId === linkedCase.id,
+    );
+
+    try {
+      const details = await this.timetableOrderingService.getCaseDetails(
+        linkedCase.id,
+      );
+      return {
+        orderId: projection.orderId,
+        caseId: linkedCase.id,
+        caseTitle: linkedCase.title,
+        profileId: linkedCase.profileId,
+        profileLabel: linkedCase.profileLabel,
+        trainPlanId: linkedCase.trainPlanId ?? undefined,
+        validFrom: linkedCase.validFrom,
+        validTo: linkedCase.validTo,
+        currentState: linkedCase.currentState,
+        isTerminal: linkedCase.isTerminal,
+        pathRequestId: linkedCase.pathRequestId ?? null,
+        pathId: linkedCase.pathId ?? null,
+        operationalContexts,
+        detailStatus: 'ok',
+        detailError: null,
+        messages: details.messages.map((entry) =>
+          this.mapTraceabilityMessage(entry),
+        ),
+        transitions: details.transitions.map((entry) =>
+          this.mapTraceabilityTransition(entry),
+        ),
+        generatedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load traceability details for case ${linkedCase.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return {
+        orderId: projection.orderId,
+        caseId: linkedCase.id,
+        caseTitle: linkedCase.title,
+        profileId: linkedCase.profileId,
+        profileLabel: linkedCase.profileLabel,
+        trainPlanId: linkedCase.trainPlanId ?? undefined,
+        validFrom: linkedCase.validFrom,
+        validTo: linkedCase.validTo,
+        currentState: linkedCase.currentState,
+        isTerminal: linkedCase.isTerminal,
+        pathRequestId: linkedCase.pathRequestId ?? null,
+        pathId: linkedCase.pathId ?? null,
+        operationalContexts,
+        detailStatus: 'degraded',
+        detailError: 'FM-Case-Details konnten nicht geladen werden.',
+        messages: [],
+        transitions: [],
+        generatedAt: new Date().toISOString(),
+      };
+    }
   }
 
   async createOrder(payload: OrderUpsertPayload): Promise<OrderDto> {
@@ -305,6 +554,152 @@ export class OrdersService {
       return item;
     }
     return { ...item, originalTimetable: undefined };
+  }
+
+  private async buildOrderFmProjection(orderId: string): Promise<OrderFmProjection> {
+    const record = await this.repository.getOrderById(orderId);
+    if (!record) {
+      throw new NotFoundException(`Order ${orderId} not found.`);
+    }
+
+    const linkedPlanIds = this.resolveLinkedPlanIds(record.items);
+    const missingOrderItemLinks = record.items.filter(
+      (item) => !item.linkedTrainPlanId?.trim(),
+    ).length;
+
+    if (!linkedPlanIds.length) {
+      return {
+        orderId,
+        linkedPlanIds,
+        missingOrderItemLinks,
+        matchedCases: [],
+        unresolvedPlanIds: [],
+        contexts: [],
+      };
+    }
+
+    const linkedPlanSet = new Set(linkedPlanIds);
+    const allCases = await this.timetableOrderingService.listCases();
+    const matchedCases = allCases.filter((entry) => {
+      const planId = entry.trainPlanId?.trim();
+      return !!planId && linkedPlanSet.has(planId);
+    });
+
+    const matchedPlanIds = new Set<string>();
+    matchedCases.forEach((entry) => {
+      const planId = entry.trainPlanId?.trim();
+      if (planId) {
+        matchedPlanIds.add(planId);
+      }
+    });
+
+    const unresolvedPlanIds = linkedPlanIds.filter(
+      (planId) => !matchedPlanIds.has(planId),
+    );
+
+    const contexts = matchedCases
+      .flatMap((entry) =>
+        entry.operationalContexts.map((context) => ({
+          caseId: entry.id,
+          caseTitle: entry.title,
+          caseCurrentState: entry.currentState,
+          profileId: entry.profileId,
+          profileLabel: entry.profileLabel,
+          trainPlanId: entry.trainPlanId ?? undefined,
+          timetableYearLabel: context.timetableYearLabel,
+          validFrom: context.validFrom,
+          validTo: context.validTo,
+          contextState: context.state,
+          contextStatus: context.status,
+          tttPhase: entry.aggregatedPhase.tttPhase ?? null,
+          ttrPhase: entry.aggregatedPhase.ttrPhase ?? null,
+        })),
+      )
+      .sort((a, b) => {
+        if (a.contextStatus !== b.contextStatus) {
+          return a.contextStatus === 'active' ? -1 : 1;
+        }
+        const byStart = a.validFrom.localeCompare(b.validFrom);
+        if (byStart !== 0) {
+          return byStart;
+        }
+        return a.caseId.localeCompare(b.caseId, 'de', { sensitivity: 'base' });
+      });
+
+    return {
+      orderId,
+      linkedPlanIds,
+      missingOrderItemLinks,
+      matchedCases,
+      unresolvedPlanIds,
+      contexts,
+    };
+  }
+
+  private resolveLinkedPlanIds(items: OrderItemRecord[]): string[] {
+    const ids = new Set<string>();
+    items.forEach((item) => {
+      const planId = item.linkedTrainPlanId?.trim();
+      if (planId) {
+        ids.add(planId);
+      }
+    });
+    return Array.from(ids).sort((a, b) =>
+      a.localeCompare(b, 'de', { sensitivity: 'base' }),
+    );
+  }
+
+  private buildSummaryEntries(values: Array<string | null | undefined>): OrderFmSummaryEntryDto[] {
+    const counts = new Map<string, number>();
+    values.forEach((value) => {
+      const label = value?.trim();
+      if (!label) {
+        return;
+      }
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }),
+      );
+  }
+
+  private mapTraceabilityMessage(
+    message: Awaited<
+      ReturnType<TimetableOrderingService['getCaseDetails']>
+    >['messages'][number],
+  ): OrderTraceabilityMessageDto {
+    return {
+      id: message.id,
+      direction: message.direction,
+      source: message.source,
+      actor: message.actor,
+      eventKey: message.eventKey,
+      externalMessageId: message.externalMessageId ?? null,
+      correlationKey: message.correlationKey ?? null,
+      createdAt: message.createdAt,
+    };
+  }
+
+  private mapTraceabilityTransition(
+    transition: Awaited<
+      ReturnType<TimetableOrderingService['getCaseDetails']>
+    >['transitions'][number],
+  ): OrderTraceabilityTransitionDto {
+    return {
+      id: transition.id,
+      fromState: transition.fromState,
+      toState: transition.toState,
+      eventKey: transition.eventKey,
+      source: transition.source,
+      actionId: transition.actionId ?? null,
+      rejected: transition.rejected,
+      reason: transition.reason ?? null,
+      createdAt: transition.createdAt,
+    };
   }
 
   private mapItemContext(
