@@ -59,6 +59,35 @@ export interface TrainPlanRouteMetadataDto {
   originBorderPoint?: string;
   destinationBorderPoint?: string;
   borderNotes?: string;
+  orderingContext?: {
+    otnOrNameInput?: string;
+    operationalTrainNumber?: string;
+    trainName?: string;
+    reasonOfReference?: string;
+    validityDate?: string;
+    validityDates?: string[];
+    trainType?: string;
+    trafficTypeCode?: string;
+    trafficTypeNetwork?: string;
+    serviceType?: 'tractive_unit' | 'wagon' | 'pwg';
+    vehicleFormation?: Array<{
+      entryId: string;
+      serviceType: 'tractive_unit' | 'wagon' | 'pwg';
+      code: string;
+      label: string;
+      source: 'catalog' | 'manual';
+      lengthMeters?: number;
+      weightTons?: number;
+      maxSpeedKph?: number;
+    }>;
+    pwgLengthMeters?: number;
+    pwgWeightTons?: number;
+    pwgMaxSpeedKph?: number;
+    tractionOrPwg?: string;
+    debtorCode?: string;
+    distributionList?: string;
+    freeProcessingReason?: string;
+  };
   timetableDrafts?: TimetableDraftBundleDto;
 }
 

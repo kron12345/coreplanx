@@ -639,7 +639,11 @@ export class OrderPositionDialogComponent implements OnDestroy {
 
       const returnUrl = this.router.url;
       this.dialogRef.close();
-      const queryParams: Record<string, string> = { returnUrl };
+      const queryParams: Record<string, string> = {
+        returnUrl,
+        validityStart: plan.calendar.validFrom,
+        validityEnd: plan.calendar.validTo ?? plan.calendar.validFrom,
+      };
       if (this.order?.id) {
         queryParams['orderId'] = this.order.id;
       }

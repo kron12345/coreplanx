@@ -345,6 +345,7 @@ export type VehiclePoolListResponse = VehiclePool[];
 export interface VehicleType {
   id: string;
   label: string;
+  formationServiceType?: 'tractive_unit' | 'wagon' | null;
   category?: string | null;
   capacity?: number | null;
   maxSpeed?: number | null;

@@ -72,6 +72,11 @@ const VEHICLE_CATEGORY_OPTIONS = [
   { label: 'Triebzug', value: 'Triebzug' },
 ];
 
+const FORMATION_SERVICE_TYPE_OPTIONS = [
+  { label: 'Triebfahrzeug', value: 'tractive_unit' },
+  { label: 'Wagen', value: 'wagon' },
+];
+
 const BRAKE_TYPE_OPTIONS = [
   { label: 'KE-GPR-E mZ', value: 'KE-GPR-E mZ' },
   { label: 'KE-GPR mZ', value: 'KE-GPR mZ' },
@@ -102,6 +107,7 @@ const GAUGE_PROFILE_OPTIONS = [
 
 const VEHICLE_TYPE_BASE_DEFINITIONS: CustomAttributeDefinition[] = [
   { id: 'vt-label', key: 'label', label: 'Bezeichnung', type: 'string', entityId: 'vehicle-types', required: true },
+  { id: 'vt-formation-service-type', key: 'formationServiceType', label: 'Fahrtyp', type: 'string', entityId: 'vehicle-types' },
   { id: 'vt-category', key: 'category', label: 'Kategorie', type: 'string', entityId: 'vehicle-types' },
   { id: 'vt-capacity', key: 'capacity', label: 'Kapazität (Sitzplätze)', type: 'number', entityId: 'vehicle-types' },
   { id: 'vt-train-type', key: 'trainTypeCode', label: 'TTT Train Type', type: 'string', entityId: 'vehicle-types' },
@@ -171,6 +177,7 @@ const VEHICLE_DEFAULTS = {
 };
 const VEHICLE_TYPE_DEFAULTS = {
   label: 'ICE 4 (12-teilig)',
+  formationServiceType: 'tractive_unit',
   category: 'Triebzug',
   capacity: '830',
   trainTypeCode: 'ICE4-12',
@@ -212,6 +219,7 @@ const VEHICLE_TYPE_NUMERIC_KEYS = [
 ];
 
 const VEHICLE_TYPE_SELECT_OPTIONS: Record<string, { label: string; value: string }[]> = {
+  formationServiceType: FORMATION_SERVICE_TYPE_OPTIONS,
   category: VEHICLE_CATEGORY_OPTIONS,
   brakeType: BRAKE_TYPE_OPTIONS,
   tiltingCapability: TILTING_OPTIONS,
@@ -350,8 +358,9 @@ export class VehicleMasterEditorComponent {
         const items = this.collections.vehicleTypes();
         return this.formatSummary('Fahrzeugtypen', items, (type) => {
           const label = type.label ?? type.id;
+          const serviceType = type.formationServiceType ? `, fahrtyp=${type.formationServiceType}` : '';
           const category = type.category ? `, category=${type.category}` : '';
-          return `${type.id}: ${label}${category}`;
+          return `${type.id}: ${label}${serviceType}${category}`;
         });
       }
       case 'compositions': {
@@ -465,10 +474,20 @@ export class VehicleMasterEditorComponent {
     this.collections.vehicleTypes().map((type) => ({
       id: type.id,
       label: type.label ?? type.id,
-      secondaryLabel: type.category ?? '',
+      secondaryLabel: [
+        type.formationServiceType === 'tractive_unit'
+          ? 'Triebfahrzeug'
+          : type.formationServiceType === 'wagon'
+            ? 'Wagen'
+            : '',
+        type.category ?? '',
+      ]
+        .filter((entry) => entry.length > 0)
+        .join(' · '),
       attributes: [],
       fallbackValues: {
         label: type.label ?? '',
+        formationServiceType: type.formationServiceType ?? '',
         category: type.category ?? '',
         capacity: this.formatNumber(type.capacity),
         trainTypeCode: type.trainTypeCode ?? '',
@@ -869,6 +888,11 @@ export class VehicleMasterEditorComponent {
       this.vehicleTypeError.set('Bezeichnung darf nicht leer sein.');
       return;
     }
+    const formationServiceType = this.parseFormationServiceType(values['formationServiceType']);
+    if (values['formationServiceType']?.trim() && !formationServiceType) {
+      this.vehicleTypeError.set('Fahrtyp ist ungültig.');
+      return;
+    }
     const tilting = this.cleanString(values['tiltingCapability']);
     const tiltingCapability =
       tilting === 'none' || tilting === 'passive' || tilting === 'active' ? tilting : undefined;
@@ -877,6 +901,7 @@ export class VehicleMasterEditorComponent {
     const payload: VehicleType = {
       id,
       label,
+      formationServiceType,
       category: this.cleanString(values['category']),
       capacity: this.parseNumber(values['capacity']),
       trainTypeCode: this.cleanString(values['trainTypeCode']),
@@ -1061,6 +1086,14 @@ export class VehicleMasterEditorComponent {
   private cleanString(value: string | undefined): string | undefined {
     const trimmed = (value ?? '').trim();
     return trimmed.length ? trimmed : undefined;
+  }
+
+  private parseFormationServiceType(value: string | undefined): VehicleType['formationServiceType'] {
+    const normalized = value?.trim();
+    if (normalized === 'tractive_unit' || normalized === 'wagon') {
+      return normalized;
+    }
+    return undefined;
   }
 
   private generateId(prefix: string): string {

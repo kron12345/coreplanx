@@ -266,6 +266,37 @@ export class TimetableRouteBuilderComponent {
     return stop?.op?.name ?? stopId;
   }
 
+  clearPrefilledStopSearch(kind: 'origin' | 'destination') {
+    const control = kind === 'origin' ? this.originSearch : this.destinationSearch;
+    const stop = kind === 'origin' ? this.originStop() : this.destinationStop();
+    const value = control.value;
+    if (!stop?.op) {
+      return;
+    }
+    const prefilled = `${stop.op.name} · ${stop.op.id}`;
+    const isPrefilledValue =
+      (typeof value === 'string' && value.trim() === prefilled) ||
+      (typeof value === 'object' && value !== null);
+    if (!isPrefilledValue) {
+      return;
+    }
+    control.setValue('', { emitEvent: false });
+  }
+
+  restorePrefilledStopSearch(kind: 'origin' | 'destination') {
+    const control = kind === 'origin' ? this.originSearch : this.destinationSearch;
+    const stop = kind === 'origin' ? this.originStop() : this.destinationStop();
+    const value = control.value;
+    if (!stop?.op) {
+      return;
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return;
+    }
+    const prefilled = `${stop.op.name} · ${stop.op.id}`;
+    control.setValue(prefilled, { emitEvent: false });
+  }
+
   setOrigin(op: OperationalPoint) {
     if (!this.draftSignal()) {
       return;
@@ -395,8 +426,18 @@ export class TimetableRouteBuilderComponent {
     this.insertDwellMinutes.set(Number.isFinite(next) ? next : 0);
   }
 
+  canRemoveStop(): boolean {
+    return this.stops().length > 2;
+  }
+
   removeStop(stopId: string) {
     if (!this.draftSignal()) {
+      return;
+    }
+    if (!this.canRemoveStop()) {
+      return;
+    }
+    if (!this.stops().some((stop) => stop.stopId === stopId)) {
       return;
     }
     const nextStops = this.stops().filter((stop) => stop.stopId !== stopId);
@@ -738,15 +779,48 @@ export class TimetableRouteBuilderComponent {
     if (!current) {
       throw new Error('Draft not initialized');
     }
-    const segments = buildSegments(stops, current.assumptions, current.segments);
+    const normalizedStops = this.normalizeStopRoles(stops);
+    const segments = buildSegments(normalizedStops, current.assumptions, current.segments);
     const nextDraft: RouteDraft = {
       ...current,
-      stops,
+      stops: normalizedStops,
       segments,
       updatedAtIso: nowIso(),
     };
     this.queueRoutePlanning(nextDraft);
     return nextDraft;
+  }
+
+  private normalizeStopRoles(stops: RouteStop[]): RouteStop[] {
+    if (!stops.length) {
+      return [];
+    }
+    const total = stops.length;
+    const defaultDwell = this.assumptions().defaultDwellSeconds;
+    return stops.map((stop, index) => {
+      let kind: RouteStop['kind'];
+      if (total === 1) {
+        kind = stop.kind === 'destination' ? 'destination' : 'origin';
+      } else if (index === 0) {
+        kind = 'origin';
+      } else if (index === total - 1) {
+        kind = 'destination';
+      } else if (stop.kind === 'pass') {
+        kind = 'pass';
+      } else {
+        kind = 'stop';
+      }
+
+      const dwellSeconds =
+        kind === 'stop'
+          ? Math.max(0, stop.dwellSeconds ?? defaultDwell)
+          : 0;
+      return {
+        ...stop,
+        kind,
+        dwellSeconds,
+      };
+    });
   }
 
   private emitDraft(next: RouteDraft) {

@@ -517,6 +517,7 @@ export class PlanningMasterDataWriteRepository {
           FROM jsonb_to_recordset($1::jsonb) AS t(
             id TEXT,
             label TEXT,
+            formationServiceType TEXT,
             category TEXT,
             capacity INTEGER,
             maxSpeed INTEGER,
@@ -542,6 +543,7 @@ export class PlanningMasterDataWriteRepository {
         INSERT INTO vehicle_type (
           id,
           label,
+          formation_service_type,
           category,
           capacity,
           max_speed,
@@ -566,6 +568,7 @@ export class PlanningMasterDataWriteRepository {
         SELECT
           id,
           label,
+          formationServiceType,
           category,
           capacity,
           maxSpeed,

@@ -108,6 +108,7 @@ interface VehicleServiceRow {
 interface VehicleTypeRow {
   id: string;
   label: string;
+  formation_service_type: string | null;
   category: string | null;
   capacity: number | null;
   max_speed: number | null;
@@ -342,6 +343,7 @@ export class PlanningMasterDataReadRepository {
             SELECT
               id,
               label,
+              formation_service_type,
               category,
               capacity,
               max_speed,
@@ -826,9 +828,15 @@ export class PlanningMasterDataReadRepository {
   }
 
   private mapVehicleType(row: VehicleTypeRow): VehicleType {
+    const formationServiceType =
+      row.formation_service_type === 'tractive_unit' ||
+      row.formation_service_type === 'wagon'
+        ? row.formation_service_type
+        : undefined;
     return {
       id: row.id,
       label: row.label,
+      formationServiceType,
       category: row.category ?? undefined,
       capacity: row.capacity ?? undefined,
       maxSpeed: row.max_speed ?? undefined,

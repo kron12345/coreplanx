@@ -51,10 +51,21 @@
       mat-stroked-button
       type="button"
       class="stepper-step"
+      [class.is-active]="activeStep() === 'ordering'"
+      (click)="setStep('ordering')"
+    >
+      1 · Bestellkontext
+    </button>
+    <div class="stepper-line"></div>
+    <button
+      mat-stroked-button
+      type="button"
+      class="stepper-step"
       [class.is-active]="activeStep() === 'route'"
+      [disabled]="!canProceedToRoute()"
       (click)="setStep('route')"
     >
-      1 · Route Builder
+      2 · Route Builder
     </button>
     <div class="stepper-line"></div>
     <button
@@ -65,10 +76,16 @@
       [disabled]="!canProceedToTiming()"
       (click)="setStep('timing')"
     >
-      2 · Timing Editor
+      3 · Timing Editor
     </button>
+
     <div class="stepper-actions">
-      @if (activeStep() === 'route') {
+      @if (activeStep() === 'ordering') {
+        <button mat-flat-button color="primary" type="button" (click)="goToRoute()" [disabled]="!canProceedToRoute()">
+          Weiter → Route Builder
+        </button>
+      } @else if (activeStep() === 'route') {
+        <button mat-stroked-button type="button" (click)="goToOrdering()">← Zurück zum Bestellkontext</button>
         <button mat-flat-button color="primary" type="button" (click)="goToTiming()" [disabled]="!canProceedToTiming()">
           Weiter → Timing Editor
         </button>
@@ -84,7 +101,577 @@
     } @else if (error()) {
       <p class="error">{{ error() }}</p>
     } @else {
-      @if (activeStep() === 'route') {
+          @if (activeStep() === 'ordering') {
+            <section class="ordering-step">
+              <header class="ordering-step__header">
+                <div class="ordering-step__header-main">
+                  <div class="ordering-step__header-copy">
+                    <h2>Schritt 1 · Bestellkontext</h2>
+                    <p>
+                      Bestellrelevante Angaben für TTT/Bestellfall pflegen. Die Werte werden am Zug gespeichert und beim
+                      Eröffnen eines Bestellfalls aus dem Zug wiederverwendet.
+                    </p>
+                  </div>
+                  <div class="ordering-step__status-line">
+                    <span>
+                      Pflichtfelder:
+                      {{ orderingProgress().filled }}/{{ orderingProgress().total }}
+                    </span>
+                    <span
+                      class="ordering-step__status-pill"
+                      [class.is-ready]="orderingProgress().complete"
+                    >
+                      {{ orderingProgress().complete ? 'bereit' : 'offen' }}
+                    </span>
+                  </div>
+                </div>
+                <mat-chip-set class="ordering-step__progress-chips" aria-label="Pflichtfeld-Fortschritt">
+                  @for (group of orderingProgress().groups; track group.key) {
+                    <mat-chip [class.is-complete]="group.complete">
+                      {{ group.label }}: {{ group.complete ? 'ok' : 'offen' }}
+                    </mat-chip>
+                  }
+                </mat-chip-set>
+              </header>
+
+          <div class="ordering-step__grid">
+            <div class="ordering-field">
+              <div class="ordering-field__head">
+                <span>OTN/Name</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('otnOrNameInput')"
+                  aria-label="Hilfe OTN/Name"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>OTN/Name</mat-label>
+                <input
+                  matInput
+                  [value]="otnOrNameValue()"
+                  maxlength="80"
+                  (input)="updateOtnOrName(($any($event.target).value ?? ''))"
+                />
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('otnOrNameInput')">
+                Pflichtfeld: OTN/Name angeben.
+              </div>
+            </div>
+
+            <div class="ordering-field">
+              <div class="ordering-field__head">
+                <span>Grund (ReasonOfReference)</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('reasonOfReference')"
+                  aria-label="Hilfe ReasonOfReference"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>ReasonOfReference</mat-label>
+                <mat-select
+                  [value]="orderingFieldValue('reasonOfReference')"
+                  (selectionChange)="updateOrderingField('reasonOfReference', $event.value || '')"
+                >
+                  @for (option of reasonOfReferenceOptions; track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('reasonOfReference')">
+                Pflichtfeld: Grund auswählen.
+              </div>
+            </div>
+
+            <div class="ordering-field">
+              <div class="ordering-field__head">
+                <span>Gültigkeit</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('validityDate')"
+                  aria-label="Hilfe Gültigkeit"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>Gültigkeit</mat-label>
+                <input
+                  matInput
+                  readonly
+                  [value]="validityDisplayValue()"
+                  (click)="openValidityCalendar()"
+                />
+                <button mat-icon-button matSuffix type="button" (click)="openValidityCalendar()" aria-label="Kalender öffnen">
+                  <mat-icon>calendar_month</mat-icon>
+                </button>
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('validityDate')">
+                Pflichtfeld: mindestens ein Gültigkeitstag.
+              </div>
+            </div>
+
+            <div class="ordering-field">
+              <div class="ordering-field__head">
+                <span>Zugtyp (TrainType)</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('trainType')"
+                  aria-label="Hilfe TrainType"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>TrainType</mat-label>
+                <mat-select
+                  [value]="orderingFieldValue('trainType')"
+                  (selectionChange)="updateOrderingField('trainType', $event.value || '')"
+                >
+                  @for (option of trainTypeOptions; track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('trainType')">
+                Pflichtfeld: Zugtyp auswählen.
+              </div>
+            </div>
+
+            <div class="ordering-field ordering-field--wide">
+              <div class="ordering-field__head">
+                <span>Zugkategorie (TrafficType)</span>
+                <div class="ordering-field__head-actions">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="ordering-btn ordering-btn--clear"
+                    (click)="clearTrafficTypeFields()"
+                    [disabled]="!hasTrafficTypeValues()"
+                    aria-label="TrafficType leeren"
+                  >
+                    <mat-icon>backspace</mat-icon>
+                    <span>Leeren</span>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="help-button"
+                    [matTooltip]="orderingHelp('trafficTypeCode')"
+                    aria-label="Hilfe TrafficType"
+                  >
+                    <mat-icon>help_outline</mat-icon>
+                  </button>
+                </div>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>TrafficTypeCode</mat-label>
+                <mat-select
+                  [value]="orderingFieldValue('trafficTypeCode')"
+                  (selectionChange)="updateOrderingField('trafficTypeCode', $event.value || '')"
+                >
+                  @for (option of trafficTypeCodeOptions(); track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                  @if (orderingFieldValue('trafficTypeCode')) {
+                    <mat-option [value]="''">— Auswahl löschen —</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="ordering-field__sub">
+                <mat-label>TrafficTypeNetwork (optional)</mat-label>
+                <input
+                  matInput
+                  [value]="orderingFieldValue('trafficTypeNetwork')"
+                  maxlength="4"
+                  (input)="updateOrderingField('trafficTypeNetwork', ($any($event.target).value ?? ''))"
+                />
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('trafficTypeCode')">
+                Pflichtfeld: Zugkategorie auswählen.
+              </div>
+            </div>
+
+            <div class="ordering-field ordering-field--full ordering-formation">
+              <div class="ordering-field__head">
+                <span>Formation Builder</span>
+                <div class="ordering-field__head-actions">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="ordering-btn ordering-btn--clear"
+                    (click)="clearFormationEntries()"
+                    [disabled]="!hasFormationEntries()"
+                    aria-label="Formation leeren"
+                  >
+                    <mat-icon>layers_clear</mat-icon>
+                    <span>Formation leeren</span>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="help-button"
+                    [matTooltip]="orderingHelp('tractionOrPwg')"
+                    aria-label="Hilfe Formation Builder"
+                  >
+                    <mat-icon>help_outline</mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <div class="ordering-formation__template">
+                <mat-form-field appearance="outline">
+                  <mat-label>Formationsvorlage (Stammdaten)</mat-label>
+                  <mat-select
+                    [value]="selectedFormationTemplateId()"
+                    (selectionChange)="selectFormationTemplate($event.value || '')"
+                  >
+                    @for (option of formationTemplateOptions(); track option.value) {
+                      <mat-option [value]="option.value">{{ option.label }} · {{ option.summary }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  class="ordering-btn"
+                  (click)="applyFormationTemplate()"
+                  [disabled]="!canApplyFormationTemplate()"
+                >
+                  Vorlage übernehmen
+                </button>
+              </div>
+
+              <div class="ordering-formation__manual-label">Manuell ergänzen</div>
+
+              @if (orderingContext()?.serviceType === 'pwg') {
+                <div class="ordering-formation__adder ordering-formation__adder--pwg">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Fahrtyp</mat-label>
+                    <mat-select
+                      [value]="orderingFieldValue('serviceType')"
+                      (selectionChange)="updateServiceType($event.value || '')"
+                    >
+                      @for (option of serviceTypeOptions; track option.value) {
+                        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Länge (m)</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      [value]="orderingContext()?.pwgLengthMeters ?? ''"
+                      (input)="updatePwgField('pwgLengthMeters', ($any($event.target).value ?? ''))"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Gewicht (t)</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      [value]="orderingContext()?.pwgWeightTons ?? ''"
+                      (input)="updatePwgField('pwgWeightTons', ($any($event.target).value ?? ''))"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>vMax (km/h)</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      step="1"
+                      min="0"
+                      [value]="orderingContext()?.pwgMaxSpeedKph ?? ''"
+                      (input)="updatePwgField('pwgMaxSpeedKph', ($any($event.target).value ?? ''))"
+                    />
+                  </mat-form-field>
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="ordering-btn ordering-btn--clear"
+                    (click)="clearPwgMetrics()"
+                    [disabled]="!hasPwgMetricValues()"
+                    aria-label="PWG-Werte leeren"
+                  >
+                    <mat-icon>backspace</mat-icon>
+                    <span>PWG-Werte leeren</span>
+                  </button>
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    class="ordering-btn"
+                    (click)="addPwgEntry()"
+                    [disabled]="!canAddPwgEntry()"
+                    aria-label="PWG hinzufügen"
+                  >
+                    <mat-icon>add</mat-icon>
+                    <span>PWG hinzufügen</span>
+                  </button>
+                </div>
+              } @else {
+                <div class="ordering-formation__adder ordering-formation__adder--catalog">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Fahrtyp</mat-label>
+                    <mat-select
+                      [value]="orderingFieldValue('serviceType')"
+                      (selectionChange)="updateServiceType($event.value || '')"
+                    >
+                      @for (option of serviceTypeOptions; track option.value) {
+                        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Fahrzeug (Stammdaten)</mat-label>
+                    <mat-select
+                      [value]="selectedFormationVehicleTypeId()"
+                      (selectionChange)="selectFormationVehicleType($event.value || '')"
+                    >
+                      @for (option of formationVehicleOptions(); track option.value) {
+                        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    class="ordering-btn"
+                    (click)="addSelectedFormationVehicle()"
+                    [disabled]="!canAddSelectedFormationVehicle()"
+                    aria-label="Fahrzeug hinzufügen"
+                  >
+                    <mat-icon>add</mat-icon>
+                    <span>Hinzufügen</span>
+                  </button>
+                </div>
+              }
+
+              <div
+                class="ordering-formation__consist"
+                [class.is-empty]="!formationEntries().length"
+                cdkDropList
+                cdkDropListOrientation="horizontal"
+                [cdkDropListData]="formationEntries()"
+                (cdkDropListDropped)="reorderFormationEntries($event)"
+              >
+                @if (formationEntries().length) {
+                  @for (entry of formationEntries(); track entry.entryId) {
+                    <article
+                      class="formation-unit"
+                      [class.formation-unit--with-separator]="!$last"
+                      cdkDrag
+                      [cdkDragData]="entry"
+                    >
+                      <div
+                        class="formation-unit__diagram"
+                        [matTooltip]="formationEntryTooltip(entry)"
+                        matTooltipPosition="above"
+                      >
+                        <svg
+                          class="formation-unit__svg"
+                          viewBox="0 0 210 60"
+                          role="img"
+                          [attr.aria-label]="formationEntryAriaLabel(entry)"
+                        >
+                          <title>{{ formationEntryAriaLabel(entry) }}</title>
+                          @if (entry.serviceType === 'tractive_unit') {
+                            <path
+                              class="formation-unit__shape formation-unit__shape--tractive"
+                              d="M34 2 H202 Q208 2 208 8 V52 Q208 58 202 58 H8 Q2 58 2 52 V24 Z"
+                            ></path>
+                          } @else {
+                            <rect
+                              class="formation-unit__shape"
+                              [class.formation-unit__shape--wagon]="entry.serviceType === 'wagon'"
+                              [class.formation-unit__shape--pwg]="entry.serviceType === 'pwg'"
+                              x="2"
+                              y="2"
+                              width="206"
+                              height="56"
+                              rx="8"
+                              ry="8"
+                            ></rect>
+                          }
+                          <text class="formation-unit__text formation-unit__text--code" x="12" y="24">
+                            {{ formationDiagramCode(entry) }}
+                          </text>
+                          <text class="formation-unit__text formation-unit__text--metrics" x="12" y="42">
+                            {{ formationDiagramMetrics(entry) }}
+                          </text>
+                        </svg>
+                      </div>
+                      <div class="formation-unit__actions">
+                        <span class="formation-unit__position">#{{ $index + 1 }}</span>
+                        <button
+                          mat-icon-button
+                          type="button"
+                          class="formation-unit__remove"
+                          (click)="removeFormationEntry(entry.entryId)"
+                          aria-label="Einheit entfernen"
+                        >
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </div>
+                    </article>
+                  }
+                } @else {
+                  <p class="ordering-formation__empty">Noch keine Formationseinheiten hinzugefügt.</p>
+                }
+              </div>
+              <div
+                class="ordering-formation__reorder-feedback"
+                aria-live="polite"
+                [class.is-visible]="!!formationReorderMessage()"
+              >
+                {{ formationReorderMessage() }}
+              </div>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('serviceType')">
+                Pflichtfeld: Fahrtyp auswählen.
+              </div>
+
+              <div class="ordering-formation__summary">
+                <span><strong>Einheiten:</strong> {{ formationSummary().units }}</span>
+                <span><strong>Gesamtlänge:</strong> {{ formatSummaryValue(formationSummary().totalLengthMeters, 'm') }}</span>
+                <span><strong>Gesamtgewicht:</strong> {{ formatSummaryValue(formationSummary().totalWeightTons, 't') }}</span>
+                <span><strong>vMax:</strong> {{ formatSummaryValue(formationSummary().maxSpeedKph, 'km/h') }}</span>
+              </div>
+            </div>
+
+            <div class="ordering-field">
+              <div class="ordering-field__head">
+                <span>Debitorencode</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('debtorCode')"
+                  aria-label="Hilfe Debitorencode"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>Debitorencode</mat-label>
+                <input
+                  matInput
+                  [value]="orderingFieldValue('debtorCode')"
+                  maxlength="40"
+                  (input)="updateOrderingField('debtorCode', ($any($event.target).value ?? ''))"
+                />
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('debtorCode')">
+                Pflichtfeld: Debitorencode angeben.
+              </div>
+            </div>
+
+            <div class="ordering-field">
+              <div class="ordering-field__head">
+                <span>Distributionsliste</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('distributionList')"
+                  aria-label="Hilfe Distributionsliste"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>Distributionsliste</mat-label>
+                <input
+                  matInput
+                  [value]="orderingFieldValue('distributionList')"
+                  maxlength="120"
+                  (input)="updateOrderingField('distributionList', ($any($event.target).value ?? ''))"
+                />
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('distributionList')">
+                Pflichtfeld: Distributionsliste angeben.
+              </div>
+            </div>
+
+            <div class="ordering-field ordering-field--wide">
+              <div class="ordering-field__head">
+                <span>Grund kostenlose Bearbeitung</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="help-button"
+                  [matTooltip]="orderingHelp('freeProcessingReason')"
+                  aria-label="Hilfe kostenlose Bearbeitung"
+                >
+                  <mat-icon>help_outline</mat-icon>
+                </button>
+              </div>
+              <mat-form-field appearance="outline">
+                <mat-label>Grund kostenlose Bearbeitung</mat-label>
+                <mat-select
+                  [value]="orderingFieldValue('freeProcessingReason')"
+                  (selectionChange)="updateOrderingField('freeProcessingReason', $event.value || '')"
+                >
+                  @for (option of freeProcessingReasonOptions; track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <div class="ordering-field__validation" [class.is-visible]="isRequiredFieldMissing('freeProcessingReason')">
+                Pflichtfeld: Grund auswählen.
+              </div>
+            </div>
+          </div>
+
+          <div class="ordering-step__derived">
+            <span><strong>OTN:</strong> {{ orderingContext()?.operationalTrainNumber || '—' }}</span>
+            <span><strong>Name:</strong> {{ orderingContext()?.trainName || '—' }}</span>
+            <span><strong>Formation:</strong> {{ orderingContext()?.tractionOrPwg || '—' }}</span>
+            <span><strong>Gewählte Tage:</strong> {{ validitySelectedDates().length }}</span>
+            <span><strong>Erlaubte Range:</strong> {{ validityRange().label }}</span>
+          </div>
+
+          @if (validityCalendarOpen()) {
+            <div class="ordering-step__calendar-backdrop" (click)="closeValidityCalendar()"></div>
+            <div class="ordering-step__calendar-overlay" role="dialog" aria-modal="true" aria-label="Gültigkeit wählen">
+              <div class="ordering-step__calendar">
+                <div class="ordering-step__calendar-header">
+                  <span>Gültigkeit wählen</span>
+                  <button mat-stroked-button type="button" (click)="closeValidityCalendar()">Schließen</button>
+                </div>
+                <app-annual-calendar-selector
+                  [title]="'Gültigkeit'"
+                  [year]="+validityRange().startIso.slice(0, 4)"
+                  [rangeStartIso]="validityRange().startIso"
+                  [rangeEndIso]="validityRange().endIso"
+                  [rangeLabel]="validityRange().label"
+                  [selectedDates]="validitySelectedDates()"
+                  [allowedDates]="validityAllowedDates()"
+                  [hint]="'Mehrere Tage koennen ausgewaehlt werden und bleiben bis zum Schliessen im Overlay markiert.'"
+                  (selectedDatesChange)="onValidityDatesChange($event)"
+                ></app-annual-calendar-selector>
+              </div>
+            </div>
+          }
+        </section>
+      } @else if (activeStep() === 'route') {
         <app-timetable-route-builder
           [draft]="routeDraft()"
           (draftChange)="onRouteDraftChange($event)"

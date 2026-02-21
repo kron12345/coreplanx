@@ -422,6 +422,8 @@ export class OrderItemEditDialogComponent implements OnInit, OnDestroy {
         returnUrl,
         orderId: this.orderId,
         itemId: this.item.id,
+        validityStart: plan.calendar.validFrom,
+        validityEnd: plan.calendar.validTo ?? plan.calendar.validFrom,
       },
     });
   }

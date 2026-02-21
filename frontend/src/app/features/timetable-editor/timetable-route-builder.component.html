@@ -12,133 +12,174 @@
   </div>
 
   <aside class="route-builder__panel" [class.is-open]="panelOpen()">
-    <div class="panel-header">
-      <h3>Route Builder</h3>
-      <span class="hint">Stops inline bearbeiten</span>
-    </div>
-
     <div class="stop-list">
-      <h4>Halte</h4>
       @if (!stops().length) {
         <p class="hint">Bitte Start und Ziel setzen.</p>
       } @else {
-        @for (stop of stops(); track stop.stopId) {
+        @for (stop of stops(); track stop.stopId; let rowIndex = $index) {
           <div class="stop-row">
-            <div class="stop-row__index">#{{ $index + 1 }}</div>
+            <div class="stop-row__index">#{{ rowIndex + 1 }}</div>
             <div class="stop-row__content">
               <div class="stop-row__header">
-                @if (stop.kind === 'origin') {
-                  <mat-form-field appearance="outline" class="stop-row__input">
-                    <mat-label>Start</mat-label>
-                    <mat-icon matPrefix>trip_origin</mat-icon>
-                    <input matInput [formControl]="originSearch" [matAutocomplete]="originAuto" />
-                    <mat-autocomplete #originAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="setOrigin($event.option.value)">
-                      @for (op of originResults(); track op.uniqueOpId) {
-                        <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
-                      }
-                    </mat-autocomplete>
-                  </mat-form-field>
-                } @else if (stop.kind === 'destination') {
-                  <mat-form-field appearance="outline" class="stop-row__input">
-                    <mat-label>Ziel</mat-label>
-                    <mat-icon matPrefix>flag</mat-icon>
-                    <input matInput [formControl]="destinationSearch" [matAutocomplete]="destinationAuto" />
-                    <mat-autocomplete #destinationAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="setDestination($event.option.value)">
-                      @for (op of destinationResults(); track op.uniqueOpId) {
-                        <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
-                      }
-                    </mat-autocomplete>
-                  </mat-form-field>
-                } @else {
-                  <div class="stop-row__title">
-                    <strong>{{ stop.op?.name ?? 'Unbekannter Halt' }}</strong>
+                <div class="stop-row__header-main">
+                  @if (stop.kind === 'origin') {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-row__input">
+                      <mat-label>Start</mat-label>
+                      <mat-icon matPrefix>trip_origin</mat-icon>
+                      <input
+                        matInput
+                        [formControl]="originSearch"
+                        [matAutocomplete]="originAuto"
+                        (focus)="clearPrefilledStopSearch('origin')"
+                        (blur)="restorePrefilledStopSearch('origin')"
+                      />
+                      <mat-autocomplete
+                        #originAuto="matAutocomplete"
+                        [displayWith]="displayOp"
+                        (optionSelected)="setOrigin($event.option.value)"
+                      >
+                        @for (op of originResults(); track op.uniqueOpId) {
+                          <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
+                        }
+                      </mat-autocomplete>
+                    </mat-form-field>
+                  } @else if (stop.kind === 'destination') {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-row__input">
+                      <mat-label>Ziel</mat-label>
+                      <mat-icon matPrefix>flag</mat-icon>
+                      <input
+                        matInput
+                        [formControl]="destinationSearch"
+                        [matAutocomplete]="destinationAuto"
+                        (focus)="clearPrefilledStopSearch('destination')"
+                        (blur)="restorePrefilledStopSearch('destination')"
+                      />
+                      <mat-autocomplete
+                        #destinationAuto="matAutocomplete"
+                        [displayWith]="displayOp"
+                        (optionSelected)="setDestination($event.option.value)"
+                      >
+                        @for (op of destinationResults(); track op.uniqueOpId) {
+                          <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
+                        }
+                      </mat-autocomplete>
+                    </mat-form-field>
+                  } @else {
+                    <div class="stop-row__title">
+                      <strong>{{ stop.op?.name ?? 'Unbekannter Halt' }}</strong>
+                      <span class="stop-row__meta">PLC: {{ stop.op?.id ?? stop.stopId }}</span>
+                    </div>
+                  }
+                </div>
+                @if (stop.kind === 'stop' || stop.kind === 'pass') {
+                  <div class="stop-row__inline-controls">
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-row__kind">
+                      <mat-label>Art</mat-label>
+                      <mat-select
+                        panelClass="route-builder-select-panel"
+                        [value]="stop.kind"
+                        (selectionChange)="updateStopKind(stop.stopId, $event.value)"
+                      >
+                        <mat-option value="stop">Stop</mat-option>
+                        <mat-option value="pass">Pass</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                    @if (stop.kind === 'stop') {
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-row__dwell">
+                        <mat-label>Dwell</mat-label>
+                        <input
+                          matInput
+                          type="number"
+                          [value]="stop.dwellSeconds ? stop.dwellSeconds / 60 : ''"
+                          (change)="updateDwell(stop.stopId, $any($event.target).value)"
+                        />
+                      </mat-form-field>
+                    }
+                    <div class="stop-row__move">
+                      <button
+                        mat-icon-button
+                        type="button"
+                        (click)="moveStop(stop.stopId, -1)"
+                        [disabled]="rowIndex === 0"
+                      >
+                        <mat-icon>arrow_upward</mat-icon>
+                      </button>
+                      <button
+                        mat-icon-button
+                        type="button"
+                        (click)="moveStop(stop.stopId, 1)"
+                        [disabled]="rowIndex === stops().length - 1"
+                      >
+                        <mat-icon>arrow_downward</mat-icon>
+                      </button>
+                    </div>
                   </div>
                 }
-                @if (stop.kind !== 'origin' && stop.kind !== 'destination') {
-                  <span class="stop-row__meta">{{ stop.op?.id ?? stop.stopId }}</span>
-                }
-              </div>
-              @if (stop.kind === 'origin' || stop.kind === 'destination') {
-                <span class="stop-row__meta">{{ stop.op?.id ?? stop.stopId }}</span>
-              }
-              <div class="stop-row__controls">
-                <mat-form-field appearance="outline" class="stop-row__kind">
-                  <mat-label>Art</mat-label>
-                  <mat-select
-                    [value]="stop.kind"
-                    [disabled]="stop.kind === 'origin' || stop.kind === 'destination'"
-                    (selectionChange)="updateStopKind(stop.stopId, $event.value)"
-                  >
-                    <mat-option value="origin">Origin</mat-option>
-                    <mat-option value="stop">Stop</mat-option>
-                    <mat-option value="pass">Pass</mat-option>
-                    <mat-option value="destination">Destination</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <mat-form-field appearance="outline" class="stop-row__dwell">
-                  <mat-label>Dwell (min)</mat-label>
-                  <input
-                    matInput
-                    type="number"
-                    [disabled]="stop.kind !== 'stop'"
-                    [value]="stop.dwellSeconds ? stop.dwellSeconds / 60 : ''"
-                    (change)="updateDwell(stop.stopId, $any($event.target).value)"
-                  />
-                </mat-form-field>
-                <div class="stop-row__actions">
+                @if (canRemoveStop()) {
                   <button
                     mat-icon-button
                     type="button"
-                    (click)="moveStop(stop.stopId, -1)"
-                    [disabled]="stop.kind === 'origin' || stop.kind === 'destination' || $index === 0"
+                    class="stop-row__delete"
+                    aria-label="Halt löschen"
+                    matTooltip="Halt löschen"
+                    (click)="removeStop(stop.stopId)"
                   >
-                    <mat-icon>arrow_upward</mat-icon>
-                  </button>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    (click)="moveStop(stop.stopId, 1)"
-                    [disabled]="stop.kind === 'origin' || stop.kind === 'destination' || $index === stops().length - 1"
-                  >
-                    <mat-icon>arrow_downward</mat-icon>
-                  </button>
-                  <button mat-icon-button type="button" (click)="removeStop(stop.stopId)" [disabled]="stop.kind === 'origin' || stop.kind === 'destination'">
                     <mat-icon>delete</mat-icon>
                   </button>
-                </div>
+                }
               </div>
             </div>
           </div>
+
           @if (stop.kind !== 'destination') {
             <div class="stop-insert">
-              @if (insertIndex() === $index + 1) {
+              @if (insertIndex() === rowIndex + 1) {
                 <div class="stop-insert__row">
-                  <mat-form-field appearance="outline" class="stop-insert__search">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-insert__search">
                     <mat-label>Zwischenhalt</mat-label>
                     <input matInput [formControl]="insertSearch" [matAutocomplete]="insertAuto" />
-                    <mat-autocomplete #insertAuto="matAutocomplete" [displayWith]="displayOp" (optionSelected)="confirmInsert($event.option.value)">
+                    <mat-autocomplete
+                      #insertAuto="matAutocomplete"
+                      [displayWith]="displayOp"
+                      (optionSelected)="confirmInsert($event.option.value)"
+                    >
                       @for (op of insertResults(); track op.uniqueOpId) {
                         <mat-option [value]="op">{{ displayOp(op) }}</mat-option>
                       }
                     </mat-autocomplete>
                   </mat-form-field>
-                  <mat-form-field appearance="outline" class="stop-insert__kind">
+
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-insert__kind">
                     <mat-label>Art</mat-label>
-                    <mat-select [value]="insertKind()" (selectionChange)="updateInsertKind($event.value)">
+                    <mat-select
+                      panelClass="route-builder-select-panel"
+                      [value]="insertKind()"
+                      (selectionChange)="updateInsertKind($event.value)"
+                    >
                       <mat-option value="stop">Stop</mat-option>
                       <mat-option value="pass">Pass</mat-option>
                     </mat-select>
                   </mat-form-field>
-                  <mat-form-field appearance="outline" class="stop-insert__dwell">
+
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="stop-insert__dwell">
                     <mat-label>Dwell</mat-label>
-                    <input matInput type="number" [value]="insertDwellMinutes()" (change)="updateInsertDwell($any($event.target).value)" />
+                    <input
+                      matInput
+                      type="number"
+                      [value]="insertDwellMinutes()"
+                      (change)="updateInsertDwell($any($event.target).value)"
+                    />
                   </mat-form-field>
+
                   <button mat-icon-button type="button" (click)="cancelInsert()">
                     <mat-icon>close</mat-icon>
                   </button>
                 </div>
               } @else {
-                <button mat-stroked-button type="button" (click)="openInsert($index)">+ Zwischenhalt einfügen</button>
+                <button mat-button type="button" class="stop-insert__trigger" (click)="openInsert(rowIndex)">
+                  <mat-icon>add</mat-icon>
+                  Zwischenhalt
+                </button>
               }
             </div>
           }
@@ -148,7 +189,7 @@
 
     <div class="preview-settings">
       <h4>Abfahrtszeit</h4>
-      <mat-form-field appearance="outline">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>Start</mat-label>
         <input
           matInput
@@ -166,11 +207,11 @@
           <mat-panel-title>Optionen & Annahmen</mat-panel-title>
         </mat-expansion-panel-header>
         <div class="assumptions">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Default Speed (km/h)</mat-label>
             <input matInput type="number" [value]="assumptions().defaultSpeedKph" (change)="updateAssumptionSpeed($any($event.target).value)" />
           </mat-form-field>
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Default Dwell (min)</mat-label>
             <input matInput type="number" [value]="assumptions().defaultDwellSeconds / 60" (change)="updateAssumptionDwell($any($event.target).value)" />
           </mat-form-field>
@@ -179,17 +220,25 @@
           <mat-slide-toggle [checked]="includeLinkSections()" (change)="updateIncludeLinkSections($event.checked)">
             Link-Abschnitte einbeziehen
           </mat-slide-toggle>
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Elektrifizierung</mat-label>
-            <mat-select [value]="electrificationMode()" (selectionChange)="updateElectrificationFilter($event.value)">
+            <mat-select
+              panelClass="route-builder-select-panel"
+              [value]="electrificationMode()"
+              (selectionChange)="updateElectrificationFilter($event.value)"
+            >
               <mat-option value="any">Egal</mat-option>
               <mat-option value="electrified">Nur elektrifiziert</mat-option>
               <mat-option value="not_electrified">Nur nicht elektrifiziert</mat-option>
             </mat-select>
           </mat-form-field>
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Alternativen</mat-label>
-            <mat-select [value]="maxAlternatives()" (selectionChange)="updateMaxAlternatives($event.value)">
+            <mat-select
+              panelClass="route-builder-select-panel"
+              [value]="maxAlternatives()"
+              (selectionChange)="updateMaxAlternatives($event.value)"
+            >
               <mat-option [value]="0">Keine</mat-option>
               <mat-option [value]="1">1 Alternative</mat-option>
               <mat-option [value]="2">2 Alternativen</mat-option>
@@ -216,15 +265,28 @@
         } @else {
           <div class="segment-list">
             @for (segment of segments(); track segment.segmentId) {
-              <div class="segment-row">
+              <div
+                class="segment-row"
+                [class.segment-row--with-route]="(segmentRouteOptions()[segment.segmentId]?.alternatives?.length ?? 0) > 0"
+              >
                 <div class="segment-row__label">
-                  #{{ $index + 1 }} {{ stopLabel(segment.fromStopId) }} → {{ stopLabel(segment.toStopId) }}
+                  <span class="segment-row__index">#{{ $index + 1 }}</span>
+                  <span class="segment-row__label-main">
+                    <span class="segment-row__from">
+                      <span class="segment-row__direction">Von</span>
+                      <span>{{ stopLabel(segment.fromStopId) }}</span>
+                    </span>
+                    <span class="segment-row__to">
+                      <span class="segment-row__direction">Nach</span>
+                      <span>{{ stopLabel(segment.toStopId) }}</span>
+                    </span>
+                  </span>
                 </div>
                 <div class="segment-row__meta">
                   <span>{{ (segment.distanceMeters / 1000).toFixed(1) }} km</span>
                   <span>{{ (segment.estimatedTravelSeconds ?? 0) / 60 | number : '1.0-0' }} min</span>
                 </div>
-                <mat-form-field appearance="outline" class="segment-row__speed">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="segment-row__speed">
                   <mat-label>Speed</mat-label>
                   <input
                     matInput
@@ -234,9 +296,10 @@
                   />
                 </mat-form-field>
                 @if (segmentRouteOptions()[segment.segmentId]?.alternatives?.length) {
-                  <mat-form-field appearance="outline" class="segment-row__route">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="segment-row__route">
                     <mat-label>Route</mat-label>
                     <mat-select
+                      panelClass="route-builder-select-panel"
                       [value]="segmentSelectionValue(segment.segmentId)"
                       (selectionChange)="selectAlternative(segment.segmentId, $event.value)"
                     >

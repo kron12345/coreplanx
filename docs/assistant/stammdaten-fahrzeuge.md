@@ -93,6 +93,7 @@ Die Fahrzeug-Stammdaten bilden eine Hierarchie:
 | Feld | Typ | Zweck | Pflicht |
 | --- | --- | --- | --- |
 | `label` | string | Bezeichnung | ja |
+| `formationServiceType` | string | Fahrtyp fuer Formationsaufbau (`Triebfahrzeug`/`Wagen`) | nein |
 | `category` | string | Kategorie | nein |
 | `capacity` | number | Sitzplaetze | nein |
 | `lengthMeters` | number | Laenge | nein |
@@ -109,6 +110,13 @@ Die Fahrzeug-Stammdaten bilden eine Hierarchie:
 | `manufacturer` | string | Hersteller | nein |
 | `maxAxleLoad` | number | Achslast | nein |
 | `noiseCategory` | string | Laermkategorie | nein |
+
+### Fahrtyp-Logik
+
+- `formationServiceType = tractive_unit` entspricht **Triebfahrzeug**.
+- `formationServiceType = wagon` entspricht **Wagen**.
+- Das Feld wird im Fahrplaneditor (Formation Builder) zur Filterung genutzt.
+- Fuer alte Datensaetze ohne `formationServiceType` kann weiterhin die Kategorie als Fallback genutzt werden.
 
 ## Kompositionen
 
@@ -173,3 +181,11 @@ Die Fahrzeug-Stammdaten sind Teil des **Ressourcen-Snapshots**:
 ## Werkseinstellungen (Reset)
 
 Ueber **„Werkseinstellungen“** kann der Fahrzeug-Scope auf Beispielwerte zurueckgesetzt werden.
+
+Der Reset enthaelt u. a.:
+
+- Loktypen (Triebfahrzeug), mehrere Triebzugarten (Triebfahrzeug) und Wagentypen (Wagen)
+- Kompositionen fuer:
+  - Lok + Wagenzug
+  - Triebzugmix (mehrere Triebzugarten)
+  - Doppeltraktion

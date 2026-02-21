@@ -27,7 +27,9 @@ import {
 } from './timetable-test-train-dialog.component';
 import {
   TimetableOrderingFromTrainDialogComponent,
+  TimetableOrderingFromTrainCreateResult,
   TimetableOrderingFromTrainDialogResult,
+  TimetableOrderingFromTrainOpenEditorResult,
 } from './timetable-ordering-from-train-dialog.component';
 import type {
   TrainPlan,
@@ -179,6 +181,7 @@ export class TimetableManagerComponent {
       return;
     }
     const timetable = this.timetableService.getByRefTrainId(record.refTrainId) ?? null;
+    const trainPlan = this.trainPlanService.getById(record.refTrainId);
     const ref = this.dialog.open(
       TimetableOrderingFromTrainDialogComponent,
       {
@@ -187,6 +190,7 @@ export class TimetableManagerComponent {
         data: {
           record,
           timetable,
+          orderingContext: trainPlan?.routeMetadata?.orderingContext ?? null,
         },
       },
     );
@@ -195,6 +199,10 @@ export class TimetableManagerComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result?: TimetableOrderingFromTrainDialogResult) => {
         if (!result) {
+          return;
+        }
+        if (result.intent === 'open_editor') {
+          void this.openOrderingEditorFromTrain(record, timetable, result);
           return;
         }
         void this.createOrderingCaseFromTrain(record, timetable, result);
@@ -410,6 +418,8 @@ export class TimetableManagerComponent {
       return [];
     }
     const timetable = this.timetableService.getByRefTrainId(record.refTrainId);
+    const plan = this.trainPlanService.getById(record.refTrainId);
+    const ordering = plan?.routeMetadata?.orderingContext;
     const rows: { label: string; value: string }[] = [];
     rows.push({ label: 'RefTrainID', value: record.refTrainId });
     rows.push({ label: 'Zugnummer', value: record.trainNumber });
@@ -435,6 +445,80 @@ export class TimetableManagerComponent {
       }
       if (timetable.source?.referenceDocumentId) {
         rows.push({ label: 'Referenzdokument', value: timetable.source.referenceDocumentId });
+      }
+    }
+    if (ordering) {
+      if (ordering.otnOrNameInput?.trim()) {
+        rows.push({ label: 'Bestellkontext OTN/Name', value: ordering.otnOrNameInput.trim() });
+      }
+      if (ordering.operationalTrainNumber?.trim()) {
+        rows.push({ label: 'Bestellkontext OTN', value: ordering.operationalTrainNumber.trim() });
+      }
+      if (ordering.trainName?.trim()) {
+        rows.push({ label: 'Bestellkontext Name', value: ordering.trainName.trim() });
+      }
+      if (ordering.reasonOfReference?.trim()) {
+        rows.push({ label: 'ReasonOfReference', value: ordering.reasonOfReference.trim() });
+      }
+      const validityDates = (ordering.validityDates ?? [])
+        .map((value) => value?.trim())
+        .filter((value): value is string => !!value)
+        .sort();
+      if (validityDates.length > 1) {
+        rows.push({
+          label: 'Bestell-Gültigkeit',
+          value: `${validityDates.length} Tage (${validityDates[0]} – ${validityDates[validityDates.length - 1]})`,
+        });
+      } else if (validityDates.length === 1) {
+        rows.push({ label: 'Bestell-Gültigkeit', value: validityDates[0] });
+      } else if (ordering.validityDate?.trim()) {
+        rows.push({ label: 'Bestell-Gültigkeit', value: ordering.validityDate.trim() });
+      }
+      if (ordering.trainType?.trim()) {
+        rows.push({ label: 'TrainType', value: ordering.trainType.trim() });
+      }
+      if (ordering.trafficTypeCode?.trim()) {
+        rows.push({ label: 'TrafficTypeCode', value: ordering.trafficTypeCode.trim() });
+      }
+      if (ordering.trafficTypeNetwork?.trim()) {
+        rows.push({ label: 'TrafficTypeNetwork', value: ordering.trafficTypeNetwork.trim() });
+      }
+      if (ordering.serviceType?.trim()) {
+        rows.push({ label: 'Fahrtyp', value: ordering.serviceType.trim() });
+      }
+      if (ordering.vehicleFormation?.length) {
+        const formationCodes = ordering.vehicleFormation
+          .map((entry) => entry.code?.trim() || entry.label?.trim())
+          .filter((value): value is string => !!value)
+          .join(' + ');
+        rows.push({
+          label: 'Formationseinheiten',
+          value: `${ordering.vehicleFormation.length}`,
+        });
+        if (formationCodes) {
+          rows.push({ label: 'Formation', value: formationCodes });
+        }
+      }
+      if (ordering.pwgLengthMeters !== undefined) {
+        rows.push({ label: 'PWG Länge', value: `${ordering.pwgLengthMeters} m` });
+      }
+      if (ordering.pwgWeightTons !== undefined) {
+        rows.push({ label: 'PWG Gewicht', value: `${ordering.pwgWeightTons} t` });
+      }
+      if (ordering.pwgMaxSpeedKph !== undefined) {
+        rows.push({ label: 'PWG vMax', value: `${ordering.pwgMaxSpeedKph} km/h` });
+      }
+      if (ordering.tractionOrPwg?.trim()) {
+        rows.push({ label: 'Triebfahrzeug/PWG', value: ordering.tractionOrPwg.trim() });
+      }
+      if (ordering.debtorCode?.trim()) {
+        rows.push({ label: 'Debitorencode', value: ordering.debtorCode.trim() });
+      }
+      if (ordering.distributionList?.trim()) {
+        rows.push({ label: 'Distributionsliste', value: ordering.distributionList.trim() });
+      }
+      if (ordering.freeProcessingReason?.trim()) {
+        rows.push({ label: 'Kostenlose Bearbeitung', value: ordering.freeProcessingReason.trim() });
       }
     }
     return rows.filter((row) => row.value && row.value.toString().trim().length > 0);
@@ -489,7 +573,11 @@ export class TimetableManagerComponent {
       });
 
       await this.router.navigate(['/fahrplan-editor', plan.id], {
-        queryParams: { returnUrl },
+        queryParams: {
+          returnUrl,
+          validityStart: year.startIso,
+          validityEnd: year.endIso,
+        },
       });
     } catch (error) {
       console.warn('[TimetableManager] Failed to start timetable editor create flow', error);
@@ -744,9 +832,14 @@ export class TimetableManagerComponent {
   private async createOrderingCaseFromTrain(
     record: TimetableHubRecord,
     timetable: Timetable | null,
-    result: TimetableOrderingFromTrainDialogResult,
+    result: TimetableOrderingFromTrainCreateResult,
   ): Promise<void> {
-    const plan = await this.ensureTrainPlanForOrdering(record, timetable, result);
+    const plan = await this.ensureTrainPlanForOrdering(
+      record,
+      timetable,
+      result.pathRequestId,
+      result.pathId,
+    );
     if (!plan) {
       this.snackBar.open('Bestellfall konnte nicht erstellt werden: Fahrplan konnte nicht vorbereitet werden.', 'OK', {
         duration: 3200,
@@ -755,6 +848,78 @@ export class TimetableManagerComponent {
     }
 
     const providedAttributes: Record<string, unknown> = {};
+    const orderingContext = plan.routeMetadata?.orderingContext;
+    if (orderingContext?.otnOrNameInput?.trim()) {
+      providedAttributes['otnOrNameInput'] = orderingContext.otnOrNameInput.trim();
+    }
+    if (orderingContext?.operationalTrainNumber?.trim()) {
+      providedAttributes['operationalTrainNumber'] =
+        orderingContext.operationalTrainNumber.trim();
+    }
+    if (orderingContext?.trainName?.trim()) {
+      providedAttributes['trainName'] = orderingContext.trainName.trim();
+    }
+    if (orderingContext?.reasonOfReference?.trim()) {
+      providedAttributes['reasonOfReference'] = orderingContext.reasonOfReference.trim();
+    }
+    const validityDates = (orderingContext?.validityDates ?? [])
+      .map((value) => value?.trim())
+      .filter((value): value is string => !!value)
+      .sort();
+    if (validityDates.length) {
+      providedAttributes['validityDates'] = validityDates;
+    }
+    const anchorValidityDate =
+      orderingContext?.validityDate?.trim() || validityDates[0];
+    if (anchorValidityDate) {
+      providedAttributes['validityDate'] = anchorValidityDate;
+    }
+    if (orderingContext?.trainType?.trim()) {
+      providedAttributes['trainType'] = orderingContext.trainType.trim();
+    }
+    if (orderingContext?.trafficTypeCode?.trim()) {
+      providedAttributes['trafficTypeCode'] = orderingContext.trafficTypeCode.trim();
+    }
+    if (orderingContext?.trafficTypeNetwork?.trim()) {
+      providedAttributes['trafficTypeNetwork'] = orderingContext.trafficTypeNetwork.trim();
+    }
+    if (orderingContext?.serviceType?.trim()) {
+      providedAttributes['serviceType'] = orderingContext.serviceType.trim();
+    }
+    if (orderingContext?.vehicleFormation?.length) {
+      providedAttributes['vehicleFormation'] = orderingContext.vehicleFormation.map((entry) => ({
+        entryId: entry.entryId,
+        serviceType: entry.serviceType,
+        code: entry.code,
+        label: entry.label,
+        source: entry.source,
+        lengthMeters: entry.lengthMeters,
+        weightTons: entry.weightTons,
+        maxSpeedKph: entry.maxSpeedKph,
+      }));
+    }
+    if (orderingContext?.pwgLengthMeters !== undefined) {
+      providedAttributes['pwgLengthMeters'] = orderingContext.pwgLengthMeters;
+    }
+    if (orderingContext?.pwgWeightTons !== undefined) {
+      providedAttributes['pwgWeightTons'] = orderingContext.pwgWeightTons;
+    }
+    if (orderingContext?.pwgMaxSpeedKph !== undefined) {
+      providedAttributes['pwgMaxSpeedKph'] = orderingContext.pwgMaxSpeedKph;
+    }
+    if (orderingContext?.tractionOrPwg?.trim()) {
+      providedAttributes['tractionOrPwg'] = orderingContext.tractionOrPwg.trim();
+    }
+    if (orderingContext?.debtorCode?.trim()) {
+      providedAttributes['debtorCode'] = orderingContext.debtorCode.trim();
+    }
+    if (orderingContext?.distributionList?.trim()) {
+      providedAttributes['distributionList'] = orderingContext.distributionList.trim();
+    }
+    if (orderingContext?.freeProcessingReason?.trim()) {
+      providedAttributes['freeProcessingReason'] =
+        orderingContext.freeProcessingReason.trim();
+    }
     if (result.annualRequestWindow?.trim()) {
       providedAttributes['annualRequestWindow'] = result.annualRequestWindow.trim();
     }
@@ -796,10 +961,40 @@ export class TimetableManagerComponent {
     });
   }
 
+  private async openOrderingEditorFromTrain(
+    record: TimetableHubRecord,
+    timetable: Timetable | null,
+    result: TimetableOrderingFromTrainOpenEditorResult,
+  ): Promise<void> {
+    const plan = await this.ensureTrainPlanForOrdering(
+      record,
+      timetable,
+      result.pathRequestId,
+      result.pathId,
+    );
+    if (!plan) {
+      this.snackBar.open('Fahrplan-Editor konnte nicht geöffnet werden: Fahrplan konnte nicht vorbereitet werden.', 'OK', {
+        duration: 3200,
+      });
+      return;
+    }
+
+    const validityStart = plan.calendar.validFrom;
+    const validityEnd = plan.calendar.validTo ?? plan.calendar.validFrom;
+    await this.router.navigate(['/fahrplan-editor', plan.id], {
+      queryParams: {
+        returnUrl: this.router.url || '/fahrplanmanager',
+        validityStart,
+        validityEnd,
+      },
+    });
+  }
+
   private async ensureTrainPlanForOrdering(
     record: TimetableHubRecord,
     timetable: Timetable | null,
-    result: TimetableOrderingFromTrainDialogResult,
+    pathRequestId: string,
+    pathId?: string,
   ): Promise<TrainPlan | null> {
     const existing = this.trainPlanService.getById(record.refTrainId);
     if (existing) {
@@ -815,8 +1010,8 @@ export class TimetableManagerComponent {
       id: record.refTrainId,
       title: record.title,
       trainNumber: record.trainNumber,
-      pathRequestId: result.pathRequestId.trim(),
-      pathId: result.pathId?.trim() || undefined,
+      pathRequestId: pathRequestId.trim(),
+      pathId: pathId?.trim() || undefined,
       status: this.mapTimetablePhaseToTrainPlanStatus(timetable?.status),
       responsibleRu: timetable?.responsibleRu?.trim() || 'Unbekannt',
       calendar: {

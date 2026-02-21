@@ -65,6 +65,8 @@ Ein Bestellfall bleibt eine fachliche Einheit, kann aber mehrere operative Konte
 ## Start aus Zug
 - Im Fahrplanmanager kann aus einem selektierten Zug direkt ein Bestellfall gestartet werden.
 - Der Flow übernimmt Zug-/Kalenderkontext in einen verknüpften Fahrplan (`trainPlanId`) und ergänzt EVU-seitige IDs (mind. `pathRequestId`) vor dem Anlegen.
+- Der Dialog zeigt zusätzlich eine Vollständigkeits-Checkliste für die Ordering-Pflichtattribute aus dem Zugkontext (vorhanden/fehlend), damit fehlende Daten gezielt im Fahrplan-Editor (Schritt 1) ergänzt werden können.
+- Bei fehlenden Pflichtdaten bietet der Dialog eine direkte Aktion in den Fahrplan-Editor (Schritt 1 / `Bestellkontext`) für denselben Zug inkl. übergebener Validity-Range aus dem Zugkalender.
 - Nach erfolgreicher Erstellung wird direkt in das Bestell-Cockpit auf den neuen Fall gewechselt.
 
 ## Simulator-Hinweis

@@ -1,3 +1,5 @@
+import type { TimetableOrderingContext } from './timetable-ordering-context.model';
+
 export type OpRef = {
   id: string;
   name: string;
@@ -79,9 +81,10 @@ export type PatternDefinition = {
 };
 
 export type TimetableDraftBundle = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   routeDraft?: RouteDraft;
   timetableDraft?: TimetableDraft;
   patternDefinition?: PatternDefinition;
+  orderingContext?: TimetableOrderingContext;
   updatedAtIso: string;
 };

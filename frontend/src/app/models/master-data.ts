@@ -108,6 +108,7 @@ export interface VehicleServicePool {
 export interface VehicleType {
   id: string;
   label: string;
+  formationServiceType?: 'tractive_unit' | 'wagon';
   category?: string;
   capacity?: number;
   maxSpeed?: number;

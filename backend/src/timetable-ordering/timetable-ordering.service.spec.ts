@@ -195,6 +195,20 @@ function createHarness() {
     technical: {
       trainType: 'RE',
     },
+    routeMetadata: {
+      orderingContext: {
+        otnOrNameInput: '4711',
+        operationalTrainNumber: '4711',
+        reasonOfReference: '1014',
+        validityDate: '2026-12-05',
+        trainType: '1',
+        trafficTypeCode: 'passenger',
+        serviceType: 'tractive_unit',
+        debtorCode: 'DB-4711',
+        distributionList: 'DISPO-CH',
+        freeProcessingReason: 'path_modification_due_to_path_alteration',
+      },
+    },
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     source: {

@@ -1,7 +1,7 @@
 # Spec: Timetable Editor (Route Builder & Timing Editor)
 
 ## Overview
-- Problem/goal: Replace the existing timetable edit dialog in Auftragsmanagement with a reusable, full-page timetable editor that supports a two-step workflow (Route Builder → Timing Editor) and persists drafts so work survives session loss.
+- Problem/goal: Replace the existing timetable edit dialog in Auftragsmanagement with a reusable, full-page timetable editor that supports a three-step workflow (Bestellkontext → Route Builder → Timing Editor) and persists drafts so work survives session loss.
 - Non-goals: Multi-train conflict resolution, official PCS/TAF-TAP export, automatic overtaking/capacity solver, full routing engine (OSRM/GraphHopper) in MVP.
 - Stakeholders: Disposition, Betriebsplanung, Auftragsmanagement, Fahrplanmanager.
 
@@ -29,15 +29,62 @@
 - R21: The Timing Editor allows **creating stops from pass-through points directly in the graph** (click pass-through point → convert to stop) and keeps the graph editable (drag to change times).
 - R22: The time–distance graph places the **origin at the top** of the Y-axis and the **destination at the bottom** (route direction top → bottom).
 - R23: In Fahrplanmanagement hub, the primary create action must reuse the same full-page editor flow by creating a seeded TrainPlan (with default route context) and navigating to `/fahrplan-editor/:planId` with `returnUrl` back to the hub.
+- R24: The Route Builder left panel must use a compact desktop density (smaller typography and reduced vertical spacing) so more stops/segments fit on Full-HD screens without changing workflow behavior.
+- R25: The Route Builder stop list must support a simplified row UX: no separate stop-list headline, origin/destination rows without kind/dwell control row, no separator line between stop rows and the inline insert action, compact and uniform small vertical spacing between row content and inline insert actions, row-level delete affordance at the row end, and automatic role normalization (`first -> origin`, `last -> destination`) after row deletion.
+- R26: In Route Builder, focusing the Start or Ziel input should clear the prefilled selected-op label so users can type immediately; if focus leaves the field empty, the selected-op label is restored.
+- R27: Intermediate stop rows (`stop`/`pass`) must use a compact single-line layout where kind, dwell, move actions, and delete are available inline in the row header; the inline insert trigger between stops must be rendered as a compact action instead of a large button.
+- R28: The stop-list block in Route Builder must use very tight vertical spacing between consecutive entries and avoid a dedicated inner stop-list vertical scrollbar in normal usage; scrolling should be handled by the surrounding panel/section flow.
+- R29: The Route Builder stop-list density should be pushed to the practical minimum (row spacing, control heights, and insert action height) while keeping controls readable and ensuring no visual overlap/clipping between text, controls, and icons.
+- R30: In intermediate stop rows, inline fields `Art` and `Dwell` must use a smaller text size than regular Route Builder form fields to improve compact readability.
+- R31: Compact styling in Route Builder must be applied consistently via shared sizing rules for field heights, icon sizes, and button heights; inline `Art` select values (`Stop`/`Pass`) must remain fully readable without right-side clipping.
+- R32: Entries inside each Route Builder stop row (index, label/fields, inline controls, actions) must be vertically centered within the row height so rows do not look visually shifted.
+- R33: In intermediate stop rows, the stop title must be rendered as two lines (`Name` above `PLC`), and the row action symbols for move up/down and delete must be approximately 40% larger than the previous compact size for better clickability/visibility.
+- R34: Compact Route Builder form fields must not reserve empty subscript/hint space when no hint or validation message is shown, so input content remains vertically centered without hidden bottom spacer offset.
+- R35: In Route Builder `mat-select` controls, the displayed selected value text must use the same compact typography as the corresponding input fields (panel-level fields use panel text size, inline stop controls use inline text size) without appearing larger than neighboring text fields.
+- R36: Opened Route Builder select dropdown options must use a noticeably larger option text size (about +60% vs. compact field text baseline) to improve readability while remaining aligned and non-overlapping in the overlay list.
+- R37: In the Route Builder segment row, the `Speed` field must be right-aligned and use a compact width so label/meta content before it gets maximum horizontal space; when no route selector is available, no empty route-column width should be reserved.
+- R38: In Route Builder segment rows, the segment direction label must be rendered as two lines (`Von` on the first line, `Nach` on the second line) and must not use an inline arrow separator between stop names.
+- R39: In Route Builder segment rows, the segment index (`#1`, `#2`, …) must be displayed before (left of) the stacked `Von/Nach` block, not above it.
+- R40: The editor must provide a new **step 1** before Route Builder for ordering-relevant train attributes, including contextual help (`help` icon + tooltip) for each field.
+- R41: Step 1 field `OTN/Name` must map to train attributes with deterministic logic: if input is numeric `1..99999`, it is stored as OTN; otherwise it is stored as Name and OTN stays empty.
+- R42: Step 1 field `Gueltigkeit` defaults to the current date, uses the existing annual calendar selector (months as rows, weekdays as columns), and may only select dates inside a caller-provided range; when opening the editor, a validity range must always be supplied (for Fahrplanmanagement: current timetable year bounds).
+- R43: Step 1 ordering attributes must be persisted on the train (`TrainPlan.routeMetadata`) and be reused when opening a bestellfall from a train in Fahrplanmanagement, so case creation can prefill/provide these required values.
+- R44: Step 1 field `Gueltigkeit` must allow multi-day selection in the annual calendar; the calendar opens as an overlay/dialog layer and stays open while selecting days, and closes only via explicit close action (or overlay dismissal).
+- R45: Step 1 field `TrafficTypeCode` must be rendered as a dropdown (`mat-select`) with train-type-dependent option sets (e.g. passenger-like options such as S-Bahn for passenger train types), replacing quick-action buttons.
+- R46: Step 1 must provide a dedicated **Formation Builder** section: users choose a `Fahrtyp` (`Triebfahrzeug`, `Wagen`, `PWG`) and see the corresponding vehicle options for that type.
+- R47: For `Triebfahrzeug` and `Wagen`, selectable vehicles use stored technical data (e.g. length/weight/vMax) from defined catalog/master data; for `PWG` users enter length/weight/vMax as manual aggregate values before adding to formation.
+- R48: Formation assembly must support `+` add actions and row-level remove actions, and render a live horizontal train-consist preview with one visual unit per selected vehicle and continuously updated summary metrics.
+- R49: Formation Builder vehicle options must be sourced from vehicle master data (`vehicleTypes`) and mapped by explicit Fahrtyp (`VehicleType.formationServiceType`); for legacy records without this field, category-based mapping (`Lokomotive`/`Triebzug` vs. `Wagen`) is allowed as fallback. Hardcoded vehicle lists are not allowed as primary source.
+- R50: Formation Builder must support applying composition templates from master data (`vehicleCompositions`) as an overgeordnet preset action: applying a template sets/replaces the current formation with expanded template entries (`typeId`, `quantity`) in template order and with technical values from referenced vehicle types.
+- R51: In step 1, Formation Builder layout must be grouped and ordered: template apply (`Formationsvorlage`) is the top, overgeordnet action; manual add controls are below and include `Fahrtyp` plus a dependent `Fahrzeug` dropdown (for non-PWG), so `Fahrtyp` directly controls available vehicle options in the same builder block.
+- R52: Formation Builder must support horizontal drag-and-drop reordering of existing formation units; the changed order is persisted in `orderingContext.vehicleFormation` and is used for the live consist view and subsequent train-first ordering payloads.
+- R53: In step 1 desktop layout, `Zugtyp` and `Zugkategorie` must be positioned below the first row with `OTN/Name`, `Grund`, and `Gueltigkeit` to keep ordering fields visually structured.
+- R54: Step 1 (`Bestellkontext`) must use a compact density profile (smaller paddings, tighter field spacing, and reduced field/control heights) while preserving readability and avoiding visual overlap on Full-HD desktop.
+- R55: Step 1 (`Bestellkontext`) must provide a sticky local header (inside the editor scroll area) with a compact completion/status summary so required-field progress remains visible while scrolling.
+- R56: Step 1 must show required-progress chips for key blocks (`Stammdaten`, `Formation`, `Abrechnung`) with `ok/offen` state derived from the same required logic used for step navigation.
+- R57: All Step-1 action buttons (`Vorlage übernehmen`, `Hinzufügen`, `PWG hinzufügen`, secondary clears) must use one consistent compact button sizing profile (height/padding/icon size), except explicit icon-only actions.
+- R58: In the Formation consist preview, each unit card must show a visible position label (`#1`, `#2`, …) and subtle separators between units to improve quick order scanning.
+- R59: Step 1 must provide quick-clear actions for selected sub-blocks: clear `TrafficType` fields (`TrafficTypeCode`, `TrafficTypeNetwork`), clear current formation list, and clear PWG metric inputs.
+- R60: Step 1 must show inline validation hints under/near fields for required values (at minimum for navigation-critical fields) and these hints must disappear immediately after the field becomes valid.
+- R61: After successful drag-and-drop reorder in Formation preview, UI must provide lightweight immediate feedback (e.g. short status text/snackbar) confirming new position/order.
+- R62: In Full-HD desktop usage, step 1 layout must not produce a page-level horizontal scrollbar; content widths/paddings must stay inside the viewport while preserving the compact layout.
+- R63: Formation units in step 1 must render as inline SVG train-shapes with type-specific geometry and inline text: `Wagen` as rectangle, `Triebfahrzeug` as rectangle with chamfered top-left corner, and `PWG` as distinguishable variant (e.g. dashed rectangle), so users can visually separate consist roles at a glance.
+- R64: In SVG formation units, the second inline text row must show compact technical metrics (`Länge`, `Gewicht`, `vMax`) instead of the vehicle name; detailed labels/values must be available via tooltip with fully written field names.
+- R65: The `Triebfahrzeug` SVG chamfer on the top-left corner must be visually longer/more pronounced than the initial variant to improve immediate recognition.
+- R66: Formation unit layout must stack position marker (`#...`) and remove action vertically in one compact side column to reduce horizontal width and maximize the number of visible units on desktop.
 
 ## Behavior
 - Inputs:
   - `trainPlanId` (required)
   - optional `orderId`/`itemId` for context
+  - validity range (`validityStart`, `validityEnd`) for Step 1 date selection (required by caller)
   - optional timetable-year context when opened via Fahrplanmanagement create action
   - optional `returnUrl` to navigate back
 - Outputs:
   - Drafts stored in `TrainPlan.routeMetadata.timetableDrafts` (schema versioned).
+  - Step 1 ordering context stored in `TrainPlan.routeMetadata` and synchronized with draft persistence.
+  - Validity selection stores both an anchor date (`validityDate`) and the selected date set (`validityDates`) for multi-day handling.
+  - Formation persistence stores both aggregate and detailed values (`serviceType`, `vehicleFormation`, optional PWG aggregate fields) inside `orderingContext`.
   - Updated TrainPlan on auto-save and on explicit Uebernehmen.
 - Edge cases:
   - Missing plan → show error state, no editing.
@@ -45,8 +92,11 @@
   - Network failure on save → show status + retry on next edit.
   - Manual creation entry: missing train number or too few stops → show error, do not create plan.
   - Fahrplanmanagement create entry: seeded TrainPlan creation fails → show error and stay in FM hub.
+  - Compact panel density must preserve readability and control usability on desktop and mobile breakpoints.
+  - Deleting a stop row must not leave inconsistent stop roles; start/end roles are recalculated deterministically.
   - No SOL route available → fall back to straight-line segments with warning/neutral UI.
   - Departure time missing → preview timetable stays hidden or shows placeholders.
+  - Missing/invalid validity range query parameters should fall back to train calendar bounds without breaking editing.
 
 ## Acceptance Criteria
 - AC1: Clicking **Fahrplan bearbeiten** from Auftragsmanagement opens the full-page editor and displays plan context.
@@ -72,7 +122,50 @@
 - AC21: Clicking a pass-through point in the graph converts it into a stop (and the timetable updates accordingly).
 - AC22: The graph renders with the route direction top → bottom (origin above destination).
 - AC23: Clicking the primary create action in Fahrplanmanagement opens the same full-page editor by creating a seeded TrainPlan and forwarding `returnUrl` to `/fahrplanmanager`.
+- AC24: On desktop (e.g. Full-HD), Route Builder left panel shows smaller text and tighter vertical spacing while retaining the same fields/actions and responsive behavior.
+- AC25: In the Route Builder stop list, origin/destination rows are visually reduced to Start/Ziel entry rows (without kind/dwell control row and without a separator line before the inline insert action), and row-to-insert spacing is compact and uniform; deleting any removable row recalculates start/end roles automatically and keeps the route editable.
+- AC26: Clicking into Start or Ziel clears the prefilled label text immediately; if no new value is entered/selected and focus leaves the field, the previous selected-op label is shown again.
+- AC27: Intermediate stop rows render in a compact single-line form (inline kind/dwell/move/delete), and the between-row insert action is visually compact while keeping the same insertion behavior.
+- AC28: With Start + Ziel + intermediate stops present, stop-list rows render with very tight spacing and the stop-list itself does not show a separate inner vertical scrollbar.
+- AC29: In compact desktop usage with multiple intermediate stops, the stop list is denser than before and renders without overlapping labels/icons/inputs.
+- AC30: In intermediate stop rows, `Art` and `Dwell` text renders visibly smaller than standard panel fields while remaining readable.
+- AC31: In intermediate stop rows, `Stop`/`Pass` values in `Art` are fully visible (not clipped), and control/icon/button proportions are visually consistent across Route Builder inputs.
+- AC32: In the Route Builder stop list, row entries are vertically centered per row (including Start/Ziel and intermediate rows), so index, text, and controls appear aligned on the same vertical axis.
+- AC33: In intermediate stop rows, the first line shows the stop name and the second line shows `PLC` information; move up/down and delete symbols are visibly larger (around +40% vs. prior compact icon size) while staying aligned and non-overlapping.
+- AC34: In Route Builder inputs without visible hint/error text, no extra bottom spacer line is reserved by Material subscript layout, and fields appear vertically centered in compact rows.
+- AC35: In Route Builder selects (e.g. `Art`, `Elektrifizierung`, `Alternativen`, segment route select), the visible selected text size matches neighboring field text size and is not visually larger.
+- AC36: In opened Route Builder select overlays, option labels render around 60% larger than compact field text and remain readable without clipping/overlap.
+- AC37: In segment rows, the `Speed` field appears right-aligned in its row and takes less horizontal space than before; rows without route selector show visibly more room for segment label/meta text (no blank route column gap).
+- AC38: Segment rows display origin/destination in a stacked `Von`/`Nach` layout and no longer show the `→` separator in the segment label.
+- AC39: Segment rows show the segment index left of the stacked `Von/Nach` text block (not as a separate line above it).
+- AC40: A new first step (`Bestellkontext`) is visible before Route Builder and contains the required ordering attribute fields with help icons/tooltips.
+- AC41: Entering `OTN/Name` with a numeric value in range `1..99999` stores OTN; entering non-numeric text stores Name and leaves OTN empty.
+- AC42: Clicking `Gueltigkeit` in step 1 opens the annual calendar selector and only allows dates inside the caller-supplied range; Fahrplanmanagement opens the editor with the current timetable-year range.
+- AC43: After saving, ordering attributes are persisted on the train and are reused when creating a bestellfall from that train in Fahrplanmanagement.
+- AC44: In step 1, users can select multiple validity days without the calendar closing after the first click; the calendar is shown as overlay and closes via the explicit close control.
+- AC45: `TrafficTypeCode` is shown as dropdown and its options react to selected `TrainType` (including passenger-like options such as S-Bahn for passenger train types); quick-action buttons are not shown.
+- AC46: Step 1 shows a dedicated Formation Builder block where selecting `Fahrtyp` switches the available vehicle choices to that type.
+- AC47: In `PWG` mode, users can enter manual `Länge`, `Gewicht`, `vMax` and add the aggregate unit; in other modes, selecting a vehicle from catalog/master data and clicking `+` appends it to the formation.
+- AC48: The current formation is shown as a horizontal consist preview with visual vehicle units, each with remove button; adding/removing units updates summary values immediately.
+- AC49: Vehicle choices in Formation Builder are loaded from current master data vehicle types and filtered by selected Fahrtyp using `formationServiceType` (with category fallback for legacy records), without primary hardcoded lists.
+- AC50: Selecting a master-data composition template replaces the current live formation with all template entries (respecting `quantity` and order) and keeps units editable/removable afterward.
+- AC51: In Formation Builder, `Formationsvorlage` is shown at the top as primary action, and manual adding is directly below with `Fahrtyp` controlling the options in `Fahrzeug` before `Hinzufügen`.
+- AC52: In Formation Builder, users can drag existing units to a new position in the horizontal consist; after drop, visual order and persisted `vehicleFormation` order match immediately.
+- AC53: In step 1 desktop view, users see `OTN/Name`, `Grund`, and `Gueltigkeit` in the top row; `Zugtyp` and `Zugkategorie` are rendered in the row below.
+- AC54: In step 1 desktop view, `Bestellkontext` consumes visibly less vertical space than before (tighter row spacing and compact field heights) without clipped labels/values or overlapping controls.
+- AC55: While scrolling in step 1, the local header remains sticky and keeps a compact required-progress status visible.
+- AC56: Step 1 shows at least three required-progress chips (`Stammdaten`, `Formation`, `Abrechnung`) and each chip updates to `ok` once its required fields are filled.
+- AC57: Step-1 action buttons for formation/template/manual actions use consistent compact dimensions and aligned icon/text sizing.
+- AC58: In the formation consist preview, each unit card shows its current sequence number (`#...`) and separators make unit boundaries/order easier to read.
+- AC59: Users can clear `TrafficType` values via one action, clear PWG metric inputs via one action, and clear all formation units via one action; each action updates state instantly.
+- AC60: Required step-1 fields show inline validation hints when empty and remove the hint immediately after valid input/selection.
+- AC61: Reordering formation units via drag-and-drop shows immediate micro-feedback that the new order was applied.
+- AC62: On Full-HD desktop, opening step 1 does not show a page-level horizontal scrollbar; all content remains horizontally within the visible viewport.
+- AC63: In Formation Builder consist preview, vehicle units are rendered as SVG shapes with embedded text and distinct forms per type (`Wagen` rectangle, `Triebfahrzeug` chamfered top-left rectangle, `PWG` distinguishable variant), while drag/drop and remove actions keep working.
+- AC64: In formation SVG units, users see compact `L/G/vMax` metrics in the unit text (instead of name); hovering shows a tooltip with fully written details (`Länge`, `Gewicht`, `vMax`, etc.).
+- AC65: Triebfahrzeug units show a clearly longer top-left chamfer than before and are distinguishable from wagon rectangles at a glance.
+- AC66: Position marker and remove action are rendered vertically stacked in a compact side column, and more units fit horizontally in the same viewport width than with the previous side-by-side layout.
 
 ## Notes
-- Dependencies: Leaflet (map), OSM tile layer, topology search API.
+- Dependencies: Leaflet (map), OSM tile layer, topology search API, master data resource snapshot (`vehicleTypes`, `vehicleCompositions`).
 - Migration: Drafts are stored in JSON (routeMetadata) with schemaVersion for future migration.

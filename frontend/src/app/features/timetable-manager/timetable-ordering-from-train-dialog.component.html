@@ -7,6 +7,44 @@
     <span class="summary-pill">Kalender {{ validityLabel() }}</span>
   </div>
 
+  <section class="ordering-from-train__required">
+    <div class="ordering-from-train__required-head">
+      <strong>Bestellkontext aus Zug</strong>
+      <span
+        class="required-state"
+        [class.required-state--ok]="orderingRequiredComplete()"
+        [class.required-state--warn]="!orderingRequiredComplete()"
+      >
+        {{ orderingRequiredComplete() ? 'vollständig' : 'unvollständig' }}
+      </span>
+    </div>
+    <div class="ordering-from-train__required-list">
+      @for (item of orderingRequiredStatus(); track item.key) {
+        <div class="required-item" [class.required-item--missing]="!item.present">
+          <mat-icon>{{ item.present ? 'check_circle' : 'error_outline' }}</mat-icon>
+          <span class="required-item__label">{{ item.label }}</span>
+          @if (item.value) {
+            <small>{{ item.value }}</small>
+          }
+        </div>
+      }
+    </div>
+    @if (missingOrderingRequiredStatus().length) {
+      <div class="ordering-from-train__required-hint">
+        <p>
+          Fehlend: {{ missingOrderingRequiredSummary() }}.
+          Bitte im Fahrplan-Editor Schritt 1 ergänzen.
+        </p>
+        @if (canOpenEditorForCompletion()) {
+          <button mat-stroked-button type="button" (click)="openEditorForCompletion()">
+            <mat-icon>open_in_new</mat-icon>
+            Im Fahrplan-Editor ergänzen
+          </button>
+        }
+      </div>
+    }
+  </section>
+
   <div class="ordering-from-train__grid">
     <mat-form-field appearance="outline">
       <mat-label>Profil</mat-label>

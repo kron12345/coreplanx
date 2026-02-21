@@ -762,6 +762,14 @@ export class TimetableOrderingService {
       .sort((a, b) => b.sequence - a.sequence)
       .find((stop) => stop.type === 'destination') ??
       plan.stops.slice().sort((a, b) => b.sequence - a.sequence)[0];
+    const ordering = plan.routeMetadata?.orderingContext;
+    const validityDates =
+      ordering?.validityDates
+        ?.map((value) => value?.trim())
+        .filter((value): value is string => !!value)
+        .sort() ?? [];
+    const anchorValidityDate =
+      ordering?.validityDate?.trim() || validityDates[0] || undefined;
 
     return {
       responsibleRu: plan.responsibleRu,
@@ -773,6 +781,36 @@ export class TimetableOrderingService {
       ttrPhase: plan.status,
       requestedDepartureTime:
         origin?.departureTime ?? origin?.arrivalTime ?? undefined,
+      otnOrNameInput: ordering?.otnOrNameInput ?? undefined,
+      operationalTrainNumber: ordering?.operationalTrainNumber ?? undefined,
+      trainName: ordering?.trainName ?? undefined,
+      reasonOfReference: ordering?.reasonOfReference ?? undefined,
+      validityDate: anchorValidityDate,
+      validityDates: validityDates.length ? validityDates : undefined,
+      trainType: ordering?.trainType ?? undefined,
+      trafficTypeCode: ordering?.trafficTypeCode ?? undefined,
+      trafficTypeNetwork: ordering?.trafficTypeNetwork ?? undefined,
+      serviceType: ordering?.serviceType ?? undefined,
+      vehicleFormation:
+        ordering?.vehicleFormation && ordering.vehicleFormation.length
+          ? ordering.vehicleFormation.map((entry) => ({
+              entryId: entry.entryId,
+              serviceType: entry.serviceType,
+              code: entry.code,
+              label: entry.label,
+              source: entry.source,
+              lengthMeters: entry.lengthMeters,
+              weightTons: entry.weightTons,
+              maxSpeedKph: entry.maxSpeedKph,
+            }))
+          : undefined,
+      pwgLengthMeters: ordering?.pwgLengthMeters ?? undefined,
+      pwgWeightTons: ordering?.pwgWeightTons ?? undefined,
+      pwgMaxSpeedKph: ordering?.pwgMaxSpeedKph ?? undefined,
+      tractionOrPwg: ordering?.tractionOrPwg ?? undefined,
+      debtorCode: ordering?.debtorCode ?? undefined,
+      distributionList: ordering?.distributionList ?? undefined,
+      freeProcessingReason: ordering?.freeProcessingReason ?? undefined,
     };
   }
 

@@ -6,13 +6,70 @@ import type { OrderingProcessProfileId } from '../../core/api/timetable-ordering
 import { MATERIAL_IMPORTS } from '../../core/material.imports.imports';
 import type { TimetableHubRecord } from '../../core/services/timetable-hub.service';
 import type { Timetable } from '../../core/models/timetable.model';
+import type { TimetableOrderingContext } from '../../core/models/timetable-ordering-context.model';
+
+type RequiredOrderingKey =
+  | 'otnOrNameInput'
+  | 'reasonOfReference'
+  | 'validityDate'
+  | 'trainType'
+  | 'trafficTypeCode'
+  | 'serviceType'
+  | 'debtorCode'
+  | 'distributionList'
+  | 'freeProcessingReason';
+
+type RequiredOrderingStatus = {
+  key: RequiredOrderingKey;
+  label: string;
+  value: string;
+  present: boolean;
+};
+
+const REQUIRED_ORDERING_FIELDS: Array<{
+  key: RequiredOrderingKey;
+  label: string;
+}> = [
+  { key: 'otnOrNameInput', label: 'OTN/Name' },
+  { key: 'reasonOfReference', label: 'ReasonOfReference' },
+  { key: 'validityDate', label: 'Gültigkeit' },
+  { key: 'trainType', label: 'TrainType' },
+  { key: 'trafficTypeCode', label: 'TrafficTypeCode' },
+  { key: 'serviceType', label: 'Fahrtyp' },
+  { key: 'debtorCode', label: 'Debitorencode' },
+  { key: 'distributionList', label: 'Distributionsliste' },
+  { key: 'freeProcessingReason', label: 'Grund kostenlose Bearbeitung' },
+];
 
 export interface TimetableOrderingFromTrainDialogData {
   record: TimetableHubRecord;
   timetable: Timetable | null;
+  orderingContext?: TimetableOrderingContext | null;
 }
 
-export interface TimetableOrderingFromTrainDialogResult {
+type TimetableOrderingFromTrainDialogBaseResult = {
+  intent: 'create' | 'open_editor';
+  pathRequestId: string;
+  pathId?: string;
+};
+
+export type TimetableOrderingFromTrainDialogResult =
+  | (TimetableOrderingFromTrainDialogBaseResult & {
+      intent: 'create';
+      profileId: OrderingProcessProfileId;
+      title: string;
+      description?: string;
+      annualRequestWindow?: string;
+      requestedDepartureTime?: string;
+      tttPhase?: string;
+      ttrPhase?: string;
+    })
+  | (TimetableOrderingFromTrainDialogBaseResult & {
+      intent: 'open_editor';
+    });
+
+export interface TimetableOrderingFromTrainCreateResult {
+  intent: 'create';
   profileId: OrderingProcessProfileId;
   title: string;
   description?: string;
@@ -22,6 +79,12 @@ export interface TimetableOrderingFromTrainDialogResult {
   requestedDepartureTime?: string;
   tttPhase?: string;
   ttrPhase?: string;
+}
+
+export interface TimetableOrderingFromTrainOpenEditorResult {
+  intent: 'open_editor';
+  pathRequestId: string;
+  pathId?: string;
 }
 
 @Component({
@@ -77,6 +140,34 @@ export class TimetableOrderingFromTrainDialogComponent {
     }
     return `${days[0]} – ${days[days.length - 1] ?? days[0]}`;
   });
+  readonly orderingRequiredStatus = computed<RequiredOrderingStatus[]>(() =>
+    REQUIRED_ORDERING_FIELDS.map((field) => {
+      const value = this.readOrderingRequiredValue(
+        this.data.orderingContext ?? null,
+        field.key,
+      );
+      return {
+        key: field.key,
+        label: field.label,
+        value,
+        present: value.length > 0,
+      };
+    }),
+  );
+  readonly missingOrderingRequiredStatus = computed(() =>
+    this.orderingRequiredStatus().filter((item) => !item.present),
+  );
+  readonly missingOrderingRequiredSummary = computed(() =>
+    this.missingOrderingRequiredStatus()
+      .map((item) => item.label)
+      .join(', '),
+  );
+  readonly orderingRequiredComplete = computed(
+    () => this.missingOrderingRequiredStatus().length === 0,
+  );
+  readonly canOpenEditorForCompletion = computed(
+    () => this.missingOrderingRequiredStatus().length > 0,
+  );
 
   cancel(): void {
     this.dialogRef.close(undefined);
@@ -100,7 +191,8 @@ export class TimetableOrderingFromTrainDialogComponent {
       return;
     }
 
-    const result: TimetableOrderingFromTrainDialogResult = {
+    const result: TimetableOrderingFromTrainCreateResult = {
+      intent: 'create',
       profileId: value.profileId,
       title,
       description: this.normalizeOptional(value.description),
@@ -118,6 +210,21 @@ export class TimetableOrderingFromTrainDialogComponent {
       ttrPhase:
         this.normalizeOptional(value.ttrPhase) ??
         this.defaultTtrPhase(value.profileId),
+    };
+    this.dialogRef.close(result);
+  }
+
+  openEditorForCompletion(): void {
+    const value = this.form.getRawValue();
+    const pathRequestId =
+      value.pathRequestId.trim() || this.defaultPathRequestId().trim();
+    if (!pathRequestId) {
+      return;
+    }
+    const result: TimetableOrderingFromTrainOpenEditorResult = {
+      intent: 'open_editor',
+      pathRequestId,
+      pathId: this.normalizeOptional(value.pathId),
     };
     this.dialogRef.close(result);
   }
@@ -179,5 +286,29 @@ export class TimetableOrderingFromTrainDialogComponent {
   private normalizeOptional(value: string | null | undefined): string | undefined {
     const trimmed = value?.trim();
     return trimmed ? trimmed : undefined;
+  }
+
+  private readOrderingRequiredValue(
+    context: TimetableOrderingContext | null,
+    key: RequiredOrderingKey,
+  ): string {
+    if (!context) {
+      return '';
+    }
+    if (key === 'validityDate') {
+      const dates = (context.validityDates ?? [])
+        .map((entry) => entry?.trim())
+        .filter((entry): entry is string => !!entry)
+        .sort();
+      if (dates.length > 1) {
+        return `${dates.length} Tage (${dates[0]} – ${dates[dates.length - 1]})`;
+      }
+      if (dates.length === 1) {
+        return dates[0];
+      }
+      return context.validityDate?.trim() ?? '';
+    }
+    const value = context[key];
+    return typeof value === 'string' ? value.trim() : '';
   }
 }
